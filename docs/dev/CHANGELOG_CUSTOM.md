@@ -1,3 +1,36 @@
+## 2026-08-15 - fix(gateway): Codex remote compact V2 API-key fallback
+
+### What
+- Third-party API-key `/v1/responses` compact now rewrites `compaction_trigger` into a summary instruction, expands historical `compaction` / `context_compaction` into a visible `<conversation_summary>` user message, and — when the upstream returns 0 compaction items — buffers the body and synthesizes exactly one `type=compaction` (`summary_text` only, no fake `encrypted_content`).
+- Covers native Responses, passthrough, and Responses→Chat fallback. Official OAuth, Grok, and Claude-GPT are never rewritten. Empty summaries fail explicitly instead of shipping an empty compaction.
+- Admin runtime switch **默认开**：系统设置 → 网关转发 → 「Codex 远程压缩兜底」（KV `codex_compact_v2_fallback_enabled`，60s 进程缓存，不是 public settings，也不是 `config.yaml`）。
+
+### Why
+Codex Desktop/CLI `remote_compaction_v2` requires exactly one `ResponseItem::Compaction`. Third-party upstreams treat compact as a normal chat and return `reasoning` + `message` (`got 0 from 2`). Official merged #5641 only fixes V2 routing; unmerged #5651 is CC-only and does not cover this fork's default native `/v1/responses` path.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Compact|Compaction|CodexCompactV2" -count=1`
+- `go test -tags=unit ./internal/handler -run Compact -count=1`
+
+### Affected files
+`backend/internal/service/openai_gateway_codex_compact_v2.go`,
+`backend/internal/service/openai_gateway_codex_compact_v2_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_gateway_responses_chat_fallback.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/settings_view.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/gateway_dateline_normalization_test.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/handler/dto/settings.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-15 - deploy: production v0.1.224
 
 ### What

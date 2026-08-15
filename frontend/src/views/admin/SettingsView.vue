@@ -3635,6 +3635,18 @@
                 </div>
               </div>
 
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.codexCompactV2Fallback") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.codexCompactV2FallbackHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.codex_compact_v2_fallback_enabled" />
+              </div>
+
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-center">
                 <div>
                   <label
@@ -6737,6 +6749,7 @@ const form = reactive<SettingsForm>({
   enable_client_dateline_normalization: true,
   openai_responses_flush_preamble: false,
   openai_responses_flush_preamble_user_ids: [] as number[],
+  codex_compact_v2_fallback_enabled: true,
   gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
     enabled: false,
@@ -7830,6 +7843,7 @@ async function saveSettings() {
       openai_responses_flush_preamble: form.openai_responses_flush_preamble,
       openai_responses_flush_preamble_user_ids:
         form.openai_responses_flush_preamble_user_ids || [],
+      codex_compact_v2_fallback_enabled: form.codex_compact_v2_fallback_enabled,
       gateway_network_retry_max: Math.max(
         0,
         Math.min(10, Math.floor(Number(form.gateway_network_retry_max) || 0)),

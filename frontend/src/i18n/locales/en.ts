@@ -7221,6 +7221,8 @@ const enBase = {
         flushPreambleHint: 'When enabled, native /v1/responses sends the first response.created / in_progress frames to downstream immediately so clients such as new-api can stamp first-token on them. After that, silent account failover is no longer possible. Default off keeps the current buffer-for-failover behavior.',
         flushPreambleUserIds: 'Enable only for these users',
         flushPreambleUserIdsHint: 'While the site-wide toggle is off, only listed users flush Responses preamble immediately. Turning the site-wide toggle on applies it to everyone. Add your admin user here for a controlled test without enabling it globally.',
+        codexCompactV2Fallback: 'Codex remote compact fallback',
+        codexCompactV2FallbackHint: 'On by default. When a third-party API-key upstream returns no type=compaction item, the gateway folds the visible summary into exactly one compaction item for Codex and expands historical compaction items on the next turn. Official OAuth, Grok, and Claude-GPT are never rewritten. Turning this off restores the previous behavior without a restart.',
         networkRetryMax: 'Maximum upstream network retries',
         networkRetryMaxHint: 'Retries only connection failures, timeouts, EOF, and similar network errors before any HTTP response is received. Use 0 to disable. Default 2, maximum 10.',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',

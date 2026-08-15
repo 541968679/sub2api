@@ -180,6 +180,8 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiExperimentalScheduler.sessionStickyWeight": "session_hash 粘性",
     "admin.settings.gatewayForwarding.flushPreamble": "立即下发 Responses 开场事件",
     "admin.settings.gatewayForwarding.flushPreambleUserIds": "仅这些用户开启",
+    "admin.settings.gatewayForwarding.codexCompactV2Fallback": "Codex 远程压缩兜底",
+    "admin.settings.gatewayForwarding.codexCompactV2FallbackHint": "默认开启。",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
     "admin.settings.platformQuota.daily": "日限额 (USD)",
@@ -408,6 +410,7 @@ const baseSettingsResponse = {
   enable_client_dateline_normalization: true,
   openai_responses_flush_preamble: false,
   openai_responses_flush_preamble_user_ids: [],
+  codex_compact_v2_fallback_enabled: true,
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -706,6 +709,24 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         enable_client_dateline_normalization: false,
+      }),
+    );
+  });
+
+  it("submits Codex compact v2 fallback setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      codex_compact_v2_fallback_enabled: false,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        codex_compact_v2_fallback_enabled: false,
       }),
     );
   });

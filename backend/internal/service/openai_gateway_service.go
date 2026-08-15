@@ -2587,6 +2587,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		return nil, errors.New("openai ws v1 is temporarily unsupported; use ws v2")
 	}
+	if wsDecision.Transport != OpenAIUpstreamTransportResponsesWebsocketV2 {
+		if prep := s.prepareCodexCompactV2Fallback(ctx, c, account, body); prep.Applied || prep.SynthesizeResponse {
+			body = prep.Body
+			originalBody = prep.Body
+		}
+	}
 	passthroughEnabled := account.IsOpenAIPassthroughEnabled()
 	if passthroughEnabled {
 		// 透传分支只需要轻量提取字段，避免热路径全量 Unmarshal。
@@ -4270,6 +4276,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
+	if usage, responseID, handled := s.writeMarkedCodexCompactV2Stream(c, account, resp, originalModel, "responses_passthrough"); handled {
+		return &openaiStreamingResultPassthrough{usage: &usage, responseID: responseID}, nil
+	}
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
 
@@ -4529,6 +4538,11 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
 	}
+	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, nil, body, originalModel, "responses_passthrough_json"); empty {
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
+	} else if replace {
+		body = next
+	}
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	}
@@ -4545,6 +4559,27 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 // preserving passthrough payloads, except compact-only model remapping may
 // rewrite model fields back to the original requested model.
 func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
+	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, nil, body, originalModel, "responses_passthrough_sse_json"); empty {
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
+	} else if replace {
+		usage := &OpenAIUsage{}
+		if parsed, ok := extractOpenAIUsageFromJSONBytes(next); ok {
+			*usage = parsed
+		}
+		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
+			next = s.replaceModelInResponseBody(next, mappedModel, originalModel)
+		}
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
+		}
+		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
+		return &openaiNonStreamingResultPassthrough{
+			OpenAIUsage: usage,
+			usage:       usage,
+			responseID:  extractOpenAIResponseIDFromJSONBytes(next),
+		}, nil
+	}
 	bodyText := string(body)
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 
@@ -5116,6 +5151,9 @@ type openaiNonStreamingResult struct {
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
+	if usage, responseID, handled := s.writeMarkedCodexCompactV2Stream(c, account, resp, originalModel, "responses"); handled {
+		return &openaiStreamingResult{usage: &usage, responseID: responseID}, nil
+	}
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
@@ -5954,6 +5992,11 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		return nil, fmt.Errorf("parse response: invalid json response")
 	}
 	usage := &usageValue
+	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, account, body, originalModel, "responses_json"); empty {
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
+	} else if replace {
+		body = next
+	}
 	if normalized, changed := normalizeCompletedImageGenerationOutputStatuses(body, "output"); changed {
 		body = normalized
 	}
@@ -5995,6 +6038,27 @@ func isEventStreamResponse(header http.Header) bool {
 }
 
 func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
+	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, nil, body, originalModel, "responses_sse_json"); empty {
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
+	} else if replace {
+		usage := &OpenAIUsage{}
+		if parsed, ok := extractOpenAIUsageFromJSONBytes(next); ok {
+			*usage = parsed
+		}
+		if originalModel != mappedModel {
+			next = s.replaceModelInResponseBody(next, mappedModel, originalModel)
+		}
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
+		}
+		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
+		return &openaiNonStreamingResult{
+			OpenAIUsage: usage,
+			usage:       usage,
+			responseID:  extractOpenAIResponseIDFromJSONBytes(next),
+		}, nil
+	}
 	bodyText := string(body)
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 

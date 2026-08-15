@@ -129,6 +129,7 @@ type cachedGatewayForwardingSettings struct {
 	clientDatelineNormalization  bool
 	flushPreamble                bool
 	flushPreambleUserIDs         []int64
+	codexCompactV2Fallback       bool
 	networkRetryMax              int
 	expiresAt                    int64 // unix nano
 }
@@ -1547,6 +1548,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	updates[SettingKeyOpenAIResponsesFlushPreamble] = strconv.FormatBool(settings.OpenAIResponsesFlushPreamble)
+	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
 	if err != nil {
@@ -1687,6 +1689,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		clientDatelineNormalization:  settings.EnableClientDatelineNormalization,
 		flushPreamble:                settings.OpenAIResponsesFlushPreamble,
 		flushPreambleUserIDs:         append([]int64(nil), settings.OpenAIResponsesFlushPreambleUserIDs...),
+		codexCompactV2Fallback:       settings.CodexCompactV2FallbackEnabled,
 		networkRetryMax:              ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax),
 		expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
@@ -1819,14 +1822,14 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 }
 
 type gatewayForwardingSettingsResult struct {
-	fp, mp, cch, cacheTTL1h, normalizeDateline, flushPreamble bool
-	flushPreambleUserIDs                                      []int64
-	networkRetryMax                                           int
+	fp, mp, cch, cacheTTL1h, normalizeDateline, flushPreamble, compactV2Fallback bool
+	flushPreambleUserIDs                                                         []int64
+	networkRetryMax                                                              int
 }
 
 func gatewayForwardingSettingsFromCache(cached *cachedGatewayForwardingSettings) gatewayForwardingSettingsResult {
 	if cached == nil {
-		return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
+		return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, compactV2Fallback: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
 	}
 	return gatewayForwardingSettingsResult{
 		fp:                   cached.fingerprintUnification,
@@ -1835,6 +1838,7 @@ func gatewayForwardingSettingsFromCache(cached *cachedGatewayForwardingSettings)
 		cacheTTL1h:           cached.anthropicCacheTTL1hInjection,
 		normalizeDateline:    cached.clientDatelineNormalization,
 		flushPreamble:        cached.flushPreamble,
+		compactV2Fallback:    cached.codexCompactV2Fallback,
 		flushPreambleUserIDs: append([]int64(nil), cached.flushPreambleUserIDs...),
 		networkRetryMax:      cached.networkRetryMax,
 	}
@@ -1862,6 +1866,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			SettingKeyEnableClientDatelineNormalization,
 			SettingKeyOpenAIResponsesFlushPreamble,
 			SettingKeyOpenAIResponsesFlushPreambleUserIDs,
+			SettingKeyCodexCompactV2FallbackEnabled,
 			SettingKeyGatewayNetworkRetryMax,
 		})
 		if err != nil {
@@ -1873,10 +1878,11 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 				anthropicCacheTTL1hInjection: false,
 				clientDatelineNormalization:  true,
 				flushPreamble:                false,
+				codexCompactV2Fallback:       true,
 				networkRetryMax:              GatewayNetworkRetryMaxDefault,
 				expiresAt:                    time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
 			})
-			return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}, nil
+			return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, compactV2Fallback: true, networkRetryMax: GatewayNetworkRetryMaxDefault}, nil
 		}
 		fp := true
 		if v, ok := values[SettingKeyEnableFingerprintUnification]; ok && v != "" {
@@ -1888,6 +1894,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		normalizeDateline := values[SettingKeyEnableClientDatelineNormalization] != "false"
 		flushPreamble := values[SettingKeyOpenAIResponsesFlushPreamble] == "true"
 		flushPreambleUserIDs := parseOpenAIResponsesFlushPreambleUserIDs(values[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
+		compactV2Fallback := values[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 		networkRetryMax := ParseGatewayNetworkRetryMax(values[SettingKeyGatewayNetworkRetryMax])
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 			fingerprintUnification:       fp,
@@ -1897,15 +1904,16 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			clientDatelineNormalization:  normalizeDateline,
 			flushPreamble:                flushPreamble,
 			flushPreambleUserIDs:         flushPreambleUserIDs,
+			codexCompactV2Fallback:       compactV2Fallback,
 			networkRetryMax:              networkRetryMax,
 			expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 		})
-		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, flushPreambleUserIDs: append([]int64(nil), flushPreambleUserIDs...), networkRetryMax: networkRetryMax}, nil
+		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, compactV2Fallback: compactV2Fallback, flushPreambleUserIDs: append([]int64(nil), flushPreambleUserIDs...), networkRetryMax: networkRetryMax}, nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
 	}
-	return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
+	return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, compactV2Fallback: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
 }
 
 // GetGatewayForwardingSettings returns cached gateway forwarding settings.
@@ -1942,6 +1950,15 @@ func (s *SettingService) IsOpenAIResponsesFlushPreambleEnabled(ctx context.Conte
 	}
 	userID, _ := ctx.Value(ctxkey.UserID).(int64)
 	return openAIResponsesFlushPreambleUserMatches(cached.flushPreambleUserIDs, userID)
+}
+
+// IsCodexCompactV2FallbackEnabled reports whether API-key Codex remote
+// compaction v2 fallback is on. Missing key defaults to true.
+func (s *SettingService) IsCodexCompactV2FallbackEnabled(ctx context.Context) bool {
+	if s == nil {
+		return true
+	}
+	return s.getGatewayForwardingSettingsCached(ctx).compactV2Fallback
 }
 
 func parseOpenAIResponsesFlushPreambleUserIDs(raw string) []int64 {
@@ -2437,6 +2454,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEnableClientDatelineNormalization:         "true",
 		SettingKeyOpenAIResponsesFlushPreamble:              "false",
 		SettingKeyOpenAIResponsesFlushPreambleUserIDs:       "[]",
+		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -2810,6 +2828,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableClientDatelineNormalization = settings[SettingKeyEnableClientDatelineNormalization] != "false"
 	result.OpenAIResponsesFlushPreamble = settings[SettingKeyOpenAIResponsesFlushPreamble] == "true"
 	result.OpenAIResponsesFlushPreambleUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
+	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])

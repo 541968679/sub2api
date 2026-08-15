@@ -160,6 +160,7 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization   bool    `json:"enable_client_dateline_normalization"`
 	OpenAIResponsesFlushPreamble        bool    `json:"openai_responses_flush_preamble"`
 	OpenAIResponsesFlushPreambleUserIDs []int64 `json:"openai_responses_flush_preamble_user_ids"`
+	CodexCompactV2FallbackEnabled       bool    `json:"codex_compact_v2_fallback_enabled"`
 	GatewayNetworkRetryMax              int     `json:"gateway_network_retry_max"`
 
 	// Web Search Emulation

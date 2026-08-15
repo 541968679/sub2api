@@ -103,3 +103,33 @@ func TestOpenAIResponsesFlushPreambleSettingDefaultOff(t *testing.T) {
 	require.Equal(t, []int64{1, 2}, normalizeOpenAIResponsesFlushPreambleUserIDs([]int64{1, 1, 0, -3, 2}))
 	require.False(t, openAIResponsesFlushPreambleUserMatches(nil, 1))
 }
+
+func TestCodexCompactV2FallbackSettingDefaultOn(t *testing.T) {
+	prev := gatewayForwardingCache.Load()
+	t.Cleanup(func() {
+		if prev != nil {
+			gatewayForwardingCache.Store(prev)
+			return
+		}
+		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	})
+
+	repo := &gatewayTTLSettingRepo{data: map[string]string{}}
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc := NewSettingService(repo, &config.Config{})
+	ctx := context.Background()
+
+	require.True(t, svc.IsCodexCompactV2FallbackEnabled(ctx))
+	settings, err := svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.True(t, settings.CodexCompactV2FallbackEnabled)
+	require.True(t, (*SettingService)(nil).IsCodexCompactV2FallbackEnabled(ctx))
+
+	repo.data[SettingKeyCodexCompactV2FallbackEnabled] = "false"
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	require.False(t, svc.IsCodexCompactV2FallbackEnabled(ctx))
+
+	settings, err = svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, settings.CodexCompactV2FallbackEnabled)
+}

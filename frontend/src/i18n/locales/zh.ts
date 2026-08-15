@@ -6865,6 +6865,8 @@ const zhBase = {
         flushPreambleHint: '开启后，原生 /v1/responses 的第一帧 response.created / in_progress 会立刻发给下游（new-api 可用其作为首字时间）。开启后流一旦开始就不能再无感换号。默认关闭，保持现有缓冲与故障转移窗口。',
         flushPreambleUserIds: '仅这些用户开启',
         flushPreambleUserIdsHint: '全站开关关闭时，只有名单内用户会立刻下发 Responses 开场事件；打开全站后所有人生效。灰度时把管理员账号加进名单即可，不必打开全站开关。',
+        codexCompactV2Fallback: 'Codex 远程压缩兜底',
+        codexCompactV2FallbackHint: '默认开启。第三方 API Key 上游不会返回 type=compaction 时，网关把摘要收成恰好 1 个 compaction 再给 Codex，并在下一轮把历史 compaction 展开成可见摘要。官方 OAuth / Grok / Claude-GPT 不会改写。关闭后立即回到改前行为，无需重启。',
         networkRetryMax: '上游网络错误最大重试次数',
         networkRetryMaxHint: '仅在连接失败、超时、EOF 等未收到 HTTP 响应的网络错误时重试；0 表示关闭，默认 2，最大 10。',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',

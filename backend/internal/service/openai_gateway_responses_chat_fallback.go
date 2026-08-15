@@ -28,6 +28,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	body []byte,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
+	if prep := s.prepareCodexCompactV2Fallback(ctx, c, account, body); prep.Applied || prep.SynthesizeResponse {
+		body = prep.Body
+	}
 
 	var responsesReq apicompat.ResponsesRequest
 	if err := json.Unmarshal(body, &responsesReq); err != nil {
@@ -74,7 +77,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
 	chatReq.Model = upstreamModel
-	if clientStream {
+	if isCodexCompactV2FallbackMarked(c) {
+		chatReq.Stream = false
+		chatReq.StreamOptions = nil
+	} else if clientStream {
 		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
 	}
 
@@ -122,10 +128,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+apiKey)
-	if clientStream {
-		upstreamReq.Header.Set("Accept", "text/event-stream")
-	} else {
+	if isCodexCompactV2FallbackMarked(c) || !clientStream {
 		upstreamReq.Header.Set("Accept", "application/json")
+	} else {
+		upstreamReq.Header.Set("Accept", "text/event-stream")
 	}
 	for key, values := range c.Request.Header {
 		lowerKey := strings.ToLower(key)
@@ -200,6 +206,11 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		return s.handleErrorResponse(ctx, resp, c, account, chatBody)
 	}
 
+	if isCodexCompactV2FallbackMarked(c) {
+		result, compactErr := s.finishCodexCompactV2FromChat(c, account, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, clientStream, startTime)
+		stageClk.Complete(c)
+		return result, compactErr
+	}
 	if clientStream {
 		result, streamErr := s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 		stageClk.Complete(c)

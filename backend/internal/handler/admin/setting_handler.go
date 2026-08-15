@@ -248,6 +248,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           settings.OpenAIResponsesFlushPreamble,
 		OpenAIResponsesFlushPreambleUserIDs:                    settings.OpenAIResponsesFlushPreambleUserIDs,
+		CodexCompactV2FallbackEnabled:                          settings.CodexCompactV2FallbackEnabled,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -580,6 +581,7 @@ type UpdateSettingsRequest struct {
 	EnableClientDatelineNormalization   *bool    `json:"enable_client_dateline_normalization"`
 	OpenAIResponsesFlushPreamble        *bool    `json:"openai_responses_flush_preamble"`
 	OpenAIResponsesFlushPreambleUserIDs *[]int64 `json:"openai_responses_flush_preamble_user_ids"`
+	CodexCompactV2FallbackEnabled       *bool    `json:"codex_compact_v2_fallback_enabled"`
 	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
@@ -1529,6 +1531,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIResponsesFlushPreambleUserIDs
 		}(),
+		CodexCompactV2FallbackEnabled: func() bool {
+			if req.CodexCompactV2FallbackEnabled != nil {
+				return *req.CodexCompactV2FallbackEnabled
+			}
+			return previousSettings.CodexCompactV2FallbackEnabled
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1911,6 +1919,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           updatedSettings.OpenAIResponsesFlushPreamble,
 		OpenAIResponsesFlushPreambleUserIDs:                    updatedSettings.OpenAIResponsesFlushPreambleUserIDs,
+		CodexCompactV2FallbackEnabled:                          updatedSettings.CodexCompactV2FallbackEnabled,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
@@ -2355,6 +2364,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if !equalInt64Slice(before.OpenAIResponsesFlushPreambleUserIDs, after.OpenAIResponsesFlushPreambleUserIDs) {
 		changed = append(changed, "openai_responses_flush_preamble_user_ids")
+	}
+	if before.CodexCompactV2FallbackEnabled != after.CodexCompactV2FallbackEnabled {
+		changed = append(changed, "codex_compact_v2_fallback_enabled")
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")

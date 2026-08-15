@@ -171,6 +171,7 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization   bool    // 是否归一化 Anthropic OAuth/SetupToken 请求中的客户端 dateline 指纹（默认 true）
 	OpenAIResponsesFlushPreamble        bool    // 是否立即向下游 flush Responses preamble（默认 false，保留换号窗口）
 	OpenAIResponsesFlushPreambleUserIDs []int64 // 全站关闭时仍立即下发 preamble 的用户 ID 白名单
+	CodexCompactV2FallbackEnabled       bool    // APIKey 上为 Codex remote compact v2 合成 compaction（默认 true）
 
 	GatewayNetworkRetryMax int // network transport error retry count (0 disables, default 2)
 

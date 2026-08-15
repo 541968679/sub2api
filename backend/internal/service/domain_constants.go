@@ -460,6 +460,10 @@ const (
 	// SettingKeyOpenAIResponsesFlushPreambleUserIDs is a JSON int64 array.
 	// When the global switch is off, only these users get preamble flush.
 	SettingKeyOpenAIResponsesFlushPreambleUserIDs = "openai_responses_flush_preamble_user_ids"
+	// SettingKeyCodexCompactV2FallbackEnabled is the admin runtime switch for
+	// synthesizing Codex remote compaction v2 items on API-key upstreams.
+	// Default true. Stored in Settings KV; not a public setting.
+	SettingKeyCodexCompactV2FallbackEnabled = "codex_compact_v2_fallback_enabled"
 
 	// Balance Low Notification
 	SettingKeyBalanceLowNotifyEnabled     = "balance_low_notify_enabled"      // 全局开关
