@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-15 | `v0.1.224` | `77647f9c1` | `ghcr.io/541968679/sub2api:0.1.224` | `0.1.224` | running, healthy, digest `sha256:0ec2009431043917ac065d2fc9a3118fe5aa98504ef7161a713cbaf0082b0c46`, internal `/health` OK; admin user pin-to-top + live account quality chips |
+| 2026-08-15 | `v0.1.225` | `be9a3208f` | `ghcr.io/541968679/sub2api:0.1.225` | `0.1.225` | running, healthy, digest `sha256:2917759a0542093c14a4462c963d197b032989d974108aeccc3954b955f60b71`, internal `/health` OK; Codex remote compact V2 API-key fallback (default on) |
+| 2026-08-15 | `v0.1.224` | `77647f9c1` | `ghcr.io/541968679/sub2api:0.1.224` | `0.1.224` | superseded by `v0.1.225`; admin user pin-to-top + live account quality chips |
 | 2026-08-15 | `v0.1.223` | `95d9556a4` | `ghcr.io/541968679/sub2api:0.1.223` | `0.1.223` | superseded by `v0.1.224`; quality chips + two-step resume, merged schedule/capacity/quality columns |
 | 2026-08-14 | `v0.1.222` | `85c02baee` | `ghcr.io/541968679/sub2api:0.1.222` | `0.1.222` | superseded by `v0.1.223`; quality history + opt-in hard-close, per-user quality gates, durable resume HASH |
 | 2026-08-14 | `v0.1.221` | `1fbe4f2c1` | `ghcr.io/541968679/sub2api:0.1.221` | `0.1.221` | superseded by `v0.1.222`; independent allow/deny lists + per-user pair concurrency |

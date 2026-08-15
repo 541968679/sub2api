@@ -1,3 +1,18 @@
+## 2026-08-15 - deploy: production v0.1.225
+
+### What
+- Released and deployed `v0.1.225` (`be9a3208f`) to production as `ghcr.io/541968679/sub2api:0.1.225` / `:latest`.
+- Includes Codex remote compact V2 API-key fallback (default on).
+
+### Verification
+- Release workflow `31878790313` success; running digest `sha256:2917759a0542093c14a4462c963d197b032989d974108aeccc3954b955f60b71`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `be9a3208f667fa900061aa0ab5e5cc847fac4c4b`, version label `0.1.225`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-15 - fix(gateway): Codex remote compact V2 API-key fallback
 
 ### What
