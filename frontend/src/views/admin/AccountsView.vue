@@ -837,7 +837,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
-import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { shouldReplaceAccountListRow } from '@/utils/accountListRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
@@ -1694,13 +1694,20 @@ const resetAutoRefreshCache = () => {
   autoRefreshETag.value = null
 }
 
+const listMergeEpoch = ref(0)
+
+const beginFullAccountListLoad = () => {
+  listMergeEpoch.value += 1
+  resetAutoRefreshCache()
+}
+
 const isFirstLoad = ref(true)
 
 const load = async () => {
   const requestParams = params as any
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = false
   if (isFirstLoad.value) {
     requestParams.lite = '1'
@@ -1718,7 +1725,7 @@ const load = async () => {
 const reload = async () => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = false
   await baseReload()
   await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
@@ -1729,7 +1736,7 @@ const reload = async () => {
 const debouncedReload = () => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = true
   baseDebouncedReload()
 }
@@ -1737,7 +1744,7 @@ const debouncedReload = () => {
 const handlePageChange = (page: number) => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = true
   baseHandlePageChange(page)
 }
@@ -1745,7 +1752,7 @@ const handlePageChange = (page: number) => {
 const handlePageSizeChange = (size: number) => {
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
+  beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = true
   baseHandlePageSizeChange(size)
 }
@@ -1767,7 +1774,6 @@ const handleSort = (key: string, order: AccountSortOrder) => {
   syncAccountListDerivedParams()
   pagination.page = 1
   hasPendingListSync.value = false
-  resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
   saveAccountSortState()
   load()
@@ -1822,18 +1828,7 @@ const inAutoRefreshSilentWindow = () => {
 }
 
 const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
-  return (
-    current.updated_at !== next.updated_at ||
-    current.current_concurrency !== next.current_concurrency ||
-    current.current_window_cost !== next.current_window_cost ||
-    current.active_sessions !== next.active_sessions ||
-    current.schedulable !== next.schedulable ||
-    current.status !== next.status ||
-    current.rate_limit_reset_at !== next.rate_limit_reset_at ||
-    current.overload_until !== next.overload_until ||
-    current.temp_unschedulable_until !== next.temp_unschedulable_until ||
-    buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next)
-  )
+  return shouldReplaceAccountListRow(current, next)
 }
 
 const syncAccountRefs = (nextAccount: Account) => {
@@ -1876,6 +1871,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
 
 const refreshAccountsIncrementally = async () => {
   if (autoRefreshFetching.value) return
+  const epoch = listMergeEpoch.value
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true
   try {
@@ -1896,6 +1892,7 @@ const refreshAccountsIncrementally = async () => {
       { etag: autoRefreshETag.value }
     )
 
+    if (epoch !== listMergeEpoch.value) return
     if (result.etag) {
       autoRefreshETag.value = result.etag
     }

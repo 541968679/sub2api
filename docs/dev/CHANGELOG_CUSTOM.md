@@ -1,3 +1,20 @@
+## 2026-08-15 - fix(admin): refresh account quality chips without a full page reload
+
+### What
+- Account-list auto-refresh now replaces a row when `schedule_users` quality runtime changes (`quality_blocked` / 已恢复 / 累计窗口), not only when `updated_at` or concurrency changes.
+- In-page manual refresh, filter, sort, and paging invalidate in-flight incremental merges so a stale auto-refresh cannot keep the old 质量 chip.
+
+### Why
+Saving or evaluating an account-user quality gate does not bump `accounts.updated_at`. The open list kept the first row object, so the left chip stayed 质量 until a full browser reload.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountListRefresh.spec.ts`
+
+### Affected files
+`frontend/src/utils/accountListRefresh.ts`,
+`frontend/src/utils/__tests__/accountListRefresh.spec.ts`,
+`frontend/src/views/admin/AccountsView.vue`.
+
 ## 2026-08-15 - deploy: production v0.1.223
 
 ### What
