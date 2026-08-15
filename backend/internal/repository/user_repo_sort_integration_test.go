@@ -161,4 +161,77 @@ func (s *UserRepoSuite) TestListWithFilters_SortByLastUsedAtDesc_UsesUsageLogsNo
 	s.Require().Equal(nilUsage.ID, users[2].ID)
 }
 
+func (s *UserRepoSuite) TestListWithFilters_PinnedUsersFirstAndNewerAboveOlder() {
+	older := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Microsecond)
+	newer := time.Now().Add(-10 * time.Minute).UTC().Truncate(time.Microsecond)
+
+	s.mustCreateUser(&service.User{Email: "z-unpinned@example.com"})
+	s.mustCreateUser(&service.User{Email: "a-unpinned@example.com"})
+	s.mustCreateUser(&service.User{Email: "old-pin@example.com", PinnedAt: &older})
+	s.mustCreateUser(&service.User{Email: "new-pin@example.com", PinnedAt: &newer})
+
+	users, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{
+		Page:      1,
+		PageSize:  10,
+		SortBy:    "email",
+		SortOrder: "asc",
+	}, service.UserListFilters{})
+	s.Require().NoError(err)
+	s.Require().Len(users, 4)
+	s.Require().Equal("new-pin@example.com", users[0].Email)
+	s.Require().Equal("old-pin@example.com", users[1].Email)
+	s.Require().Equal("a-unpinned@example.com", users[2].Email)
+	s.Require().Equal("z-unpinned@example.com", users[3].Email)
+}
+
+func (s *UserRepoSuite) TestListWithFilters_PinnedFirstWhenSortingByLastUsedAt() {
+	olderUsed := time.Now().Add(-6 * time.Hour).UTC().Truncate(time.Second)
+	newerUsed := time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Second)
+	pinnedAt := time.Now().Add(-5 * time.Minute).UTC().Truncate(time.Microsecond)
+
+	unpinnedNewer := s.mustCreateUser(&service.User{Email: "unpinned-newer-used@example.com"})
+	pinnedOlder := s.mustCreateUser(&service.User{Email: "pinned-older-used@example.com", PinnedAt: &pinnedAt})
+	s.mustInsertUsageLog(unpinnedNewer.ID, newerUsed)
+	s.mustInsertUsageLog(pinnedOlder.ID, olderUsed)
+
+	users, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{
+		Page:      1,
+		PageSize:  10,
+		SortBy:    "last_used_at",
+		SortOrder: "desc",
+	}, service.UserListFilters{})
+	s.Require().NoError(err)
+	s.Require().Len(users, 2)
+	s.Require().Equal(pinnedOlder.ID, users[0].ID)
+	s.Require().Equal(unpinnedNewer.ID, users[1].ID)
+}
+
+func (s *UserRepoSuite) TestUpdate_PersistsAndClearsPinnedAtWithoutClobber() {
+	created := s.mustCreateUser(&service.User{Email: "pin-persist@example.com", Username: "before"})
+	s.Require().Nil(created.PinnedAt)
+
+	pinnedAt := time.Now().UTC().Truncate(time.Microsecond)
+	created.PinnedAt = &pinnedAt
+	s.Require().NoError(s.repo.Update(s.ctx, created))
+
+	got, err := s.repo.GetByID(s.ctx, created.ID)
+	s.Require().NoError(err)
+	s.Require().NotNil(got.PinnedAt)
+	s.Require().True(got.PinnedAt.Equal(pinnedAt))
+
+	got.Username = "after"
+	s.Require().NoError(s.repo.Update(s.ctx, got))
+	got2, err := s.repo.GetByID(s.ctx, created.ID)
+	s.Require().NoError(err)
+	s.Require().Equal("after", got2.Username)
+	s.Require().NotNil(got2.PinnedAt)
+	s.Require().True(got2.PinnedAt.Equal(pinnedAt))
+
+	got2.PinnedAt = nil
+	s.Require().NoError(s.repo.Update(s.ctx, got2))
+	got3, err := s.repo.GetByID(s.ctx, created.ID)
+	s.Require().NoError(err)
+	s.Require().Nil(got3.PinnedAt)
+}
+
 func TestUserRepoSortSuiteSmoke(_ *testing.T) {}

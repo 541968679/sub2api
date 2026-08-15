@@ -271,6 +271,20 @@ func (_c *UserCreate) SetNillableLastActiveAt(v *time.Time) *UserCreate {
 	return _c
 }
 
+// SetPinnedAt sets the "pinned_at" field.
+func (_c *UserCreate) SetPinnedAt(v time.Time) *UserCreate {
+	_c.mutation.SetPinnedAt(v)
+	return _c
+}
+
+// SetNillablePinnedAt sets the "pinned_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePinnedAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetPinnedAt(*v)
+	}
+	return _c
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_c *UserCreate) SetBalanceNotifyEnabled(v bool) *UserCreate {
 	_c.mutation.SetBalanceNotifyEnabled(v)
@@ -900,6 +914,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldLastActiveAt, field.TypeTime, value)
 		_node.LastActiveAt = &value
 	}
+	if value, ok := _c.mutation.PinnedAt(); ok {
+		_spec.SetField(user.FieldPinnedAt, field.TypeTime, value)
+		_node.PinnedAt = &value
+	}
 	if value, ok := _c.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)
 		_node.BalanceNotifyEnabled = value
@@ -1468,6 +1486,24 @@ func (u *UserUpsert) ClearLastActiveAt() *UserUpsert {
 	return u
 }
 
+// SetPinnedAt sets the "pinned_at" field.
+func (u *UserUpsert) SetPinnedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldPinnedAt, v)
+	return u
+}
+
+// UpdatePinnedAt sets the "pinned_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePinnedAt() *UserUpsert {
+	u.SetExcluded(user.FieldPinnedAt)
+	return u
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (u *UserUpsert) ClearPinnedAt() *UserUpsert {
+	u.SetNull(user.FieldPinnedAt)
+	return u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (u *UserUpsert) SetBalanceNotifyEnabled(v bool) *UserUpsert {
 	u.Set(user.FieldBalanceNotifyEnabled, v)
@@ -1936,6 +1972,27 @@ func (u *UserUpsertOne) UpdateLastActiveAt() *UserUpsertOne {
 func (u *UserUpsertOne) ClearLastActiveAt() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearLastActiveAt()
+	})
+}
+
+// SetPinnedAt sets the "pinned_at" field.
+func (u *UserUpsertOne) SetPinnedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPinnedAt(v)
+	})
+}
+
+// UpdatePinnedAt sets the "pinned_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePinnedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePinnedAt()
+	})
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (u *UserUpsertOne) ClearPinnedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPinnedAt()
 	})
 }
 
@@ -2595,6 +2652,27 @@ func (u *UserUpsertBulk) UpdateLastActiveAt() *UserUpsertBulk {
 func (u *UserUpsertBulk) ClearLastActiveAt() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearLastActiveAt()
+	})
+}
+
+// SetPinnedAt sets the "pinned_at" field.
+func (u *UserUpsertBulk) SetPinnedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPinnedAt(v)
+	})
+}
+
+// UpdatePinnedAt sets the "pinned_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePinnedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePinnedAt()
+	})
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (u *UserUpsertBulk) ClearPinnedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPinnedAt()
 	})
 }
 

@@ -54448,6 +54448,7 @@ type UserMutation struct {
 	signup_source                   *string
 	last_login_at                   *time.Time
 	last_active_at                  *time.Time
+	pinned_at                       *time.Time
 	balance_notify_enabled          *bool
 	balance_notify_threshold_type   *string
 	balance_notify_threshold        *float64
@@ -55377,6 +55378,55 @@ func (m *UserMutation) LastActiveAtCleared() bool {
 func (m *UserMutation) ResetLastActiveAt() {
 	m.last_active_at = nil
 	delete(m.clearedFields, user.FieldLastActiveAt)
+}
+
+// SetPinnedAt sets the "pinned_at" field.
+func (m *UserMutation) SetPinnedAt(t time.Time) {
+	m.pinned_at = &t
+}
+
+// PinnedAt returns the value of the "pinned_at" field in the mutation.
+func (m *UserMutation) PinnedAt() (r time.Time, exists bool) {
+	v := m.pinned_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPinnedAt returns the old "pinned_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPinnedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPinnedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPinnedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPinnedAt: %w", err)
+	}
+	return oldValue.PinnedAt, nil
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (m *UserMutation) ClearPinnedAt() {
+	m.pinned_at = nil
+	m.clearedFields[user.FieldPinnedAt] = struct{}{}
+}
+
+// PinnedAtCleared returns if the "pinned_at" field was cleared in this mutation.
+func (m *UserMutation) PinnedAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldPinnedAt]
+	return ok
+}
+
+// ResetPinnedAt resets all changes to the "pinned_at" field.
+func (m *UserMutation) ResetPinnedAt() {
+	m.pinned_at = nil
+	delete(m.clearedFields, user.FieldPinnedAt)
 }
 
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
@@ -56565,7 +56615,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 26)
+	fields := make([]string, 0, 27)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -56619,6 +56669,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.last_active_at != nil {
 		fields = append(fields, user.FieldLastActiveAt)
+	}
+	if m.pinned_at != nil {
+		fields = append(fields, user.FieldPinnedAt)
 	}
 	if m.balance_notify_enabled != nil {
 		fields = append(fields, user.FieldBalanceNotifyEnabled)
@@ -56688,6 +56741,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.LastLoginAt()
 	case user.FieldLastActiveAt:
 		return m.LastActiveAt()
+	case user.FieldPinnedAt:
+		return m.PinnedAt()
 	case user.FieldBalanceNotifyEnabled:
 		return m.BalanceNotifyEnabled()
 	case user.FieldBalanceNotifyThresholdType:
@@ -56749,6 +56804,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldLastLoginAt(ctx)
 	case user.FieldLastActiveAt:
 		return m.OldLastActiveAt(ctx)
+	case user.FieldPinnedAt:
+		return m.OldPinnedAt(ctx)
 	case user.FieldBalanceNotifyEnabled:
 		return m.OldBalanceNotifyEnabled(ctx)
 	case user.FieldBalanceNotifyThresholdType:
@@ -56899,6 +56956,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetLastActiveAt(v)
+		return nil
+	case user.FieldPinnedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPinnedAt(v)
 		return nil
 	case user.FieldBalanceNotifyEnabled:
 		v, ok := value.(bool)
@@ -57088,6 +57152,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldLastActiveAt) {
 		fields = append(fields, user.FieldLastActiveAt)
 	}
+	if m.FieldCleared(user.FieldPinnedAt) {
+		fields = append(fields, user.FieldPinnedAt)
+	}
 	if m.FieldCleared(user.FieldBalanceNotifyThreshold) {
 		fields = append(fields, user.FieldBalanceNotifyThreshold)
 	}
@@ -57122,6 +57189,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldLastActiveAt:
 		m.ClearLastActiveAt()
+		return nil
+	case user.FieldPinnedAt:
+		m.ClearPinnedAt()
 		return nil
 	case user.FieldBalanceNotifyThreshold:
 		m.ClearBalanceNotifyThreshold()
@@ -57190,6 +57260,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldLastActiveAt:
 		m.ResetLastActiveAt()
+		return nil
+	case user.FieldPinnedAt:
+		m.ResetPinnedAt()
 		return nil
 	case user.FieldBalanceNotifyEnabled:
 		m.ResetBalanceNotifyEnabled()

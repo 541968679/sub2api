@@ -351,8 +351,22 @@
           :sort-storage-key="USER_SORT_STORAGE_KEY"
           @sort="handleSort"
         >
-          <template #cell-email="{ value }">
+          <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="user-pin-toggle"
+                class="rounded-lg p-1 transition-colors"
+                :class="row.pinned
+                  ? 'text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20'
+                  : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300'"
+                :title="row.pinned ? t('admin.users.unpin') : t('admin.users.pin')"
+                :aria-label="row.pinned ? t('admin.users.unpin') : t('admin.users.pin')"
+                :disabled="pinningUserId === row.id"
+                @click="handleTogglePin(row)"
+              >
+                <Icon name="pin" size="sm" :stroke-width="row.pinned ? 2.2 : 1.5" />
+              </button>
               <div
                 class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
               >
@@ -1098,6 +1112,7 @@ const columns = computed<Column[]>(() =>
 
 const users = ref<AdminUser[]>([])
 const loading = ref(false)
+const pinningUserId = ref<number | null>(null)
 const searchQuery = ref('')
 // v2: default sort is current concurrency high → low (was created_at desc).
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort-v2'
@@ -1716,6 +1731,8 @@ const shouldReplaceAutoRefreshUser = (current: AdminUser, next: AdminUser) => {
     current.updated_at !== next.updated_at ||
     current.last_used_at !== next.last_used_at ||
     current.last_active_at !== next.last_active_at ||
+    current.pinned !== next.pinned ||
+    current.pinned_at !== next.pinned_at ||
     current.notes !== next.notes ||
     current.username !== next.username ||
     current.email !== next.email
@@ -2005,6 +2022,27 @@ const handleToggleStatus = async (user: AdminUser) => {
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToToggle'))
     console.error('Error toggling user status:', error)
+  }
+}
+
+const handleTogglePin = async (user: AdminUser) => {
+  if (pinningUserId.value === user.id) return
+  const nextPinned = !user.pinned
+  pinningUserId.value = user.id
+  try {
+    await adminAPI.users.update(user.id, { pinned: nextPinned })
+    appStore.showSuccess(
+      nextPinned ? t('admin.users.pinnedSuccess') : t('admin.users.unpinnedSuccess')
+    )
+    if (nextPinned) {
+      pagination.page = 1
+    }
+    await loadUsers()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.users.failedToPin'))
+    console.error('Error toggling user pin:', error)
+  } finally {
+    pinningUserId.value = null
   }
 }
 

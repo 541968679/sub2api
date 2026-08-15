@@ -6,6 +6,7 @@ import UsersView from '../UsersView.vue'
 
 const {
   listUsers,
+  updateUser,
   getAllGroups,
   getBatchUsersUsage,
   getBatchUsersBurnRate,
@@ -14,6 +15,7 @@ const {
   getBatchUserAttributes
 } = vi.hoisted(() => ({
   listUsers: vi.fn(),
+  updateUser: vi.fn(),
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     users: {
       list: listUsers,
+      update: updateUser,
       toggleStatus: vi.fn(),
       delete: vi.fn(),
       getBatchQualityStats
@@ -89,6 +92,7 @@ const DataTableStub = {
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
       <div v-for="row in data" :key="row.id">
+        <slot name="cell-email" :value="row.email" :row="row" />
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
         <slot name="cell-actions" :row="row" />
       </div>
@@ -103,6 +107,7 @@ describe('admin UsersView', () => {
     localStorage.clear()
 
     listUsers.mockReset()
+    updateUser.mockReset()
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
@@ -117,6 +122,7 @@ describe('admin UsersView', () => {
       page_size: 20,
       pages: 1
     })
+    updateUser.mockResolvedValue(createAdminUser())
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
@@ -350,5 +356,24 @@ const mountUsersView = () => {
     expect((wrapper.vm as any).inspectTab).toBe('errors')
     expect(openSpy).not.toHaveBeenCalled()
     openSpy.mockRestore()
+  })
+
+  it('pins a user from the email-column toggle and reloads page 1', async () => {
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    const pinButton = wrapper.get('[data-testid="user-pin-toggle"]')
+    expect(pinButton.attributes('title')).toBe('admin.users.pin')
+
+    await pinButton.trigger('click')
+    await flushPromises()
+
+    expect(updateUser).toHaveBeenCalledWith(42, { pinned: true })
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.any(Object),
+      expect.any(Object)
+    )
   })
 })

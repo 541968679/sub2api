@@ -177,7 +177,9 @@ type UpdateUserInput struct {
 	DisplayCacheTokenMaxMultSet bool
 	DisplayCacheTokenMaxMult    *float64
 	Status                      string
-	AllowedGroups               *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	// Pinned: nil = unchanged; true = pin (or re-pin) now; false = unpin.
+	Pinned        *bool
+	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
@@ -1004,6 +1006,15 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 			user.DisplayCacheTokenMaxMult = &m
 		} else {
 			user.DisplayCacheTokenMaxMult = nil
+		}
+	}
+
+	if input.Pinned != nil {
+		if *input.Pinned {
+			now := time.Now()
+			user.PinnedAt = &now
+		} else {
+			user.PinnedAt = nil
 		}
 	}
 

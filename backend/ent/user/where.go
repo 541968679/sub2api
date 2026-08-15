@@ -145,6 +145,11 @@ func LastActiveAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldLastActiveAt, v))
 }
 
+// PinnedAt applies equality check predicate on the "pinned_at" field. It's identical to PinnedAtEQ.
+func PinnedAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPinnedAt, v))
+}
+
 // BalanceNotifyEnabled applies equality check predicate on the "balance_notify_enabled" field. It's identical to BalanceNotifyEnabledEQ.
 func BalanceNotifyEnabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBalanceNotifyEnabled, v))
@@ -1123,6 +1128,56 @@ func LastActiveAtIsNil() predicate.User {
 // LastActiveAtNotNil applies the NotNil predicate on the "last_active_at" field.
 func LastActiveAtNotNil() predicate.User {
 	return predicate.User(sql.FieldNotNull(FieldLastActiveAt))
+}
+
+// PinnedAtEQ applies the EQ predicate on the "pinned_at" field.
+func PinnedAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPinnedAt, v))
+}
+
+// PinnedAtNEQ applies the NEQ predicate on the "pinned_at" field.
+func PinnedAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPinnedAt, v))
+}
+
+// PinnedAtIn applies the In predicate on the "pinned_at" field.
+func PinnedAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPinnedAt, vs...))
+}
+
+// PinnedAtNotIn applies the NotIn predicate on the "pinned_at" field.
+func PinnedAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPinnedAt, vs...))
+}
+
+// PinnedAtGT applies the GT predicate on the "pinned_at" field.
+func PinnedAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPinnedAt, v))
+}
+
+// PinnedAtGTE applies the GTE predicate on the "pinned_at" field.
+func PinnedAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPinnedAt, v))
+}
+
+// PinnedAtLT applies the LT predicate on the "pinned_at" field.
+func PinnedAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPinnedAt, v))
+}
+
+// PinnedAtLTE applies the LTE predicate on the "pinned_at" field.
+func PinnedAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPinnedAt, v))
+}
+
+// PinnedAtIsNil applies the IsNil predicate on the "pinned_at" field.
+func PinnedAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPinnedAt))
+}
+
+// PinnedAtNotNil applies the NotNil predicate on the "pinned_at" field.
+func PinnedAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPinnedAt))
 }
 
 // BalanceNotifyEnabledEQ applies the EQ predicate on the "balance_notify_enabled" field.

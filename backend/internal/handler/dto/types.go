@@ -43,6 +43,8 @@ type AdminUser struct {
 
 	Notes                    string     `json:"notes"`
 	LastUsedAt               *time.Time `json:"last_used_at"`
+	Pinned                   bool       `json:"pinned"`
+	PinnedAt                 *time.Time `json:"pinned_at,omitempty"`
 	DownstreamUsageTokenMode string     `json:"downstream_usage_token_mode"`
 	// DisplayCacheTokenMaxMult user override for cache amplify cap M (null = inherit global).
 	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult"`

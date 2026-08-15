@@ -94,6 +94,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
+		SetNillablePinnedAt(userIn.PinnedAt).
 		SetDownstreamUsageTokenMode(service.NormalizeDownstreamUsageTokenMode(userIn.DownstreamUsageTokenMode)).
 		SetRpmLimit(userIn.RPMLimit).
 		Save(txCtx)
@@ -254,6 +255,11 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	}
 	if userIn.LastActiveAt != nil {
 		updateOp = updateOp.SetLastActiveAt(*userIn.LastActiveAt)
+	}
+	if userIn.PinnedAt != nil {
+		updateOp = updateOp.SetPinnedAt(*userIn.PinnedAt)
+	} else {
+		updateOp = updateOp.ClearPinnedAt()
 	}
 	if userIn.BalanceNotifyThreshold == nil {
 		updateOp = updateOp.ClearBalanceNotifyThreshold()
@@ -542,6 +548,17 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	return outUsers, paginationResultFromTotal(int64(total), params), nil
 }
 
+func userPinnedFirstOrder() func(*entsql.Selector) {
+	return entsql.OrderByField(dbuser.FieldPinnedAt, entsql.OrderDesc(), entsql.OrderNullsLast()).ToFunc()
+}
+
+func withPinnedFirst(orders ...func(*entsql.Selector)) []func(*entsql.Selector) {
+	out := make([]func(*entsql.Selector), 0, len(orders)+1)
+	out = append(out, userPinnedFirstOrder())
+	out = append(out, orders...)
+	return out
+}
+
 func userListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)
@@ -585,26 +602,26 @@ func userListOrder(params pagination.PaginationParams) []func(*entsql.Selector) 
 
 	if sortOrder == pagination.SortOrderAsc {
 		if defaultField && field == dbuser.FieldID {
-			return []func(*entsql.Selector){dbent.Asc(dbuser.FieldID)}
+			return withPinnedFirst(dbent.Asc(dbuser.FieldID))
 		}
 		if nullsLastField {
-			return []func(*entsql.Selector){
+			return withPinnedFirst(
 				entsql.OrderByField(field, entsql.OrderNullsLast()).ToFunc(),
 				dbent.Asc(dbuser.FieldID),
-			}
+			)
 		}
-		return []func(*entsql.Selector){dbent.Asc(field), dbent.Asc(dbuser.FieldID)}
+		return withPinnedFirst(dbent.Asc(field), dbent.Asc(dbuser.FieldID))
 	}
 	if defaultField && field == dbuser.FieldID {
-		return []func(*entsql.Selector){dbent.Desc(dbuser.FieldID)}
+		return withPinnedFirst(dbent.Desc(dbuser.FieldID))
 	}
 	if nullsLastField {
-		return []func(*entsql.Selector){
+		return withPinnedFirst(
 			entsql.OrderByField(field, entsql.OrderDesc(), entsql.OrderNullsLast()).ToFunc(),
 			dbent.Desc(dbuser.FieldID),
-		}
+		)
 	}
-	return []func(*entsql.Selector){dbent.Desc(field), dbent.Desc(dbuser.FieldID)}
+	return withPinnedFirst(dbent.Desc(field), dbent.Desc(dbuser.FieldID))
 }
 
 func (r *userRepository) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {
@@ -664,13 +681,9 @@ func userLastUsedAtOrder(sortOrder string) []func(*entsql.Selector) {
 	}
 
 	if sortOrder == pagination.SortOrderAsc {
-		return []func(*entsql.Selector){
-			orderExpr("ASC", "FIRST", entsql.Asc),
-		}
+		return withPinnedFirst(orderExpr("ASC", "FIRST", entsql.Asc))
 	}
-	return []func(*entsql.Selector){
-		orderExpr("DESC", "LAST", entsql.Desc),
-	}
+	return withPinnedFirst(orderExpr("DESC", "LAST", entsql.Desc))
 }
 
 // filterUsersByAttributes returns user IDs that match ALL the given attribute filters
@@ -993,6 +1006,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
+	dst.PinnedAt = src.PinnedAt
 	dst.DownstreamUsageTokenMode = service.NormalizeDownstreamUsageTokenMode(src.DownstreamUsageTokenMode)
 	dst.DisplayCacheTokenMaxMult = src.DisplayCacheTokenMaxMult
 	dst.CreatedAt = src.CreatedAt

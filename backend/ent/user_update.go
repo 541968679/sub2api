@@ -322,6 +322,26 @@ func (_u *UserUpdate) ClearLastActiveAt() *UserUpdate {
 	return _u
 }
 
+// SetPinnedAt sets the "pinned_at" field.
+func (_u *UserUpdate) SetPinnedAt(v time.Time) *UserUpdate {
+	_u.mutation.SetPinnedAt(v)
+	return _u
+}
+
+// SetNillablePinnedAt sets the "pinned_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePinnedAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetPinnedAt(*v)
+	}
+	return _u
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (_u *UserUpdate) ClearPinnedAt() *UserUpdate {
+	_u.mutation.ClearPinnedAt()
+	return _u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_u *UserUpdate) SetBalanceNotifyEnabled(v bool) *UserUpdate {
 	_u.mutation.SetBalanceNotifyEnabled(v)
@@ -1151,6 +1171,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.LastActiveAtCleared() {
 		_spec.ClearField(user.FieldLastActiveAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.PinnedAt(); ok {
+		_spec.SetField(user.FieldPinnedAt, field.TypeTime, value)
+	}
+	if _u.mutation.PinnedAtCleared() {
+		_spec.ClearField(user.FieldPinnedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)
@@ -2149,6 +2175,26 @@ func (_u *UserUpdateOne) ClearLastActiveAt() *UserUpdateOne {
 	return _u
 }
 
+// SetPinnedAt sets the "pinned_at" field.
+func (_u *UserUpdateOne) SetPinnedAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetPinnedAt(v)
+	return _u
+}
+
+// SetNillablePinnedAt sets the "pinned_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePinnedAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetPinnedAt(*v)
+	}
+	return _u
+}
+
+// ClearPinnedAt clears the value of the "pinned_at" field.
+func (_u *UserUpdateOne) ClearPinnedAt() *UserUpdateOne {
+	_u.mutation.ClearPinnedAt()
+	return _u
+}
+
 // SetBalanceNotifyEnabled sets the "balance_notify_enabled" field.
 func (_u *UserUpdateOne) SetBalanceNotifyEnabled(v bool) *UserUpdateOne {
 	_u.mutation.SetBalanceNotifyEnabled(v)
@@ -3008,6 +3054,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if _u.mutation.LastActiveAtCleared() {
 		_spec.ClearField(user.FieldLastActiveAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.PinnedAt(); ok {
+		_spec.SetField(user.FieldPinnedAt, field.TypeTime, value)
+	}
+	if _u.mutation.PinnedAtCleared() {
+		_spec.ClearField(user.FieldPinnedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.BalanceNotifyEnabled(); ok {
 		_spec.SetField(user.FieldBalanceNotifyEnabled, field.TypeBool, value)

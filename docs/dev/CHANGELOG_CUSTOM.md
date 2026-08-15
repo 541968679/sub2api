@@ -15,6 +15,37 @@ Saving or evaluating an account-user quality gate does not bump `accounts.update
 `frontend/src/utils/__tests__/accountListRefresh.spec.ts`,
 `frontend/src/views/admin/AccountsView.vue`.
 
+## 2026-08-15 - feat(admin): pin users to the top of the user list
+
+### What
+- Admins can pin users from the user-management table. Pinned users stay at the top of the current filtered result and do not move with column sort or concurrency auto-refresh.
+- Newer pins sit above older pins. Unpinning restores the natural sort position. Pinning jumps the table to page 1.
+
+### Why
+The default current-concurrency sort plus auto-refresh kept shuffling watched users off page 1.
+
+### Verification
+- `go test -tags=unit ./backend/internal/handler/admin -run "SortUsersByCurrentConcurrency_Pinned" -count=1`
+- `go test -tags=unit ./backend/internal/service -run "UpdateUser_PinnedAt" -count=1`
+- `go test ./backend/internal/handler/dto -run "UserFromService" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`backend/ent/schema/user.go`,
+`backend/migrations/201_user_pinned_at.sql`,
+`backend/internal/service/user.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/repository/user_repo.go`,
+`backend/internal/repository/api_key_repo.go`,
+`backend/internal/handler/admin/user_handler.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/components/icons/Icon.vue`,
+`frontend/src/types/index.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`.
+
 ## 2026-08-15 - deploy: production v0.1.223
 
 ### What

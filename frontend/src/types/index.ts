@@ -118,6 +118,9 @@ export interface AdminUser extends User {
   group_display_rates?: Record<number, number>
   // 当前并发数（仅管理员列表接口返回）
   current_concurrency?: number
+  // Admin list pin. true = pinned to top of the current filtered result.
+  pinned?: boolean
+  pinned_at?: string | null
 }
 
 export interface LoginRequest {
@@ -1967,6 +1970,7 @@ export interface UpdateUserRequest {
   /** >0 set override; 0 clear override (inherit global); omit leave unchanged */
   display_cache_token_max_mult?: number
   status?: UserStatus
+  pinned?: boolean
   allowed_groups?: number[] | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率

@@ -95,6 +95,11 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		// Admin user-list pin. NULL = unpinned; non-NULL = pinned (newer first).
+		field.Time("pinned_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 
 		// 余额不足通知
 		field.Bool("balance_notify_enabled").

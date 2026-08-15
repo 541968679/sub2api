@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -91,6 +92,7 @@ type UpdateUserRequest struct {
 	// DisplayCacheTokenMaxMultPresent is set by handler when the key is present in JSON.
 	// Not a client field — internal.
 	Status        string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
+	Pinned        *bool    `json:"pinned"`
 	AllowedGroups *[]int64 `json:"allowed_groups"`
 	// GroupRates 用户专属分组倍率配置（兼容旧格式）
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
@@ -239,6 +241,9 @@ func sortUsersByCurrentConcurrency(users []service.User, loadInfo map[int64]*ser
 		return 0
 	}
 	sort.SliceStable(users, func(i, j int) bool {
+		if cmp, decided := comparePinnedAt(users[i].PinnedAt, users[j].PinnedAt); decided {
+			return cmp
+		}
 		left := current(users[i].ID)
 		right := current(users[j].ID)
 		if left != right {
@@ -252,6 +257,18 @@ func sortUsersByCurrentConcurrency(users []service.User, loadInfo map[int64]*ser
 		}
 		return users[i].ID > users[j].ID
 	})
+}
+
+func comparePinnedAt(left, right *time.Time) (before bool, decided bool) {
+	leftPinned := left != nil
+	rightPinned := right != nil
+	if leftPinned != rightPinned {
+		return leftPinned, true
+	}
+	if leftPinned && rightPinned && !left.Equal(*right) {
+		return left.After(*right), true
+	}
+	return false, false
 }
 
 func buildUsersWithConcurrency(users []service.User, loadInfo map[int64]*service.UserLoadInfo) []UserWithConcurrency {
@@ -410,6 +427,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		RPMLimit:                 req.RPMLimit,
 		DownstreamUsageTokenMode: req.DownstreamUsageTokenMode,
 		Status:                   req.Status,
+		Pinned:                   req.Pinned,
 		AllowedGroups:            req.AllowedGroups,
 		GroupRates:               req.GroupRates,
 		GroupRatesFull:           req.GroupRatesFull,

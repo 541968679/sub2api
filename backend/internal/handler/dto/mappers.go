@@ -70,6 +70,8 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		User:                     *base,
 		Notes:                    u.Notes,
 		LastUsedAt:               u.LastUsedAt,
+		Pinned:                   u.PinnedAt != nil,
+		PinnedAt:                 u.PinnedAt,
 		DownstreamUsageTokenMode: service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
 		DisplayCacheTokenMaxMult: u.DisplayCacheTokenMaxMult,
 		GroupRates:               u.GroupRates,
