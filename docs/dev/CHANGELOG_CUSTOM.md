@@ -1,3 +1,18 @@
+## 2026-08-15 - deploy: production v0.1.224
+
+### What
+- Released and deployed `v0.1.224` (`77647f9c1`) to production as `ghcr.io/541968679/sub2api:0.1.224` / `:latest`.
+- Includes admin user pin-to-top, and account-list quality-chip live refresh without a full page reload.
+
+### Verification
+- Release workflow `31867437208` success; image digest `sha256:0ec2009431043917ac065d2fc9a3118fe5aa98504ef7161a713cbaf0082b0c46`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `77647f9c1d3aa2627afe4b5ec510a5a641daa464`, version label `0.1.224`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-15 - fix(admin): refresh account quality chips without a full page reload
 
 ### What
