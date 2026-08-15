@@ -22,6 +22,7 @@ import (
 const (
 	openAICodexCompactV2FallbackKey = "openai_codex_compact_v2_fallback"
 	codexCompactV2SummaryTag        = "conversation_summary"
+	codexCompactV2EncryptedPrefix   = "sub2api_compact_v2:"
 	codexCompactV2MaxBufferBytes    = 8 << 20
 )
 
@@ -165,6 +166,30 @@ func compactSummaryText(summary gjson.Result) string {
 	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
+// compactRecoverableText prefers visible summary_text, then our minted
+// encrypted_content payload. Codex's ResponseItem::Compaction only keeps
+// encrypted_content on the next turn, so the prefix is how API-key fallback
+// avoids silent amnesia. Official / third-party blobs without the prefix are
+// left alone.
+func compactRecoverableText(item gjson.Result) string {
+	if summary := compactSummaryText(item.Get("summary")); summary != "" {
+		return summary
+	}
+	return decodeCodexCompactV2EncryptedContent(item.Get("encrypted_content").String())
+}
+
+func encodeCodexCompactV2EncryptedContent(summary string) string {
+	return codexCompactV2EncryptedPrefix + strings.TrimSpace(summary)
+}
+
+func decodeCodexCompactV2EncryptedContent(blob string) string {
+	blob = strings.TrimSpace(blob)
+	if !strings.HasPrefix(blob, codexCompactV2EncryptedPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(blob, codexCompactV2EncryptedPrefix))
+}
+
 func codexCompactV2UserMessage(text string) map[string]any {
 	return map[string]any{
 		"type": "message",
@@ -201,7 +226,7 @@ func rewriteCodexCompactV2Request(body []byte) ([]byte, bool, error) {
 			changed = true
 			converted = append(converted, codexCompactV2UserMessage(codexCompactV2SummaryPrompt))
 		case isOpenAICompactionItemType(itemType):
-			if summary := compactSummaryText(raw.Get("summary")); summary != "" {
+			if summary := compactRecoverableText(raw); summary != "" {
 				changed = true
 				converted = append(converted, codexCompactV2UserMessage(
 					"<"+codexCompactV2SummaryTag+">\n"+summary+"\n</"+codexCompactV2SummaryTag+">",
@@ -281,9 +306,10 @@ func buildCodexCompactV2Responses(summary, model, responseID string, usage *apic
 		Model:  model,
 		Status: "completed",
 		Output: []apicompat.ResponsesOutput{{
-			Type:   "compaction",
-			ID:     "cmp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
-			Status: "completed",
+			Type:             "compaction",
+			ID:               "cmp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
+			Status:           "completed",
+			EncryptedContent: encodeCodexCompactV2EncryptedContent(summary),
 			Summary: []apicompat.ResponsesSummary{{
 				Type: "summary_text",
 				Text: summary,

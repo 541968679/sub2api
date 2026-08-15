@@ -52,12 +52,49 @@ func TestRewriteCodexCompactV2Request_ReplaysPriorCompaction(t *testing.T) {
 	require.Contains(t, input[0].Get("content.0.text").String(), "earlier work")
 }
 
+func TestRewriteCodexCompactV2Request_ReplaysPrefixedEncryptedContent(t *testing.T) {
+	body := []byte(`{"model":"m","input":[
+		{"type":"compaction","encrypted_content":"` + encodeCodexCompactV2EncryptedContent("kept via blob") + `"},
+		{"type":"compaction_trigger"}
+	]}`)
+
+	out, changed, err := rewriteCodexCompactV2Request(body)
+	require.NoError(t, err)
+	require.True(t, changed)
+	input := gjson.GetBytes(out, "input").Array()
+	require.Len(t, input, 2)
+	require.Contains(t, input[0].Get("content.0.text").String(), "kept via blob")
+	require.Contains(t, input[0].Get("content.0.text").String(), "<"+codexCompactV2SummaryTag+">")
+}
+
+func TestRewriteCodexCompactV2Request_LeavesForeignEncryptedContent(t *testing.T) {
+	body := []byte(`{"model":"m","input":[
+		{"type":"compaction","encrypted_content":"gAAA-official-looking-blob"},
+		{"type":"compaction_trigger"}
+	]}`)
+
+	out, changed, err := rewriteCodexCompactV2Request(body)
+	require.NoError(t, err)
+	require.True(t, changed)
+	input := gjson.GetBytes(out, "input").Array()
+	require.Len(t, input, 2)
+	require.Equal(t, "compaction", input[0].Get("type").String())
+	require.Equal(t, "gAAA-official-looking-blob", input[0].Get("encrypted_content").String())
+}
+
 func TestRewriteCodexCompactV2Request_NoTriggerUnchanged(t *testing.T) {
 	body := []byte(`{"model":"m","stream":true,"input":[{"type":"message","role":"user","content":[]}]}`)
 	out, changed, err := rewriteCodexCompactV2Request(body)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.JSONEq(t, string(body), string(out))
+}
+
+func TestDecodeCodexCompactV2EncryptedContent(t *testing.T) {
+	require.Equal(t, "kept", decodeCodexCompactV2EncryptedContent(encodeCodexCompactV2EncryptedContent("kept")))
+	require.Empty(t, decodeCodexCompactV2EncryptedContent("gAAA-official-looking-blob"))
+	require.Empty(t, decodeCodexCompactV2EncryptedContent(""))
+	require.Empty(t, decodeCodexCompactV2EncryptedContent(codexCompactV2EncryptedPrefix+"   "))
 }
 
 func TestAccountAllowsCodexCompactV2Fallback(t *testing.T) {
@@ -81,6 +118,7 @@ func TestBuildCodexCompactV2FromChat_SingleItem(t *testing.T) {
 	require.Len(t, out.Output, 1)
 	require.Equal(t, "compaction", out.Output[0].Type)
 	require.Equal(t, "summary text", out.Output[0].Summary[0].Text)
+	require.Equal(t, encodeCodexCompactV2EncryptedContent("summary text"), out.Output[0].EncryptedContent)
 	require.Equal(t, 10, out.Usage.InputTokens)
 }
 
@@ -128,6 +166,7 @@ func TestClassifyCodexCompactV2SSE_GotZeroFromTwo(t *testing.T) {
 	text := string(payload)
 	require.Equal(t, 1, strings.Count(text, "event: response.output_item.done"))
 	require.Contains(t, text, `"type":"compaction"`)
+	require.Contains(t, text, `"encrypted_content":"`+codexCompactV2EncryptedPrefix)
 	require.Contains(t, text, "event: response.completed")
 	require.NotContains(t, text, `"type":"reasoning"`)
 }
@@ -149,7 +188,9 @@ func TestApplyCodexCompactV2ToResponsesJSON_SynthesizeOneItem(t *testing.T) {
 	require.Equal(t, 1, len(gjson.GetBytes(out, "output").Array()))
 	require.Equal(t, "compaction", gjson.GetBytes(out, "output.0.type").String())
 	require.Contains(t, gjson.GetBytes(out, "output.0.summary.0.text").String(), "hello")
-	require.False(t, gjson.GetBytes(out, "output.0.encrypted_content").Exists())
+	enc := gjson.GetBytes(out, "output.0.encrypted_content").String()
+	require.True(t, strings.HasPrefix(enc, codexCompactV2EncryptedPrefix), enc)
+	require.Contains(t, enc, "hello")
 }
 
 func TestPrepareCodexCompactV2Fallback_Gates(t *testing.T) {
@@ -193,6 +234,7 @@ func TestWriteMarkedCodexCompactV2Stream_SynthesizesOneItem(t *testing.T) {
 	text := rec.Body.String()
 	require.Equal(t, 1, strings.Count(text, "event: response.output_item.done"))
 	require.Contains(t, text, `"type":"compaction"`)
+	require.Contains(t, text, `"encrypted_content":"`+codexCompactV2EncryptedPrefix)
 	require.NotContains(t, text, `"type":"reasoning"`)
 }
 

@@ -1,3 +1,21 @@
+## 2026-08-15 - fix(gateway): Codex compact V2 synthetic item needs encrypted_content
+
+### What
+- API-key compact V2 synthesizer now writes a non-empty `encrypted_content` (`sub2api_compact_v2:` + summary) on the single `type=compaction` item, while still keeping `summary_text`.
+- Next-turn rewrite expands historical compaction from `summary` first, then from that minted prefix. Foreign / official-looking blobs without the prefix stay untouched.
+
+### Why
+Codex `ResponseItem::Compaction` requires `encrypted_content: String`. v0.1.225 synthesized `summary_text` only, so the client failed to deserialize the item and Fatals `got 0 from 0 output items` after we had already fixed `got 0 from 2`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Compact|Compaction|CodexCompactV2" -count=1`
+
+### Affected files
+`backend/internal/service/openai_gateway_codex_compact_v2.go`,
+`backend/internal/service/openai_gateway_codex_compact_v2_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-15 - deploy: production v0.1.225
 
 ### What
