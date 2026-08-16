@@ -11,6 +11,7 @@ import type {
 } from '@/api/admin/users'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
+  ACCOUNT_QUALITY_WINDOW_SECONDS,
   applyQualityGateFormToDraft,
   percentToSuccessRate,
   qualityGateFormFromDraft,
@@ -21,7 +22,9 @@ import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTe
 import {
   isCurrentlySchedulingAccount,
   pickDefaultSmartSchedulePlatform,
-  resolvePairCap
+  resolvePairCap,
+  userQualityResumeActive,
+  userQualityResumeChipActive
 } from '@/composables/smartSchedulePoolAdmission'
 
 export { isCurrentlySchedulingAccount }
@@ -86,7 +89,39 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
   }
 }
 
-export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
+export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePlatformDraft {
+  if (!raw) return emptySmartScheduleDraft()
+  try {
+    const parsed = JSON.parse(raw) as Partial<SmartSchedulePlatformDraft>
+    return {
+      enabled: Boolean(parsed.enabled),
+      maxP50: parsed.maxP50 ?? '',
+      successPercent: parsed.successPercent ?? '',
+      minSuccessSamples: parsed.minSuccessSamples ?? '',
+      minTtftSamples: parsed.minTtftSamples ?? '',
+      condition: parsed.condition === 'and' ? 'and' : 'or',
+      cooldownMinutes: parsed.cooldownMinutes || 15,
+      accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
+    }
+  } catch {
+    return emptySmartScheduleDraft()
+  }
+}
+
+type LocalPairResumeGrace = {
+  chipUntil: number
+  watchUntil: number
+}
+
+export type SmartSchedulePoolFetchNeeds = {
+  quality: boolean
+  today: boolean
+}
+
+export function useUserSmartScheduleEditor(
+  userId: Ref<number | null>,
+  options?: { poolFetchNeeds?: SmartSchedulePoolFetchNeeds }
+) {
   const { t } = useI18n()
   const appStore = useAppStore()
   const { templateBusy: qualityTemplateBusy, applyQualityTemplate, saveQualityTemplate } =
@@ -97,6 +132,11 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   const copying = ref(false)
   const statsLoading = ref(false)
   const emptyPoolError = ref(false)
+  const initialLoaded = ref(false)
+  const skipNextPlatformWatch = ref(false)
+  const candidatesLoaded = ref(false)
+  const candidatesLoading = ref(false)
+  const candidatesPlatform = ref<SmartSchedulePlatform | null>(null)
   const activePlatform = ref<SmartSchedulePlatform>('anthropic')
   const copyFromPlatform = ref<SmartSchedulePlatform | ''>('')
   const selectedAddAccountId = ref(0)
@@ -113,8 +153,10 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   )
   const selectedAccountIds = ref<number[]>([])
   const refreshing = ref(false)
+  const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
 
   const currentDraft = computed(() => drafts[activePlatform.value])
+  const currentSavedDraft = computed(() => draftFromSavedSnapshot(savedSnapshots[activePlatform.value]))
   const otherPlatforms = computed(() =>
     SMART_SCHEDULE_PLATFORMS.filter((platform) => platform !== activePlatform.value)
   )
@@ -208,6 +250,39 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
 
   function memberCooldownUntil(accountId: number): string | null {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
+  }
+
+  function applyLocalResumeGrace(accountId: number) {
+    const nowSec = Math.floor(Date.now() / 1000)
+    const chipUntil = nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
+    const watchUntil = nowSec + 2 * ACCOUNT_QUALITY_WINDOW_SECONDS
+    localResumeGraceByAccount.value = {
+      ...localResumeGraceByAccount.value,
+      [accountId]: { chipUntil, watchUntil }
+    }
+    const uid = userId.value
+    const stats = qualityStatsById.value[String(accountId)]
+    if (!uid || !stats) return
+    qualityStatsById.value = {
+      ...qualityStatsById.value,
+      [String(accountId)]: {
+        ...stats,
+        resume_users: { ...stats.resume_users, [String(uid)]: chipUntil },
+        resume_watching_users: { ...stats.resume_watching_users, [String(uid)]: watchUntil }
+      }
+    }
+  }
+
+  function memberResumeChipActive(accountId: number, now = Date.now()): boolean {
+    const local = localResumeGraceByAccount.value[accountId]
+    if (local && local.chipUntil * 1000 > now) return true
+    return userQualityResumeChipActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
+  }
+
+  function memberResumeActive(accountId: number, now = Date.now()): boolean {
+    const local = localResumeGraceByAccount.value[accountId]
+    if (local && (local.watchUntil * 1000 > now || local.chipUntil * 1000 > now)) return true
+    return userQualityResumeActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
   }
 
   function effectivePairMax(_account: Account): number {
@@ -317,8 +392,9 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     return added
   }
 
-  function addSchedulingAccounts(scope: SmartScheduleAddScope) {
+  async function addSchedulingAccounts(scope: SmartScheduleAddScope) {
     if (!currentDraft.value) return
+    await ensureCandidates()
     const targets =
       scope === 'apikey'
         ? addableSchedulingApi.value
@@ -336,7 +412,7 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
       used.add(account.id)
     }
     emptyPoolError.value = false
-    void loadPoolDetails()
+    await loadPoolDetails()
     appStore.showSuccess(t('admin.users.smartSchedule.addSchedulingSuccess', { count: String(targets.length) }))
   }
 
@@ -362,6 +438,10 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     removeAccounts([accountId])
   }
 
+  function resolvePoolFetchNeeds(): SmartSchedulePoolFetchNeeds {
+    return options?.poolFetchNeeds ?? { quality: true, today: true }
+  }
+
   async function loadPoolDetails() {
     const ids = currentDraft.value?.accounts.map((item) => item.account_id) ?? []
     if (ids.length === 0) {
@@ -370,17 +450,26 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
       todayStatsById.value = {}
       return
     }
-    statsLoading.value = true
+    const needs = resolvePoolFetchNeeds()
+    const spinStats = needs.quality || needs.today
+    if (spinStats) statsLoading.value = true
     try {
-      const [listed, quality, today] = await Promise.all([
-        adminAPI.accounts.list(1, ids.length, { platform: activePlatform.value, ids: ids.join(',') }),
-        adminAPI.accounts.getBatchQualityStats(ids),
-        adminAPI.accounts.getBatchTodayStats(ids)
-      ])
+      const listedPromise = adminAPI.accounts.list(1, ids.length, {
+        platform: activePlatform.value,
+        ids: ids.join(','),
+        lite: '1'
+      })
+      const qualityPromise = needs.quality
+        ? adminAPI.accounts.getBatchQualityStats(ids)
+        : Promise.resolve({ stats: {} as Record<string, AccountQualityStats> })
+      const todayPromise = needs.today
+        ? adminAPI.accounts.getBatchTodayStats(ids)
+        : Promise.resolve({ stats: {} as Record<string, WindowStats> })
+      const [listed, quality, today] = await Promise.all([listedPromise, qualityPromise, todayPromise])
       const byID = new Map((listed.items ?? []).map((item) => [item.id, item]))
       poolAccounts.value = ids.map((id) => byID.get(id)).filter((item): item is Account => Boolean(item))
-      qualityStatsById.value = quality.stats ?? {}
-      todayStatsById.value = today.stats ?? {}
+      qualityStatsById.value = needs.quality ? (quality.stats ?? {}) : {}
+      todayStatsById.value = needs.today ? (today.stats ?? {}) : {}
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
     } finally {
@@ -388,9 +477,15 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     }
   }
 
-  async function loadCandidates() {
+  async function loadCandidates(opts?: { force?: boolean }) {
+    const platform = activePlatform.value
+    if (!opts?.force && candidatesLoaded.value && candidatesPlatform.value === platform) {
+      return
+    }
+    if (candidatesLoading.value) return
+    candidatesLoading.value = true
     try {
-      const filters = { platform: activePlatform.value }
+      const filters = { platform, lite: '1' }
       const first = await adminAPI.accounts.list(1, CANDIDATE_PAGE_SIZE, filters)
       const items = [...(first.items ?? [])]
       const pages = first.pages ?? 1
@@ -399,14 +494,40 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
         items.push(...(next.items ?? []))
       }
       candidateAccounts.value = items
+      candidatesLoaded.value = true
+      candidatesPlatform.value = platform
     } catch {
       candidateAccounts.value = []
+      candidatesLoaded.value = false
+      candidatesPlatform.value = null
+    } finally {
+      candidatesLoading.value = false
     }
   }
 
-  async function loadAll(options?: { pickPlatform?: boolean; preserveDirty?: boolean; silent?: boolean }) {
+  async function ensureCandidates() {
+    await loadCandidates()
+  }
+
+  function resetCandidatesForPlatformChange() {
+    if (candidatesLoaded.value && candidatesPlatform.value === activePlatform.value) {
+      void loadCandidates({ force: true })
+      return
+    }
+    candidateAccounts.value = []
+    candidatesLoaded.value = false
+    candidatesPlatform.value = null
+  }
+
+  async function loadAll(options?: {
+    pickPlatform?: boolean
+    preserveDirty?: boolean
+    silent?: boolean
+    refreshCandidatesIfLoaded?: boolean
+  }) {
     if (!userId.value) return
-    if (!options?.silent) loading.value = true
+    const firstPaint = !initialLoaded.value && !options?.silent
+    if (firstPaint) loading.value = true
     else refreshing.value = true
     emptyPoolError.value = false
     try {
@@ -423,9 +544,17 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
         applyView(view)
       }
       if (options?.pickPlatform) {
-        activePlatform.value = pickDefaultSmartSchedulePlatform(view, SMART_SCHEDULE_PLATFORMS)
+        const next = pickDefaultSmartSchedulePlatform(view, SMART_SCHEDULE_PLATFORMS)
+        if (next !== activePlatform.value) {
+          skipNextPlatformWatch.value = true
+          activePlatform.value = next
+        }
       }
-      await Promise.all([loadPoolDetails(), loadCandidates()])
+      await loadPoolDetails()
+      if (options?.refreshCandidatesIfLoaded && candidatesLoaded.value) {
+        void loadCandidates({ force: true })
+      }
+      initialLoaded.value = true
     } catch (error: unknown) {
       if (!options?.silent) {
         appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
@@ -437,7 +566,11 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   }
 
   async function refreshAll(options?: { silent?: boolean }) {
-    await loadAll({ preserveDirty: true, silent: options?.silent ?? true })
+    await loadAll({
+      preserveDirty: true,
+      silent: options?.silent ?? true,
+      refreshCandidatesIfLoaded: true
+    })
   }
 
   function buildWrite(enabled = currentDraft.value.enabled) {
@@ -526,6 +659,7 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
       await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value)
       const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
       if (member) member.cooldown_until = null
+      applyLocalResumeGrace(accountId)
       appStore.showSuccess(t('admin.users.smartSchedule.resumeSuccess'))
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.resumeFailed')))
@@ -537,6 +671,7 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   watch(
     userId,
     (id) => {
+      localResumeGraceByAccount.value = {}
       if (id) {
         void loadAll({ pickPlatform: true })
       }
@@ -548,18 +683,29 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     emptyPoolError.value = false
     selectedAddAccountId.value = 0
     clearSelection()
+    if (skipNextPlatformWatch.value) {
+      skipNextPlatformWatch.value = false
+      return
+    }
     if (userId.value) {
-      void Promise.all([loadPoolDetails(), loadCandidates()])
+      void loadPoolDetails()
+      resetCandidatesForPlatformChange()
     }
   })
 
   return {
     platforms: SMART_SCHEDULE_PLATFORMS,
     loading,
+    initialLoaded,
     submitting,
     copying,
     refreshing,
     statsLoading,
+    candidatesLoaded,
+    candidatesLoading,
+    candidatesReady: computed(
+      () => candidatesLoaded.value && candidatesPlatform.value === activePlatform.value
+    ),
     emptyPoolError,
     isDirty,
     activePlatform,
@@ -571,6 +717,7 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     qualityStatsById,
     todayStatsById,
     currentDraft,
+    currentSavedDraft,
     otherPlatforms,
     addableAccounts,
     addableSchedulingApi,
@@ -585,6 +732,8 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     memberCapOrNull,
     memberCurrent,
     memberCooldownUntil,
+    memberResumeActive,
+    memberResumeChipActive,
     effectivePairMax,
     setMemberCap,
     patchPoolAccount,
@@ -604,6 +753,8 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     onSave,
     onCopy,
     resumePair,
-    refreshAll
+    refreshAll,
+    ensureCandidates,
+    loadPoolDetails
   }
 }

@@ -216,6 +216,136 @@ const (
 	ErrorPolicyTempUnscheduled                          // 临时不可调度规则命中
 )
 
+// extractPoolModeHardErrorCode reads Sub2API top-level `code`, then `error.code`,
+// then the shared extractUpstreamErrorCode helper. extractUpstreamErrorCode
+// alone misses `{code,message}` bodies.
+func extractPoolModeHardErrorCode(body []byte) string {
+	if code := strings.TrimSpace(gjson.GetBytes(body, "code").String()); code != "" {
+		return code
+	}
+	if code := strings.TrimSpace(gjson.GetBytes(body, "error.code").String()); code != "" {
+		return code
+	}
+	return strings.TrimSpace(extractUpstreamErrorCode(body))
+}
+
+func poolModeHardErrorCodeUpper(body []byte) string {
+	return strings.ToUpper(extractPoolModeHardErrorCode(body))
+}
+
+func poolModeHardErrorMessageLower(body []byte) string {
+	return strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+}
+
+func containsAnyFold(haystack string, needles ...string) bool {
+	for _, needle := range needles {
+		if needle != "" && strings.Contains(haystack, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPoolModeHardMaintenanceError is a side-effect-free R5 detector.
+// Ordinary rate_limit 429s are not hard.
+func isPoolModeHardMaintenanceError(status int, body []byte) bool {
+	if status == http.StatusPaymentRequired {
+		return true
+	}
+
+	code := poolModeHardErrorCodeUpper(body)
+	msg := poolModeHardErrorMessageLower(body)
+
+	switch code {
+	case "API_KEY_EXPIRED", "USER_INACTIVE", "SUBSCRIPTION_NOT_FOUND", "SUBSCRIPTION_INVALID":
+		return true
+	}
+	if containsAnyFold(msg, "api_key_expired", "user_inactive", "subscription_not_found", "subscription_invalid") {
+		return true
+	}
+
+	if code == "INSUFFICIENT_BALANCE" ||
+		containsAnyFold(msg, "insufficient balance", "insufficient account balance", "insufficient_balance") {
+		return true
+	}
+
+	if status == http.StatusBadRequest &&
+		containsAnyFold(msg, "credit balance", "organization has been disabled", "identity verification is required") {
+		return true
+	}
+
+	if status == http.StatusTooManyRequests {
+		switch code {
+		case "INSUFFICIENT_QUOTA", "USAGE_LIMIT_EXCEEDED", "API_KEY_QUOTA_EXHAUSTED":
+			return true
+		}
+		if containsAnyFold(msg, "insufficient_quota", "usage_limit_exceeded", "api_key_quota_exhausted", "额度已用完") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func poolModeHardMaintenanceErrorMessage(statusCode int, responseBody []byte) string {
+	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(responseBody))
+	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	if upstreamMsg != "" {
+		upstreamMsg = truncateForLog([]byte(upstreamMsg), 512)
+	}
+	msgLower := strings.ToLower(upstreamMsg)
+	code := poolModeHardErrorCodeUpper(responseBody)
+
+	switch {
+	case statusCode == http.StatusPaymentRequired:
+		if upstreamMsg != "" {
+			return "Payment required (402): " + upstreamMsg
+		}
+		return "Payment required (402): insufficient balance or billing issue"
+	case statusCode == http.StatusBadRequest && strings.Contains(msgLower, "organization has been disabled"):
+		return "Organization disabled (400): " + upstreamMsg
+	case statusCode == http.StatusBadRequest && strings.Contains(msgLower, "credit balance"):
+		return "Credit balance exhausted (400): " + upstreamMsg
+	case statusCode == http.StatusBadRequest && strings.Contains(msgLower, "identity verification is required"):
+		return "Identity verification required (400): " + upstreamMsg
+	case statusCode == http.StatusTooManyRequests:
+		if upstreamMsg != "" {
+			return "Quota exhausted (429): " + upstreamMsg
+		}
+		return "Quota exhausted (429): upstream quota exhausted"
+	case code == "INSUFFICIENT_BALANCE" || strings.Contains(msgLower, "insufficient balance"):
+		if upstreamMsg != "" {
+			return fmt.Sprintf("Insufficient balance (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("Insufficient balance (%d): upstream account has no remaining balance", statusCode)
+	case code == "API_KEY_EXPIRED" || strings.Contains(msgLower, "api_key_expired"):
+		if upstreamMsg != "" {
+			return fmt.Sprintf("API key expired (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("API key expired (%d)", statusCode)
+	case code == "USER_INACTIVE" || strings.Contains(msgLower, "user_inactive"):
+		if upstreamMsg != "" {
+			return fmt.Sprintf("User inactive (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("User inactive (%d)", statusCode)
+	case code == "SUBSCRIPTION_NOT_FOUND" || strings.Contains(msgLower, "subscription_not_found"):
+		if upstreamMsg != "" {
+			return fmt.Sprintf("Subscription not found (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("Subscription not found (%d)", statusCode)
+	case code == "SUBSCRIPTION_INVALID" || strings.Contains(msgLower, "subscription_invalid"):
+		if upstreamMsg != "" {
+			return fmt.Sprintf("Subscription invalid (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("Subscription invalid (%d)", statusCode)
+	default:
+		if upstreamMsg != "" {
+			return fmt.Sprintf("Hard maintenance error (%d): %s", statusCode, upstreamMsg)
+		}
+		return fmt.Sprintf("Hard maintenance error (%d)", statusCode)
+	}
+}
+
 // CheckErrorPolicy 检查自定义错误码和临时不可调度规则。
 // 自定义错误码开启时覆盖后续所有逻辑（包括临时不可调度）。
 func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Account, statusCode int, responseBody []byte) ErrorPolicyResult {
@@ -227,6 +357,9 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 		return ErrorPolicySkipped
 	}
 	if account.IsPoolMode() {
+		if account.IsPoolModeHardEviction() && isPoolModeHardMaintenanceError(statusCode, responseBody) {
+			return ErrorPolicyNone
+		}
 		return ErrorPolicySkipped
 	}
 	if s.tryTempUnschedulable(ctx, account, statusCode, responseBody) {
@@ -253,7 +386,12 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 	customErrorCodesEnabled := account.IsCustomErrorCodesEnabled()
 
 	// 池模式默认不标记本地账号状态；仅当用户显式配置自定义错误码时按本地策略处理。
+	// 池模式 + 硬错误停调度命中 R5 时直接 SetError，不落入 429/403 计数。
 	if account.IsPoolMode() && !customErrorCodesEnabled {
+		if account.IsPoolModeHardEviction() && isPoolModeHardMaintenanceError(statusCode, responseBody) {
+			s.handleAuthError(ctx, account, poolModeHardMaintenanceErrorMessage(statusCode, responseBody))
+			return true
+		}
 		slog.Info("pool_mode_error_skipped", "account_id", account.ID, "status_code", statusCode)
 		return false
 	}

@@ -294,6 +294,9 @@ func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userI
 			if member.AccountID <= 0 {
 				continue
 			}
+			if member.MaxConcurrency == nil || *member.MaxConcurrency < 1 {
+				continue
+			}
 			if _, ok := seen[member.AccountID]; ok {
 				continue
 			}

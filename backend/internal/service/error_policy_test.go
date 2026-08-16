@@ -209,6 +209,53 @@ func TestCheckErrorPolicy(t *testing.T) {
 			body:       []byte(`unauthorized`),
 			expected:   ErrorPolicySkipped,
 		},
+		{
+			name: "pool_mode_hard_eviction_r5_returns_none",
+			account: &Account{
+				ID:       9,
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			statusCode: 402,
+			body:       []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			expected:   ErrorPolicyNone,
+		},
+		{
+			name: "pool_mode_hard_eviction_ordinary_401_still_skipped",
+			account: &Account{
+				ID:       16,
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			statusCode: 401,
+			body:       []byte(`unauthorized`),
+			expected:   ErrorPolicySkipped,
+		},
+		{
+			name: "custom_error_codes_win_over_hard_eviction_402",
+			account: &Account{
+				ID:       17,
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":                  true,
+					"pool_mode_hard_eviction":    true,
+					"custom_error_codes_enabled": true,
+					"custom_error_codes":         []any{float64(401)},
+				},
+			},
+			statusCode: 402,
+			body:       []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			expected:   ErrorPolicySkipped,
+		},
 	}
 
 	for _, tt := range tests {
@@ -262,6 +309,261 @@ func TestHandleUpstreamError_PoolModeCustomErrorCodesOverride(t *testing.T) {
 		require.Equal(t, 1, repo.setErrCalls)
 		require.Equal(t, 0, repo.tempCalls)
 	})
+}
+
+func TestIsPoolModeHardMaintenanceError(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   int
+		body     []byte
+		expected bool
+	}{
+		{name: "http_402_always", status: 402, body: []byte(`{}`), expected: true},
+		{name: "http_400_credit_balance", status: 400, body: []byte(`{"error":{"message":"Your credit balance is too low"}}`), expected: true},
+		{name: "http_400_org_disabled", status: 400, body: []byte(`{"error":{"message":"This organization has been disabled"}}`), expected: true},
+		{name: "http_400_kyc", status: 400, body: []byte(`{"error":{"message":"Identity verification is required"}}`), expected: true},
+		{name: "http_400_plain_bad_request", status: 400, body: []byte(`{"error":{"message":"invalid request"}}`), expected: false},
+		{name: "top_level_insufficient_balance_code", status: 403, body: []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`), expected: true},
+		{name: "error_code_insufficient_balance", status: 403, body: []byte(`{"error":{"code":"INSUFFICIENT_BALANCE","message":"no credits"}}`), expected: true},
+		{name: "text_insufficient_account_balance", status: 403, body: []byte(`{"error":{"message":"Insufficient account balance"}}`), expected: true},
+		{name: "http_429_insufficient_quota", status: 429, body: []byte(`{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}`), expected: true},
+		{name: "http_429_usage_limit_exceeded", status: 429, body: []byte(`{"code":"USAGE_LIMIT_EXCEEDED","message":"daily limit"}`), expected: true},
+		{name: "http_429_api_key_quota_exhausted", status: 429, body: []byte(`{"code":"API_KEY_QUOTA_EXHAUSTED","message":"API key 额度已用完"}`), expected: true},
+		{name: "http_429_quota_zh_text", status: 429, body: []byte(`{"message":"额度已用完"}`), expected: true},
+		{name: "http_429_ordinary_rate_limit", status: 429, body: []byte(`{"error":{"code":"rate_limit_exceeded","message":"Rate limit reached"}}`), expected: false},
+		{name: "api_key_expired", status: 403, body: []byte(`{"code":"API_KEY_EXPIRED","message":"API key 已过期"}`), expected: true},
+		{name: "user_inactive", status: 401, body: []byte(`{"code":"USER_INACTIVE","message":"User account is not active"}`), expected: true},
+		{name: "subscription_not_found", status: 403, body: []byte(`{"code":"SUBSCRIPTION_NOT_FOUND","message":"No active subscription"}`), expected: true},
+		{name: "subscription_invalid", status: 403, body: []byte(`{"code":"SUBSCRIPTION_INVALID","message":"subscription invalid"}`), expected: true},
+		{name: "ordinary_401", status: 401, body: []byte(`unauthorized`), expected: false},
+		{name: "ordinary_403", status: 403, body: []byte(`{"error":{"message":"forbidden"}}`), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, isPoolModeHardMaintenanceError(tt.status, tt.body))
+		})
+	}
+}
+
+func poolModeHardEvictionAccount(id int64, hardEviction bool) *Account {
+	creds := map[string]any{"pool_mode": true}
+	if hardEviction {
+		creds["pool_mode_hard_eviction"] = true
+	}
+	return &Account{
+		ID:          id,
+		Type:        AccountTypeAPIKey,
+		Platform:    PlatformOpenAI,
+		Status:      StatusActive,
+		Schedulable: true,
+		Credentials: creds,
+	}
+}
+
+func applySetErrorToAccount(account *Account, repo *errorPolicyRepoStub) {
+	account.Status = StatusError
+	account.ErrorMessage = repo.lastErrorMsg
+}
+
+func TestHandleUpstreamError_PoolMode(t *testing.T) {
+	type want struct {
+		shouldDisable bool
+		setErrCalls   int
+		tempCalls     int
+		schedulable   bool
+	}
+
+	tests := []struct {
+		name         string
+		hardEviction bool
+		customCodes  []any
+		status       int
+		body         []byte
+		want         want
+	}{
+		{
+			name:   "ac1_legacy_pool_402",
+			status: 402,
+			body:   []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			want:   want{schedulable: true},
+		},
+		{
+			name:   "ac1_legacy_pool_403_insufficient_balance",
+			status: 403,
+			body:   []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			want:   want{schedulable: true},
+		},
+		{
+			name:   "ac1_legacy_pool_429_insufficient_quota",
+			status: 429,
+			body:   []byte(`{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}`),
+			want:   want{schedulable: true},
+		},
+		{
+			name:   "ac1_legacy_pool_user_inactive",
+			status: 401,
+			body:   []byte(`{"code":"USER_INACTIVE","message":"User account is not active"}`),
+			want:   want{schedulable: true},
+		},
+		{
+			name:         "ac2_hard_eviction_402",
+			hardEviction: true,
+			status:       402,
+			body:         []byte(`{"message":"Payment required"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac3_hard_eviction_400_credit_balance",
+			hardEviction: true,
+			status:       400,
+			body:         []byte(`{"error":{"message":"Your credit balance is too low"}}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac3_hard_eviction_400_org_disabled",
+			hardEviction: true,
+			status:       400,
+			body:         []byte(`{"error":{"message":"This organization has been disabled"}}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac3_hard_eviction_400_kyc",
+			hardEviction: true,
+			status:       400,
+			body:         []byte(`{"error":{"message":"Identity verification is required"}}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac4_hard_eviction_403_insufficient_balance_code",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac4_hard_eviction_403_insufficient_account_balance_text",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"error":{"message":"Insufficient account balance"}}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac5_hard_eviction_429_insufficient_quota",
+			hardEviction: true,
+			status:       429,
+			body:         []byte(`{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac5_hard_eviction_429_usage_limit_exceeded",
+			hardEviction: true,
+			status:       429,
+			body:         []byte(`{"code":"USAGE_LIMIT_EXCEEDED","message":"daily limit"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac5_hard_eviction_429_api_key_quota_exhausted",
+			hardEviction: true,
+			status:       429,
+			body:         []byte(`{"code":"API_KEY_QUOTA_EXHAUSTED","message":"API key 额度已用完"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac5_hard_eviction_429_quota_zh",
+			hardEviction: true,
+			status:       429,
+			body:         []byte(`{"message":"额度已用完"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac6_hard_eviction_api_key_expired",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"code":"API_KEY_EXPIRED","message":"API key 已过期"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac6_hard_eviction_user_inactive",
+			hardEviction: true,
+			status:       401,
+			body:         []byte(`{"code":"USER_INACTIVE","message":"User account is not active"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac6_hard_eviction_subscription_not_found",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"code":"SUBSCRIPTION_NOT_FOUND","message":"No active subscription"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac6_hard_eviction_subscription_invalid",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"code":"SUBSCRIPTION_INVALID","message":"subscription invalid"}`),
+			want:         want{shouldDisable: true, setErrCalls: 1},
+		},
+		{
+			name:         "ac7_ordinary_401_not_marked",
+			hardEviction: true,
+			status:       401,
+			body:         []byte(`unauthorized`),
+			want:         want{schedulable: true},
+		},
+		{
+			name:         "ac7_ordinary_403_not_marked",
+			hardEviction: true,
+			status:       403,
+			body:         []byte(`{"error":{"message":"forbidden"}}`),
+			want:         want{schedulable: true},
+		},
+		{
+			name:         "ac7_ordinary_429_rate_limit_not_marked",
+			hardEviction: true,
+			status:       429,
+			body:         []byte(`{"error":{"code":"rate_limit_exceeded","message":"Rate limit reached"}}`),
+			want:         want{schedulable: true},
+		},
+		{
+			name:         "ac8_hard_eviction_off_returns_to_legacy",
+			hardEviction: false,
+			status:       402,
+			body:         []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			want:         want{schedulable: true},
+		},
+		{
+			name:         "ac9_custom_codes_whitelist_excludes_402",
+			hardEviction: true,
+			customCodes:  []any{float64(401)},
+			status:       402,
+			body:         []byte(`{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`),
+			want:         want{schedulable: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &errorPolicyRepoStub{}
+			svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+			account := poolModeHardEvictionAccount(40, tt.hardEviction)
+			if tt.customCodes != nil {
+				account.Credentials["custom_error_codes_enabled"] = true
+				account.Credentials["custom_error_codes"] = tt.customCodes
+			}
+
+			shouldDisable := svc.HandleUpstreamError(context.Background(), account, tt.status, http.Header{}, tt.body)
+
+			require.Equal(t, tt.want.shouldDisable, shouldDisable)
+			require.Equal(t, tt.want.setErrCalls, repo.setErrCalls)
+			require.Equal(t, tt.want.tempCalls, repo.tempCalls)
+			if repo.setErrCalls > 0 {
+				applySetErrorToAccount(account, repo)
+				require.NotEmpty(t, repo.lastErrorMsg)
+			}
+			require.Equal(t, tt.want.schedulable, account.IsSchedulable())
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------

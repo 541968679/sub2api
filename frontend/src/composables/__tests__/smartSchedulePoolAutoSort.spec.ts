@@ -3,6 +3,7 @@ import {
   UNCAPPED_PAIR_HEADROOM,
   assignPoolAutoSortPriorities,
   comparePoolAutoSort,
+  nextPriorityForPoolMoveToTop,
   pairHeadroomForAutoSort,
   sortSmartSchedulePoolMembers,
   type PoolAutoSortItem
@@ -44,19 +45,23 @@ describe('comparePoolAutoSort', () => {
     expect(sortSmartSchedulePoolMembers([full, uncapped]).map((row) => row.id)).toEqual([3, 4])
   })
 
-  it('puts stopped last among admission states', () => {
+  it('puts stopped last and treats preview/hint like will-cool, not a dead lock', () => {
     const rows = [
       item({ id: 5, admission: 'stopped' }),
       item({ id: 1, admission: 'selectable' }),
-      item({ id: 4, admission: 'quality_blocked' }),
+      item({ id: 6, admission: 'unsaved_preview' }),
+      item({ id: 4, admission: 'will_cool' }),
+      item({ id: 7, admission: 'resumed' }),
       item({ id: 2, admission: 'pair_full' }),
       item({ id: 3, admission: 'cooling' })
     ]
     expect(sortSmartSchedulePoolMembers(rows).map((row) => row.admission)).toEqual([
       'selectable',
+      'resumed',
+      'will_cool',
+      'unsaved_preview',
       'pair_full',
       'cooling',
-      'quality_blocked',
       'stopped'
     ])
   })
@@ -90,5 +95,21 @@ describe('assignPoolAutoSortPriorities', () => {
       { id: 3, priority: 0 }
     ])
     expect(assigned.map((row) => row.nextPriority)).toEqual([0, 1, 2])
+  })
+})
+
+describe('nextPriorityForPoolMoveToTop', () => {
+  it('after auto-sort slots, a later row gets a priority strictly below the pool min', () => {
+    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 2)).toBe(-1)
+    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 1)).toBe(-1)
+  })
+
+  it('before auto-sort, a tied default priority still becomes uniquely first', () => {
+    expect(nextPriorityForPoolMoveToTop([50, 50, 50], 50)).toBe(49)
+  })
+
+  it('skips the write when the row is already the unique pool min', () => {
+    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 0)).toBeNull()
+    expect(nextPriorityForPoolMoveToTop([7], 7)).toBeNull()
   })
 })

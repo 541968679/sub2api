@@ -1,41 +1,37 @@
 <template>
   <section
-    class="space-y-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800"
+    class="rounded-lg border border-gray-200 bg-white px-1.5 py-1 dark:border-dark-600 dark:bg-dark-800"
     data-testid="smart-schedule-filter-region"
+    :title="t('admin.users.smartSchedule.filterRegionHint')"
   >
-    <div>
-      <p class="text-xs font-medium uppercase tracking-wide text-gray-400">
+    <div class="flex flex-wrap items-center gap-1.5" data-testid="smart-schedule-pool-filters">
+      <span class="shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
         {{ t('admin.users.smartSchedule.filterRegionTitle') }}
-      </p>
-      <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-        {{ t('admin.users.smartSchedule.filterRegionHint') }}
-      </p>
-    </div>
-    <div class="flex flex-wrap items-center gap-3" data-testid="smart-schedule-pool-filters">
+      </span>
       <SearchInput
         :model-value="filters.search"
         :placeholder="t('admin.users.smartSchedule.filterSearch')"
-        class="w-full sm:w-64"
+        class="w-full sm:w-52"
         data-testid="smart-schedule-pool-search"
         @update:model-value="patch('search', $event)"
       />
       <Select
         :model-value="filters.type"
-        class="w-40"
+        class="w-36"
         :options="typeOptions"
         data-testid="smart-schedule-filter-type"
         @update:model-value="patch('type', String($event ?? ''))"
       />
       <Select
         :model-value="filters.schedulable"
-        class="w-40"
+        class="w-36"
         :options="schedulableOptions"
         data-testid="smart-schedule-filter-schedulable"
         @update:model-value="patch('schedulable', String($event ?? '') as SmartSchedulePoolFilters['schedulable'])"
       />
       <Select
         :model-value="filters.admission"
-        class="w-40"
+        class="w-44"
         :options="admissionOptions"
         data-testid="smart-schedule-filter-admission"
         @update:model-value="patch('admission', String($event ?? '') as SmartSchedulePoolFilters['admission'])"
@@ -49,7 +45,10 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Select from '@/components/common/Select.vue'
-import type { SmartSchedulePoolFilters } from '@/composables/smartSchedulePoolAdmission'
+import {
+  POOL_ADMISSION_FILTER_STATES,
+  type SmartSchedulePoolFilters
+} from '@/composables/smartSchedulePoolAdmission'
 
 const props = defineProps<{
   filters: SmartSchedulePoolFilters
@@ -74,13 +73,22 @@ const schedulableOptions = computed(() => [
   { value: 'off', label: t('admin.users.smartSchedule.filterSchedulableOff') }
 ])
 
+const admissionLabelKey: Record<(typeof POOL_ADMISSION_FILTER_STATES)[number], string> = {
+  selectable: 'admin.users.smartSchedule.admissionSelectable',
+  resumed: 'admin.users.smartSchedule.admissionResumed',
+  will_cool: 'admin.users.smartSchedule.admissionWillCool',
+  cooling: 'admin.users.smartSchedule.admissionCooling',
+  pair_full: 'admin.users.smartSchedule.admissionPairFull',
+  stopped: 'admin.users.smartSchedule.admissionStopped',
+  unsaved_preview: 'admin.users.smartSchedule.admissionUnsavedPreview'
+}
+
 const admissionOptions = computed(() => [
   { value: '', label: t('admin.users.smartSchedule.filterAdmissionAll') },
-  { value: 'selectable', label: t('admin.users.smartSchedule.admissionSelectable') },
-  { value: 'cooling', label: t('admin.users.smartSchedule.admissionCooling') },
-  { value: 'pair_full', label: t('admin.users.smartSchedule.admissionPairFull') },
-  { value: 'stopped', label: t('admin.users.smartSchedule.admissionStopped') },
-  { value: 'quality_blocked', label: t('admin.users.smartSchedule.admissionQualityBlocked') }
+  ...POOL_ADMISSION_FILTER_STATES.map((value) => ({
+    value,
+    label: t(admissionLabelKey[value])
+  }))
 ])
 
 function patch<K extends keyof SmartSchedulePoolFilters>(key: K, value: SmartSchedulePoolFilters[K]) {

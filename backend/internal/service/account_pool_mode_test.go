@@ -115,3 +115,110 @@ func TestGetPoolModeRetryCount(t *testing.T) {
 		})
 	}
 }
+
+func TestIsPoolModeHardEviction(t *testing.T) {
+	tests := []struct {
+		name     string
+		account  *Account
+		expected bool
+	}{
+		{
+			name:     "nil_account",
+			account:  nil,
+			expected: false,
+		},
+		{
+			name: "absent_flag_is_off",
+			account: &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode": true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "false_flag_is_off",
+			account: &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": false,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "true_requires_pool_mode",
+			account: &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "dirty_flag_without_pool_mode_is_ignored",
+			account: &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "oauth_account_cannot_enable",
+			account: &Account{
+				Type:     AccountTypeOAuth,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "bedrock_pool_mode_can_enable",
+			account: &Account{
+				Type:     AccountTypeBedrock,
+				Platform: PlatformAnthropic,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "non_bool_flag_is_off",
+			account: &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"pool_mode":               true,
+					"pool_mode_hard_eviction": "true",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.account == nil {
+				var account *Account
+				require.False(t, account.IsPoolModeHardEviction())
+				return
+			}
+			require.Equal(t, tt.expected, tt.account.IsPoolModeHardEviction())
+		})
+	}
+}

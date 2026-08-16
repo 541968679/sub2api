@@ -2829,6 +2829,12 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if !account.ShouldHandleErrorCode(statusCode) {
 		return
 	}
+	if account.IsPoolModeHardEviction() && isPoolModeHardMaintenanceError(statusCode, body) {
+		if s.rateLimitService != nil {
+			s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
+		}
+		return
+	}
 	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
 		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
 		return

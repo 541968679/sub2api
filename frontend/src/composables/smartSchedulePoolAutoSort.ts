@@ -2,9 +2,11 @@ import type { PoolAdmissionState } from './smartSchedulePoolAdmission'
 
 export const POOL_ADMISSION_SORT_RANK: Record<PoolAdmissionState, number> = {
   selectable: 0,
-  pair_full: 1,
-  cooling: 2,
-  quality_blocked: 3,
+  resumed: 0,
+  will_cool: 1,
+  unsaved_preview: 1,
+  pair_full: 2,
+  cooling: 3,
   stopped: 4
 }
 
@@ -53,7 +55,7 @@ export function comparePoolAutoSort(a: PoolAutoSortItem, b: PoolAutoSortItem): n
   if (priority !== 0) return priority
 
   const lastUsed = lastUsedMs(a.lastUsedAt) - lastUsedMs(b.lastUsedAt)
-  if (lastUsed !== 0) return lastUsed
+  if (Number.isFinite(lastUsed) && lastUsed !== 0) return lastUsed
 
   return a.id - b.id
 }
@@ -90,4 +92,27 @@ export function assignPoolAutoSortPriorities(
     id: item.id,
     nextPriority: slots[index] ?? index
   }))
+}
+
+function normalizePoolPriority(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return 0
+  return Math.trunc(value)
+}
+
+/**
+ * Priority to write so this row is first under `priority asc` (smaller = more
+ * preferred, same as Claude / same-rate OpenAI). `null` means the account is
+ * already the unique pool min — no write needed, only switch the table sort.
+ */
+export function nextPriorityForPoolMoveToTop(
+  poolPriorities: Array<number | null | undefined>,
+  currentPriority: number | null | undefined
+): number | null {
+  const slots = (poolPriorities.length > 0 ? poolPriorities : [currentPriority]).map(normalizePoolPriority)
+  const current = normalizePoolPriority(currentPriority)
+  const min = slots.reduce((lowest, value) => Math.min(lowest, value), Number.POSITIVE_INFINITY)
+  if (!Number.isFinite(min)) return -1
+  const minCount = slots.filter((value) => value === min).length
+  if (current === min && minCount === 1) return null
+  return min - 1
 }

@@ -63,6 +63,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountQualityStats } from '@/api/admin/accounts'
+import { formatQualitySuccessRate, hasDisplayableQualityRate } from '@/utils/accountQualityStats'
 
 const props = withDefaults(
   defineProps<{
@@ -71,12 +72,14 @@ const props = withDefaults(
     loading?: boolean
     error?: string | null
     clickable?: boolean
+    minSamples?: number
   }>(),
   {
     stats: null,
     loading: false,
     error: null,
-    clickable: false
+    clickable: false,
+    minSamples: 1
   }
 )
 
@@ -100,13 +103,9 @@ function formatMs(ms: number | null | undefined): string {
   return `${ms}ms`
 }
 
-const hasSuccessRate = computed(() => props.stats?.success_rate != null)
+const hasSuccessRate = computed(() => hasDisplayableQualityRate(props.stats, props.minSamples))
 
-const successDisplay = computed(() => {
-  const rate = props.stats?.success_rate
-  if (rate == null) return ''
-  return `${(rate * 100).toFixed(1)}%`
-})
+const successDisplay = computed(() => formatQualitySuccessRate(props.stats, props.minSamples) ?? '')
 
 const displayText = computed(() => {
   if (props.mode !== 'success_rate') return ''
@@ -130,6 +129,7 @@ const p95ToneClass = computed(() => {
 })
 
 const successToneClass = computed(() => {
+  if (!hasSuccessRate.value) return 'text-gray-700 dark:text-gray-300'
   const rate = props.stats?.success_rate
   if (rate == null) return 'text-gray-700 dark:text-gray-300'
   if (rate < 0.9) return 'text-red-600 dark:text-red-400'

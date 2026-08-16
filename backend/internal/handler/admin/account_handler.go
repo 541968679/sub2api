@@ -536,6 +536,10 @@ func (h *AccountHandler) List(c *gin.Context) {
 		search = search[:100]
 	}
 	lite := parseBoolQueryWithDefault(c.Query("lite"), false)
+	ctx := c.Request.Context()
+	if lite {
+		ctx = service.WithAccountListLite(ctx)
+	}
 	// 调度分需要跨候选池批量打分并读取负载，默认列表不计算；只有前端列可见时才显式开启。
 	includeSchedulerScore := parseBoolQueryWithDefault(c.Query("include_scheduler_score"), false)
 
@@ -561,7 +565,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	var total int64
 	var err error
 	if len(selectedIDs) > 0 {
-		fetched, getErr := h.adminService.GetAccountsByIDs(c.Request.Context(), selectedIDs)
+		fetched, getErr := h.adminService.GetAccountsByIDs(ctx, selectedIDs)
 		if getErr != nil {
 			response.ErrorFrom(c, getErr)
 			return
@@ -578,7 +582,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 		total = int64(len(accounts))
 	} else {
-		accounts, total, err = h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+		accounts, total, err = h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return
@@ -606,13 +610,13 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 	if includeSchedulerScore && pageHasOpenAIAccounts {
-		schedulerFilterPool := h.listAccountSchedulerScoreFilterPool(c.Request.Context(), platform, accountType, status, search, groupID, privacyMode)
-		schedulerScores, schedulerGroupScores = h.buildOpenAIAccountSchedulerScores(c.Request.Context(), accounts, schedulerFilterPool)
+		schedulerFilterPool := h.listAccountSchedulerScoreFilterPool(ctx, platform, accountType, status, search, groupID, privacyMode)
+		schedulerScores, schedulerGroupScores = h.buildOpenAIAccountSchedulerScores(ctx, accounts, schedulerFilterPool)
 	}
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
 	if h.concurrencyService != nil {
-		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
+		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(ctx, accountIDs); ccErr == nil && cc != nil {
 			concurrencyCounts = cc
 		}
 	}
@@ -654,11 +658,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	// 始终获取窗口费用（PostgreSQL 聚合查询）
-	if len(windowCostAccountIDs) > 0 {
+	// lite 跳过窗口费用 N+1；完整列表仍查 PostgreSQL 聚合。
+	if !lite && len(windowCostAccountIDs) > 0 {
 		windowCosts = make(map[int64]float64)
 		var mu sync.Mutex
-		g, gctx := errgroup.WithContext(c.Request.Context())
+		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(10) // 限制并发数
 
 		for i := range accounts {
@@ -717,7 +721,10 @@ func (h *AccountHandler) List(c *gin.Context) {
 		result[i] = item
 	}
 
-	h.enrichShadowParents(c.Request.Context(), result)
+	h.enrichShadowParents(ctx, result)
+	if lite {
+		applyAccountListLiteProjection(result)
+	}
 
 	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
 	if etag != "" {
@@ -730,6 +737,30 @@ func (h *AccountHandler) List(c *gin.Context) {
 	}
 
 	response.Paginated(c, result, total, page, pageSize)
+}
+
+func applyAccountListLiteProjection(items []AccountWithConcurrency) {
+	for i := range items {
+		items[i].CurrentWindowCost = nil
+		if items[i].Account == nil {
+			continue
+		}
+		items[i].Account.ScheduleUsers = nil
+		items[i].Account.Credentials = liteAccountCredentials(items[i].Account.Credentials)
+	}
+}
+
+func liteAccountCredentials(creds map[string]any) map[string]any {
+	if len(creds) == 0 {
+		return map[string]any{}
+	}
+	out := map[string]any{}
+	for _, key := range []string{"plan_type", "email", "subscription_expires_at"} {
+		if v, ok := creds[key]; ok && v != nil && v != "" {
+			out[key] = v
+		}
+	}
+	return out
 }
 
 func buildAccountsListETag(

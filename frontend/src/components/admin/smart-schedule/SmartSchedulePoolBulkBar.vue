@@ -1,7 +1,7 @@
 <template>
   <section data-testid="smart-schedule-bulk-region">
     <div
-      class="flex items-center justify-between rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20"
+      class="flex items-center justify-between rounded-lg bg-primary-50 px-3 py-2 dark:bg-primary-900/20"
       data-testid="smart-schedule-pool-bulk-bar"
     >
       <div class="flex flex-wrap items-center gap-2">

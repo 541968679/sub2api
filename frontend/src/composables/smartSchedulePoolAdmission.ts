@@ -11,7 +11,16 @@ const DEFAULT_PLATFORMS: SmartSchedulePlatform[] = [
   'grok'
 ]
 
-export type PoolAdmissionState = 'stopped' | 'cooling' | 'pair_full' | 'quality_blocked' | 'selectable'
+export type PoolAdmissionState =
+  | 'stopped'
+  | 'cooling'
+  | 'pair_full'
+  | 'will_cool'
+  | 'unsaved_preview'
+  | 'resumed'
+  | 'selectable'
+
+export type PoolQualityHint = 'resumed' | 'will_cool' | 'unsaved_preview'
 
 export type PoolAdmission = {
   state: PoolAdmissionState
@@ -32,6 +41,25 @@ export const EMPTY_SMART_SCHEDULE_POOL_FILTERS: SmartSchedulePoolFilters = {
   admission: ''
 }
 
+export const POOL_ADMISSION_FILTER_STATES = [
+  'selectable',
+  'resumed',
+  'will_cool',
+  'cooling',
+  'pair_full',
+  'stopped',
+  'unsaved_preview'
+] as const satisfies readonly PoolAdmissionState[]
+
+export type PoolQualityGateDraft = {
+  enabled?: boolean
+  maxP50: number | ''
+  successPercent: number | ''
+  minSuccessSamples: number | ''
+  minTtftSamples: number | ''
+  condition: 'or' | 'and'
+}
+
 export function resolvePairCap(maxConcurrency: number | null | undefined): number | null {
   return maxConcurrency != null && maxConcurrency >= 1 ? maxConcurrency : null
 }
@@ -49,38 +77,17 @@ export function cooldownRemainingMinutes(cooldownUntil?: string | null, now = Da
   return Math.max(1, Math.ceil((until - now) / 60_000))
 }
 
-export function resolvePoolAdmission(input: {
-  account: Pick<Account, 'status' | 'schedulable' | 'temp_unschedulable_until' | 'rate_limit_reset_at'>
-  pairCap: number | null
-  pairCurrent: number
-  cooldownUntil?: string | null
-  qualityBlocked?: boolean
-  now?: number
-}): PoolAdmission {
-  const now = input.now ?? Date.now()
-  if (!isCurrentlySchedulingAccount(input.account)) {
-    return { state: 'stopped' }
-  }
-  if (isPairCooldownActive(input.cooldownUntil, now)) {
-    return { state: 'cooling', cooldownUntil: input.cooldownUntil ?? undefined }
-  }
-  if (input.pairCap != null && input.pairCap >= 1 && input.pairCurrent >= input.pairCap) {
-    return { state: 'pair_full' }
-  }
-  if (input.qualityBlocked) {
-    return { state: 'quality_blocked' }
-  }
-  return { state: 'selectable' }
+export function hasQualityGateFromDraft(draft?: PoolQualityGateDraft | null): boolean {
+  if (!draft) return false
+  return (draft.maxP50 !== '' && draft.maxP50 != null) || (draft.successPercent !== '' && draft.successPercent != null)
 }
 
-export function qualityBlockedFromDraft(
-  draft: {
-    maxP50: number | ''
-    successPercent: number | ''
-    minSuccessSamples: number | ''
-    minTtftSamples: number | ''
-    condition: 'or' | 'and'
-  } | undefined,
+export function isSavedQualityGateLive(saved?: PoolQualityGateDraft | null): boolean {
+  return Boolean(saved?.enabled) && hasQualityGateFromDraft(saved)
+}
+
+export function gateBreachedFromDraft(
+  draft: PoolQualityGateDraft | undefined | null,
   stats: AccountQualityStats | null | undefined
 ): boolean {
   if (!draft) return false
@@ -94,6 +101,93 @@ export function qualityBlockedFromDraft(
     },
     stats
   )
+}
+
+function resumeUntilUnix(
+  map: Record<string, number> | null | undefined,
+  userId: number
+): number | null {
+  if (!map || userId <= 0) return null
+  const raw = map[String(userId)]
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : null
+}
+
+/** True during 已恢复 chip or the following fail-open accumulation window. */
+export function userQualityResumeActive(
+  stats:
+    | Pick<AccountQualityStats, 'resume_users' | 'resume_watching_users'>
+    | null
+    | undefined,
+  userId: number,
+  nowMs = Date.now()
+): boolean {
+  const nowSec = nowMs / 1000
+  const watching = resumeUntilUnix(stats?.resume_watching_users, userId)
+  if (watching != null && watching > nowSec) return true
+  const chip = resumeUntilUnix(stats?.resume_users, userId)
+  return chip != null && chip > nowSec
+}
+
+export function userQualityResumeChipActive(
+  stats: Pick<AccountQualityStats, 'resume_users'> | null | undefined,
+  userId: number,
+  nowMs = Date.now()
+): boolean {
+  const chip = resumeUntilUnix(stats?.resume_users, userId)
+  return chip != null && chip > nowMs / 1000
+}
+
+/**
+ * Quality column hint. Saved+enabled miss without cooldown is will-cool (not a lock).
+ * Draft-only miss (tighter unsaved form, or platform not enabled) is preview.
+ * Active resume grace is 已恢复 / selectable — never a fake 质量拦截.
+ */
+export function resolveQualityAdmissionHint(input: {
+  draft?: PoolQualityGateDraft | null
+  saved?: PoolQualityGateDraft | null
+  stats?: AccountQualityStats | null
+  resumeActive?: boolean
+  resumeChipActive?: boolean
+}): PoolQualityHint | null {
+  if (input.resumeChipActive) return 'resumed'
+  if (input.resumeActive) return null
+  if (isSavedQualityGateLive(input.saved) && gateBreachedFromDraft(input.saved, input.stats)) {
+    return 'will_cool'
+  }
+  if (hasQualityGateFromDraft(input.draft) && gateBreachedFromDraft(input.draft, input.stats)) {
+    return 'unsaved_preview'
+  }
+  return null
+}
+
+export function resolvePoolAdmission(input: {
+  account: Pick<Account, 'status' | 'schedulable' | 'temp_unschedulable_until' | 'rate_limit_reset_at'>
+  pairCap: number | null
+  pairCurrent: number
+  cooldownUntil?: string | null
+  qualityHint?: PoolQualityHint | null
+  now?: number
+}): PoolAdmission {
+  const now = input.now ?? Date.now()
+  if (!isCurrentlySchedulingAccount(input.account)) {
+    return { state: 'stopped' }
+  }
+  if (isPairCooldownActive(input.cooldownUntil, now)) {
+    return { state: 'cooling', cooldownUntil: input.cooldownUntil ?? undefined }
+  }
+  if (input.pairCap != null && input.pairCap >= 1 && input.pairCurrent >= input.pairCap) {
+    return { state: 'pair_full' }
+  }
+  if (input.qualityHint === 'resumed') {
+    return { state: 'resumed' }
+  }
+  if (input.qualityHint === 'will_cool') {
+    return { state: 'will_cool' }
+  }
+  if (input.qualityHint === 'unsaved_preview') {
+    return { state: 'unsaved_preview' }
+  }
+  return { state: 'selectable' }
 }
 
 export function matchesPoolFilters(

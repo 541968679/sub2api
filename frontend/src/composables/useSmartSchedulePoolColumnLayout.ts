@@ -32,6 +32,14 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   actions: 280
 }
 
+export function readSmartSchedulePoolFetchNeeds(): { quality: boolean; today: boolean } {
+  const hidden = readHiddenColumns()
+  return {
+    quality: !hidden.has('quality_ttft'),
+    today: !hidden.has('today_stats') || !hidden.has('usage')
+  }
+}
+
 function readHiddenColumns(): Set<string> {
   const hidden = new Set<string>()
   if (typeof window === 'undefined') return hidden

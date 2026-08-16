@@ -69,4 +69,60 @@ describe('AccountQualityCell', () => {
     expect(wrapper.find('[title]').exists()).toBe(true)
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.tooltip')
   })
+
+  it('does not render 0% for an empty window even when JSON emits 0', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          window_seconds: 900,
+          success_count: 0,
+          error_count: 0,
+          success_rate: 0,
+          error_rate: 0,
+          avg_ttft_ms: null,
+          p50_ttft_ms: null,
+          p95_ttft_ms: null,
+          max_ttft_ms: null,
+          ttft_samples: 0
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).not.toContain('0.0%')
+    expect(wrapper.text()).not.toContain('100.0%')
+  })
+
+  it('does not render 0% for error-only windows with no completed usage', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'success_rate',
+        stats: {
+          window_seconds: 900,
+          success_count: 0,
+          error_count: 33,
+          success_rate: 0,
+          error_rate: 1,
+          avg_ttft_ms: null,
+          p50_ttft_ms: null,
+          p95_ttft_ms: null,
+          max_ttft_ms: null,
+          ttft_samples: 0
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).not.toContain('0.0%')
+  })
+
+  it('hides the rate when samples are below minSamples', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: { mode: 'success_rate', stats, minSamples: 20 }
+    })
+
+    expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).not.toContain('91.0%')
+  })
 })

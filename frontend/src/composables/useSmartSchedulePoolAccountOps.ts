@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { nextPriorityForPoolMoveToTop } from '@/composables/smartSchedulePoolAutoSort'
 import type { SelectOption } from '@/components/common/Select.vue'
 import type { Account, AdminGroup, ClaudeModel, Proxy, UpdateAccountRequest } from '@/types'
 
@@ -43,6 +44,8 @@ function downloadJsonFile(payload: unknown, filename: string) {
 
 export function useSmartSchedulePoolAccountOps(options: {
   patchPoolAccount: (account: Account) => void
+  getPoolAccounts?: () => Account[]
+  onMovedToTop?: () => void
 }) {
   const { t } = useI18n()
   const appStore = useAppStore()
@@ -132,12 +135,26 @@ export function useSmartSchedulePoolAccountOps(options: {
   }
 
   async function handleMoveToTop(account: Account) {
+    const peers = options.getPoolAccounts?.() ?? []
+    const nextPriority = nextPriorityForPoolMoveToTop(
+      (peers.length > 0 ? peers : [account]).map((item) => item.priority ?? 0),
+      account.priority ?? 0
+    )
+    if (nextPriority == null) {
+      options.onMovedToTop?.()
+      appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
+      return
+    }
     inlineSavingId.value = account.id
+    const previous = { ...account }
     try {
-      const updated = await adminAPI.accounts.moveAccountToTop(account.id)
+      patch({ ...account, priority: nextPriority })
+      const updated = await adminAPI.accounts.update(account.id, { priority: nextPriority })
       patch(updated)
+      options.onMovedToTop?.()
       appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
     } catch (error: unknown) {
+      patch(previous)
       appStore.showError(extractApiErrorMessage(error, t('admin.accounts.moveToTopFailed')))
     } finally {
       inlineSavingId.value = null

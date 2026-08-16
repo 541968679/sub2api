@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ func TestBuildAccountQualityStats_EmptyWindow(t *testing.T) {
 	require.Equal(t, int64(0), stats.SuccessCount)
 	require.Equal(t, int64(0), stats.ErrorCount)
 	require.Nil(t, stats.SuccessRate)
+	require.Nil(t, stats.ErrorRate)
 	require.Nil(t, stats.AvgTTFTMs)
 	require.Nil(t, stats.P50TTFTMs)
 	require.Nil(t, stats.P95TTFTMs)
@@ -34,6 +36,8 @@ func TestBuildAccountQualityStats_SuccessAndError(t *testing.T) {
 	})
 	require.NotNil(t, stats.SuccessRate)
 	require.InDelta(t, 0.95, *stats.SuccessRate, 1e-9)
+	require.NotNil(t, stats.ErrorRate)
+	require.InDelta(t, 0.05, *stats.ErrorRate, 1e-9)
 	require.NotNil(t, stats.AvgTTFTMs)
 	require.Equal(t, 420, *stats.AvgTTFTMs)
 	require.NotNil(t, stats.P50TTFTMs)
@@ -49,6 +53,8 @@ func TestBuildAccountQualityStats_ErrorsOnly(t *testing.T) {
 	stats := BuildAccountQualityStats(0, 3, TTFTAggregate{})
 	require.NotNil(t, stats.SuccessRate)
 	require.InDelta(t, 0.0, *stats.SuccessRate, 1e-9)
+	require.NotNil(t, stats.ErrorRate)
+	require.InDelta(t, 1.0, *stats.ErrorRate, 1e-9)
 	require.Nil(t, stats.AvgTTFTMs)
 	require.Nil(t, stats.P50TTFTMs)
 }
@@ -130,6 +136,8 @@ func TestSnapshotFromAccountQualityStats_MatchesLiveNullsAndTruncates(t *testing
 	require.Equal(t, row.SuccessCount, item.SuccessCount)
 	require.Equal(t, row.ErrorCount, item.ErrorCount)
 	require.Equal(t, row.SuccessRate, item.SuccessRate)
+	require.NotNil(t, item.ErrorRate)
+	require.InDelta(t, 1.0, *item.ErrorRate, 1e-9)
 	require.Nil(t, item.P50TTFTMs)
 	require.Equal(t, row.TTFTSamples, item.TTFTSamples)
 }
@@ -141,4 +149,25 @@ func TestBuildAccountQualityStats_TTFTWithoutSamplesIgnored(t *testing.T) {
 	require.Nil(t, stats.P50TTFTMs)
 	require.NotNil(t, stats.SuccessRate)
 	require.InDelta(t, 1.0, *stats.SuccessRate, 1e-9)
+	require.NotNil(t, stats.ErrorRate)
+	require.InDelta(t, 0.0, *stats.ErrorRate, 1e-9)
+}
+
+func TestAccountQualityStats_EmptyWindowJSONDoesNotEmitZeroRates(t *testing.T) {
+	raw, err := json.Marshal(BuildAccountQualityStats(0, 0, TTFTAggregate{}))
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	require.Nil(t, payload["success_rate"])
+	require.Nil(t, payload["error_rate"])
+	require.NotContains(t, string(raw), `"success_rate":0`)
+	require.NotContains(t, string(raw), `"error_rate":0`)
+}
+
+func TestNormalizeAccountQualityRates_ClearsBogusZeroOnEmptyWindow(t *testing.T) {
+	zero := 0.0
+	stats := &AccountQualityStats{SuccessRate: &zero, ErrorRate: &zero}
+	NormalizeAccountQualityRates(stats)
+	require.Nil(t, stats.SuccessRate)
+	require.Nil(t, stats.ErrorRate)
 }

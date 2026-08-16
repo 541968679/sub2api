@@ -1,124 +1,27 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <button
-            type="button"
-            class="mb-2 inline-flex items-center text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-            data-testid="smart-schedule-back"
-            @click="goBack"
-          >
-            <Icon name="arrowLeft" size="sm" class="mr-1" />
-            {{ t('admin.users.smartSchedule.backToUsers') }}
-          </button>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.users.smartSchedule.title') }}
-          </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ userLoading ? t('common.loading') : userSubtitle }}
-          </p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="btn btn-secondary px-2 md:px-3"
-            :disabled="loading || refreshing || userLoading"
-            :title="t('admin.users.smartSchedule.refresh')"
-            data-testid="smart-schedule-refresh"
-            @click="handleManualRefresh"
-          >
-            <Icon name="refresh" size="sm" :class="refreshing || loading ? 'animate-spin' : ''" />
-            <span class="hidden md:inline">{{ t('admin.users.smartSchedule.refresh') }}</span>
-          </button>
-          <div class="relative" ref="autoRefreshDropdownRef">
-            <button
-              type="button"
-              class="btn btn-secondary px-2 md:px-3"
-              :title="t('admin.accounts.autoRefresh')"
-              data-testid="smart-schedule-auto-refresh"
-              @click="showAutoRefreshDropdown = !showAutoRefreshDropdown"
-            >
-              <Icon name="refresh" size="sm" :class="autoRefreshEnabled ? 'animate-spin' : ''" />
-              <span class="hidden md:inline">
-                {{
-                  autoRefreshEnabled
-                    ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
-                    : t('admin.accounts.autoRefresh')
-                }}
-              </span>
-            </button>
-            <div
-              v-if="showAutoRefreshDropdown"
-              class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-              data-testid="smart-schedule-auto-refresh-menu"
-            >
-              <div class="p-2">
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                  @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
-                >
-                  <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
-                  <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
-                </button>
-                <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                <button
-                  v-for="sec in autoRefreshIntervals"
-                  :key="sec"
-                  type="button"
-                  class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                  @click="setAutoRefreshInterval(sec)"
-                >
-                  <span>{{ autoRefreshIntervalLabel(sec) }}</span>
-                  <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
-                </button>
-              </div>
-            </div>
-          </div>
-        <div
-          v-if="currentDraft && !loading && !userLoading"
-          class="flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm"
-          :class="
-            currentDraft.enabled
-              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
-              : 'border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800'
-          "
-          data-testid="smart-schedule-enable-card"
+    <div class="space-y-3">
+      <div class="flex flex-wrap items-center gap-3" data-testid="smart-schedule-page-header">
+        <button
+          type="button"
+          class="inline-flex items-center text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+          data-testid="smart-schedule-back"
+          @click="goBack"
         >
-          <div class="text-right">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{
-                currentDraft.enabled
-                  ? t('admin.users.smartSchedule.enabledOn')
-                  : t('admin.users.smartSchedule.enabledOff')
-              }}
-              · {{ platformLabel(activePlatform) }}
-            </p>
-            <p class="mt-0.5 max-w-[16rem] text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.users.smartSchedule.enabledSwitchHint') }}
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            class="relative inline-flex h-9 w-16 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-dark-800"
-            :class="currentDraft.enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
-            :aria-checked="currentDraft.enabled"
-            :disabled="submitting"
-            data-testid="smart-schedule-enabled"
-            @click="onToggleEnabled"
-          >
-            <span
-              class="pointer-events-none inline-block h-8 w-8 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="currentDraft.enabled ? 'translate-x-7' : 'translate-x-0'"
-            />
-          </button>
-        </div>
-        </div>
+          <Icon name="arrowLeft" size="sm" class="mr-1" />
+          {{ t('admin.users.smartSchedule.backToUsers') }}
+        </button>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          {{ t('admin.users.smartSchedule.pageDescription') }}
+        </p>
       </div>
 
-      <div v-if="user && !userLoading" data-testid="smart-schedule-user-row">
+      <div v-if="!pageReady" class="py-10 text-center text-gray-500" data-testid="smart-schedule-page-loading">
+        {{ t('common.loading') }}
+      </div>
+
+      <template v-else>
+      <div v-if="user" data-testid="smart-schedule-user-row">
         <AdminUserListRowTable
           :user="user"
           :groups="groups"
@@ -126,43 +29,73 @@
           :quality-loading="userQualityLoading"
           :quality-error="userQualityError"
           :usage-stats="userUsageStats"
+          :burn-rate-stats="userBurnRateStats"
           :smart-schedule="userSmartScheduleSummary"
-          :smart-schedule-loading="loading"
+          :smart-schedule-loading="false"
         />
       </div>
-
-      <div v-if="loading || userLoading" class="py-16 text-center text-gray-500">
-        {{ t('common.loading') }}
-      </div>
-
-      <div
-        v-else
-        class="flex flex-col gap-4 lg:flex-row lg:items-start"
-        data-testid="smart-schedule-layout"
-      >
+        <div
+          class="grid grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+          data-testid="smart-schedule-layout"
+        >
         <aside
-          class="w-full shrink-0 space-y-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-700 dark:bg-dark-800 lg:w-[26rem] xl:w-[28rem]"
+          class="flex h-full min-w-0 flex-col gap-1.5 rounded-xl border border-gray-200 bg-white px-2 py-1.5 dark:border-dark-700 dark:bg-dark-800"
           data-testid="smart-schedule-user-panel"
         >
-          <div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-700/60">
-            <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
+          <div
+            class="flex flex-wrap items-center gap-2"
+            data-testid="smart-schedule-threshold-toolbar"
+          >
+            <p class="min-w-0 truncate rounded-md bg-gray-50 px-2 py-1 text-sm font-medium text-gray-900 dark:bg-dark-700/60 dark:text-white">
               {{ user?.email || t('admin.users.smartSchedule.unknownUser') }}
+              <span v-if="userMeta" class="ml-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">
+                {{ userMeta }}
+              </span>
             </p>
-            <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-              {{ userMeta }}
-            </p>
-          </div>
-
-          <div data-testid="smart-schedule-tabs">
-            <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">
-              {{ t('admin.users.smartSchedule.platform') }}
-            </p>
-            <div class="flex flex-wrap gap-1.5">
+            <div
+              v-if="currentDraft"
+              class="flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1"
+              :class="
+                currentDraft.enabled
+                  ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
+                  : 'border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800'
+              "
+              data-testid="smart-schedule-enable-card"
+            >
+              <p class="text-xs font-semibold text-gray-900 dark:text-white">
+                {{
+                  currentDraft.enabled
+                    ? t('admin.users.smartSchedule.enabledOn')
+                    : t('admin.users.smartSchedule.enabledOff')
+                }}
+                · {{ platformLabel(activePlatform) }}
+              </p>
+              <button
+                type="button"
+                role="switch"
+                class="relative inline-flex h-6 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-offset-dark-800"
+                :class="currentDraft.enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-600'"
+                :aria-checked="currentDraft.enabled"
+                :disabled="submitting"
+                :title="t('admin.users.smartSchedule.enabledSwitchHint')"
+                data-testid="smart-schedule-enabled"
+                @click="onToggleEnabled"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="currentDraft.enabled ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+            </div>
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1" data-testid="smart-schedule-tabs">
+              <span class="shrink-0 text-xs text-gray-400">
+                {{ t('admin.users.smartSchedule.platform') }}
+              </span>
               <button
                 v-for="platform in platforms"
                 :key="platform"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium"
                 :class="
                   activePlatform === platform
                     ? 'bg-primary-500 text-white'
@@ -181,60 +114,76 @@
               </button>
             </div>
           </div>
+          <p v-if="emptyPoolError" class="text-sm text-red-600" data-testid="smart-schedule-empty-error">
+            {{ t('admin.users.smartSchedule.emptyPool') }}
+          </p>
 
-          <div v-if="currentDraft" class="space-y-3">
-            <div class="grid grid-cols-2 gap-2">
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMaxP50') }}</span>
+          <div v-if="currentDraft" class="flex min-h-0 flex-1 flex-col gap-1.5">
+            <div
+              class="grid grid-cols-2 gap-x-2 gap-y-1.5 lg:grid-cols-3"
+              data-testid="smart-schedule-threshold-grid"
+            >
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMaxP50') }}</span>
                 <input
                   v-model.number="currentDraft.maxP50"
                   type="number"
                   min="1"
-                  class="input w-full"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
                   data-testid="smart-schedule-p50"
                 />
               </label>
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
                 <input
                   v-model.number="currentDraft.successPercent"
                   type="number"
                   min="0"
                   max="100"
                   step="0.1"
-                  class="input w-full"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
                   data-testid="smart-schedule-success"
                 />
               </label>
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
-                <input v-model.number="currentDraft.minSuccessSamples" type="number" min="1" class="input w-full" />
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
+                <input
+                  v-model.number="currentDraft.minSuccessSamples"
+                  type="number"
+                  min="1"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
+                />
               </label>
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
-                <input v-model.number="currentDraft.minTtftSamples" type="number" min="1" class="input w-full" />
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
+                <input
+                  v-model.number="currentDraft.minTtftSamples"
+                  type="number"
+                  min="1"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
+                />
               </label>
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.users.smartSchedule.cooldown') }}</span>
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
+                <select v-model="currentDraft.condition" class="input min-w-0 flex-1 !px-2 !py-1">
+                  <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
+                  <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
+                </select>
+              </label>
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.users.smartSchedule.cooldown') }}</span>
                 <input
                   v-model.number="currentDraft.cooldownMinutes"
                   type="number"
                   min="1"
                   max="1440"
-                  class="input w-full"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
                   data-testid="smart-schedule-cooldown"
                 />
               </label>
-              <label class="space-y-1">
-                <span class="block text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</span>
-                <select v-model="currentDraft.condition" class="input w-full">
-                  <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
-                  <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
-                </select>
-              </label>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 class="btn btn-secondary btn-sm"
@@ -251,7 +200,7 @@
               >
                 {{ t('admin.accounts.stability.saveTemplate') }}
               </button>
-              <select v-model="copyFromPlatform" class="input min-w-[8rem] flex-1" data-testid="smart-schedule-copy-from">
+              <select v-model="copyFromPlatform" class="input min-w-[8rem] flex-1 !px-2 !py-1" data-testid="smart-schedule-copy-from">
                 <option value="">{{ t('admin.users.smartSchedule.copyFrom') }}</option>
                 <option v-for="platform in otherPlatforms" :key="platform" :value="platform">
                   {{ platformLabel(platform) }}
@@ -284,129 +233,135 @@
         </aside>
 
         <section
-          class="min-w-0 flex-1 space-y-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800"
+          class="flex h-full min-w-0 flex-col gap-1.5 rounded-xl border border-gray-200 bg-white px-2 py-1.5 dark:border-dark-700 dark:bg-dark-800"
           data-testid="smart-schedule-pool-panel"
         >
-          <div class="flex flex-wrap items-end justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-                  {{ t('admin.users.smartSchedule.poolTitle', { platform: platformLabel(activePlatform) }) }}
-                </h2>
-                <div class="relative" ref="columnDropdownRef">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2
+              class="text-sm font-semibold text-gray-900 dark:text-white"
+              :title="t('admin.users.smartSchedule.poolHint')"
+            >
+              {{ t('admin.users.smartSchedule.poolTitle', { platform: platformLabel(activePlatform) }) }}
+            </h2>
+            <div class="relative" ref="columnDropdownRef">
+              <button
+                type="button"
+                class="btn btn-secondary px-2 py-1 md:px-3"
+                :title="t('admin.users.columnSettings')"
+                data-testid="smart-schedule-column-settings"
+                @click="showColumnDropdown = !showColumnDropdown"
+              >
+                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+              </button>
+              <div
+                v-if="showColumnDropdown"
+                class="absolute left-0 z-50 mt-2 w-72 origin-top-left rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                data-testid="smart-schedule-column-settings-menu"
+              >
+                <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-700">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.accounts.columnLayoutHint') }}
+                  </p>
                   <button
                     type="button"
-                    class="btn btn-secondary px-2 md:px-3"
-                    :title="t('admin.users.columnSettings')"
-                    data-testid="smart-schedule-column-settings"
-                    @click="showColumnDropdown = !showColumnDropdown"
+                    class="mt-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                    data-testid="smart-schedule-column-layout-reset"
+                    @click="resetColumnLayout"
                   >
-                    <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                    </svg>
-                    <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                    {{ t('admin.accounts.resetColumnLayout') }}
                   </button>
+                </div>
+                <div class="max-h-80 overflow-y-auto p-2">
                   <div
-                    v-if="showColumnDropdown"
-                    class="absolute left-0 z-50 mt-2 w-72 origin-top-left rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                    data-testid="smart-schedule-column-settings-menu"
+                    v-for="col in orderedToggleableColumns"
+                    :key="col.key"
+                    class="flex items-center gap-1 rounded-md px-1 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    data-testid="smart-schedule-column-settings-row"
+                    :data-column-key="col.key"
                   >
-                    <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-700">
-                      <p class="text-xs text-gray-500 dark:text-gray-400">
-                        {{ t('admin.accounts.columnLayoutHint') }}
-                      </p>
+                    <button
+                      type="button"
+                      class="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left"
+                      @click="toggleColumn(col.key)"
+                    >
+                      <span class="flex items-center justify-between gap-2">
+                        <span class="truncate">{{ col.label }}</span>
+                        <Icon
+                          v-if="isColumnVisible(col.key)"
+                          name="check"
+                          size="sm"
+                          class="shrink-0 text-primary-500"
+                        />
+                      </span>
+                    </button>
+                    <div class="flex shrink-0 flex-col">
                       <button
                         type="button"
-                        class="mt-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
-                        data-testid="smart-schedule-column-layout-reset"
-                        @click="resetColumnLayout"
+                        class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
+                        :disabled="!canMoveColumn(col.key, 'up')"
+                        :title="t('admin.accounts.moveColumnUp')"
+                        :data-testid="`smart-schedule-column-move-up-${col.key}`"
+                        @click="moveColumn(col.key, 'up')"
                       >
-                        {{ t('admin.accounts.resetColumnLayout') }}
+                        <Icon name="chevronUp" size="xs" :stroke-width="2" />
                       </button>
-                    </div>
-                    <div class="max-h-80 overflow-y-auto p-2">
-                      <div
-                        v-for="col in orderedToggleableColumns"
-                        :key="col.key"
-                        class="flex items-center gap-1 rounded-md px-1 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                        data-testid="smart-schedule-column-settings-row"
-                        :data-column-key="col.key"
+                      <button
+                        type="button"
+                        class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
+                        :disabled="!canMoveColumn(col.key, 'down')"
+                        :title="t('admin.accounts.moveColumnDown')"
+                        :data-testid="`smart-schedule-column-move-down-${col.key}`"
+                        @click="moveColumn(col.key, 'down')"
                       >
-                        <button
-                          type="button"
-                          class="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left"
-                          @click="toggleColumn(col.key)"
-                        >
-                          <span class="flex items-center justify-between gap-2">
-                            <span class="truncate">{{ col.label }}</span>
-                            <Icon
-                              v-if="isColumnVisible(col.key)"
-                              name="check"
-                              size="sm"
-                              class="shrink-0 text-primary-500"
-                            />
-                          </span>
-                        </button>
-                        <div class="flex shrink-0 flex-col">
-                          <button
-                            type="button"
-                            class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
-                            :disabled="!canMoveColumn(col.key, 'up')"
-                            :title="t('admin.accounts.moveColumnUp')"
-                            :data-testid="`smart-schedule-column-move-up-${col.key}`"
-                            @click="moveColumn(col.key, 'up')"
-                          >
-                            <Icon name="chevronUp" size="xs" :stroke-width="2" />
-                          </button>
-                          <button
-                            type="button"
-                            class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
-                            :disabled="!canMoveColumn(col.key, 'down')"
-                            :title="t('admin.accounts.moveColumnDown')"
-                            :data-testid="`smart-schedule-column-move-down-${col.key}`"
-                            @click="moveColumn(col.key, 'down')"
-                          >
-                            <Icon name="chevronDown" size="xs" :stroke-width="2" />
-                          </button>
-                        </div>
-                      </div>
+                        <Icon name="chevronDown" size="xs" :stroke-width="2" />
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {{ t('admin.users.smartSchedule.poolHint') }}
-              </p>
             </div>
           </div>
 
           <SmartSchedulePoolAddBar
+            class="min-w-0"
             v-model:search-query="accountSearchQuery"
             v-model:search-open="accountSearchOpen"
             :filtered-accounts="filteredAddableAccounts"
             :api-count="addableSchedulingApi.length"
             :oauth-count="addableSchedulingOauth.length"
             :all-count="addableSchedulingAll.length"
+            :candidates-ready="candidatesReady"
             :pool-empty="poolTableRows.length === 0"
             :auto-sorting="autoSorting"
             :auto-sort-done="autoSortDone"
             :auto-sort-total="autoSortTotal"
+            :refreshing="refreshing"
+            :refresh-disabled="refreshing"
+            :auto-refresh-enabled="autoRefreshEnabled"
+            :auto-refresh-countdown="autoRefreshCountdown"
+            :auto-refresh-interval-seconds="autoRefreshIntervalSeconds"
+            :auto-refresh-intervals="autoRefreshIntervals"
             @search-blur="onAccountSearchBlur"
             @choose="chooseAddableAccount"
-            @open-filtered-add="showAddDialog = true"
+            @open-filtered-add="openFilteredAdd"
             @add-scheduling="addSchedulingAccounts"
             @auto-sort="handlePoolAutoSort"
+            @refresh="handleManualRefresh"
+            @set-auto-refresh-enabled="setAutoRefreshEnabled"
+            @set-auto-refresh-interval="setAutoRefreshInterval"
           />
 
-          <p v-if="emptyPoolError" class="text-sm text-red-600" data-testid="smart-schedule-empty-error">
-            {{ t('admin.users.smartSchedule.emptyPool') }}
-          </p>
+          <SmartSchedulePoolFilters class="min-w-0" v-model:filters="poolFilters" />
+        </section>
+        </div>
 
-          <SmartSchedulePoolFilters v-model:filters="poolFilters" />
-
+        <div class="space-y-2" data-testid="smart-schedule-pool-table-region">
           <p
             v-if="isDirty"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
             data-testid="smart-schedule-dirty-banner"
           >
             {{ t('admin.users.smartSchedule.dirtyBanner') }}
@@ -426,14 +381,15 @@
             @remove="removeAccounts(filteredSelectedIds)"
           />
 
-          <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
+          <div class="smart-schedule-pool-table-scroll overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
             <DataTable
               ref="poolTableRef"
               :columns="poolColumns"
               :data="filteredPoolRows"
-              :loading="statsLoading"
+              :loading="false"
               row-key="id"
-              :virtual-scroll="false"
+              :virtual-scroll="true"
+              :estimate-row-height="88"
               :resizable-columns="true"
               default-sort-key="platform_type"
               default-sort-order="asc"
@@ -544,7 +500,12 @@
                 </div>
               </template>
               <template #cell-admission="{ row }">
-                <div class="flex flex-col gap-0.5" data-testid="smart-schedule-admission">
+                <div
+                  class="flex flex-col gap-0.5"
+                  data-testid="smart-schedule-admission"
+                  :data-admission="row.admission"
+                  :title="admissionTitle(row.admission)"
+                >
                   <span
                     class="inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium"
                     :class="admissionChipClass(row.admission)"
@@ -732,12 +693,13 @@
                     type="button"
                     class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
                     :class="
-                      row.admission === 'cooling'
+                      admissionResumeUseful(row.admission)
                         ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300'
                         : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700'
                     "
-                    :title="row.admission === 'cooling' ? t('admin.users.smartSchedule.resumeCooling') : t('admin.users.smartSchedule.resume')"
-                    :data-testid="row.admission === 'cooling' ? 'smart-schedule-resume-cooling' : 'smart-schedule-resume'"
+                    :disabled="row.admission === 'unsaved_preview'"
+                    :title="admissionResumeTitle(row.admission)"
+                    :data-testid="admissionResumeTestId(row.admission)"
                     @click="resumePair(row.id)"
                   >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -771,8 +733,8 @@
               </template>
             </DataTable>
           </div>
-        </section>
-      </div>
+        </div>
+      </template>
     </div>
     <EditAccountModal
       :show="showEdit"
@@ -853,13 +815,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { Account, AdminUser } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
-import type { BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
@@ -867,8 +829,8 @@ import {
   cooldownRemainingMinutes,
   EMPTY_SMART_SCHEDULE_POOL_FILTERS,
   matchesPoolFilters,
-  qualityBlockedFromDraft,
   resolvePoolAdmission,
+  resolveQualityAdmissionHint,
   type PoolAdmissionState,
   type SmartSchedulePoolFilters as PoolFilterState
 } from '@/composables/smartSchedulePoolAdmission'
@@ -876,11 +838,14 @@ import {
   assignPoolAutoSortPriorities,
   sortSmartSchedulePoolMembers
 } from '@/composables/smartSchedulePoolAutoSort'
-import { smartScheduleSummaryFromDrafts } from '@/composables/adminUserListRow'
+import { pickBatchUserStat, smartScheduleSummaryFromDrafts } from '@/composables/adminUserListRow'
 import { useAppStore } from '@/stores/app'
 import { useUserSmartScheduleEditor } from '@/composables/useUserSmartScheduleEditor'
 import { useSmartSchedulePoolAccountOps } from '@/composables/useSmartSchedulePoolAccountOps'
-import { useSmartSchedulePoolColumnLayout } from '@/composables/useSmartSchedulePoolColumnLayout'
+import {
+  readSmartSchedulePoolFetchNeeds,
+  useSmartSchedulePoolColumnLayout
+} from '@/composables/useSmartSchedulePoolColumnLayout'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -921,6 +886,7 @@ const userQualityStats = ref<AccountQualityStats | null>(null)
 const userQualityLoading = ref(false)
 const userQualityError = ref<string | null>(null)
 const userUsageStats = ref<BatchUserUsageStats | null>(null)
+const userBurnRateStats = ref<BatchUserBurnRateStats | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
 const showAddDialog = ref(false)
@@ -930,8 +896,6 @@ const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(5)
 const autoRefreshCountdown = ref(0)
-const showAutoRefreshDropdown = ref(false)
-const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
 const poolTableRef = ref<{ setSort?: (key: string, order: 'asc' | 'desc') => void } | null>(null)
 const autoSorting = ref(false)
 const autoSortDone = ref(0)
@@ -944,13 +908,17 @@ const userId = computed(() => {
   return Number.isFinite(value) && value > 0 ? value : null
 })
 
+const poolFetchNeeds = reactive(readSmartSchedulePoolFetchNeeds())
+
 const {
   platforms,
   loading,
+  initialLoaded,
   submitting,
   copying,
   statsLoading,
   refreshing,
+  candidatesReady,
   emptyPoolError,
   isDirty,
   activePlatform,
@@ -961,6 +929,7 @@ const {
   qualityStatsById,
   todayStatsById,
   currentDraft,
+  currentSavedDraft,
   otherPlatforms,
   addableAccounts,
   addableSchedulingApi,
@@ -975,6 +944,8 @@ const {
   memberCapOrNull,
   memberCurrent,
   memberCooldownUntil,
+  memberResumeActive,
+  memberResumeChipActive,
   setMemberCap,
   patchPoolAccount,
   applyCapToAll,
@@ -992,8 +963,11 @@ const {
   onSave,
   onCopy,
   resumePair,
-  refreshAll
-} = useUserSmartScheduleEditor(userId)
+  refreshAll,
+  ensureCandidates
+} = useUserSmartScheduleEditor(userId, { poolFetchNeeds })
+
+const pageReady = computed(() => initialLoaded.value && user.value != null)
 
 const {
   groups,
@@ -1055,7 +1029,13 @@ const {
   handleCreateSparkShadow,
   cancelCreateSparkShadow,
   confirmCreateSparkShadow
-} = useSmartSchedulePoolAccountOps({ patchPoolAccount })
+} = useSmartSchedulePoolAccountOps({
+  patchPoolAccount,
+  getPoolAccounts: () => poolAccounts.value,
+  onMovedToTop: () => {
+    poolTableRef.value?.setSort?.('priority', 'asc')
+  }
+})
 
 const allPoolColumns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false, minWidth: 88, resizable: false },
@@ -1089,6 +1069,15 @@ const {
   resetColumnLayout
 } = useSmartSchedulePoolColumnLayout(allPoolColumns)
 
+watch(
+  () => [isColumnVisible('quality_ttft'), isColumnVisible('today_stats'), isColumnVisible('usage')] as const,
+  ([quality, today, usage]) => {
+    poolFetchNeeds.quality = quality
+    poolFetchNeeds.today = today || usage
+  },
+  { immediate: true }
+)
+
 const poolTableRows = computed(() =>
   poolAccounts.value.map((account) => {
     const admission = resolvePoolAdmission({
@@ -1096,7 +1085,13 @@ const poolTableRows = computed(() =>
       pairCap: memberCapOrNull(account.id),
       pairCurrent: memberCurrent(account.id),
       cooldownUntil: memberCooldownUntil(account.id),
-      qualityBlocked: qualityBlockedFromDraft(currentDraft.value, qualityStatsById.value[String(account.id)])
+      qualityHint: resolveQualityAdmissionHint({
+        draft: currentDraft.value,
+        saved: currentSavedDraft.value,
+        stats: qualityStatsById.value[String(account.id)],
+        resumeActive: memberResumeActive(account.id),
+        resumeChipActive: memberResumeChipActive(account.id)
+      })
     })
     return {
       ...account,
@@ -1130,10 +1125,27 @@ function admissionLabel(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionPairFull')
     case 'stopped':
       return t('admin.users.smartSchedule.admissionStopped')
-    case 'quality_blocked':
-      return t('admin.users.smartSchedule.admissionQualityBlocked')
+    case 'will_cool':
+      return t('admin.users.smartSchedule.admissionWillCool')
+    case 'unsaved_preview':
+      return t('admin.users.smartSchedule.admissionUnsavedPreview')
+    case 'resumed':
+      return t('admin.users.smartSchedule.admissionResumed')
     default:
       return t('admin.users.smartSchedule.admissionSelectable')
+  }
+}
+
+function admissionTitle(state: PoolAdmissionState) {
+  switch (state) {
+    case 'will_cool':
+      return t('admin.users.smartSchedule.admissionWillCoolHint')
+    case 'unsaved_preview':
+      return t('admin.users.smartSchedule.admissionUnsavedPreviewHint')
+    case 'resumed':
+      return t('admin.users.smartSchedule.admissionResumedHint')
+    default:
+      return ''
   }
 }
 
@@ -1141,15 +1153,37 @@ function admissionChipClass(state: PoolAdmissionState) {
   switch (state) {
     case 'cooling':
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+    case 'will_cool':
+      return 'bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200'
+    case 'unsaved_preview':
+      return 'bg-slate-100 text-slate-700 dark:bg-dark-600 dark:text-slate-300'
     case 'pair_full':
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
     case 'stopped':
       return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
-    case 'quality_blocked':
-      return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+    case 'resumed':
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
     default:
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
   }
+}
+
+function admissionResumeUseful(state: PoolAdmissionState) {
+  return state === 'cooling' || state === 'will_cool'
+}
+
+function admissionResumeTitle(state: PoolAdmissionState) {
+  if (state === 'cooling') return t('admin.users.smartSchedule.resumeCooling')
+  if (state === 'will_cool') return t('admin.users.smartSchedule.resumeWillCool')
+  if (state === 'unsaved_preview') return t('admin.users.smartSchedule.resumeUnsavedPreview')
+  return t('admin.users.smartSchedule.resume')
+}
+
+function admissionResumeTestId(state: PoolAdmissionState) {
+  if (state === 'cooling') return 'smart-schedule-resume-cooling'
+  if (state === 'will_cool') return 'smart-schedule-resume-will-cool'
+  if (state === 'unsaved_preview') return 'smart-schedule-resume-preview'
+  return 'smart-schedule-resume'
 }
 
 function getAccountEmail(row: Account): string | undefined {
@@ -1162,11 +1196,6 @@ function pairCapacityClass(current: number, max: number) {
   if (current > 0) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
   return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
 }
-
-const userSubtitle = computed(() => {
-  if (!user.value) return t('admin.users.smartSchedule.pageDescription')
-  return t('admin.users.smartSchedule.subtitle', { email: user.value.email })
-})
 
 const userMeta = computed(() => {
   if (!user.value) return ''
@@ -1192,6 +1221,15 @@ function chooseAddableAccount(accountId: number) {
   accountSearchQuery.value = ''
   accountSearchOpen.value = false
 }
+
+async function openFilteredAdd() {
+  await ensureCandidates()
+  showAddDialog.value = true
+}
+
+watch(accountSearchOpen, (open) => {
+  if (open) void ensureCandidates()
+})
 
 function onFilteredAdd(accountIds: number[]) {
   const added = addAccountsByIds(accountIds)
@@ -1279,12 +1317,14 @@ async function loadUserListRowExtras(detail: AdminUser) {
   const id = detail.id
   userQualityLoading.value = true
   userQualityError.value = null
+  // Visible header extras only. burn_rate is shown (UsersView POST /admin/dashboard/users-burn-rate).
+  // username is not a header column — do not add username-only fetches.
   const tasks: Promise<void>[] = [
     (async () => {
       try {
         const qualityResponse = await adminAPI.users.getBatchQualityStats([id])
         if (user.value?.id !== id) return
-        userQualityStats.value = qualityResponse.stats?.[String(id)] ?? null
+        userQualityStats.value = pickBatchUserStat(qualityResponse.stats, id)
       } catch {
         if (user.value?.id !== id) return
         userQualityError.value = 'Failed'
@@ -1297,10 +1337,20 @@ async function loadUserListRowExtras(detail: AdminUser) {
       try {
         const usageResponse = await adminAPI.dashboard.getBatchUsersUsage([id])
         if (user.value?.id !== id) return
-        userUsageStats.value = usageResponse.stats?.[String(id)] ?? null
+        userUsageStats.value = pickBatchUserStat(usageResponse.stats, id)
       } catch {
         if (user.value?.id !== id) return
         userUsageStats.value = null
+      }
+    })(),
+    (async () => {
+      try {
+        const burnRateResponse = await adminAPI.dashboard.getBatchUsersBurnRate([id])
+        if (user.value?.id !== id) return
+        userBurnRateStats.value = pickBatchUserStat(burnRateResponse.stats, id)
+      } catch {
+        if (user.value?.id !== id) return
+        userBurnRateStats.value = null
       }
     })(),
     (async () => {
@@ -1327,25 +1377,18 @@ async function loadUserListRowExtras(detail: AdminUser) {
   await Promise.allSettled(tasks)
 }
 
-async function loadUser() {
+async function loadUser(options?: { silent?: boolean }) {
   if (!userId.value) return
-  userLoading.value = true
+  if (!options?.silent) userLoading.value = true
   try {
     const detail = await adminAPI.users.getById(userId.value)
     user.value = detail
-    userLoading.value = false
     void loadUserListRowExtras(detail)
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
-    userLoading.value = false
+  } finally {
+    if (!options?.silent) userLoading.value = false
   }
-}
-
-const autoRefreshIntervalLabel = (sec: number) => {
-  if (sec === 5) return t('admin.accounts.refreshInterval5s')
-  if (sec === 10) return t('admin.accounts.refreshInterval10s')
-  if (sec === 15) return t('admin.accounts.refreshInterval15s')
-  return t('admin.accounts.refreshInterval30s')
 }
 
 function loadSavedAutoRefresh() {
@@ -1420,29 +1463,28 @@ function setAutoRefreshInterval(seconds: (typeof autoRefreshIntervals)[number]) 
 }
 
 async function handleManualRefresh() {
-  await Promise.all([loadUser(), refreshAll({ silent: false })])
+  if (refreshing.value) return
+  await Promise.all([loadUser({ silent: true }), refreshAll({ silent: true })])
 }
 
 async function handleAutoRefresh() {
-  await Promise.all([loadUser(), refreshAll({ silent: true })])
-}
-
-function handleAutoRefreshClickOutside(event: MouseEvent) {
-  const target = event.target as Node | null
-  if (autoRefreshDropdownRef.value && target && !autoRefreshDropdownRef.value.contains(target)) {
-    showAutoRefreshDropdown.value = false
-  }
+  if (refreshing.value || loading.value) return
+  await Promise.all([loadUser({ silent: true }), refreshAll({ silent: true })])
 }
 
 onMounted(() => {
   loadSavedAutoRefresh()
   if (autoRefreshEnabled.value) startAutoRefreshTimer()
-  document.addEventListener('click', handleAutoRefreshClickOutside)
   void loadUser()
 })
 
 onUnmounted(() => {
   stopAutoRefreshTimer()
-  document.removeEventListener('click', handleAutoRefreshClickOutside)
 })
 </script>
+
+<style scoped>
+.smart-schedule-pool-table-scroll :deep(.table-wrapper) {
+  max-height: 70vh;
+}
+</style>

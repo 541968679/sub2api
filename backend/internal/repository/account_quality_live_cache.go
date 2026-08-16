@@ -100,6 +100,7 @@ func unmarshalLiveQuality(val string) (*service.AccountQualityStats, error) {
 	if err := json.Unmarshal([]byte(val), &stats); err != nil {
 		return nil, fmt.Errorf("unmarshal live quality: %w", err)
 	}
+	service.NormalizeAccountQualityRates(&stats)
 	return &stats, nil
 }
 

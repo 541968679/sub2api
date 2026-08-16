@@ -508,6 +508,8 @@ export interface AccountQualityStats {
   success_count: number
   error_count: number
   success_rate: number | null
+  /** 1 - success_rate when the window has samples; null when empty. */
+  error_rate?: number | null
   /** Mean TTFT — skewed by outliers; prefer p50 for list display */
   avg_ttft_ms: number | null
   /** Median TTFT — primary, outlier-resistant */
@@ -517,6 +519,10 @@ export interface AccountQualityStats {
   /** Slowest sample in window */
   max_ttft_ms?: number | null
   ttft_samples: number
+  /** Live-cache only: user_id → unix until for the 已恢复 chip. */
+  resume_users?: Record<string, number>
+  /** Live-cache only: user_id → unix until for the post-resume fail-open window. */
+  resume_watching_users?: Record<string, number>
 }
 
 export interface BatchQualityStatsResponse {

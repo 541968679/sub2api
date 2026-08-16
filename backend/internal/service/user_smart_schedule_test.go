@@ -375,10 +375,12 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 }
 
 type stubPairConcurrency struct {
-	counts map[int64]int
+	counts    map[int64]int
+	requested []int64
 }
 
-func (s stubPairConcurrency) GetAccountUserConcurrencyBatch(_ context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
+func (s *stubPairConcurrency) GetAccountUserConcurrencyBatch(_ context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
+	s.requested = append([]int64(nil), accountIDs...)
 	out := make(map[int64]int, len(accountIDs))
 	for _, id := range accountIDs {
 		out[id] = s.counts[id]
@@ -391,7 +393,7 @@ func TestUserSmartScheduleService_HydratesPairCurrent(t *testing.T) {
 	ctx := context.Background()
 	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(11, 3, nil))}
 	accounts := &stubSmartAccountRepo{accounts: []*Account{{ID: 11, Platform: PlatformAnthropic}}}
-	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, stubPairConcurrency{counts: map[int64]int{11: 2}})
+	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, &stubPairConcurrency{counts: map[int64]int{11: 2}})
 	view, err := svc.Get(ctx, 16)
 	require.NoError(t, err)
 	require.Len(t, view.Platforms[PlatformAnthropic].Accounts, 1)
@@ -416,7 +418,8 @@ func TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent(t *tes
 		{ID: 21, Platform: PlatformOpenAI},
 		{ID: 22, Platform: PlatformOpenAI},
 	}}
-	svc := NewUserSmartScheduleService(repo, stubSmartCache{until: map[int64]time.Time{21: until}}, accounts, nil, stubPairConcurrency{counts: map[int64]int{21: 3, 22: 9}})
+	pair := &stubPairConcurrency{counts: map[int64]int{21: 3, 22: 9}}
+	svc := NewUserSmartScheduleService(repo, stubSmartCache{until: map[int64]time.Time{21: until}}, accounts, nil, pair)
 	view, err := svc.Get(ctx, 16)
 	require.NoError(t, err)
 	require.Equal(t, PlatformOpenAI, view.DefaultPlatform)
@@ -429,6 +432,7 @@ func TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent(t *tes
 	require.Equal(t, until.Unix(), byID[21].CooldownUntil.Unix())
 	require.Equal(t, 0, byID[22].CurrentConcurrency, "uncapped pair must not hydrate Redis occupancy")
 	require.Nil(t, byID[22].MaxConcurrency)
+	require.Equal(t, []int64{21}, pair.requested)
 }
 
 func TestPickDefaultSmartSchedulePlatform(t *testing.T) {

@@ -2684,6 +2684,24 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	return &ReplaceUserGroupResult{MigratedKeys: migrated}, nil
 }
 
+type accountListLiteContextKey struct{}
+
+// WithAccountListLite skips schedule_users + quality-live hydrate on ListAccounts.
+func WithAccountListLite(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, accountListLiteContextKey{}, true)
+}
+
+func isAccountListLite(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	lite, _ := ctx.Value(accountListLiteContextKey{}).(bool)
+	return lite
+}
+
 // Account management implementations
 func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
@@ -2691,7 +2709,9 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	if err != nil {
 		return nil, 0, err
 	}
-	s.hydrateAccountScheduleUsers(ctx, accounts)
+	if !isAccountListLite(ctx) {
+		s.hydrateAccountScheduleUsers(ctx, accounts)
+	}
 	return accounts, result.Total, nil
 }
 

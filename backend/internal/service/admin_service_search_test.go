@@ -188,6 +188,56 @@ func TestAdminService_ListAccounts_WithSearch(t *testing.T) {
 	})
 }
 
+type liteListScheduleRepo struct {
+	accountRepoStubForAdminList
+	refs []ScheduleUserRef
+}
+
+func (s *liteListScheduleRepo) ListScheduleUserRefs(_ context.Context, _ []int64) ([]ScheduleUserRef, error) {
+	return s.refs, nil
+}
+
+type countingQualityLiveCache struct {
+	liveQualityCacheStub
+	gets int
+}
+
+func (c *countingQualityLiveCache) Get(ctx context.Context, accountID int64) (*AccountQualityStats, error) {
+	c.gets++
+	return c.liveQualityCacheStub.Get(ctx, accountID)
+}
+
+func TestAdminService_ListAccounts_LiteSkipsScheduleHydrate(t *testing.T) {
+	p50 := 800
+	repo := &liteListScheduleRepo{
+		accountRepoStubForAdminList: accountRepoStubForAdminList{
+			listWithFiltersAccounts: []Account{{
+				ID:           7,
+				Name:         "gated",
+				AllowUserIDs: []int64{16},
+				UserQualityGates: map[int64]QualityHardCloseSettings{
+					16: {MaxP50TTFTMs: &p50},
+				},
+			}},
+		},
+		refs: []ScheduleUserRef{{ID: 16, Email: "u@example.com"}},
+	}
+	live := &countingQualityLiveCache{}
+	svc := &adminServiceImpl{accountRepo: repo, qualityLiveCache: live}
+
+	liteAccounts, _, err := svc.ListAccounts(WithAccountListLite(context.Background()), 1, 20, "", "", "", "", 0, "", "name", "asc")
+	require.NoError(t, err)
+	require.Len(t, liteAccounts, 1)
+	require.Empty(t, liteAccounts[0].ScheduleUsers)
+	require.Zero(t, live.gets)
+
+	fullAccounts, _, err := svc.ListAccounts(context.Background(), 1, 20, "", "", "", "", 0, "", "name", "asc")
+	require.NoError(t, err)
+	require.Len(t, fullAccounts, 1)
+	require.NotEmpty(t, fullAccounts[0].ScheduleUsers)
+	require.Equal(t, 1, live.gets)
+}
+
 func TestAdminService_ListAccounts_WithPrivacyMode(t *testing.T) {
 	t.Run("privacy_mode 参数正常传递到 repository 层", func(t *testing.T) {
 		repo := &accountRepoStubForAdminList{

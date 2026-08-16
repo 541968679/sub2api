@@ -343,6 +343,59 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 // TestGeminiErrorPolicy_NilRateLimitService — verifies nil safety
 // ---------------------------------------------------------------------------
 
+func TestGeminiErrorPolicy_PoolModeHardMaintenance(t *testing.T) {
+	t.Run("forwards_402_and_sets_error", func(t *testing.T) {
+		repo := &geminiErrorPolicyRepo{}
+		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc := &GeminiMessagesCompatService{rateLimitService: rlSvc}
+		account := &Account{
+			ID:          401,
+			Type:        AccountTypeAPIKey,
+			Platform:    PlatformGemini,
+			Status:      StatusActive,
+			Schedulable: true,
+			Credentials: map[string]any{
+				"pool_mode":               true,
+				"pool_mode_hard_eviction": true,
+			},
+		}
+
+		svc.handleGeminiUpstreamError(context.Background(), account, 402, http.Header{}, []byte(`{"message":"Payment required"}`))
+
+		require.Equal(t, 1, repo.setErrorCalls)
+		require.Equal(t, 0, repo.setTempCalls)
+		require.Equal(t, 0, repo.setRateLimitedCalls)
+	})
+
+	t.Run("forwards_429_quota_exhausted_and_sets_error", func(t *testing.T) {
+		repo := &geminiErrorPolicyRepo{}
+		rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc := &GeminiMessagesCompatService{rateLimitService: rlSvc}
+		account := &Account{
+			ID:          402,
+			Type:        AccountTypeAPIKey,
+			Platform:    PlatformGemini,
+			Status:      StatusActive,
+			Schedulable: true,
+			Credentials: map[string]any{
+				"pool_mode":               true,
+				"pool_mode_hard_eviction": true,
+			},
+		}
+
+		svc.handleGeminiUpstreamError(
+			context.Background(),
+			account,
+			429,
+			http.Header{},
+			[]byte(`{"code":"API_KEY_QUOTA_EXHAUSTED","message":"API key 额度已用完"}`),
+		)
+
+		require.Equal(t, 1, repo.setErrorCalls)
+		require.Equal(t, 0, repo.setRateLimitedCalls)
+	})
+}
+
 func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 	svc := &GeminiMessagesCompatService{
 		rateLimitService: nil,

@@ -533,22 +533,10 @@
           </template>
 
           <template #cell-burn_rate="{ row }">
-            <div class="group relative">
-              <span
-                class="font-mono text-sm tabular-nums"
-                :class="
-                  formatBurnRateAmount(row.id) > 0
-                    ? 'font-medium text-amber-700 dark:text-amber-300'
-                    : 'text-gray-500 dark:text-dark-400'
-                "
-              >
-                {{ formatBurnRateDisplay(row.id) }}
-              </span>
-              <div class="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
-                {{ t('admin.users.burnRateCellTip') }}
-                <div class="absolute left-3 top-full border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
-              </div>
-            </div>
+            <UserBurnRateCell
+              :stats="burnRateStats[row.id] ?? burnRateStats[String(row.id)] ?? null"
+              :unit="burnRateUnit"
+            />
           </template>
 
           <template #cell-usage="{ row }">
@@ -910,6 +898,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
 import UserAttributesConfigModal from '@/components/user/UserAttributesConfigModal.vue'
+import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -1330,18 +1319,6 @@ const burnRateFetching = ref(false)
 const burnRateUnitSuffix = computed(() =>
   burnRateUnit.value === 'minute' ? t('admin.users.burnRateUnitMinute') : t('admin.users.burnRateUnitHour')
 )
-
-/** Convert backend $/h into the selected display unit; 2 decimals match balance. */
-const formatBurnRateAmount = (userId: number): number => {
-  const perHour = burnRateStats.value[userId]?.burn_rate_per_hour ?? 0
-  return burnRateUnit.value === 'minute' ? perHour / 60 : perHour
-}
-
-const formatBurnRateDisplay = (userId: number): string => {
-  const amount = formatBurnRateAmount(userId)
-  const suffix = burnRateUnit.value === 'minute' ? '/min' : '/h'
-  return `$${amount.toFixed(2)}${suffix}`
-}
 
 const loadSavedBurnRate = () => {
   try {

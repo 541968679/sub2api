@@ -33,7 +33,7 @@ const AccountQualityHistoryMaxRange = 7 * 24 * time.Hour
 const AccountQualitySnapshotDeleteBatchSize = 500
 
 // AccountQualityStats is the per-account quality snapshot for admin account list columns.
-// SuccessRate and TTFT fields are nil when the rolling window has no applicable samples.
+// SuccessRate, ErrorRate, and TTFT fields are nil when the rolling window has no applicable samples.
 //
 // TTFT guidance:
 //   - P50 (median): primary signal; resistant to a few pathological outliers
@@ -44,6 +44,8 @@ type AccountQualityStats struct {
 	SuccessCount  int64    `json:"success_count"`
 	ErrorCount    int64    `json:"error_count"`
 	SuccessRate   *float64 `json:"success_rate"`
+	// ErrorRate is 1-SuccessRate when the window has success+error samples; nil when empty.
+	ErrorRate *float64 `json:"error_rate"`
 	// AvgTTFTMs kept for backward compatibility; prefer P50 for display.
 	AvgTTFTMs   *int  `json:"avg_ttft_ms"`
 	P50TTFTMs   *int  `json:"p50_ttft_ms"`
@@ -90,11 +92,7 @@ func BuildAccountQualityStats(successCount, errorCount int64, ttft TTFTAggregate
 		ErrorCount:    errorCount,
 		TTFTSamples:   ttft.Samples,
 	}
-	total := successCount + errorCount
-	if total > 0 {
-		rate := float64(successCount) / float64(total)
-		stats.SuccessRate = &rate
-	}
+	NormalizeAccountQualityRates(stats)
 	if ttft.Samples > 0 {
 		stats.AvgTTFTMs = roundNonNegMs(ttft.Avg)
 		stats.P50TTFTMs = roundNonNegMs(ttft.P50)
@@ -102,6 +100,36 @@ func BuildAccountQualityStats(successCount, errorCount int64, ttft TTFTAggregate
 		stats.MaxTTFTMs = roundNonNegMs(ttft.Max)
 	}
 	return stats
+}
+
+// QualityRateSamples is the success+error count used for rate display and gates.
+func QualityRateSamples(stats *AccountQualityStats) int64 {
+	if stats == nil {
+		return 0
+	}
+	return stats.SuccessCount + stats.ErrorCount
+}
+
+// NormalizeAccountQualityRates keeps empty windows at null rates (never 0).
+// Error-only windows still get SuccessRate=0 / ErrorRate=1 for gate math.
+func NormalizeAccountQualityRates(stats *AccountQualityStats) {
+	if stats == nil {
+		return
+	}
+	total := QualityRateSamples(stats)
+	if total <= 0 {
+		stats.SuccessRate = nil
+		stats.ErrorRate = nil
+		return
+	}
+	if stats.SuccessRate == nil {
+		rate := float64(stats.SuccessCount) / float64(total)
+		stats.SuccessRate = &rate
+	}
+	if stats.ErrorRate == nil {
+		rate := float64(stats.ErrorCount) / float64(total)
+		stats.ErrorRate = &rate
+	}
 }
 
 func roundNonNegMs(v *float64) *int {
@@ -359,7 +387,7 @@ func (r AccountQualitySnapshotRow) ToHistoryItem() AccountQualityHistoryItem {
 	if window <= 0 {
 		window = AccountQualityWindowSeconds
 	}
-	return AccountQualityHistoryItem{
+	item := AccountQualityHistoryItem{
 		AccountQualityStats: AccountQualityStats{
 			WindowSeconds: window,
 			SuccessCount:  r.SuccessCount,
@@ -373,6 +401,8 @@ func (r AccountQualitySnapshotRow) ToHistoryItem() AccountQualityHistoryItem {
 		},
 		CapturedAt: r.CapturedAt.UTC(),
 	}
+	NormalizeAccountQualityRates(&item.AccountQualityStats)
+	return item
 }
 
 // AccountQualitySnapshotRepository persists and queries 15-minute quality snapshots.

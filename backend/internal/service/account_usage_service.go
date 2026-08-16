@@ -1546,6 +1546,7 @@ func fillQualityStats(ids []int64, statsByID map[int64]*AccountQualityStats) map
 	result := make(map[int64]*AccountQualityStats, len(ids))
 	for _, id := range ids {
 		if stats, ok := statsByID[id]; ok && stats != nil {
+			NormalizeAccountQualityRates(stats)
 			result[id] = stats
 			continue
 		}

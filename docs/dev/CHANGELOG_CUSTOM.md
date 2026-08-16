@@ -1,3 +1,225 @@
+## 2026-08-16 - feat(account): pool-mode hard eviction
+
+### What
+- Opt-in `credentials.pool_mode_hard_eviction` now actually stops scheduling pool accounts on billing-dead / tenant-dead upstream errors (`SetError` via `handleAuthError`).
+- Shared detector `isPoolModeHardMaintenanceError` lives in `ratelimit_service.go` with `IsPoolModeHardEviction()` on `Account`.
+- Gemini `handleGeminiUpstreamError` forwards those R5 statuses (402 / quota-exhausted 429 / credit-balance 400, etc.) into the same helper. Other protocols already call `HandleUpstreamError` with the raw status.
+- Ordinary pool-mode 429 rate limits and leftover flags on non-pool accounts stay ignored.
+
+### Why
+v0.1.227 Release failed because Gemini called `isPoolModeHardMaintenanceError` without shipping the helper. The call site and helper must ship together.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestIsPoolModeHardEviction|TestIsPoolModeHardMaintenanceError|TestHandleUpstreamError_PoolMode|TestGeminiErrorPolicy_PoolModeHardMaintenance|TestCheckErrorPolicy" -count=1`
+
+### Affected files
+`backend/internal/service/account.go`,
+`backend/internal/service/account_pool_mode_test.go`,
+`backend/internal/service/ratelimit_service.go`,
+`backend/internal/service/error_policy_test.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`backend/internal/service/gemini_error_policy_test.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - perf(ui): smart-schedule first paint and silent refresh
+
+### What
+- First-paint spinner waits only for `getSmartSchedule` + pool member details. Platform candidates load lazily (add search / filtered-add / one-click add) and stay clickable at count 0 so the click can fetch the list.
+- Candidate and pool id lists use `lite=1`: skip schedule_users/quality-live hydrate, window-cost N+1, and credential secrets. Accounts page without `lite` stays fully enriched.
+- `loadAll({ pickPlatform: true })` no longer double-fetches when the default tab is not anthropic.
+- Manual/auto refresh is silent (in-place patch). It does not flip full-page `loading`/`userLoading` or skeleton-wipe the pool table. Header extras still refresh visible columns, including burn rate.
+- `hydratePairCurrent` only Redis-queries members with pair cap ≥ 1. Pool table virtual scroll is on; `statsLoading` only spins quality/today cells.
+- `UserSmartScheduleView` no longer destructures unused `loadPoolDetails` (`vue-tsc` TS6133).
+
+### Why
+Opening zuoge85 (openai default, large anthropic fleet) blocked the page on a full account-list walk and auto-refresh unmounted the two cards into a blue/empty loading gate.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestAdminService_ListAccounts_LiteSkipsScheduleHydrate|TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run TestAccountHandlerListLiteRedactsHeavyFields -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`
+
+### Affected files
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/admin_service_search_test.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_test.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/admin/account_handler_scheduler_score_gate_test.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`frontend/src/composables/useSmartSchedulePoolColumnLayout.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): smart-schedule header burn rate
+
+### What
+- Smart-schedule page user header row drops the username column and shows 消耗速度.
+- Reuses UsersView `UserBurnRateCell` / `$/h` formatter and `POST /admin/dashboard/users-burn-rate`. Manual and silent auto refresh reload it via the existing header extras loader.
+
+### Why
+A shown header column must refresh with the same Users-list source. Do not invent burn rate from usage cost/tokens.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/adminUserListRow.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/adminUserListRow.ts`,
+`frontend/src/composables/__tests__/adminUserListRow.spec.ts`,
+`frontend/src/components/user/UserBurnRateCell.vue`,
+`frontend/src/components/admin/user/AdminUserListRowTable.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): pool admission is not a fake 质量拦截
+
+### What
+- Pool admission no longer shows 「质量拦截」 as a lock. The only live lock is `cooling` (Redis pair cooldown HASH).
+- Saved+enabled gate miss without a cooldown is 「下次请求将冷却」 (hint). Unsaved/disabled gate miss is 「未保存预览」. After cooldown expires, the chip returns to will-cool, not a permanent block.
+- Resume still clears cooldown and writes grace; the column then shows 「已恢复」 / selectable. Session-local grace covers the fact that quality-stats batch does not currently return `resume_users`.
+- Filters and auto-sort no longer treat the hint/preview as the old rank-3 dead lock. Preview/hint sort with will-cool; cooling stays worse than selectable. Same-rank rows with empty `last_used_at` no longer produce a NaN compare.
+
+### Why
+Stats failing the gate before `StartCooldown` (or after cooldown expires) is not a lock. Labeling it 质量拦截 made Resume look like it cleared a live block when nothing had been written yet.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAdmission.spec.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - redo(ui): smart-schedule two-card geometry
+
+### What
+- Redid the two-card row geometry: balanced `1.1fr / 1fr` stretch instead of a locked ~28rem left chimney + `items-start` gap.
+- Threshold card is now one toolbar (email + enable + platform tabs) + a 2/3-column inline field grid + copy/save. Add/filter labels sit on the same row as inputs; card padding is tighter.
+
+### Why
+The previous side-by-side pass kept a tall stacked form in a narrow left column, so the aspect ratio and wasted space were never actually planned.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): smart-schedule pool move-to-top
+
+### What
+- Pool 移到顶部 now writes `accounts.priority` to one below the current-platform pool min (Claude / same-rate OpenAI: smaller = more preferred) and switches the table to `priority asc`.
+- It no longer calls accounts-list `moveAccountToTop` (`extra.list_order`), which the pool DataTable never sorts by — so the button works before and after auto-sort.
+
+### Why
+After auto-sort the table is `priority asc`; changing only `list_order` left the row in place. Default `platform_type` sort had the same problem.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/composables/useSmartSchedulePoolAccountOps.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): empty quality window no longer renders 0%
+
+### What
+- Account quality cells show `—` until there is at least one completed `usage_logs` success (and optional min samples). Empty windows and error-only windows no longer render as `0.0%`.
+- Batch/live quality JSON now includes nullable `error_rate`. Empty windows emit `success_rate`/`error_rate` as `null`, never `0`.
+
+### Why
+Accounts that just became schedulable (tokenbits 0.08 / token-bits 0.06) had no successful 15-minute traffic. The cell treated `success_rate: 0` as a real percentage.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestBuildAccountQualityStats|TestAccountQualityStats_EmptyWindow|TestNormalizeAccountQualityRates" -count=1`
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountQualityStats.spec.ts src/components/account/__tests__/AccountQualityCell.spec.ts`
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_test.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/utils/accountQualityStats.ts`,
+`frontend/src/utils/__tests__/accountQualityStats.spec.ts`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/account/__tests__/AccountQualityCell.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): smart-schedule page chrome layout
+
+### What
+- Removed the in-page “用户智能调度” title and the long email / closed-allow-list subtitle. Back-to-users now sits on one row with the short `pageDescription`.
+- Moved the per-platform enable switch to the top of the quality-threshold card, right of the user email.
+- Quality editor and pool add+filter are side-by-side cards; the pool table and bulk bar are full-width below. Tightened card / add / filter / bulk padding.
+
+### Why
+The old header stacked a verbose title, long subtitle, and enable card above the users-list row, then buried the pool table inside the right card.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): smart-schedule add-bar ops cluster
+
+### What
+- Moved manual refresh, auto-refresh (5/10/15/30s), and auto-sort onto the right side of the smart-schedule add region.
+- Tightened the add bar to content width (`w-fit max-w-full`) with a left cluster (search + 筛选添加 + one-click scheduling) so it is no longer a full-bleed empty strip.
+- Auto-refresh now spins the dropdown trigger icon and shows the countdown while enabled, matching account management.
+
+### Why
+Ops controls were split between the page header and a full-width add strip, and the auto-refresh spinner was easy to miss.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-16 - deploy: v0.1.228
 
 ### What

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import type { AccountQualityStats } from '@/api/admin/accounts'
+import type { UserSmartScheduleView } from '@/api/admin/users'
 import {
+  POOL_ADMISSION_FILTER_STATES,
   isCurrentlySchedulingAccount,
   matchesPoolFilters,
   pickDefaultSmartSchedulePlatform,
   resolvePairCap,
-  resolvePoolAdmission
+  resolvePoolAdmission,
+  resolveQualityAdmissionHint,
+  userQualityResumeActive,
+  userQualityResumeChipActive
 } from '../smartSchedulePoolAdmission'
-import type { UserSmartScheduleView } from '@/api/admin/users'
 
 function emptyPlatform(overrides: Partial<UserSmartScheduleView['platforms'][string]> = {}) {
   return {
@@ -22,6 +27,44 @@ function emptyPlatform(overrides: Partial<UserSmartScheduleView['platforms'][str
   }
 }
 
+const live = { status: 'active' as const, schedulable: true }
+
+const failingStats: AccountQualityStats = {
+  window_seconds: 900,
+  success_count: 0,
+  error_count: 8,
+  success_rate: 0,
+  p50_ttft_ms: 900,
+  ttft_samples: 8
+}
+
+const passingStats: AccountQualityStats = {
+  window_seconds: 900,
+  success_count: 20,
+  error_count: 0,
+  success_rate: 1,
+  p50_ttft_ms: 80,
+  ttft_samples: 20
+}
+
+const savedLiveGate = {
+  enabled: true,
+  maxP50: 200,
+  successPercent: 90,
+  minSuccessSamples: 1,
+  minTtftSamples: 1,
+  condition: 'or' as const
+}
+
+const looseSavedGate = {
+  enabled: true,
+  maxP50: 2000,
+  successPercent: 10,
+  minSuccessSamples: 1,
+  minTtftSamples: 1,
+  condition: 'or' as const
+}
+
 describe('resolvePairCap', () => {
   it('treats empty and zero as no extra pair cap', () => {
     expect(resolvePairCap(null)).toBeNull()
@@ -32,28 +75,40 @@ describe('resolvePairCap', () => {
 })
 
 describe('resolvePoolAdmission', () => {
-  const live = { status: 'active' as const, schedulable: true }
-
   it('marks account-level stopped scheduling first', () => {
     expect(
       resolvePoolAdmission({
         account: { status: 'active', schedulable: false },
         pairCap: 2,
         pairCurrent: 2,
-        cooldownUntil: new Date(Date.now() + 60_000).toISOString()
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+        qualityHint: 'will_cool'
       }).state
     ).toBe('stopped')
   })
 
-  it('marks pair cooldown before pair-full', () => {
+  it('marks pair cooldown as the only quality lock', () => {
     expect(
       resolvePoolAdmission({
         account: live,
         pairCap: 1,
         pairCurrent: 1,
-        cooldownUntil: new Date(Date.now() + 60_000).toISOString()
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+        qualityHint: 'will_cool'
       }).state
     ).toBe('cooling')
+  })
+
+  it('after cooldown expires, a saved-gate miss is will-cool not a lock', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        cooldownUntil: new Date(Date.now() - 60_000).toISOString(),
+        qualityHint: 'will_cool'
+      }).state
+    ).toBe('will_cool')
   })
 
   it('marks pair-full only when a real pair cap exists', () => {
@@ -61,10 +116,136 @@ describe('resolvePoolAdmission', () => {
     expect(resolvePoolAdmission({ account: live, pairCap: 2, pairCurrent: 2 }).state).toBe('pair_full')
   })
 
-  it('marks quality-blocked when the live gate is breached', () => {
-    expect(resolvePoolAdmission({ account: live, pairCap: null, pairCurrent: 0, qualityBlocked: true }).state).toBe(
-      'quality_blocked'
-    )
+  it('keeps resume and preview below pair-full', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: 1,
+        pairCurrent: 1,
+        qualityHint: 'resumed'
+      }).state
+    ).toBe('pair_full')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        qualityHint: 'resumed'
+      }).state
+    ).toBe('resumed')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        qualityHint: 'unsaved_preview'
+      }).state
+    ).toBe('unsaved_preview')
+  })
+})
+
+describe('resolveQualityAdmissionHint', () => {
+  it('labels a saved live-gate miss as will-cool', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        stats: failingStats
+      })
+    ).toBe('will_cool')
+  })
+
+  it('labels a tighter unsaved draft as preview when the saved gate still passes', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: looseSavedGate,
+        stats: {
+          window_seconds: 900,
+          success_count: 8,
+          error_count: 2,
+          success_rate: 0.8,
+          p50_ttft_ms: 400,
+          ttft_samples: 10
+        }
+      })
+    ).toBe('unsaved_preview')
+  })
+
+  it('labels a disabled-platform gate miss as preview, not will-cool', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: { ...savedLiveGate, enabled: false },
+        saved: { ...savedLiveGate, enabled: false },
+        stats: failingStats
+      })
+    ).toBe('unsaved_preview')
+  })
+
+  it('keeps the live will-cool hint when the saved gate already fails and the draft is dirty', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: { ...savedLiveGate, maxP50: 50 },
+        saved: savedLiveGate,
+        stats: failingStats
+      })
+    ).toBe('will_cool')
+  })
+
+  it('shows resumed while the chip grace is active', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        stats: failingStats,
+        resumeChipActive: true,
+        resumeActive: true
+      })
+    ).toBe('resumed')
+  })
+
+  it('stays selectable during watching grace so stats cannot fake a lock', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        stats: failingStats,
+        resumeActive: true
+      })
+    ).toBeNull()
+  })
+
+  it('does not hint when the saved live gate still passes', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        stats: passingStats
+      })
+    ).toBeNull()
+  })
+})
+
+describe('userQualityResumeActive', () => {
+  const now = Date.parse('2026-08-16T12:00:00.000Z')
+
+  it('reads resume_users and resume_watching_users when batch exposes them', () => {
+    expect(
+      userQualityResumeChipActive({ resume_users: { '99': now / 1000 + 60 } }, 99, now)
+    ).toBe(true)
+    expect(
+      userQualityResumeActive({ resume_watching_users: { '99': now / 1000 + 60 } }, 99, now)
+    ).toBe(true)
+    expect(userQualityResumeActive({ resume_users: { '99': now / 1000 - 1 } }, 99, now)).toBe(false)
+  })
+})
+
+describe('POOL_ADMISSION_FILTER_STATES', () => {
+  it('does not treat a quality miss as a dead lock filter', () => {
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('will_cool')
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('unsaved_preview')
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('resumed')
+    expect(POOL_ADMISSION_FILTER_STATES as readonly string[]).not.toContain('quality_blocked')
   })
 })
 
@@ -87,15 +268,7 @@ describe('matchesPoolFilters', () => {
       })
     ).toBe(true)
     expect(
-      matchesPoolFilters(account, 'stopped', {
-        search: '',
-        type: 'apikey',
-        schedulable: 'off',
-        admission: 'stopped'
-      })
-    ).toBe(false)
-    expect(
-      matchesPoolFilters(account, 'selectable', {
+      matchesPoolFilters(account, 'will_cool', {
         search: '',
         type: 'oauth',
         schedulable: 'off',

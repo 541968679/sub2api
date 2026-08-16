@@ -74,15 +74,53 @@ export function smartScheduleSummaryFromDrafts(
   return { enabled_platforms, pool_counts }
 }
 
-export function buildAdminUserListRowColumns(t: (key: string) => string): Column[] {
+export type AdminUserBurnRateUnit = 'hour' | 'minute'
+
+export type AdminUserListRowTranslate = (
+  key: string,
+  params?: Record<string, unknown>
+) => string
+
+/** Convert backend $/h into the selected display unit; 2 decimals match UsersView / balance. */
+export function formatAdminUserBurnRateAmount(
+  perHour: number,
+  unit: AdminUserBurnRateUnit = 'hour'
+): number {
+  return unit === 'minute' ? perHour / 60 : perHour
+}
+
+export function formatAdminUserBurnRateDisplay(
+  perHour: number,
+  unit: AdminUserBurnRateUnit = 'hour'
+): string {
+  const amount = formatAdminUserBurnRateAmount(perHour, unit)
+  const suffix = unit === 'minute' ? '/min' : '/h'
+  return `$${amount.toFixed(2)}${suffix}`
+}
+
+export function pickBatchUserStat<T>(
+  stats: Record<string, T> | undefined | null,
+  userId: number
+): T | null {
+  if (!stats) return null
+  return stats[String(userId)] ?? null
+}
+
+export function buildAdminUserListRowColumns(t: AdminUserListRowTranslate): Column[] {
   return [
     { key: 'email', label: t('admin.users.columns.user'), sortable: false },
     { key: 'id', label: t('admin.users.columns.id'), sortable: false },
-    { key: 'username', label: t('admin.users.columns.username'), sortable: false },
     { key: 'role', label: t('admin.users.columns.role'), sortable: false },
     { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
     { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
     { key: 'balance', label: t('admin.users.columns.balance'), sortable: false },
+    {
+      key: 'burn_rate',
+      label: t('admin.users.columns.burnRateWithUnit', {
+        unit: t('admin.users.burnRateUnitHour')
+      }),
+      sortable: false
+    },
     { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
     { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: false },
     { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },

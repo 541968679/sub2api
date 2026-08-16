@@ -20,10 +20,6 @@
         </div>
       </template>
 
-      <template #cell-username="{ value }">
-        <span class="text-sm text-gray-700 dark:text-gray-300">{{ value || '-' }}</span>
-      </template>
-
       <template #cell-role="{ value }">
         <span :class="['badge', value === 'admin' ? 'badge-purple' : 'badge-gray']">
           {{ t('admin.users.roles.' + value) }}
@@ -109,6 +105,10 @@
 
       <template #cell-balance="{ value }">
         <span class="font-medium text-gray-900 dark:text-white">${{ Number(value ?? 0).toFixed(2) }}</span>
+      </template>
+
+      <template #cell-burn_rate>
+        <UserBurnRateCell :stats="burnRateStats" />
       </template>
 
       <template #cell-usage>
@@ -228,7 +228,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountQualityStats } from '@/api/admin/accounts'
-import type { BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { SmartScheduleSummary } from '@/api/admin/users'
 import type { AdminGroup, AdminUser } from '@/types'
 import { formatDateTime } from '@/utils/format'
@@ -245,6 +245,7 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Icon from '@/components/icons/Icon.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
 
 const props = defineProps<{
@@ -255,6 +256,7 @@ const props = defineProps<{
   qualityLoading?: boolean
   qualityError?: string | null
   usageStats?: BatchUserUsageStats | null
+  burnRateStats?: BatchUserBurnRateStats | null
   smartSchedule?: SmartScheduleSummary | null
   smartScheduleLoading?: boolean
 }>()
