@@ -1,3 +1,18 @@
+## 2026-08-16 - deploy: v0.1.227
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.227` (`264a6cda7`).
+
+### Why
+Ship user smart-schedule pools and the always-on upstream-rate overlay after local multi-account simulation.
+
+### Verification
+- Release `31942859259` succeeded; production health `ok`, version label `0.1.227`.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-16 - docs(schedule): selection priority map
 
 ### What
