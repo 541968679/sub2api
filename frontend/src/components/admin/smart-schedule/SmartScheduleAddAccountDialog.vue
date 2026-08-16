@@ -13,7 +13,7 @@
       </p>
 
       <AccountTableFilters
-        :search-query="filters.search"
+        :search-query="filters.search ?? ''"
         :filters="filters"
         :groups="groups"
         hide-platform

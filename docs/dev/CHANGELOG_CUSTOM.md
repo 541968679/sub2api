@@ -1,3 +1,21 @@
+## 2026-08-16 - fix(ui): smart-schedule release typecheck
+
+### What
+- Typed the stability chart datasets as Chart.js line data (plus optional `rawMs`) so `vue-tsc` accepts `<Line :data>`.
+- Coalesced add-dialog `search-query` to `''` because list-filter `search` is optional.
+
+### Why
+`v0.1.228` Release `build-frontend` failed on these two TS2322 errors; no GHCR image was published.
+
+### Verification
+- `pnpm --dir frontend run typecheck`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountStabilityDialog.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAddAccountDialog.spec.ts`
+
+### Affected files
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAddAccountDialog.vue`,
+this changelog.
+
 ## 2026-08-16 - feat(ui): smart-schedule pool toolbar three regions + filtered add
 
 ### What

@@ -238,7 +238,9 @@ import {
   LineElement,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  type ChartData,
+  type ChartDataset
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import { adminAPI } from '@/api/admin'
@@ -333,9 +335,13 @@ const ttftAxis = computed(() =>
   })
 )
 
-const chartData = computed(() => {
+type StabilityLineDataset = ChartDataset<'line'> & {
+  rawMs?: Array<number | null>
+}
+
+const chartData = computed<ChartData<'line'> | null>(() => {
   if (!historyItems.value.length) return null
-  const datasets: Array<Record<string, unknown>> = [
+  const datasets: StabilityLineDataset[] = [
     {
       label: t('admin.accounts.stability.p50Series'),
       data: p50Values.value,
