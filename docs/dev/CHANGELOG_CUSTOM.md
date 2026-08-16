@@ -1,3 +1,35 @@
+## 2026-08-16 - docs(schedule): selection priority map
+
+### What
+- Wrote the hard-then-soft selection order into `gateway.md`, including the Anthropic model-routing / fallback_only exception.
+
+### Why
+Brandon asked to verify the full scheduling chain against code and see it in priority order.
+
+### Verification
+- Read `SelectAccountWithLoadAwareness`, `SelectAccountWithScheduler`, `admitsScheduleUser`, `preferPrimaryAccounts`, `filterByMinUpstreamRate`.
+
+### Affected files
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-16 - test(schedule): multi-account smart-schedule simulation
+
+### What
+- Added a 7-account local simulation on the real Anthropic load-aware and OpenAI scheduler entrypoints.
+- Covers closed pool, pair-cap reselect, quality cooldown, sticky keep/clear, fallback partition, enable-off, and empty-pool fail-open.
+
+### Why
+Brandon has few local accounts and asked to prove the scheduling policy before any production push.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "SmartSchedule|UpstreamRate|SortAccountsByPriority|FilterByMinUpstream|OpenAIAccountCandidateBetter|AdmitsScheduleUser|SelectAccount_User|SelectAccount_Smart|OpenAISelectAccount_" -count=1`
+
+### Affected files
+`backend/internal/service/user_smart_schedule_selection_sim_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-16 - feat(schedule): immediate smart-schedule enable switch
 
 ### What

@@ -11,6 +11,21 @@ tokens or building ChatGPT/FedRAMP headers. HTTP and WebSocket paths keep the
 shadow ID for connection ownership, usage snapshots, and Spark rate limits;
 the parent supplies authentication identity and the inherited proxy.
 
+## Selection priority (hard then soft)
+
+Two production entrypoints share the same admission function (`admitsScheduleUser`) and then rank differently.
+
+1. Request gates: group / platform / model allow-list / Claude Code fallback group / channel pricing.
+2. Account alive: `IsSchedulable()` (active, switch, expiry pause, 429/529, temp-unschedulable, API-key quota). Do not fold user policy into this.
+3. Capability: platform, model mapping, window cost, RPM, OpenAI transport/compact/capability.
+4. User admission: enabled smart-schedule with a non-empty pool is a closed allow-list + pair cooldown + pool pair-cap. Disabled or empty-enabled falls back to account-side allow/deny/gate/cap.
+5. `fallback_only` hard partition (`preferPrimaryAccounts`) on load-aware Layer 2 and the OpenAI scheduler. Anthropic **model-routing Layer 1** currently ranks routed IDs without this partition.
+6. Pair occupancy: skip when current ≥ cap. No `WaitPlan` / 429. Sticky pin is kept.
+7. Sticky / `previous_response`: keep the pin if it still admits, even when a cheaper peer exists. Identity or quality miss clears the pin once.
+8. Account slot: account-concurrency full may `WaitPlan` on the Claude load-aware path; pair-full never waits.
+9. Upstream-rate overlay among the remaining set (lower `EffectiveUpstreamRate` first). Not billing `rate_multiplier`.
+10. Same rate: Claude/Gemini layered filter (priority → load → LRU; Gemini also prefers OAuth). OpenAI advanced scheduler uses the admin-editable score weights, then TopK weighted random. If that scheduler is off, OpenAI uses the same layered filter.
+
 ## Upstream rate overlay
 
 After group / `IsSchedulable` / smart-schedule / quality / pair-cap / sticky / `fallback_only` have already produced the eligible set, selection ranks by `EffectiveUpstreamRate()` (lower first). This is `accounts.upstream_rate_multiplier`, not billing `rate_multiplier`.
@@ -33,6 +48,7 @@ After group/platform/`IsSchedulable` filters, selection calls `admitsScheduleUse
 6. Sticky / previous_response pins that fail admission (identity or quality) are dropped once. Pair-full skips this pick only and keeps the pin.
 7. Spark shadows keep their own independent lists/caps/gates; new shadows start empty.
 8. OpenAI applies the same admission + pair-cap path on the advanced scheduler **and** the load-awareness fallback. Snapshot meta must copy `AllowUserIDs` / `DenyUserIDs` / `UserConcurrency` / `UserQualityGates`.
+9. Local multi-account proof lives in `user_smart_schedule_selection_sim_test.go`: a 7-account fleet (outside cheapest, in-pool deny, pair cap, quality breach, fallback_only, expensive primary, cheap primary) through `SelectAccountWithLoadAwareness` and `SelectAccountWithScheduler`. OpenAI cases stay serial because the advanced scheduler uses a process-wide settings cache.
 
 Spark eligibility requires an explicit Spark mapping and rejects default-model
 fallback. Global OAuth quota/429 headers do not consume the Spark lane, while
