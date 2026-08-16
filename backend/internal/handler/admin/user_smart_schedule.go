@@ -20,6 +20,10 @@ type putSmartScheduleRequest struct {
 	Accounts                 []service.SmartScheduleAccountMember `json:"accounts"`
 }
 
+type patchSmartScheduleSortRequest struct {
+	Accounts []service.SmartScheduleSortAssignment `json:"accounts"`
+}
+
 type copySmartScheduleRequest struct {
 	FromPlatform string `json:"from_platform"`
 }
@@ -127,6 +131,36 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		CooldownMinutes:          req.CooldownMinutes,
 		Accounts:                 req.Accounts,
 	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, view)
+}
+
+// PatchUserSmartScheduleSortOrder PATCH /admin/users/:id/smart-schedule/:platform/sort-order
+func (h *UserHandler) PatchUserSmartScheduleSortOrder(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	platform := c.Param("platform")
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	var req patchSmartScheduleSortRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	view, err := svc.PatchSortOrders(c.Request.Context(), userID, platform, req.Accounts)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -138,8 +138,39 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			if member.MaxConcurrency != nil && *member.MaxConcurrency >= 1 {
 				create.SetMaxConcurrency(*member.MaxConcurrency)
 			}
+			if member.SortOrder != nil {
+				create.SetSortOrder(*member.SortOrder)
+			}
 			if err := create.Exec(txCtx); err != nil {
 				return fmt.Errorf("insert smart schedule account %d: %w", member.AccountID, err)
+			}
+		}
+		return nil
+	})
+}
+
+func (r *userSmartScheduleRepository) UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []service.SmartScheduleSortAssignment) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("smart schedule repository unavailable")
+	}
+	if len(orders) == 0 {
+		return nil
+	}
+	return r.withTx(ctx, func(txCtx context.Context, client *dbent.Client) error {
+		for _, order := range orders {
+			n, err := client.UserSmartScheduleAccount.Update().
+				Where(
+					usersmartscheduleaccount.UserIDEQ(userID),
+					usersmartscheduleaccount.AccountIDEQ(order.AccountID),
+					usersmartscheduleaccount.PlatformEQ(platform),
+				).
+				SetSortOrder(order.SortOrder).
+				Save(txCtx)
+			if err != nil {
+				return fmt.Errorf("update smart schedule sort_order %d: %w", order.AccountID, err)
+			}
+			if n == 0 {
+				return fmt.Errorf("smart schedule account %d not found", order.AccountID)
 			}
 		}
 		return nil
@@ -184,6 +215,7 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 			UpdatedAt:                row.UpdatedAt,
 			AccountIDs:               map[int64]struct{}{},
 			Caps:                     map[int64]int{},
+			SortOrders:               map[int64]int{},
 		}
 	}
 	for _, row := range members {
@@ -196,6 +228,7 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 				CooldownMinutes: service.DefaultSmartScheduleCooldownMinutes,
 				AccountIDs:      map[int64]struct{}{},
 				Caps:            map[int64]int{},
+				SortOrders:      map[int64]int{},
 			}
 			out.Policies[row.Platform] = policy
 		}
@@ -208,6 +241,12 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 				policy.Caps = map[int64]int{}
 			}
 			policy.Caps[row.AccountID] = *row.MaxConcurrency
+		}
+		if row.SortOrder != nil {
+			if policy.SortOrders == nil {
+				policy.SortOrders = map[int64]int{}
+			}
+			policy.SortOrders[row.AccountID] = *row.SortOrder
 		}
 	}
 	return out

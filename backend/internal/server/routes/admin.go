@@ -295,6 +295,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.POST("/:id/platform-quotas/reset", h.Admin.User.ResetUserPlatformQuotaWindow)
 		users.GET("/:id/smart-schedule", h.Admin.User.GetUserSmartSchedule)
 		users.PUT("/:id/smart-schedule/:platform", h.Admin.User.UpdateUserSmartSchedule)
+		users.PATCH("/:id/smart-schedule/:platform/sort-order", h.Admin.User.PatchUserSmartScheduleSortOrder)
 		users.POST("/:id/smart-schedule/:platform/copy", h.Admin.User.CopyUserSmartSchedule)
 
 		// User attribute values

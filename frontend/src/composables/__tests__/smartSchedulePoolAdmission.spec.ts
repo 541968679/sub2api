@@ -6,8 +6,10 @@ import {
   isCurrentlySchedulingAccount,
   matchesPoolFilters,
   pickDefaultSmartSchedulePlatform,
+  pairOccupancyDisplayMax,
   resolvePairCap,
   resolvePoolAdmission,
+  UNCAPPED_PAIR_DISPLAY_MAX,
   resolveQualityAdmissionHint,
   userQualityResumeActive,
   userQualityResumeChipActive
@@ -71,6 +73,16 @@ describe('resolvePairCap', () => {
     expect(resolvePairCap(undefined)).toBeNull()
     expect(resolvePairCap(0)).toBeNull()
     expect(resolvePairCap(3)).toBe(3)
+  })
+})
+
+describe('pairOccupancyDisplayMax', () => {
+  it('uses 999 only as the uncapped display denominator', () => {
+    expect(pairOccupancyDisplayMax(null)).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+    expect(pairOccupancyDisplayMax(0)).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+    expect(pairOccupancyDisplayMax(undefined)).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+    expect(pairOccupancyDisplayMax(2)).toBe(2)
+    expect(UNCAPPED_PAIR_DISPLAY_MAX).toBe(999)
   })
 })
 

@@ -27,6 +27,8 @@ type UserSmartScheduleAccount struct {
 	Platform string `json:"platform,omitempty"`
 	// MaxConcurrency holds the value of the "max_concurrency" field.
 	MaxConcurrency *int `json:"max_concurrency,omitempty"`
+	// SortOrder holds the value of the "sort_order" field.
+	SortOrder *int `json:"sort_order,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserSmartScheduleAccountQuery when eager-loading is set.
 	Edges        UserSmartScheduleAccountEdges `json:"edges"`
@@ -71,7 +73,7 @@ func (*UserSmartScheduleAccount) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case usersmartscheduleaccount.FieldAccountID, usersmartscheduleaccount.FieldUserID, usersmartscheduleaccount.FieldMaxConcurrency:
+		case usersmartscheduleaccount.FieldAccountID, usersmartscheduleaccount.FieldUserID, usersmartscheduleaccount.FieldMaxConcurrency, usersmartscheduleaccount.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
 		case usersmartscheduleaccount.FieldPlatform:
 			values[i] = new(sql.NullString)
@@ -122,6 +124,13 @@ func (_m *UserSmartScheduleAccount) assignValues(columns []string, values []any)
 			} else if value.Valid {
 				_m.MaxConcurrency = new(int)
 				*_m.MaxConcurrency = int(value.Int64)
+			}
+		case usersmartscheduleaccount.FieldSortOrder:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field sort_order", values[i])
+			} else if value.Valid {
+				_m.SortOrder = new(int)
+				*_m.SortOrder = int(value.Int64)
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -182,6 +191,11 @@ func (_m *UserSmartScheduleAccount) String() string {
 	builder.WriteString(", ")
 	if v := _m.MaxConcurrency; v != nil {
 		builder.WriteString("max_concurrency=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.SortOrder; v != nil {
+		builder.WriteString("sort_order=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteByte(')')

@@ -61701,6 +61701,8 @@ type UserSmartScheduleAccountMutation struct {
 	platform           *string
 	max_concurrency    *int
 	addmax_concurrency *int
+	sort_order         *int
+	addsort_order      *int
 	clearedFields      map[string]struct{}
 	user               *int64
 	cleareduser        bool
@@ -61878,6 +61880,59 @@ func (m *UserSmartScheduleAccountMutation) ResetMaxConcurrency() {
 	delete(m.clearedFields, usersmartscheduleaccount.FieldMaxConcurrency)
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (m *UserSmartScheduleAccountMutation) SetSortOrder(i int) {
+	m.sort_order = &i
+	m.addsort_order = nil
+}
+
+// SortOrder returns the value of the "sort_order" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) SortOrder() (r int, exists bool) {
+	v := m.sort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddSortOrder adds i to the "sort_order" field.
+func (m *UserSmartScheduleAccountMutation) AddSortOrder(i int) {
+	if m.addsort_order != nil {
+		*m.addsort_order += i
+	} else {
+		m.addsort_order = &i
+	}
+}
+
+// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
+func (m *UserSmartScheduleAccountMutation) AddedSortOrder() (r int, exists bool) {
+	v := m.addsort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (m *UserSmartScheduleAccountMutation) ClearSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+	m.clearedFields[usersmartscheduleaccount.FieldSortOrder] = struct{}{}
+}
+
+// SortOrderCleared returns if the "sort_order" field was cleared in this mutation.
+func (m *UserSmartScheduleAccountMutation) SortOrderCleared() bool {
+	_, ok := m.clearedFields[usersmartscheduleaccount.FieldSortOrder]
+	return ok
+}
+
+// ResetSortOrder resets all changes to the "sort_order" field.
+func (m *UserSmartScheduleAccountMutation) ResetSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+	delete(m.clearedFields, usersmartscheduleaccount.FieldSortOrder)
+}
+
 // ClearUser clears the "user" edge to the User entity.
 func (m *UserSmartScheduleAccountMutation) ClearUser() {
 	m.cleareduser = true
@@ -61966,7 +62021,7 @@ func (m *UserSmartScheduleAccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserSmartScheduleAccountMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.account != nil {
 		fields = append(fields, usersmartscheduleaccount.FieldAccountID)
 	}
@@ -61981,6 +62036,9 @@ func (m *UserSmartScheduleAccountMutation) Fields() []string {
 	}
 	if m.max_concurrency != nil {
 		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
+	}
+	if m.sort_order != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldSortOrder)
 	}
 	return fields
 }
@@ -62000,6 +62058,8 @@ func (m *UserSmartScheduleAccountMutation) Field(name string) (ent.Value, bool) 
 		return m.Platform()
 	case usersmartscheduleaccount.FieldMaxConcurrency:
 		return m.MaxConcurrency()
+	case usersmartscheduleaccount.FieldSortOrder:
+		return m.SortOrder()
 	}
 	return nil, false
 }
@@ -62051,6 +62111,13 @@ func (m *UserSmartScheduleAccountMutation) SetField(name string, value ent.Value
 		}
 		m.SetMaxConcurrency(v)
 		return nil
+	case usersmartscheduleaccount.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSortOrder(v)
+		return nil
 	}
 	return fmt.Errorf("unknown UserSmartScheduleAccount field %s", name)
 }
@@ -62062,6 +62129,9 @@ func (m *UserSmartScheduleAccountMutation) AddedFields() []string {
 	if m.addmax_concurrency != nil {
 		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
 	}
+	if m.addsort_order != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldSortOrder)
+	}
 	return fields
 }
 
@@ -62072,6 +62142,8 @@ func (m *UserSmartScheduleAccountMutation) AddedField(name string) (ent.Value, b
 	switch name {
 	case usersmartscheduleaccount.FieldMaxConcurrency:
 		return m.AddedMaxConcurrency()
+	case usersmartscheduleaccount.FieldSortOrder:
+		return m.AddedSortOrder()
 	}
 	return nil, false
 }
@@ -62088,6 +62160,13 @@ func (m *UserSmartScheduleAccountMutation) AddField(name string, value ent.Value
 		}
 		m.AddMaxConcurrency(v)
 		return nil
+	case usersmartscheduleaccount.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSortOrder(v)
+		return nil
 	}
 	return fmt.Errorf("unknown UserSmartScheduleAccount numeric field %s", name)
 }
@@ -62098,6 +62177,9 @@ func (m *UserSmartScheduleAccountMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(usersmartscheduleaccount.FieldMaxConcurrency) {
 		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
+	}
+	if m.FieldCleared(usersmartscheduleaccount.FieldSortOrder) {
+		fields = append(fields, usersmartscheduleaccount.FieldSortOrder)
 	}
 	return fields
 }
@@ -62115,6 +62197,9 @@ func (m *UserSmartScheduleAccountMutation) ClearField(name string) error {
 	switch name {
 	case usersmartscheduleaccount.FieldMaxConcurrency:
 		m.ClearMaxConcurrency()
+		return nil
+	case usersmartscheduleaccount.FieldSortOrder:
+		m.ClearSortOrder()
 		return nil
 	}
 	return fmt.Errorf("unknown UserSmartScheduleAccount nullable field %s", name)
@@ -62138,6 +62223,9 @@ func (m *UserSmartScheduleAccountMutation) ResetField(name string) error {
 		return nil
 	case usersmartscheduleaccount.FieldMaxConcurrency:
 		m.ResetMaxConcurrency()
+		return nil
+	case usersmartscheduleaccount.FieldSortOrder:
+		m.ResetSortOrder()
 		return nil
 	}
 	return fmt.Errorf("unknown UserSmartScheduleAccount field %s", name)

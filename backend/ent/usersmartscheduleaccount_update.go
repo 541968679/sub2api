@@ -98,6 +98,33 @@ func (_u *UserSmartScheduleAccountUpdate) ClearMaxConcurrency() *UserSmartSchedu
 	return _u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdate) SetSortOrder(v int) *UserSmartScheduleAccountUpdate {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *UserSmartScheduleAccountUpdate) SetNillableSortOrder(v *int) *UserSmartScheduleAccountUpdate {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdate) AddSortOrder(v int) *UserSmartScheduleAccountUpdate {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdate) ClearSortOrder() *UserSmartScheduleAccountUpdate {
+	_u.mutation.ClearSortOrder()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *UserSmartScheduleAccountUpdate) SetUser(v *User) *UserSmartScheduleAccountUpdate {
 	return _u.SetUserID(v.ID)
@@ -191,6 +218,15 @@ func (_u *UserSmartScheduleAccountUpdate) sqlSave(ctx context.Context) (_node in
 	}
 	if _u.mutation.MaxConcurrencyCleared() {
 		_spec.ClearField(usersmartscheduleaccount.FieldMaxConcurrency, field.TypeInt)
+	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt, value)
+	}
+	if _u.mutation.SortOrderCleared() {
+		_spec.ClearField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -339,6 +375,33 @@ func (_u *UserSmartScheduleAccountUpdateOne) ClearMaxConcurrency() *UserSmartSch
 	return _u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdateOne) SetSortOrder(v int) *UserSmartScheduleAccountUpdateOne {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *UserSmartScheduleAccountUpdateOne) SetNillableSortOrder(v *int) *UserSmartScheduleAccountUpdateOne {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdateOne) AddSortOrder(v int) *UserSmartScheduleAccountUpdateOne {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (_u *UserSmartScheduleAccountUpdateOne) ClearSortOrder() *UserSmartScheduleAccountUpdateOne {
+	_u.mutation.ClearSortOrder()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *UserSmartScheduleAccountUpdateOne) SetUser(v *User) *UserSmartScheduleAccountUpdateOne {
 	return _u.SetUserID(v.ID)
@@ -464,6 +527,15 @@ func (_u *UserSmartScheduleAccountUpdateOne) sqlSave(ctx context.Context) (_node
 	}
 	if _u.mutation.MaxConcurrencyCleared() {
 		_spec.ClearField(usersmartscheduleaccount.FieldMaxConcurrency, field.TypeInt)
+	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt, value)
+	}
+	if _u.mutation.SortOrderCleared() {
+		_spec.ClearField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

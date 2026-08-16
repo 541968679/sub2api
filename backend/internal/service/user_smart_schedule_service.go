@@ -134,6 +134,40 @@ func (s *UserSmartScheduleService) PutPlatform(ctx context.Context, userID int64
 	return s.Get(ctx, userID)
 }
 
+func (s *UserSmartScheduleService) PatchSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) (*UserSmartScheduleView, error) {
+	platform = normalizeSmartSchedulePlatform(platform)
+	if !IsAllowedSmartSchedulePlatform(platform) {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_PLATFORM", "invalid platform")
+	}
+	normalized, err := normalizeSmartScheduleSortAssignments(orders)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
+	}
+	bundle, err := s.repo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	policy := bundle.Policy(platform)
+	if policy == nil || policy.MemberCount() == 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	for _, order := range normalized {
+		if !policy.HasAccount(order.AccountID) {
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+		}
+	}
+	if err := s.repo.UpdateSortOrders(ctx, userID, platform, normalized); err != nil {
+		return nil, err
+	}
+	if s.cache != nil {
+		_ = s.cache.Invalidate(ctx, userID)
+	}
+	return s.Get(ctx, userID)
+}
+
 func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int64, toPlatform, fromPlatform string) (*UserSmartScheduleView, error) {
 	toPlatform = normalizeSmartSchedulePlatform(toPlatform)
 	fromPlatform = normalizeSmartSchedulePlatform(fromPlatform)
@@ -273,16 +307,40 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 			member.MaxConcurrency = nil
 		}
 		member.CurrentConcurrency = 0
+		member.CooldownUntil = nil
 		outMembers = append(outMembers, member)
 	}
 	write.Accounts = outMembers
 	return write, nil
 }
 
+func normalizeSmartScheduleSortAssignments(orders []SmartScheduleSortAssignment) ([]SmartScheduleSortAssignment, error) {
+	if len(orders) == 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_SORT_ORDER", "accounts is required")
+	}
+	out := make([]SmartScheduleSortAssignment, 0, len(orders))
+	seen := map[int64]struct{}{}
+	for _, order := range orders {
+		if order.AccountID <= 0 {
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "invalid account id")
+		}
+		if _, ok := seen[order.AccountID]; ok {
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_DUPLICATE_ACCOUNT", "duplicate account in pool")
+		}
+		seen[order.AccountID] = struct{}{}
+		out = append(out, SmartScheduleSortAssignment{AccountID: order.AccountID, SortOrder: order.SortOrder})
+	}
+	return out, nil
+}
+
 func emptySmartScheduleView(userID int64) *UserSmartScheduleView {
 	return bundleToView(userID, nil)
 }
 
+// hydratePairCurrent fills CurrentConcurrency for every pool member from
+// concurrency:account_user:{accountID}:{userID}. Uncapped members are included
+// so the admin badge can show this user's occupancy; this does not acquire
+// slots or change pair-cap enforcement.
 func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.pairConcurrency == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
@@ -292,9 +350,6 @@ func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userI
 	for _, platform := range view.Platforms {
 		for _, member := range platform.Accounts {
 			if member.AccountID <= 0 {
-				continue
-			}
-			if member.MaxConcurrency == nil || *member.MaxConcurrency < 1 {
 				continue
 			}
 			if _, ok := seen[member.AccountID]; ok {
@@ -313,9 +368,6 @@ func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userI
 	}
 	for platformKey, platform := range view.Platforms {
 		for i := range platform.Accounts {
-			if platform.Accounts[i].MaxConcurrency == nil || *platform.Accounts[i].MaxConcurrency < 1 {
-				continue
-			}
 			platform.Accounts[i].CurrentConcurrency = counts[platform.Accounts[i].AccountID]
 		}
 		view.Platforms[platformKey] = platform
@@ -460,14 +512,38 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	for accountID := range policy.AccountIDs {
 		accountIDs = append(accountIDs, accountID)
 	}
-	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
+	sort.Slice(accountIDs, func(i, j int) bool {
+		return compareSmartScheduleMemberIDs(accountIDs[i], accountIDs[j], policy.SortOrders)
+	})
 	for _, accountID := range accountIDs {
 		member := SmartScheduleAccountMember{AccountID: accountID, Platform: platform}
 		if capN := policy.PairCap(accountID); capN >= 1 {
 			copied := capN
 			member.MaxConcurrency = &copied
 		}
+		if n, ok := policy.SortOrders[accountID]; ok {
+			copied := n
+			member.SortOrder = &copied
+		}
 		view.Accounts = append(view.Accounts, member)
 	}
 	return view
+}
+
+func compareSmartScheduleMemberIDs(left, right int64, sortOrders map[int64]int) bool {
+	leftOrder, leftOK := sortOrders[left]
+	rightOrder, rightOK := sortOrders[right]
+	if !leftOK && !rightOK {
+		return left < right
+	}
+	if !leftOK {
+		return false
+	}
+	if !rightOK {
+		return true
+	}
+	if leftOrder != rightOrder {
+		return leftOrder < rightOrder
+	}
+	return left < right
 }

@@ -22,6 +22,8 @@ const (
 	FieldPlatform = "platform"
 	// FieldMaxConcurrency holds the string denoting the max_concurrency field in the database.
 	FieldMaxConcurrency = "max_concurrency"
+	// FieldSortOrder holds the string denoting the sort_order field in the database.
+	FieldSortOrder = "sort_order"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeAccount holds the string denoting the account edge name in mutations.
@@ -55,6 +57,7 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldPlatform,
 	FieldMaxConcurrency,
+	FieldSortOrder,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -100,6 +103,11 @@ func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxConcurrency orders the results by the max_concurrency field.
 func ByMaxConcurrency(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxConcurrency, opts...).ToFunc()
+}
+
+// BySortOrder orders the results by the sort_order field.
+func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSortOrder, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

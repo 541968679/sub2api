@@ -23,9 +23,14 @@ export type PoolAutoSortItem = {
   lastUsedAt?: string | null
 }
 
-export type PoolAutoSortAssignment = {
+export type PoolSortAssignment = {
   id: number
-  nextPriority: number
+  sortOrder: number
+}
+
+export type PoolMemberSortState = {
+  id: number
+  sortOrder: number | null
 }
 
 export function pairHeadroomForAutoSort(pairCap: number | null, pairCurrent: number): number {
@@ -51,7 +56,8 @@ export function comparePoolAutoSort(a: PoolAutoSortItem, b: PoolAutoSortItem): n
   const concurrency = (b.concurrency ?? 0) - (a.concurrency ?? 0)
   if (concurrency !== 0) return concurrency
 
-  const priority = (b.priority ?? 0) - (a.priority ?? 0)
+  // Read-only tie-break: accounts.priority is scheduling weight (smaller = more preferred).
+  const priority = (a.priority ?? 0) - (b.priority ?? 0)
   if (priority !== 0) return priority
 
   const lastUsed = lastUsedMs(a.lastUsedAt) - lastUsedMs(b.lastUsedAt)
@@ -64,55 +70,39 @@ export function sortSmartSchedulePoolMembers<T extends PoolAutoSortItem>(items: 
   return [...items].sort(comparePoolAutoSort)
 }
 
-/**
- * Reassign this pool's existing priority slots so the first (most desirable) row
- * gets the smallest number. Claude / same-rate OpenAI prefer lower `priority`.
- * Duplicates are spread upward so the order is total, without inventing 1..N
- * that would jump the whole pool ahead of the rest of the fleet.
- */
-export function makeDistinctAscendingPrioritySlots(values: number[]): number[] {
-  const slots = values.map((value) => {
-    if (!Number.isFinite(value)) return 0
-    return Math.max(0, Math.trunc(value))
-  })
-  slots.sort((left, right) => left - right)
-  for (let i = 1; i < slots.length; i++) {
-    if (slots[i] <= slots[i - 1]) {
-      slots[i] = slots[i - 1] + 1
-    }
-  }
-  return slots
-}
-
-export function assignPoolAutoSortPriorities(
-  sorted: Array<Pick<PoolAutoSortItem, 'id' | 'priority'>>
-): PoolAutoSortAssignment[] {
-  const slots = makeDistinctAscendingPrioritySlots(sorted.map((item) => item.priority ?? 0))
+export function assignPoolAutoSortOrders(
+  sorted: Array<Pick<PoolAutoSortItem, 'id'>>
+): PoolSortAssignment[] {
   return sorted.map((item, index) => ({
     id: item.id,
-    nextPriority: slots[index] ?? index
+    sortOrder: index + 1
   }))
 }
 
-function normalizePoolPriority(value: number | null | undefined): number {
-  if (value == null || !Number.isFinite(value)) return 0
-  return Math.trunc(value)
+export function comparePoolMemberDisplayOrder(a: PoolMemberSortState, b: PoolMemberSortState): number {
+  if (a.sortOrder == null && b.sortOrder == null) return a.id - b.id
+  if (a.sortOrder == null) return 1
+  if (b.sortOrder == null) return -1
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  return a.id - b.id
 }
 
-/**
- * Priority to write so this row is first under `priority asc` (smaller = more
- * preferred, same as Claude / same-rate OpenAI). `null` means the account is
- * already the unique pool min — no write needed, only switch the table sort.
- */
-export function nextPriorityForPoolMoveToTop(
-  poolPriorities: Array<number | null | undefined>,
-  currentPriority: number | null | undefined
-): number | null {
-  const slots = (poolPriorities.length > 0 ? poolPriorities : [currentPriority]).map(normalizePoolPriority)
-  const current = normalizePoolPriority(currentPriority)
-  const min = slots.reduce((lowest, value) => Math.min(lowest, value), Number.POSITIVE_INFINITY)
-  if (!Number.isFinite(min)) return -1
-  const minCount = slots.filter((value) => value === min).length
-  if (current === min && minCount === 1) return null
-  return min - 1
+export function assignPoolMoveToTopSortOrders(
+  members: PoolMemberSortState[],
+  targetId: number
+): PoolSortAssignment[] {
+  const target = members.find((item) => item.id === targetId)
+  const others = members
+    .filter((item) => item.id !== targetId)
+    .sort(comparePoolMemberDisplayOrder)
+  const ordered = target ? [target, ...others] : others
+  return assignPoolAutoSortOrders(ordered)
+}
+
+export function poolSortOrdersUnchanged(
+  current: PoolMemberSortState[],
+  assigned: PoolSortAssignment[]
+): boolean {
+  const byID = new Map(current.map((item) => [item.id, item.sortOrder]))
+  return assigned.every((row) => byID.get(row.id) === row.sortOrder)
 }

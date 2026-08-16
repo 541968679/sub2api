@@ -47,6 +47,9 @@ func (UserSmartScheduleAccount) Fields() []ent.Field {
 		field.Int("max_concurrency").
 			Optional().
 			Nillable(),
+		field.Int("sort_order").
+			Optional().
+			Nillable(),
 	}
 }
 

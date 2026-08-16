@@ -114,6 +114,18 @@ func TestGetBatchSmartScheduleSummaries_ReturnsEnabledPlatforms(t *testing.T) {
 	}
 }
 
+func TestPatchUserSmartScheduleSortOrder_InvalidID(t *testing.T) {
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPatch, `{"accounts":[{"account_id":11,"sort_order":1}]}`, []gin.Param{
+		{Key: "id", Value: "abc"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.PatchUserSmartScheduleSortOrder(c)
+	if w.Code < 400 || w.Code >= 500 {
+		t.Fatalf("invalid id should be 4xx, got %d", w.Code)
+	}
+}
+
 func TestResumeSmartSchedule_RequiresUserID(t *testing.T) {
 	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
 	c, w := newSmartScheduleJSONContext(http.MethodPost, `{}`, []gin.Param{{Key: "id", Value: "7"}})
@@ -144,5 +156,9 @@ func (s *serviceSmartRepoStub) ListByUsers(_ context.Context, userIDs []int64) (
 }
 
 func (s *serviceSmartRepoStub) ReplacePlatform(_ context.Context, _ int64, _ string, _ service.SmartSchedulePlatformWrite) error {
+	return nil
+}
+
+func (s *serviceSmartRepoStub) UpdateSortOrders(_ context.Context, _ int64, _ string, _ []service.SmartScheduleSortAssignment) error {
 	return nil
 }

@@ -20,8 +20,15 @@ type SmartScheduleAccountMember struct {
 	AccountID          int64      `json:"account_id"`
 	Platform           string     `json:"platform"`
 	MaxConcurrency     *int       `json:"max_concurrency,omitempty"`
+	SortOrder          *int       `json:"sort_order"`
 	CurrentConcurrency int        `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
+}
+
+// SmartScheduleSortAssignment is one membership row's pool display order.
+type SmartScheduleSortAssignment struct {
+	AccountID int64 `json:"account_id"`
+	SortOrder int   `json:"sort_order"`
 }
 
 // SmartSchedulePlatformPolicy is the hot-path view of one (user, platform) policy.
@@ -36,6 +43,7 @@ type SmartSchedulePlatformPolicy struct {
 	UpdatedAt                time.Time
 	AccountIDs               map[int64]struct{}
 	Caps                     map[int64]int
+	SortOrders               map[int64]int
 }
 
 func (p *SmartSchedulePlatformPolicy) HasAccount(accountID int64) bool {
@@ -128,6 +136,7 @@ type UserSmartScheduleRepository interface {
 	ListByUser(ctx context.Context, userID int64) (*UserSmartScheduleBundle, error)
 	ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error)
 	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
+	UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) error
 }
 
 // UserSmartScheduleSummary is the compact list-column view of one user's smart schedule.

@@ -40,6 +40,7 @@ export const SMART_SCHEDULE_PLATFORMS: SmartSchedulePlatform[] = [
 export type SmartSchedulePoolMemberDraft = {
   account_id: number
   max_concurrency: number | null
+  sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
 }
@@ -187,6 +188,7 @@ export function useUserSmartScheduleEditor(
     draft.accounts = (view.accounts ?? []).map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency ?? null,
+      sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null
     }))
@@ -228,6 +230,7 @@ export function useUserSmartScheduleEditor(
       if (!live) continue
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
+      member.sort_order = live.sort_order ?? null
     }
   }
 
@@ -250,6 +253,20 @@ export function useUserSmartScheduleEditor(
 
   function memberCooldownUntil(accountId: number): string | null {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
+  }
+
+  function memberSortOrder(accountId: number): number | null {
+    const value = currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.sort_order
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+  }
+
+  function applyMemberSortOrders(assignments: Array<{ account_id: number; sort_order: number }>) {
+    if (!currentDraft.value) return
+    const byID = new Map(assignments.map((item) => [item.account_id, item.sort_order]))
+    for (const member of currentDraft.value.accounts) {
+      const next = byID.get(member.account_id)
+      if (next != null) member.sort_order = next
+    }
   }
 
   function applyLocalResumeGrace(accountId: number) {
@@ -586,8 +603,31 @@ export function useUserSmartScheduleEditor(
       accounts: draft.accounts.map((item) => ({
         account_id: item.account_id,
         platform: activePlatform.value,
-        max_concurrency: item.max_concurrency
+        max_concurrency: item.max_concurrency,
+        sort_order: item.sort_order ?? null
       }))
+    }
+  }
+
+  async function persistSortOrders(
+    assignments: Array<{ account_id: number; sort_order: number }>,
+    errorKey?: string
+  ) {
+    if (!userId.value || assignments.length === 0) return false
+    const previous = (currentDraft.value?.accounts ?? []).map((item) => ({ ...item }))
+    applyMemberSortOrders(assignments)
+    try {
+      const view = await adminAPI.users.updateSmartScheduleSortOrder(userId.value, activePlatform.value, {
+        accounts: assignments
+      })
+      mergeRuntimeMembers(activePlatform.value, view.platforms?.[activePlatform.value])
+      return true
+    } catch (error: unknown) {
+      if (currentDraft.value) currentDraft.value.accounts = previous
+      appStore.showError(
+        extractApiErrorMessage(error, t(errorKey || 'admin.users.smartSchedule.autoSortFailed'))
+      )
+      return false
     }
   }
 
@@ -732,6 +772,8 @@ export function useUserSmartScheduleEditor(
     memberCapOrNull,
     memberCurrent,
     memberCooldownUntil,
+    memberSortOrder,
+    persistSortOrders,
     memberResumeActive,
     memberResumeChipActive,
     effectivePairMax,

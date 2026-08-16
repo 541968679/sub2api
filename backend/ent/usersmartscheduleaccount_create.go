@@ -70,6 +70,20 @@ func (_c *UserSmartScheduleAccountCreate) SetNillableMaxConcurrency(v *int) *Use
 	return _c
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_c *UserSmartScheduleAccountCreate) SetSortOrder(v int) *UserSmartScheduleAccountCreate {
+	_c.mutation.SetSortOrder(v)
+	return _c
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_c *UserSmartScheduleAccountCreate) SetNillableSortOrder(v *int) *UserSmartScheduleAccountCreate {
+	if v != nil {
+		_c.SetSortOrder(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *UserSmartScheduleAccountCreate) SetUser(v *User) *UserSmartScheduleAccountCreate {
 	return _c.SetUserID(v.ID)
@@ -180,6 +194,10 @@ func (_c *UserSmartScheduleAccountCreate) createSpec() (*UserSmartScheduleAccoun
 	if value, ok := _c.mutation.MaxConcurrency(); ok {
 		_spec.SetField(usersmartscheduleaccount.FieldMaxConcurrency, field.TypeInt, value)
 		_node.MaxConcurrency = &value
+	}
+	if value, ok := _c.mutation.SortOrder(); ok {
+		_spec.SetField(usersmartscheduleaccount.FieldSortOrder, field.TypeInt, value)
+		_node.SortOrder = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

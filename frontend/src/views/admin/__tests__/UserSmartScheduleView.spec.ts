@@ -10,6 +10,7 @@ const apiMocks = vi.hoisted(() => ({
   getBatchUsersBurnRate: vi.fn(),
   getSmartSchedule: vi.fn(),
   updateSmartSchedule: vi.fn(),
+  updateSmartScheduleSortOrder: vi.fn(),
   copySmartSchedule: vi.fn(),
   listAccounts: vi.fn(),
   getBatchQualityStats: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock('@/api/admin', () => ({
       getBatchQualityStats: apiMocks.getUserBatchQualityStats,
       getSmartSchedule: apiMocks.getSmartSchedule,
       updateSmartSchedule: apiMocks.updateSmartSchedule,
+      updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
       copySmartSchedule: apiMocks.copySmartSchedule
     },
     dashboard: {
@@ -313,6 +315,7 @@ beforeEach(() => {
   })
   apiMocks.getSmartSchedule.mockResolvedValue(makeView())
   apiMocks.updateSmartSchedule.mockResolvedValue(makeView())
+  apiMocks.updateSmartScheduleSortOrder.mockResolvedValue(makeView())
   apiMocks.copySmartSchedule.mockResolvedValue(makeView())
   apiMocks.listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
   apiMocks.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5, pages: 0 })
@@ -731,8 +734,59 @@ describe('UserSmartScheduleView', () => {
       pages: 1
     })
     const w = await mountPage()
-    expect(w.get('[data-testid="smart-schedule-pair-uncapped"]').exists()).toBe(true)
-    expect(w.text()).not.toContain('0/99')
+    const badge = w.get('[data-testid="smart-schedule-pair-badge"]')
+    expect(badge.text()).toBe('0/999')
+    expect(badge.text()).not.toBe('0/99')
+    expect(w.find('[data-testid="smart-schedule-pair-uncapped"]').exists()).toBe(false)
+  })
+
+  it('shows uncapped pair occupancy with display denominator 999', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null, current_concurrency: 3 }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'acc-11', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true, concurrency: 8 }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('3/999')
+    expect(w.text()).not.toContain('3/8')
+  })
+
+  it('keeps the real pair cap as the badge max when capped', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 2, current_concurrency: 1 }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'acc-11', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true, concurrency: 8 }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('1/2')
+    expect(w.text()).not.toContain('1/999')
+    expect(w.text()).not.toContain('1/8')
   })
 
   it('batch-removes currently filtered stopped-scheduling accounts', async () => {
@@ -784,6 +838,8 @@ describe('UserSmartScheduleView', () => {
     expect(w.findAll('[data-testid="smart-schedule-refresh"]')).toHaveLength(1)
     expect(w.get('[data-testid="smart-schedule-enable-card"]').find('[data-testid="smart-schedule-refresh"]').exists()).toBe(false)
     expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="admission"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="sort_order"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="priority"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="select"]').exists()).toBe(true)
   })
 
@@ -883,9 +939,16 @@ describe('UserSmartScheduleView', () => {
     expect(autoSortMocks.sortSmartSchedulePoolMembers).toHaveBeenCalled()
     const firstCall = autoSortMocks.sortSmartSchedulePoolMembers.mock.calls[0]?.[0] as Array<{ id: number }>
     expect(firstCall.map((row) => row.id).sort((a, b) => a - b)).toEqual([11, 12])
+    expect(apiMocks.updateSmartScheduleSortOrder).toHaveBeenCalled()
+    const payload = apiMocks.updateSmartScheduleSortOrder.mock.calls[0]?.[2] as {
+      accounts: Array<{ account_id: number; sort_order: number }>
+    }
+    expect(payload.accounts.map((row) => row.sort_order)).toEqual([1, 2])
+    expect(apiMocks.updateAccount).not.toHaveBeenCalled()
+    expect(tableMocks.setSort).toHaveBeenCalledWith('sort_order', 'asc')
   })
 
-  it('after auto-sort, move-to-top still writes a smaller priority and becomes first', async () => {
+  it('move-to-top writes pool sort_order only and does not change account.priority', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,
       platforms: {
@@ -927,18 +990,38 @@ describe('UserSmartScheduleView', () => {
       page_size: 2,
       pages: 1
     })
-    apiMocks.updateAccount.mockImplementation(async (id: number, body: { priority?: number }) => ({
-      ...(id === 12 ? later : first),
-      ...body
-    }))
+    apiMocks.updateSmartScheduleSortOrder.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 12, platform: 'anthropic', max_concurrency: 1, sort_order: 1 },
+            { account_id: 11, platform: 'anthropic', max_concurrency: null, sort_order: 2 }
+          ]
+        }
+      }
+    })
     const w = await mountPage()
     const buttons = w.findAll('[data-testid="account-move-to-top"]')
     expect(buttons).toHaveLength(2)
     await buttons[1].trigger('click')
     await flushPromises()
     expect(apiMocks.moveAccountToTop).not.toHaveBeenCalled()
-    expect(apiMocks.updateAccount).toHaveBeenCalledWith(12, { priority: -1 })
-    expect(tableMocks.setSort).toHaveBeenCalledWith('priority', 'asc')
+    expect(apiMocks.updateAccount).not.toHaveBeenCalled()
+    expect(apiMocks.updateSmartScheduleSortOrder).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      {
+        accounts: [
+          { account_id: 12, sort_order: 1 },
+          { account_id: 11, sort_order: 2 }
+        ]
+      }
+    )
+    expect(tableMocks.setSort).toHaveBeenCalledWith('sort_order', 'asc')
   })
 
   it('labels a saved-gate miss without cooldown as will-cool, not a quality lock', async () => {

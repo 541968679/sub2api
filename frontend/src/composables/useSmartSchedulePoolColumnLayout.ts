@@ -26,6 +26,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   today_stats: 120,
   groups: 140,
   usage: 140,
+  sort_order: 88,
   priority: 100,
   upstream_rate_multiplier: 110,
   last_used_at: 120,

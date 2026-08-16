@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   UNCAPPED_PAIR_HEADROOM,
-  assignPoolAutoSortPriorities,
+  assignPoolAutoSortOrders,
+  assignPoolMoveToTopSortOrders,
   comparePoolAutoSort,
-  nextPriorityForPoolMoveToTop,
   pairHeadroomForAutoSort,
+  poolSortOrdersUnchanged,
   sortSmartSchedulePoolMembers,
   type PoolAutoSortItem
 } from '../smartSchedulePoolAutoSort'
@@ -66,6 +67,12 @@ describe('comparePoolAutoSort', () => {
     ])
   })
 
+  it('reads account priority only as a later tie-break', () => {
+    const preferred = item({ id: 2, priority: 1, concurrency: 4 })
+    const other = item({ id: 9, priority: 80, concurrency: 4 })
+    expect(sortSmartSchedulePoolMembers([other, preferred]).map((row) => row.id)).toEqual([2, 9])
+  })
+
   it('breaks remaining ties by account id', () => {
     const left = item({ id: 20, priority: 7, lastUsedAt: '2026-08-01T00:00:00.000Z' })
     const right = item({ id: 8, priority: 7, lastUsedAt: '2026-08-01T00:00:00.000Z' })
@@ -74,42 +81,66 @@ describe('comparePoolAutoSort', () => {
   })
 })
 
-describe('assignPoolAutoSortPriorities', () => {
-  it('gives the first row the smallest existing slot so Claude ranking stays lower-is-better', () => {
-    const assigned = assignPoolAutoSortPriorities([
-      { id: 1, priority: 80 },
-      { id: 2, priority: 50 },
-      { id: 3, priority: 100 }
-    ])
+describe('assignPoolAutoSortOrders', () => {
+  it('writes 1..N pool order and never invents account priorities', () => {
+    const assigned = assignPoolAutoSortOrders([{ id: 11 }, { id: 12 }, { id: 13 }])
     expect(assigned).toEqual([
-      { id: 1, nextPriority: 50 },
-      { id: 2, nextPriority: 80 },
-      { id: 3, nextPriority: 100 }
+      { id: 11, sortOrder: 1 },
+      { id: 12, sortOrder: 2 },
+      { id: 13, sortOrder: 3 }
     ])
-  })
-
-  it('spreads duplicate slots so the written order is total', () => {
-    const assigned = assignPoolAutoSortPriorities([
-      { id: 1, priority: 0 },
-      { id: 2, priority: 0 },
-      { id: 3, priority: 0 }
-    ])
-    expect(assigned.map((row) => row.nextPriority)).toEqual([0, 1, 2])
   })
 })
 
-describe('nextPriorityForPoolMoveToTop', () => {
-  it('after auto-sort slots, a later row gets a priority strictly below the pool min', () => {
-    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 2)).toBe(-1)
-    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 1)).toBe(-1)
+describe('assignPoolMoveToTopSortOrders', () => {
+  it('puts the target first and keeps the rest by existing sort_order then id', () => {
+    const assigned = assignPoolMoveToTopSortOrders(
+      [
+        { id: 11, sortOrder: 1 },
+        { id: 12, sortOrder: 2 },
+        { id: 13, sortOrder: 3 }
+      ],
+      13
+    )
+    expect(assigned).toEqual([
+      { id: 13, sortOrder: 1 },
+      { id: 11, sortOrder: 2 },
+      { id: 12, sortOrder: 3 }
+    ])
   })
 
-  it('before auto-sort, a tied default priority still becomes uniquely first', () => {
-    expect(nextPriorityForPoolMoveToTop([50, 50, 50], 50)).toBe(49)
+  it('before any sort_order exists, still assigns a total 1..N order', () => {
+    const assigned = assignPoolMoveToTopSortOrders(
+      [
+        { id: 20, sortOrder: null },
+        { id: 8, sortOrder: null }
+      ],
+      20
+    )
+    expect(assigned).toEqual([
+      { id: 20, sortOrder: 1 },
+      { id: 8, sortOrder: 2 }
+    ])
   })
+})
 
-  it('skips the write when the row is already the unique pool min', () => {
-    expect(nextPriorityForPoolMoveToTop([0, 1, 2], 0)).toBeNull()
-    expect(nextPriorityForPoolMoveToTop([7], 7)).toBeNull()
+describe('poolSortOrdersUnchanged', () => {
+  it('is true only when every membership already has the assigned sort_order', () => {
+    const current = [
+      { id: 1, sortOrder: 1 },
+      { id: 2, sortOrder: 2 }
+    ]
+    expect(poolSortOrdersUnchanged(current, [
+      { id: 1, sortOrder: 1 },
+      { id: 2, sortOrder: 2 }
+    ])).toBe(true)
+    expect(poolSortOrdersUnchanged(current, [
+      { id: 2, sortOrder: 1 },
+      { id: 1, sortOrder: 2 }
+    ])).toBe(false)
+    expect(poolSortOrdersUnchanged(
+      [{ id: 1, sortOrder: null }, { id: 2, sortOrder: null }],
+      [{ id: 1, sortOrder: 1 }, { id: 2, sortOrder: 2 }]
+    )).toBe(false)
   })
 })

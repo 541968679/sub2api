@@ -1,3 +1,77 @@
+## 2026-08-16 - feat(ui): show uncapped pair occupancy as n/999
+
+### What
+- Admin smart-schedule pair column always shows this user’s live occupancy on that account.
+- Capped (`max_concurrency >= 1`): badge stays `current / max`.
+- Uncapped (null/0): badge is `current / 999`. 999 is display-only; save still treats 0/null as no extra cap.
+- `hydratePairCurrent` now Redis-reads `concurrency:account_user:{accountID}:{userID}` for every pool member, not only capped ones. Numerator is user×account inflight, never `account.concurrency`.
+- Scheduling, pair-cap enforcement, and the account 容量 column are unchanged.
+
+### Why
+Admins still need to see how many inflight requests this user holds on an account when no pair cap is set.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestUserSmartScheduleService_Hydrates(PairCurrent|CooldownAndUncappedCurrent|UncappedPairCurrent)" -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts -t "pairOccupancyDisplayMax|uncapped pair|real pair cap|account concurrency as the uncapped"`
+
+### Affected files
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_test.go`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAdmission.spec.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(smart-schedule): pool order is not account.priority
+
+### What
+- Smart-schedule **自动排序** and **移到顶部** now persist `user_smart_schedule_accounts.sort_order` only (migration 204, nullable INT).
+- GET/PUT members include `sort_order`. Empty/null keeps relative id order until the first auto-sort or move-to-top.
+- Immediate persist is `PATCH /admin/users/:id/smart-schedule/:platform/sort-order`. Save of caps is not required.
+- These two buttons no longer call `accounts.update({ priority })`. The priority column still edits account scheduling weight via `handleInlinePriority`.
+- Pool table default sort is `sort_order asc`. Auto-sort still *reads* `account.priority` only as a later tie-break.
+
+### Why
+Pool display order was implemented by overwriting `accounts.priority`, which is the manually configured hot-path scheduling weight. That was wrong, not “awkward”. Already-overwritten production priorities are not restored.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestUserSmartScheduleService_SortOrderPersistsOnMembership|TestCompareSmartScheduleMemberIDs" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run TestPatchUserSmartScheduleSortOrder_InvalidID -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/migrations/204_user_smart_schedule_account_sort_order.sql`,
+`backend/ent/schema/user_smart_schedule_account.go`,
+`backend/ent/usersmartscheduleaccount.go`,
+`backend/ent/usersmartscheduleaccount/usersmartscheduleaccount.go`,
+`backend/ent/usersmartscheduleaccount_create.go`,
+`backend/ent/usersmartscheduleaccount_update.go`,
+`backend/ent/mutation.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_test.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`backend/internal/handler/admin/user_smart_schedule_handler_test.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`frontend/src/composables/useSmartSchedulePoolAccountOps.ts`,
+`frontend/src/composables/useSmartSchedulePoolColumnLayout.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-16 - deploy: v0.1.229
 
 ### What

@@ -7,6 +7,7 @@ import { resolvePairCap } from '../smartSchedulePoolAdmission'
 
 const apiMocks = vi.hoisted(() => ({
   getSmartSchedule: vi.fn(),
+  updateSmartScheduleSortOrder: vi.fn(),
   listAccounts: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getBatchTodayStats: vi.fn()
@@ -14,7 +15,10 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    users: { getSmartSchedule: apiMocks.getSmartSchedule },
+    users: {
+      getSmartSchedule: apiMocks.getSmartSchedule,
+      updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder
+    },
     accounts: {
       list: apiMocks.listAccounts,
       getBatchQualityStats: apiMocks.getBatchQualityStats,
@@ -175,5 +179,71 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     await pending
     expect(w.vm.loading).toBe(false)
     expect(w.vm.refreshing).toBe(false)
+  })
+
+  it('keeps membership sort_order from GET and persists it without touching account priority', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 21, platform: 'openai', max_concurrency: 2, sort_order: 2 },
+            { account_id: 22, platform: 'openai', max_concurrency: null, sort_order: 1 }
+          ]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        { id: 21, name: 'oa-1', platform: 'openai', type: 'oauth', status: 'active', priority: 80 },
+        { id: 22, name: 'oa-2', platform: 'openai', type: 'oauth', status: 'active', priority: 3 }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 2,
+      pages: 1
+    })
+    apiMocks.updateSmartScheduleSortOrder.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 22, platform: 'openai', max_concurrency: null, sort_order: 1 },
+            { account_id: 21, platform: 'openai', max_concurrency: 2, sort_order: 2 }
+          ]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberSortOrder(22)).toBe(1)
+    expect(w.vm.memberSortOrder(21)).toBe(2)
+    const ok = await w.vm.persistSortOrders([
+      { account_id: 22, sort_order: 1 },
+      { account_id: 21, sort_order: 2 }
+    ])
+    expect(ok).toBe(true)
+    expect(apiMocks.updateSmartScheduleSortOrder).toHaveBeenCalledWith(99, 'openai', {
+      accounts: [
+        { account_id: 22, sort_order: 1 },
+        { account_id: 21, sort_order: 2 }
+      ]
+    })
+    expect(w.vm.memberSortOrder(22)).toBe(1)
+    expect(w.vm.memberSortOrder(21)).toBe(2)
   })
 })

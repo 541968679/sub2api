@@ -213,14 +213,40 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		CooldownMinutes:          policy.CooldownMinutes,
 		AccountIDs:               map[int64]struct{}{},
 		Caps:                     map[int64]int{},
+		SortOrders:               map[int64]int{},
 	}
 	for _, member := range policy.Accounts {
 		next.AccountIDs[member.AccountID] = struct{}{}
 		if member.MaxConcurrency != nil && *member.MaxConcurrency >= 1 {
 			next.Caps[member.AccountID] = *member.MaxConcurrency
 		}
+		if member.SortOrder != nil {
+			next.SortOrders[member.AccountID] = *member.SortOrder
+		}
 	}
 	s.bundle.Policies[platform] = next
+	return nil
+}
+
+func (s *stubSmartRepo) UpdateSortOrders(_ context.Context, _ int64, platform string, orders []SmartScheduleSortAssignment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bundle == nil || s.bundle.Policies == nil {
+		return nil
+	}
+	policy := s.bundle.Policies[platform]
+	if policy == nil {
+		return nil
+	}
+	if policy.SortOrders == nil {
+		policy.SortOrders = map[int64]int{}
+	}
+	for _, order := range orders {
+		if _, ok := policy.AccountIDs[order.AccountID]; !ok {
+			continue
+		}
+		policy.SortOrders[order.AccountID] = order.SortOrder
+	}
 	return nil
 }
 
@@ -241,6 +267,10 @@ func cloneSmartBundle(in *UserSmartScheduleBundle) *UserSmartScheduleBundle {
 		copied.Caps = map[int64]int{}
 		for id, n := range policy.Caps {
 			copied.Caps[id] = n
+		}
+		copied.SortOrders = map[int64]int{}
+		for id, n := range policy.SortOrders {
+			copied.SortOrders[id] = n
 		}
 		out.Policies[platform] = &copied
 	}
@@ -401,7 +431,7 @@ func TestUserSmartScheduleService_HydratesPairCurrent(t *testing.T) {
 	require.Equal(t, 3, *view.Platforms[PlatformAnthropic].Accounts[0].MaxConcurrency)
 }
 
-func TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent(t *testing.T) {
+func TestUserSmartScheduleService_HydratesCooldownAndUncappedCurrent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	until := time.Now().UTC().Add(12 * time.Minute)
@@ -430,9 +460,32 @@ func TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent(t *tes
 	require.Equal(t, 3, byID[21].CurrentConcurrency)
 	require.NotNil(t, byID[21].CooldownUntil)
 	require.Equal(t, until.Unix(), byID[21].CooldownUntil.Unix())
-	require.Equal(t, 0, byID[22].CurrentConcurrency, "uncapped pair must not hydrate Redis occupancy")
+	require.Equal(t, 9, byID[22].CurrentConcurrency, "uncapped pair still hydrates this user×account occupancy")
 	require.Nil(t, byID[22].MaxConcurrency)
-	require.Equal(t, []int64{21}, pair.requested)
+	require.ElementsMatch(t, []int64{21, 22}, pair.requested)
+}
+
+func TestUserSmartScheduleService_HydratesUncappedPairCurrent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := &stubSmartRepo{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformAnthropic: {
+			Enabled:    true,
+			UpdatedAt:  time.Now().UTC(),
+			AccountIDs: map[int64]struct{}{11: {}},
+		},
+	}}}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{{ID: 11, Platform: PlatformAnthropic, Concurrency: 99}}}
+	pair := &stubPairConcurrency{counts: map[int64]int{11: 3}}
+	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, pair)
+	view, err := svc.Get(ctx, 16)
+	require.NoError(t, err)
+	require.Len(t, view.Platforms[PlatformAnthropic].Accounts, 1)
+	member := view.Platforms[PlatformAnthropic].Accounts[0]
+	require.Nil(t, member.MaxConcurrency)
+	require.Equal(t, 3, member.CurrentConcurrency)
+	require.NotEqual(t, 99, member.CurrentConcurrency, "pair occupancy must not use account.concurrency")
+	require.Equal(t, []int64{11}, pair.requested)
 }
 
 func TestPickDefaultSmartSchedulePlatform(t *testing.T) {
@@ -513,4 +566,89 @@ func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ in
 		return map[int64]time.Time{}
 	}
 	return s.until
+}
+
+func TestUserSmartScheduleService_SortOrderPersistsOnMembership(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 11, Platform: PlatformAnthropic, Priority: 80},
+		{ID: 12, Platform: PlatformAnthropic, Priority: 3},
+	}}
+
+	t.Run("put and get keep sort_order and id fallback", func(t *testing.T) {
+		t.Parallel()
+		repo := &stubSmartRepo{}
+		svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+		second := 2
+		_, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+			Enabled:         true,
+			CooldownMinutes: 15,
+			Accounts: []SmartScheduleAccountMember{
+				{AccountID: 12, Platform: PlatformAnthropic, SortOrder: &second},
+				{AccountID: 11, Platform: PlatformAnthropic},
+			},
+		})
+		require.NoError(t, err)
+		view, err := svc.Get(ctx, 16)
+		require.NoError(t, err)
+		members := view.Platforms[PlatformAnthropic].Accounts
+		require.Len(t, members, 2)
+		require.Equal(t, int64(12), members[0].AccountID)
+		require.Equal(t, 2, *members[0].SortOrder)
+		require.Equal(t, int64(11), members[1].AccountID)
+		require.Nil(t, members[1].SortOrder)
+	})
+
+	t.Run("patch sort_order does not change pair caps", func(t *testing.T) {
+		t.Parallel()
+		capN := 4
+		first := 1
+		repo := &stubSmartRepo{}
+		svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+		_, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+			Enabled:         true,
+			CooldownMinutes: 15,
+			Accounts: []SmartScheduleAccountMember{
+				{AccountID: 11, Platform: PlatformAnthropic, MaxConcurrency: &capN},
+				{AccountID: 12, Platform: PlatformAnthropic, SortOrder: &first},
+			},
+		})
+		require.NoError(t, err)
+		view, err := svc.PatchSortOrders(ctx, 16, PlatformAnthropic, []SmartScheduleSortAssignment{
+			{AccountID: 12, SortOrder: 1},
+			{AccountID: 11, SortOrder: 2},
+		})
+		require.NoError(t, err)
+		byID := map[int64]SmartScheduleAccountMember{}
+		for _, member := range view.Platforms[PlatformAnthropic].Accounts {
+			byID[member.AccountID] = member
+		}
+		require.Equal(t, 1, *byID[12].SortOrder)
+		require.Equal(t, 2, *byID[11].SortOrder)
+		require.Equal(t, 4, *byID[11].MaxConcurrency)
+		require.Nil(t, byID[12].MaxConcurrency)
+		require.Equal(t, int64(12), view.Platforms[PlatformAnthropic].Accounts[0].AccountID)
+	})
+
+	t.Run("patch rejects accounts outside the pool", func(t *testing.T) {
+		t.Parallel()
+		repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(11, 0, nil))}
+		svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+		_, err := svc.PatchSortOrders(ctx, 16, PlatformAnthropic, []SmartScheduleSortAssignment{
+			{AccountID: 12, SortOrder: 1},
+		})
+		require.Error(t, err)
+		require.Equal(t, "SMART_SCHEDULE_UNKNOWN_ACCOUNT", infraerrors.Reason(err))
+	})
+}
+
+func TestCompareSmartScheduleMemberIDs(t *testing.T) {
+	t.Parallel()
+	orders := map[int64]int{12: 1, 11: 2}
+	require.True(t, compareSmartScheduleMemberIDs(12, 11, orders))
+	require.False(t, compareSmartScheduleMemberIDs(11, 12, orders))
+	require.True(t, compareSmartScheduleMemberIDs(8, 9, nil), "null sort_order keeps id order")
+	require.True(t, compareSmartScheduleMemberIDs(12, 99, orders), "assigned before unset")
+	require.False(t, compareSmartScheduleMemberIDs(99, 12, orders))
 }

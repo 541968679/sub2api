@@ -64,6 +64,13 @@ export function resolvePairCap(maxConcurrency: number | null | undefined): numbe
   return maxConcurrency != null && maxConcurrency >= 1 ? maxConcurrency : null
 }
 
+/** Display-only pair-badge denominator when no extra cap is set. Not a real cap. */
+export const UNCAPPED_PAIR_DISPLAY_MAX = 999
+
+export function pairOccupancyDisplayMax(pairCap: number | null | undefined): number {
+  return resolvePairCap(pairCap) ?? UNCAPPED_PAIR_DISPLAY_MAX
+}
+
 export function isPairCooldownActive(cooldownUntil?: string | null, now = Date.now()): boolean {
   if (!cooldownUntil) return false
   const until = new Date(cooldownUntil).getTime()

@@ -383,8 +383,14 @@ export interface SmartScheduleAccountMember {
   account_id: number
   platform?: string
   max_concurrency?: number | null
+  sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
+}
+
+export interface SmartScheduleSortAssignment {
+  account_id: number
+  sort_order: number
 }
 
 export interface SmartSchedulePlatformView {
@@ -442,6 +448,18 @@ export async function updateSmartSchedule(
   return data
 }
 
+export async function updateSmartScheduleSortOrder(
+  id: number,
+  platform: SmartSchedulePlatform,
+  payload: { accounts: SmartScheduleSortAssignment[] }
+): Promise<UserSmartScheduleView> {
+  const { data } = await apiClient.patch<UserSmartScheduleView>(
+    `/admin/users/${id}/smart-schedule/${platform}/sort-order`,
+    payload
+  )
+  return data
+}
+
 export async function copySmartSchedule(
   id: number,
   toPlatform: SmartSchedulePlatform,
@@ -490,6 +508,7 @@ export const usersAPI = {
   resetPlatformQuotaWindow,
   getSmartSchedule,
   updateSmartSchedule,
+  updateSmartScheduleSortOrder,
   copySmartSchedule,
   getBatchSmartScheduleSummaries,
   getBatchQualityStats,

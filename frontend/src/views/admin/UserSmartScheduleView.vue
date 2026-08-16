@@ -391,7 +391,7 @@
               :virtual-scroll="true"
               :estimate-row-height="88"
               :resizable-columns="true"
-              default-sort-key="platform_type"
+              default-sort-key="sort_order"
               default-sort-order="asc"
               sort-storage-key="smart-schedule-pool-sort"
               data-testid="smart-schedule-pool-table"
@@ -478,19 +478,12 @@
                     @save="(value) => setMemberCap(row.id, value)"
                   />
                   <CapacityBadge
-                    v-if="memberCapOrNull(row.id) != null"
-                    :color-class="pairCapacityClass(memberCurrent(row.id), memberCapOrNull(row.id) ?? 0)"
+                    :color-class="pairCapacityClass(memberCurrent(row.id), pairBadgeMax(row.id))"
                     :current="memberCurrent(row.id)"
-                    :max="memberCapOrNull(row.id) ?? 0"
+                    :max="pairBadgeMax(row.id)"
+                    :tooltip="pairBadgeTooltip(row.id)"
                     data-testid="smart-schedule-pair-badge"
                   />
-                  <span
-                    v-else
-                    class="text-xs text-gray-500 dark:text-gray-400"
-                    data-testid="smart-schedule-pair-uncapped"
-                  >
-                    {{ t('admin.users.smartSchedule.uncappedPair') }}
-                  </span>
                 </div>
               </template>
               <template #header-admission="{ column }">
@@ -607,10 +600,21 @@
                   @account-updated="handleAccountUpdated"
                 />
               </template>
+              <template #header-sort_order="{ column }">
+                <div class="flex items-center">
+                  <span>{{ column.label }}</span>
+                  <HelpTooltip :content="t('admin.users.smartSchedule.poolSortOrderHint')" width-class="w-64" />
+                </div>
+              </template>
+              <template #cell-sort_order="{ row }">
+                <span class="text-sm tabular-nums text-gray-700 dark:text-gray-200">
+                  {{ row.sort_order ?? '—' }}
+                </span>
+              </template>
               <template #header-priority="{ column }">
                 <div class="flex items-center">
                   <span>{{ column.label }}</span>
-                  <HelpTooltip :content="t('admin.accounts.priorityHint')" width-class="w-64" />
+                  <HelpTooltip :content="t('admin.users.smartSchedule.accountPriorityHint')" width-class="w-64" />
                 </div>
               </template>
               <template #cell-priority="{ row }">
@@ -618,7 +622,7 @@
                   :model-value="row.priority ?? 0"
                   :min="0"
                   :disabled="inlineSavingId === row.id"
-                  :hint="t('admin.accounts.priorityHint')"
+                  :hint="t('admin.users.smartSchedule.accountPriorityHint')"
                   @save="(value) => handleInlinePriority(row, value)"
                 />
               </template>
@@ -829,13 +833,16 @@ import {
   cooldownRemainingMinutes,
   EMPTY_SMART_SCHEDULE_POOL_FILTERS,
   matchesPoolFilters,
+  pairOccupancyDisplayMax,
   resolvePoolAdmission,
   resolveQualityAdmissionHint,
   type PoolAdmissionState,
   type SmartSchedulePoolFilters as PoolFilterState
 } from '@/composables/smartSchedulePoolAdmission'
 import {
-  assignPoolAutoSortPriorities,
+  assignPoolAutoSortOrders,
+  assignPoolMoveToTopSortOrders,
+  poolSortOrdersUnchanged,
   sortSmartSchedulePoolMembers
 } from '@/composables/smartSchedulePoolAutoSort'
 import { pickBatchUserStat, smartScheduleSummaryFromDrafts } from '@/composables/adminUserListRow'
@@ -891,6 +898,18 @@ const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
 const showAddDialog = ref(false)
 const poolFilters = ref<PoolFilterState>({ ...EMPTY_SMART_SCHEDULE_POOL_FILTERS })
+try {
+  const raw = localStorage.getItem('smart-schedule-pool-sort')
+  if (raw) {
+    const parsed = JSON.parse(raw) as { key?: string; order?: 'asc' | 'desc' }
+    if (parsed?.key === 'priority') {
+      localStorage.setItem('smart-schedule-pool-sort', JSON.stringify({ key: 'sort_order', order: 'asc' }))
+    }
+  }
+} catch {
+  // ignore private-mode / invalid JSON
+}
+
 const AUTO_REFRESH_STORAGE_KEY = 'smart-schedule-auto-refresh'
 const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
@@ -944,6 +963,8 @@ const {
   memberCapOrNull,
   memberCurrent,
   memberCooldownUntil,
+  memberSortOrder,
+  persistSortOrders,
   memberResumeActive,
   memberResumeChipActive,
   setMemberCap,
@@ -1001,8 +1022,6 @@ const {
   menu,
   handleInlineConcurrency,
   handleInlinePriority,
-  writeAccountPriorities,
-  handleMoveToTop,
   handleInlineUpstreamRate,
   handleToggleSchedulable,
   handleToggleFallbackOnly,
@@ -1030,11 +1049,7 @@ const {
   cancelCreateSparkShadow,
   confirmCreateSparkShadow
 } = useSmartSchedulePoolAccountOps({
-  patchPoolAccount,
-  getPoolAccounts: () => poolAccounts.value,
-  onMovedToTop: () => {
-    poolTableRef.value?.setSort?.('priority', 'asc')
-  }
+  patchPoolAccount
 })
 
 const allPoolColumns = computed<Column[]>(() => [
@@ -1050,6 +1065,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, minWidth: 88 },
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, minWidth: 88 },
   { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, minWidth: 88 },
+  { key: 'sort_order', label: t('admin.users.smartSchedule.poolSortOrder'), sortable: true, minWidth: 72 },
   { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true, minWidth: 72 },
   { key: 'upstream_rate_multiplier', label: t('admin.accounts.columns.upstreamRateMultiplier'), sortable: true, minWidth: 88 },
   { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true, minWidth: 88 },
@@ -1099,6 +1115,7 @@ const poolTableRows = computed(() =>
       pair_cap: memberCap(account.id),
       pair_current: memberCurrent(account.id),
       cooldown_until: memberCooldownUntil(account.id),
+      sort_order: memberSortOrder(account.id),
       admission: admission.state
     }
   })
@@ -1191,6 +1208,16 @@ function getAccountEmail(row: Account): string | undefined {
   return typeof email === 'string' ? email : undefined
 }
 
+function pairBadgeMax(accountId: number) {
+  return pairOccupancyDisplayMax(memberCapOrNull(accountId))
+}
+
+function pairBadgeTooltip(accountId: number) {
+  return memberCapOrNull(accountId) == null
+    ? t('admin.users.smartSchedule.pairOccupancyUncappedHint')
+    : t('admin.users.smartSchedule.pairCapHint')
+}
+
 function pairCapacityClass(current: number, max: number) {
   if (max > 0 && current >= max) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
   if (current > 0) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
@@ -1249,8 +1276,47 @@ function platformLabel(platform: string) {
   return t(`admin.groups.platforms.${platform}`)
 }
 
-function showPoolPrioritySort() {
-  poolTableRef.value?.setSort?.('priority', 'asc')
+function showPoolSortOrderSort() {
+  poolTableRef.value?.setSort?.('sort_order', 'asc')
+}
+
+function currentPoolSortStates() {
+  return poolTableRows.value.map((row) => ({
+    id: row.id,
+    sortOrder: memberSortOrder(row.id)
+  }))
+}
+
+async function persistAssignedPoolOrder(
+  assigned: Array<{ id: number; sortOrder: number }>,
+  errorKey?: string
+) {
+  return persistSortOrders(
+    assigned.map((row) => ({ account_id: row.id, sort_order: row.sortOrder })),
+    errorKey
+  )
+}
+
+async function handleMoveToTop(account: Account) {
+  if (autoSorting.value) return
+  const assigned = assignPoolMoveToTopSortOrders(currentPoolSortStates(), account.id)
+  if (assigned.length === 0) return
+  if (poolSortOrdersUnchanged(currentPoolSortStates(), assigned)) {
+    showPoolSortOrderSort()
+    appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
+    return
+  }
+  autoSorting.value = true
+  autoSortDone.value = 0
+  autoSortTotal.value = 1
+  try {
+    const ok = await persistAssignedPoolOrder(assigned, 'admin.accounts.moveToTopFailed')
+    if (!ok) return
+    showPoolSortOrderSort()
+    appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
+  } finally {
+    autoSorting.value = false
+  }
 }
 
 async function handlePoolAutoSort() {
@@ -1266,44 +1332,20 @@ async function handlePoolAutoSort() {
       lastUsedAt: row.last_used_at ?? null
     }))
   )
-  const assigned = assignPoolAutoSortPriorities(sorted)
-  const byID = new Map(poolAccounts.value.map((account) => [account.id, account]))
-  const updates = assigned.flatMap((row) => {
-    const account = byID.get(row.id)
-    if (!account || (account.priority ?? 0) === row.nextPriority) return []
-    return [{ account, priority: row.nextPriority }]
-  })
-  if (updates.length === 0) {
-    showPoolPrioritySort()
+  const assigned = assignPoolAutoSortOrders(sorted)
+  if (poolSortOrdersUnchanged(currentPoolSortStates(), assigned)) {
+    showPoolSortOrderSort()
     appStore.showInfo(t('admin.users.smartSchedule.autoSortUnchanged'))
     return
   }
   autoSorting.value = true
   autoSortDone.value = 0
-  autoSortTotal.value = updates.length
-  appStore.showInfo(
-    t('admin.users.smartSchedule.autoSortProgress', { done: 0, total: updates.length })
-  )
+  autoSortTotal.value = 1
   try {
-    const result = await writeAccountPriorities(updates, (done, total) => {
-      autoSortDone.value = done
-      autoSortTotal.value = total
-    })
-    showPoolPrioritySort()
-    if (result.failed === 0) {
-      appStore.showSuccess(t('admin.users.smartSchedule.autoSortSuccess', { count: result.written }))
-      return
-    }
-    if (result.written === 0) {
-      appStore.showError(t('admin.users.smartSchedule.autoSortFailed'))
-      return
-    }
-    appStore.showWarning(
-      t('admin.users.smartSchedule.autoSortPartial', {
-        written: result.written,
-        failed: result.failed
-      })
-    )
+    const ok = await persistAssignedPoolOrder(assigned)
+    if (!ok) return
+    showPoolSortOrderSort()
+    appStore.showSuccess(t('admin.users.smartSchedule.autoSortSuccess', { count: assigned.length }))
   } finally {
     autoSorting.value = false
   }
