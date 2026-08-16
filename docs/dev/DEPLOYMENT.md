@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-16 | `v0.1.228` | `409e37c83` | `ghcr.io/541968679/sub2api:0.1.228` | `0.1.228` | running, healthy, digest `sha256:aa32950bf9b1a0eccfe3578f00ca3c8cbe418a83585c1edb0385b1ddb6d21634`, internal `/health` OK; smart-schedule pool admin UX + stability chart |
+| 2026-08-16 | `v0.1.229` | `838d370a7` | `ghcr.io/541968679/sub2api:0.1.229` | `0.1.229` | running, healthy, digest `sha256:7037fcacc6603e380ba9980c04c30486164166e09b80e8be14b6051c5f24f541`, internal `/health` OK; smart-schedule UX batch + pool-mode hard eviction |
+| 2026-08-16 | `v0.1.228` | `409e37c83` | `ghcr.io/541968679/sub2api:0.1.228` | `0.1.228` | superseded by `v0.1.229`; rollback digest `sha256:aa32950bf9b1a0eccfe3578f00ca3c8cbe418a83585c1edb0385b1ddb6d21634`; smart-schedule pool admin UX + stability chart |
 | 2026-08-16 | `v0.1.227` | `264a6cda7` | `ghcr.io/541968679/sub2api:0.1.227` | `0.1.227` | superseded by `v0.1.228`; user smart schedule pools + upstream rate overlay |
 | 2026-08-15 | `v0.1.226` | `a9beee087` | `ghcr.io/541968679/sub2api:0.1.226` | `0.1.226` | superseded by `v0.1.227`; Codex compact V2 synthetic `encrypted_content` |
 | 2026-08-15 | `v0.1.225` | `be9a3208f` | `ghcr.io/541968679/sub2api:0.1.225` | `0.1.225` | superseded by `v0.1.226`; Codex remote compact V2 API-key fallback (default on) |

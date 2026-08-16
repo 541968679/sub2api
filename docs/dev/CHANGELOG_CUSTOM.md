@@ -1,3 +1,20 @@
+## 2026-08-16 - deploy: v0.1.229
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.229` (`838d370a7`).
+- Image digest `sha256:7037fcacc6603e380ba9980c04c30486164166e09b80e8be14b6051c5f24f541`.
+- Rollback digest remains `ghcr.io/541968679/sub2api@sha256:aa32950bf9b1a0eccfe3578f00ca3c8cbe418a83585c1edb0385b1ddb6d21634` (`v0.1.228`).
+
+### Why
+Ship the post-0.1.228 smart-schedule UX batch and complete pool-mode hard eviction (Gemini call site + helper together).
+
+### Verification
+- Release `31955630337` succeeded; production health `ok`, version label `0.1.229`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-16 - feat(account): pool-mode hard eviction
 
 ### What
