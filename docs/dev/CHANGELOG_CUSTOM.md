@@ -1,3 +1,18 @@
+## 2026-08-16 - deploy: v0.1.228
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.228` (`409e37c83`).
+
+### Why
+Ship smart-schedule pool admin UX and the stability-chart p50 scale after the first Release typecheck miss was fixed.
+
+### Verification
+- Release `31951167838` succeeded; production health `ok`, version label `0.1.228`.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-16 - fix(ui): smart-schedule release typecheck
 
 ### What
