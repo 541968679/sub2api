@@ -2829,17 +2829,9 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if !account.ShouldHandleErrorCode(statusCode) {
 		return
 	}
-	if s.rateLimitService != nil {
-		if statusCode == 401 || statusCode == 403 || statusCode == 529 {
-			s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
-			return
-		}
-		// Pool-mode hard eviction must see R5 statuses that this path used to drop
-		// (402 / quota-exhausted 429 / 400 credit-balance, etc.).
-		if account.IsPoolModeHardEviction() && isPoolModeHardMaintenanceError(statusCode, body) {
-			s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
-			return
-		}
+	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
+		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
+		return
 	}
 	if statusCode != 429 {
 		return
