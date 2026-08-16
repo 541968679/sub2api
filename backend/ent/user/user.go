@@ -97,10 +97,16 @@ const (
 	EdgePendingAuthSessions = "pending_auth_sessions"
 	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
 	EdgePlatformQuotas = "platform_quotas"
+	// EdgeSmartSchedulePolicies holds the string denoting the smart_schedule_policies edge name in mutations.
+	EdgeSmartSchedulePolicies = "smart_schedule_policies"
+	// EdgeSmartScheduleAccounts holds the string denoting the smart_schedule_accounts edge name in mutations.
+	EdgeSmartScheduleAccounts = "smart_schedule_accounts"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// EdgeAccountScheduleUsers holds the string denoting the account_schedule_users edge name in mutations.
 	EdgeAccountScheduleUsers = "account_schedule_users"
+	// EdgeUserSmartScheduleAccounts holds the string denoting the user_smart_schedule_accounts edge name in mutations.
+	EdgeUserSmartScheduleAccounts = "user_smart_schedule_accounts"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// APIKeysTable is the table that holds the api_keys relation/edge.
@@ -197,6 +203,18 @@ const (
 	PlatformQuotasInverseTable = "user_platform_quotas"
 	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
 	PlatformQuotasColumn = "user_id"
+	// SmartSchedulePoliciesTable is the table that holds the smart_schedule_policies relation/edge.
+	SmartSchedulePoliciesTable = "user_smart_schedule_policies"
+	// SmartSchedulePoliciesInverseTable is the table name for the UserSmartSchedulePolicy entity.
+	// It exists in this package in order to avoid circular dependency with the "usersmartschedulepolicy" package.
+	SmartSchedulePoliciesInverseTable = "user_smart_schedule_policies"
+	// SmartSchedulePoliciesColumn is the table column denoting the smart_schedule_policies relation/edge.
+	SmartSchedulePoliciesColumn = "user_id"
+	// SmartScheduleAccountsTable is the table that holds the smart_schedule_accounts relation/edge. The primary key declared below.
+	SmartScheduleAccountsTable = "user_smart_schedule_accounts"
+	// SmartScheduleAccountsInverseTable is the table name for the Account entity.
+	// It exists in this package in order to avoid circular dependency with the "account" package.
+	SmartScheduleAccountsInverseTable = "accounts"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -211,6 +229,13 @@ const (
 	AccountScheduleUsersInverseTable = "account_schedule_users"
 	// AccountScheduleUsersColumn is the table column denoting the account_schedule_users relation/edge.
 	AccountScheduleUsersColumn = "user_id"
+	// UserSmartScheduleAccountsTable is the table that holds the user_smart_schedule_accounts relation/edge.
+	UserSmartScheduleAccountsTable = "user_smart_schedule_accounts"
+	// UserSmartScheduleAccountsInverseTable is the table name for the UserSmartScheduleAccount entity.
+	// It exists in this package in order to avoid circular dependency with the "usersmartscheduleaccount" package.
+	UserSmartScheduleAccountsInverseTable = "user_smart_schedule_accounts"
+	// UserSmartScheduleAccountsColumn is the table column denoting the user_smart_schedule_accounts relation/edge.
+	UserSmartScheduleAccountsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -252,6 +277,9 @@ var (
 	// ScheduledAccountsPrimaryKey and ScheduledAccountsColumn2 are the table columns denoting the
 	// primary key for the scheduled_accounts relation (M2M).
 	ScheduledAccountsPrimaryKey = []string{"account_id", "user_id"}
+	// SmartScheduleAccountsPrimaryKey and SmartScheduleAccountsColumn2 are the table columns denoting the
+	// primary key for the smart_schedule_accounts relation (M2M).
+	SmartScheduleAccountsPrimaryKey = []string{"account_id", "user_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -663,6 +691,34 @@ func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// BySmartSchedulePoliciesCount orders the results by smart_schedule_policies count.
+func BySmartSchedulePoliciesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSmartSchedulePoliciesStep(), opts...)
+	}
+}
+
+// BySmartSchedulePolicies orders the results by smart_schedule_policies terms.
+func BySmartSchedulePolicies(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSmartSchedulePoliciesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// BySmartScheduleAccountsCount orders the results by smart_schedule_accounts count.
+func BySmartScheduleAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSmartScheduleAccountsStep(), opts...)
+	}
+}
+
+// BySmartScheduleAccounts orders the results by smart_schedule_accounts terms.
+func BySmartScheduleAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSmartScheduleAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -688,6 +744,20 @@ func ByAccountScheduleUsersCount(opts ...sql.OrderTermOption) OrderOption {
 func ByAccountScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newAccountScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByUserSmartScheduleAccountsCount orders the results by user_smart_schedule_accounts count.
+func ByUserSmartScheduleAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newUserSmartScheduleAccountsStep(), opts...)
+	}
+}
+
+// ByUserSmartScheduleAccounts orders the results by user_smart_schedule_accounts terms.
+func ByUserSmartScheduleAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUserSmartScheduleAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 func newAPIKeysStep() *sqlgraph.Step {
@@ -788,6 +858,20 @@ func newPlatformQuotasStep() *sqlgraph.Step {
 		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
 	)
 }
+func newSmartSchedulePoliciesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SmartSchedulePoliciesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SmartSchedulePoliciesTable, SmartSchedulePoliciesColumn),
+	)
+}
+func newSmartScheduleAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SmartScheduleAccountsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, SmartScheduleAccountsTable, SmartScheduleAccountsPrimaryKey...),
+	)
+}
 func newUserAllowedGroupsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -800,5 +884,12 @@ func newAccountScheduleUsersStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AccountScheduleUsersInverseTable, AccountScheduleUsersColumn),
 		sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
+	)
+}
+func newUserSmartScheduleAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(UserSmartScheduleAccountsInverseTable, UserSmartScheduleAccountsColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, UserSmartScheduleAccountsTable, UserSmartScheduleAccountsColumn),
 	)
 }

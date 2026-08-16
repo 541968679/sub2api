@@ -9,6 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildSchedulerMetadataAccount_CopiesUpstreamRateMultiplier(t *testing.T) {
+	rate := 0.15
+	account := service.Account{
+		ID:                     7,
+		Type:                   service.AccountTypeOAuth,
+		UpstreamRateMultiplier: &rate,
+	}
+
+	got := buildSchedulerMetadataAccount(account)
+
+	require.NotNil(t, got.UpstreamRateMultiplier)
+	require.Equal(t, 0.15, *got.UpstreamRateMultiplier)
+}
+
 func TestBuildSchedulerMetadataAccount_KeepsOpenAIWSFlags(t *testing.T) {
 	account := service.Account{
 		ID:       42,

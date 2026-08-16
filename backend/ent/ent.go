@@ -54,6 +54,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
@@ -157,6 +159,8 @@ func checkColumn(t, c string) error {
 			userattributedefinition.Table:       userattributedefinition.ValidColumn,
 			userattributevalue.Table:            userattributevalue.ValidColumn,
 			userplatformquota.Table:             userplatformquota.ValidColumn,
+			usersmartscheduleaccount.Table:      usersmartscheduleaccount.ValidColumn,
+			usersmartschedulepolicy.Table:       usersmartschedulepolicy.ValidColumn,
 			usersubscription.Table:              usersubscription.ValidColumn,
 		})
 	})

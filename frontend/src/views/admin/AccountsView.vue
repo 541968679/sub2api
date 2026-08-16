@@ -563,6 +563,23 @@
               {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
             </span>
           </template>
+          <template #header-upstream_rate_multiplier="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.upstreamRateMultiplierHint')" width-class="w-64" />
+            </div>
+          </template>
+          <template #cell-upstream_rate_multiplier="{ row }">
+            <AccountInlineNumberCell
+              :model-value="row.upstream_rate_multiplier ?? 1"
+              :min="0"
+              :step="0.01"
+              :allow-decimal="true"
+              :disabled="inlineSavingId === row.id"
+              :hint="t('admin.accounts.upstreamRateMultiplierHint')"
+              @save="(v) => handleInlineUpstreamRate(row, v)"
+            />
+          </template>
           <template #cell-exported_at="{ row }">
             <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatExportedAt(row) }}</span>
           </template>
@@ -997,6 +1014,7 @@ const ACCOUNT_SORTABLE_KEYS = new Set([
   'concurrency',
   'priority',
   'rate_multiplier',
+  'upstream_rate_multiplier',
   'last_used_at',
   'expires_at',
   'created_at'
@@ -2047,6 +2065,7 @@ const allColumns = computed(() => {
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
+    { key: 'upstream_rate_multiplier', label: t('admin.accounts.columns.upstreamRateMultiplier'), sortable: true },
     { key: 'exported_at', label: t('admin.accounts.columns.exportedAt'), sortable: false },
     { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
     { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
@@ -3125,6 +3144,24 @@ const handleInlinePriority = async (a: Account, value: number) => {
   } catch (error) {
     console.error('Failed to update priority:', error)
     patchAccountInList({ ...a, priority: previous })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
+  }
+}
+
+const handleInlineUpstreamRate = async (a: Account, value: number) => {
+  if (value < 0 || value === (a.upstream_rate_multiplier ?? 1)) return
+  inlineSavingId.value = a.id
+  const previous = a.upstream_rate_multiplier
+  try {
+    patchAccountInList({ ...a, upstream_rate_multiplier: value })
+    const updated = await adminAPI.accounts.update(a.id, { upstream_rate_multiplier: value })
+    patchAccountInList(mergeRuntimeFields(a, updated))
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to update upstream rate:', error)
+    patchAccountInList({ ...a, upstream_rate_multiplier: previous })
     appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
   } finally {
     inlineSavingId.value = null

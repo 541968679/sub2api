@@ -47,6 +47,8 @@ type Account struct {
 	Priority int `json:"priority,omitempty"`
 	// RateMultiplier holds the value of the "rate_multiplier" field.
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
+	// UpstreamRateMultiplier holds the value of the "upstream_rate_multiplier" field.
+	UpstreamRateMultiplier float64 `json:"upstream_rate_multiplier,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// ErrorMessage holds the value of the "error_message" field.
@@ -93,6 +95,8 @@ type AccountEdges struct {
 	Groups []*Group `json:"groups,omitempty"`
 	// ScheduleUsers holds the value of the schedule_users edge.
 	ScheduleUsers []*User `json:"schedule_users,omitempty"`
+	// SmartScheduleUsers holds the value of the smart_schedule_users edge.
+	SmartScheduleUsers []*User `json:"smart_schedule_users,omitempty"`
 	// Proxy holds the value of the proxy edge.
 	Proxy *Proxy `json:"proxy,omitempty"`
 	// Parent holds the value of the parent edge.
@@ -105,9 +109,11 @@ type AccountEdges struct {
 	AccountGroups []*AccountGroup `json:"account_groups,omitempty"`
 	// AccountScheduleUsers holds the value of the account_schedule_users edge.
 	AccountScheduleUsers []*AccountScheduleUser `json:"account_schedule_users,omitempty"`
+	// UserSmartScheduleAccounts holds the value of the user_smart_schedule_accounts edge.
+	UserSmartScheduleAccounts []*UserSmartScheduleAccount `json:"user_smart_schedule_accounts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [8]bool
+	loadedTypes [10]bool
 }
 
 // GroupsOrErr returns the Groups value or an error if the edge
@@ -128,12 +134,21 @@ func (e AccountEdges) ScheduleUsersOrErr() ([]*User, error) {
 	return nil, &NotLoadedError{edge: "schedule_users"}
 }
 
+// SmartScheduleUsersOrErr returns the SmartScheduleUsers value or an error if the edge
+// was not loaded in eager-loading.
+func (e AccountEdges) SmartScheduleUsersOrErr() ([]*User, error) {
+	if e.loadedTypes[2] {
+		return e.SmartScheduleUsers, nil
+	}
+	return nil, &NotLoadedError{edge: "smart_schedule_users"}
+}
+
 // ProxyOrErr returns the Proxy value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
 func (e AccountEdges) ProxyOrErr() (*Proxy, error) {
 	if e.Proxy != nil {
 		return e.Proxy, nil
-	} else if e.loadedTypes[2] {
+	} else if e.loadedTypes[3] {
 		return nil, &NotFoundError{label: proxy.Label}
 	}
 	return nil, &NotLoadedError{edge: "proxy"}
@@ -144,7 +159,7 @@ func (e AccountEdges) ProxyOrErr() (*Proxy, error) {
 func (e AccountEdges) ParentOrErr() (*Account, error) {
 	if e.Parent != nil {
 		return e.Parent, nil
-	} else if e.loadedTypes[3] {
+	} else if e.loadedTypes[4] {
 		return nil, &NotFoundError{label: account.Label}
 	}
 	return nil, &NotLoadedError{edge: "parent"}
@@ -153,7 +168,7 @@ func (e AccountEdges) ParentOrErr() (*Account, error) {
 // ChildrenOrErr returns the Children value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) ChildrenOrErr() ([]*Account, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.Children, nil
 	}
 	return nil, &NotLoadedError{edge: "children"}
@@ -162,7 +177,7 @@ func (e AccountEdges) ChildrenOrErr() ([]*Account, error) {
 // UsageLogsOrErr returns the UsageLogs value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) UsageLogsOrErr() ([]*UsageLog, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.UsageLogs, nil
 	}
 	return nil, &NotLoadedError{edge: "usage_logs"}
@@ -171,7 +186,7 @@ func (e AccountEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -180,10 +195,19 @@ func (e AccountEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // AccountScheduleUsersOrErr returns the AccountScheduleUsers value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) AccountScheduleUsersOrErr() ([]*AccountScheduleUser, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[8] {
 		return e.AccountScheduleUsers, nil
 	}
 	return nil, &NotLoadedError{edge: "account_schedule_users"}
+}
+
+// UserSmartScheduleAccountsOrErr returns the UserSmartScheduleAccounts value or an error if the edge
+// was not loaded in eager-loading.
+func (e AccountEdges) UserSmartScheduleAccountsOrErr() ([]*UserSmartScheduleAccount, error) {
+	if e.loadedTypes[9] {
+		return e.UserSmartScheduleAccounts, nil
+	}
+	return nil, &NotLoadedError{edge: "user_smart_schedule_accounts"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -195,7 +219,7 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case account.FieldAutoPauseOnExpired, account.FieldSchedulable:
 			values[i] = new(sql.NullBool)
-		case account.FieldRateMultiplier:
+		case account.FieldRateMultiplier, account.FieldUpstreamRateMultiplier:
 			values[i] = new(sql.NullFloat64)
 		case account.FieldID, account.FieldProxyID, account.FieldConcurrency, account.FieldLoadFactor, account.FieldPriority, account.FieldParentAccountID:
 			values[i] = new(sql.NullInt64)
@@ -315,6 +339,12 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field rate_multiplier", values[i])
 			} else if value.Valid {
 				_m.RateMultiplier = value.Float64
+			}
+		case account.FieldUpstreamRateMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_rate_multiplier", values[i])
+			} else if value.Valid {
+				_m.UpstreamRateMultiplier = value.Float64
 			}
 		case account.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -453,6 +483,11 @@ func (_m *Account) QueryScheduleUsers() *UserQuery {
 	return NewAccountClient(_m.config).QueryScheduleUsers(_m)
 }
 
+// QuerySmartScheduleUsers queries the "smart_schedule_users" edge of the Account entity.
+func (_m *Account) QuerySmartScheduleUsers() *UserQuery {
+	return NewAccountClient(_m.config).QuerySmartScheduleUsers(_m)
+}
+
 // QueryProxy queries the "proxy" edge of the Account entity.
 func (_m *Account) QueryProxy() *ProxyQuery {
 	return NewAccountClient(_m.config).QueryProxy(_m)
@@ -481,6 +516,11 @@ func (_m *Account) QueryAccountGroups() *AccountGroupQuery {
 // QueryAccountScheduleUsers queries the "account_schedule_users" edge of the Account entity.
 func (_m *Account) QueryAccountScheduleUsers() *AccountScheduleUserQuery {
 	return NewAccountClient(_m.config).QueryAccountScheduleUsers(_m)
+}
+
+// QueryUserSmartScheduleAccounts queries the "user_smart_schedule_accounts" edge of the Account entity.
+func (_m *Account) QueryUserSmartScheduleAccounts() *UserSmartScheduleAccountQuery {
+	return NewAccountClient(_m.config).QueryUserSmartScheduleAccounts(_m)
 }
 
 // Update returns a builder for updating this Account.
@@ -555,6 +595,9 @@ func (_m *Account) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("rate_multiplier=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateMultiplier))
+	builder.WriteString(", ")
+	builder.WriteString("upstream_rate_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UpstreamRateMultiplier))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

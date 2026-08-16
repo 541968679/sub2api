@@ -1887,6 +1887,52 @@ func HasPlatformQuotasWith(preds ...predicate.UserPlatformQuota) predicate.User 
 	})
 }
 
+// HasSmartSchedulePolicies applies the HasEdge predicate on the "smart_schedule_policies" edge.
+func HasSmartSchedulePolicies() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SmartSchedulePoliciesTable, SmartSchedulePoliciesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSmartSchedulePoliciesWith applies the HasEdge predicate on the "smart_schedule_policies" edge with a given conditions (other predicates).
+func HasSmartSchedulePoliciesWith(preds ...predicate.UserSmartSchedulePolicy) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newSmartSchedulePoliciesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSmartScheduleAccounts applies the HasEdge predicate on the "smart_schedule_accounts" edge.
+func HasSmartScheduleAccounts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, SmartScheduleAccountsTable, SmartScheduleAccountsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSmartScheduleAccountsWith applies the HasEdge predicate on the "smart_schedule_accounts" edge with a given conditions (other predicates).
+func HasSmartScheduleAccountsWith(preds ...predicate.Account) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newSmartScheduleAccountsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasUserAllowedGroups applies the HasEdge predicate on the "user_allowed_groups" edge.
 func HasUserAllowedGroups() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
@@ -1925,6 +1971,29 @@ func HasAccountScheduleUsers() predicate.User {
 func HasAccountScheduleUsersWith(preds ...predicate.AccountScheduleUser) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newAccountScheduleUsersStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasUserSmartScheduleAccounts applies the HasEdge predicate on the "user_smart_schedule_accounts" edge.
+func HasUserSmartScheduleAccounts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, UserSmartScheduleAccountsTable, UserSmartScheduleAccountsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUserSmartScheduleAccountsWith applies the HasEdge predicate on the "user_smart_schedule_accounts" edge with a given conditions (other predicates).
+func HasUserSmartScheduleAccountsWith(preds ...predicate.UserSmartScheduleAccount) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newUserSmartScheduleAccountsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

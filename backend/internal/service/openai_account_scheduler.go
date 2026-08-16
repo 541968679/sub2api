@@ -651,6 +651,9 @@ func preferPrimaryAccounts(accounts []*Account) []*Account {
 }
 
 func isOpenAIAccountCandidateBetter(left openAIAccountCandidateScore, right openAIAccountCandidateScore) bool {
+	if cmp := compareUpstreamRate(left.account, right.account); cmp != 0 {
+		return cmp < 0
+	}
 	if left.score != right.score {
 		return left.score > right.score
 	}
@@ -878,7 +881,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	pairFiltered := make([]*Account, 0, len(filtered))
 	pairLoadReq := make([]AccountWithConcurrency, 0, len(loadReq))
 	for i, candidate := range filtered {
-		if isPairConcurrencyFull(candidate, scheduleUserIDFromContext(ctx, 0), pairCounts[candidate.ID]) {
+		if isPairConcurrencyFull(ctx, candidate, pairCounts[candidate.ID], s.service.smartScheduleCache) {
 			continue
 		}
 		pairFiltered = append(pairFiltered, candidate)
@@ -1084,6 +1087,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		ordered := append([]openAIAccountCandidateScore(nil), pool...)
 		sort.SliceStable(ordered, func(i, j int) bool {
 			a, b := ordered[i], ordered[j]
+			if cmp := compareUpstreamRate(a.account, b.account); cmp != 0 {
+				return cmp < 0
+			}
 			if a.account.Priority != b.account.Priority {
 				return a.account.Priority < b.account.Priority
 			}
@@ -1272,7 +1278,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			compactBlocked = true
 			continue
 		}
-		if isPairConcurrencyFull(fresh, scheduleUserIDFromContext(ctx, 0), s.service.pairCountsForSelection(ctx, []*Account{fresh})[fresh.ID]) {
+		if isPairConcurrencyFull(ctx, fresh, s.service.pairCountsForSelection(ctx, []*Account{fresh})[fresh.ID], s.service.smartScheduleCache) {
 			continue
 		}
 		return &AccountSelectionResult{

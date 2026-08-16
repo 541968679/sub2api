@@ -44,6 +44,8 @@ const (
 	FieldPriority = "priority"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
+	// FieldUpstreamRateMultiplier holds the string denoting the upstream_rate_multiplier field in the database.
+	FieldUpstreamRateMultiplier = "upstream_rate_multiplier"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldErrorMessage holds the string denoting the error_message field in the database.
@@ -82,6 +84,8 @@ const (
 	EdgeGroups = "groups"
 	// EdgeScheduleUsers holds the string denoting the schedule_users edge name in mutations.
 	EdgeScheduleUsers = "schedule_users"
+	// EdgeSmartScheduleUsers holds the string denoting the smart_schedule_users edge name in mutations.
+	EdgeSmartScheduleUsers = "smart_schedule_users"
 	// EdgeProxy holds the string denoting the proxy edge name in mutations.
 	EdgeProxy = "proxy"
 	// EdgeParent holds the string denoting the parent edge name in mutations.
@@ -94,6 +98,8 @@ const (
 	EdgeAccountGroups = "account_groups"
 	// EdgeAccountScheduleUsers holds the string denoting the account_schedule_users edge name in mutations.
 	EdgeAccountScheduleUsers = "account_schedule_users"
+	// EdgeUserSmartScheduleAccounts holds the string denoting the user_smart_schedule_accounts edge name in mutations.
+	EdgeUserSmartScheduleAccounts = "user_smart_schedule_accounts"
 	// Table holds the table name of the account in the database.
 	Table = "accounts"
 	// GroupsTable is the table that holds the groups relation/edge. The primary key declared below.
@@ -106,6 +112,11 @@ const (
 	// ScheduleUsersInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
 	ScheduleUsersInverseTable = "users"
+	// SmartScheduleUsersTable is the table that holds the smart_schedule_users relation/edge. The primary key declared below.
+	SmartScheduleUsersTable = "user_smart_schedule_accounts"
+	// SmartScheduleUsersInverseTable is the table name for the User entity.
+	// It exists in this package in order to avoid circular dependency with the "user" package.
+	SmartScheduleUsersInverseTable = "users"
 	// ProxyTable is the table that holds the proxy relation/edge.
 	ProxyTable = "accounts"
 	// ProxyInverseTable is the table name for the Proxy entity.
@@ -142,6 +153,13 @@ const (
 	AccountScheduleUsersInverseTable = "account_schedule_users"
 	// AccountScheduleUsersColumn is the table column denoting the account_schedule_users relation/edge.
 	AccountScheduleUsersColumn = "account_id"
+	// UserSmartScheduleAccountsTable is the table that holds the user_smart_schedule_accounts relation/edge.
+	UserSmartScheduleAccountsTable = "user_smart_schedule_accounts"
+	// UserSmartScheduleAccountsInverseTable is the table name for the UserSmartScheduleAccount entity.
+	// It exists in this package in order to avoid circular dependency with the "usersmartscheduleaccount" package.
+	UserSmartScheduleAccountsInverseTable = "user_smart_schedule_accounts"
+	// UserSmartScheduleAccountsColumn is the table column denoting the user_smart_schedule_accounts relation/edge.
+	UserSmartScheduleAccountsColumn = "account_id"
 )
 
 // Columns holds all SQL columns for account fields.
@@ -161,6 +179,7 @@ var Columns = []string{
 	FieldLoadFactor,
 	FieldPriority,
 	FieldRateMultiplier,
+	FieldUpstreamRateMultiplier,
 	FieldStatus,
 	FieldErrorMessage,
 	FieldLastUsedAt,
@@ -187,6 +206,9 @@ var (
 	// ScheduleUsersPrimaryKey and ScheduleUsersColumn2 are the table columns denoting the
 	// primary key for the schedule_users relation (M2M).
 	ScheduleUsersPrimaryKey = []string{"account_id", "user_id"}
+	// SmartScheduleUsersPrimaryKey and SmartScheduleUsersColumn2 are the table columns denoting the
+	// primary key for the smart_schedule_users relation (M2M).
+	SmartScheduleUsersPrimaryKey = []string{"account_id", "user_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -229,6 +251,8 @@ var (
 	DefaultPriority int
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// DefaultUpstreamRateMultiplier holds the default value on creation for the "upstream_rate_multiplier" field.
+	DefaultUpstreamRateMultiplier float64
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -337,6 +361,11 @@ func ByPriority(opts ...sql.OrderTermOption) OrderOption {
 // ByRateMultiplier orders the results by the rate_multiplier field.
 func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateMultiplier, opts...).ToFunc()
+}
+
+// ByUpstreamRateMultiplier orders the results by the upstream_rate_multiplier field.
+func ByUpstreamRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamRateMultiplier, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
@@ -452,6 +481,20 @@ func ByScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// BySmartScheduleUsersCount orders the results by smart_schedule_users count.
+func BySmartScheduleUsersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSmartScheduleUsersStep(), opts...)
+	}
+}
+
+// BySmartScheduleUsers orders the results by smart_schedule_users terms.
+func BySmartScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSmartScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByProxyField orders the results by proxy field.
 func ByProxyField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -521,6 +564,20 @@ func ByAccountScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOpt
 		sqlgraph.OrderByNeighborTerms(s, newAccountScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByUserSmartScheduleAccountsCount orders the results by user_smart_schedule_accounts count.
+func ByUserSmartScheduleAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newUserSmartScheduleAccountsStep(), opts...)
+	}
+}
+
+// ByUserSmartScheduleAccounts orders the results by user_smart_schedule_accounts terms.
+func ByUserSmartScheduleAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUserSmartScheduleAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newGroupsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -533,6 +590,13 @@ func newScheduleUsersStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ScheduleUsersInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2M, false, ScheduleUsersTable, ScheduleUsersPrimaryKey...),
+	)
+}
+func newSmartScheduleUsersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SmartScheduleUsersInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, SmartScheduleUsersTable, SmartScheduleUsersPrimaryKey...),
 	)
 }
 func newProxyStep() *sqlgraph.Step {
@@ -575,5 +639,12 @@ func newAccountScheduleUsersStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AccountScheduleUsersInverseTable, AccountScheduleUsersColumn),
 		sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
+	)
+}
+func newUserSmartScheduleAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(UserSmartScheduleAccountsInverseTable, UserSmartScheduleAccountsColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, UserSmartScheduleAccountsTable, UserSmartScheduleAccountsColumn),
 	)
 }

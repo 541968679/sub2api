@@ -242,6 +242,27 @@ func (_u *AccountUpdate) AddRateMultiplier(v float64) *AccountUpdate {
 	return _u
 }
 
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (_u *AccountUpdate) SetUpstreamRateMultiplier(v float64) *AccountUpdate {
+	_u.mutation.ResetUpstreamRateMultiplier()
+	_u.mutation.SetUpstreamRateMultiplier(v)
+	return _u
+}
+
+// SetNillableUpstreamRateMultiplier sets the "upstream_rate_multiplier" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableUpstreamRateMultiplier(v *float64) *AccountUpdate {
+	if v != nil {
+		_u.SetUpstreamRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddUpstreamRateMultiplier adds value to the "upstream_rate_multiplier" field.
+func (_u *AccountUpdate) AddUpstreamRateMultiplier(v float64) *AccountUpdate {
+	_u.mutation.AddUpstreamRateMultiplier(v)
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *AccountUpdate) SetStatus(v string) *AccountUpdate {
 	_u.mutation.SetStatus(v)
@@ -582,6 +603,21 @@ func (_u *AccountUpdate) AddScheduleUsers(v ...*User) *AccountUpdate {
 	return _u.AddScheduleUserIDs(ids...)
 }
 
+// AddSmartScheduleUserIDs adds the "smart_schedule_users" edge to the User entity by IDs.
+func (_u *AccountUpdate) AddSmartScheduleUserIDs(ids ...int64) *AccountUpdate {
+	_u.mutation.AddSmartScheduleUserIDs(ids...)
+	return _u
+}
+
+// AddSmartScheduleUsers adds the "smart_schedule_users" edges to the User entity.
+func (_u *AccountUpdate) AddSmartScheduleUsers(v ...*User) *AccountUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartScheduleUserIDs(ids...)
+}
+
 // SetProxy sets the "proxy" edge to the Proxy entity.
 func (_u *AccountUpdate) SetProxy(v *Proxy) *AccountUpdate {
 	return _u.SetProxyID(v.ID)
@@ -681,6 +717,27 @@ func (_u *AccountUpdate) RemoveScheduleUsers(v ...*User) *AccountUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveScheduleUserIDs(ids...)
+}
+
+// ClearSmartScheduleUsers clears all "smart_schedule_users" edges to the User entity.
+func (_u *AccountUpdate) ClearSmartScheduleUsers() *AccountUpdate {
+	_u.mutation.ClearSmartScheduleUsers()
+	return _u
+}
+
+// RemoveSmartScheduleUserIDs removes the "smart_schedule_users" edge to User entities by IDs.
+func (_u *AccountUpdate) RemoveSmartScheduleUserIDs(ids ...int64) *AccountUpdate {
+	_u.mutation.RemoveSmartScheduleUserIDs(ids...)
+	return _u
+}
+
+// RemoveSmartScheduleUsers removes "smart_schedule_users" edges to User entities.
+func (_u *AccountUpdate) RemoveSmartScheduleUsers(v ...*User) *AccountUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartScheduleUserIDs(ids...)
 }
 
 // ClearProxy clears the "proxy" edge to the Proxy entity.
@@ -888,6 +945,12 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(account.FieldRateMultiplier, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.UpstreamRateMultiplier(); ok {
+		_spec.SetField(account.FieldUpstreamRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamRateMultiplier(); ok {
+		_spec.AddField(account.FieldUpstreamRateMultiplier, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
 	}
@@ -1078,6 +1141,63 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SmartScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartScheduleUsersIDs(); len(nodes) > 0 && !_u.mutation.SmartScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
@@ -1461,6 +1581,27 @@ func (_u *AccountUpdateOne) AddRateMultiplier(v float64) *AccountUpdateOne {
 	return _u
 }
 
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (_u *AccountUpdateOne) SetUpstreamRateMultiplier(v float64) *AccountUpdateOne {
+	_u.mutation.ResetUpstreamRateMultiplier()
+	_u.mutation.SetUpstreamRateMultiplier(v)
+	return _u
+}
+
+// SetNillableUpstreamRateMultiplier sets the "upstream_rate_multiplier" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableUpstreamRateMultiplier(v *float64) *AccountUpdateOne {
+	if v != nil {
+		_u.SetUpstreamRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddUpstreamRateMultiplier adds value to the "upstream_rate_multiplier" field.
+func (_u *AccountUpdateOne) AddUpstreamRateMultiplier(v float64) *AccountUpdateOne {
+	_u.mutation.AddUpstreamRateMultiplier(v)
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *AccountUpdateOne) SetStatus(v string) *AccountUpdateOne {
 	_u.mutation.SetStatus(v)
@@ -1801,6 +1942,21 @@ func (_u *AccountUpdateOne) AddScheduleUsers(v ...*User) *AccountUpdateOne {
 	return _u.AddScheduleUserIDs(ids...)
 }
 
+// AddSmartScheduleUserIDs adds the "smart_schedule_users" edge to the User entity by IDs.
+func (_u *AccountUpdateOne) AddSmartScheduleUserIDs(ids ...int64) *AccountUpdateOne {
+	_u.mutation.AddSmartScheduleUserIDs(ids...)
+	return _u
+}
+
+// AddSmartScheduleUsers adds the "smart_schedule_users" edges to the User entity.
+func (_u *AccountUpdateOne) AddSmartScheduleUsers(v ...*User) *AccountUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartScheduleUserIDs(ids...)
+}
+
 // SetProxy sets the "proxy" edge to the Proxy entity.
 func (_u *AccountUpdateOne) SetProxy(v *Proxy) *AccountUpdateOne {
 	return _u.SetProxyID(v.ID)
@@ -1900,6 +2056,27 @@ func (_u *AccountUpdateOne) RemoveScheduleUsers(v ...*User) *AccountUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveScheduleUserIDs(ids...)
+}
+
+// ClearSmartScheduleUsers clears all "smart_schedule_users" edges to the User entity.
+func (_u *AccountUpdateOne) ClearSmartScheduleUsers() *AccountUpdateOne {
+	_u.mutation.ClearSmartScheduleUsers()
+	return _u
+}
+
+// RemoveSmartScheduleUserIDs removes the "smart_schedule_users" edge to User entities by IDs.
+func (_u *AccountUpdateOne) RemoveSmartScheduleUserIDs(ids ...int64) *AccountUpdateOne {
+	_u.mutation.RemoveSmartScheduleUserIDs(ids...)
+	return _u
+}
+
+// RemoveSmartScheduleUsers removes "smart_schedule_users" edges to User entities.
+func (_u *AccountUpdateOne) RemoveSmartScheduleUsers(v ...*User) *AccountUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartScheduleUserIDs(ids...)
 }
 
 // ClearProxy clears the "proxy" edge to the Proxy entity.
@@ -2137,6 +2314,12 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(account.FieldRateMultiplier, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.UpstreamRateMultiplier(); ok {
+		_spec.SetField(account.FieldUpstreamRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUpstreamRateMultiplier(); ok {
+		_spec.AddField(account.FieldUpstreamRateMultiplier, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
 	}
@@ -2327,6 +2510,63 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SmartScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartScheduleUsersIDs(); len(nodes) > 0 && !_u.mutation.SmartScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields

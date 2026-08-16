@@ -236,6 +236,36 @@
           />
           <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
         </div>
+        <div>
+          <div class="mb-3 flex items-center justify-between">
+            <label
+              id="bulk-edit-upstream-rate-multiplier-label"
+              class="input-label mb-0"
+              for="bulk-edit-upstream-rate-multiplier-enabled"
+            >
+              {{ t('admin.accounts.upstreamRateMultiplier') }}
+            </label>
+            <input
+              v-model="enableUpstreamRateMultiplier"
+              id="bulk-edit-upstream-rate-multiplier-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-upstream-rate-multiplier"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <input
+            v-model.number="upstreamRateMultiplier"
+            id="bulk-edit-upstream-rate-multiplier"
+            type="number"
+            min="0"
+            step="0.01"
+            :disabled="!enableUpstreamRateMultiplier"
+            class="input"
+            :class="!enableUpstreamRateMultiplier && 'cursor-not-allowed opacity-50'"
+            aria-labelledby="bulk-edit-upstream-rate-multiplier-label"
+          />
+          <p class="input-hint">{{ t('admin.accounts.upstreamRateMultiplierHint') }}</p>
+        </div>
       </div>
 
       
@@ -1797,6 +1827,7 @@ const enableConcurrency = ref(false)
 const enableLoadFactor = ref(false)
 const enablePriority = ref(false)
 const enableRateMultiplier = ref(false)
+const enableUpstreamRateMultiplier = ref(false)
 const enableStatus = ref(false)
 const enableFallbackOnly = ref(false)
 const enableModelMappingStrictScheduling = ref(false)
@@ -1865,6 +1896,7 @@ const concurrency = ref(1)
 const loadFactor = ref<number | null>(null)
 const priority = ref(1)
 const rateMultiplier = ref(1)
+const upstreamRateMultiplier = ref(1)
 const status = ref<'active' | 'inactive'>('active')
 const fallbackOnly = ref(false)
 const modelMappingStrictScheduling = ref(false)
@@ -2219,6 +2251,10 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.rate_multiplier = rateMultiplier.value
   }
 
+  if (enableUpstreamRateMultiplier.value) {
+    updates.upstream_rate_multiplier = upstreamRateMultiplier.value
+  }
+
   if (enableStatus.value) {
     updates.status = status.value
   }
@@ -2442,6 +2478,7 @@ const handleSubmit = async () => {
     enableLoadFactor.value ||
     enablePriority.value ||
     enableRateMultiplier.value ||
+    enableUpstreamRateMultiplier.value ||
     enableStatus.value ||
     enableFallbackOnly.value ||
     enableModelMappingStrictScheduling.value ||
@@ -2570,6 +2607,7 @@ watch(
       enableLoadFactor.value = false
       enablePriority.value = false
       enableRateMultiplier.value = false
+      enableUpstreamRateMultiplier.value = false
       enableStatus.value = false
       enableFallbackOnly.value = false
       enableModelMappingStrictScheduling.value = false
@@ -2610,6 +2648,7 @@ watch(
       loadFactor.value = null
       priority.value = 1
       rateMultiplier.value = 1
+      upstreamRateMultiplier.value = 1
       status.value = 'active'
       fallbackOnly.value = false
       modelMappingStrictScheduling.value = false

@@ -423,6 +423,7 @@ type OpenAIGatewayService struct {
 	openaiCompatSessionResponses        sync.Map
 	openaiCompatAnthropicDigestSessions sync.Map
 	qualityLiveCache                    AccountQualityLiveCache
+	smartScheduleCache                  SmartScheduleLookup
 }
 
 func (s *OpenAIGatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -432,8 +433,15 @@ func (s *OpenAIGatewayService) SetQualityLiveCache(cache AccountQualityLiveCache
 	s.qualityLiveCache = cache
 }
 
+func (s *OpenAIGatewayService) SetSmartScheduleCache(lookup SmartScheduleLookup) {
+	if s == nil {
+		return
+	}
+	s.smartScheduleCache = lookup
+}
+
 func (s *OpenAIGatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
-	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache, s.smartScheduleCache)
 }
 
 func (s *OpenAIGatewayService) SetOpenAIAccountSchedulerForTest(scheduler OpenAIAccountScheduler) {
@@ -2079,7 +2087,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 	pairCounts := s.pairCountsForSelection(ctx, candidates)
 	filtered := make([]*Account, 0, len(candidates))
 	for _, acc := range candidates {
-		if isPairConcurrencyFull(acc, scheduleUserIDFromContext(ctx, 0), pairCounts[acc.ID]) {
+		if isPairConcurrencyFull(ctx, acc, pairCounts[acc.ID], s.smartScheduleCache) {
 			continue
 		}
 		filtered = append(filtered, acc)
@@ -2145,6 +2153,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		if len(available) > 0 {
 			sort.SliceStable(available, func(i, j int) bool {
 				a, b := available[i], available[j]
+				if cmp := compareUpstreamRate(a.account, b.account); cmp != 0 {
+					return cmp < 0
+				}
 				if a.account.Priority != b.account.Priority {
 					return a.account.Priority < b.account.Priority
 				}

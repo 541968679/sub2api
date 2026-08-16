@@ -1,3 +1,279 @@
+## 2026-08-16 - feat(schedule): immediate smart-schedule enable switch
+
+### What
+- Replaced the left-panel enable checkbox with a large header switch that persists immediately.
+- Compacted the left policy panel: platform chips and 2-column quality fields so actions stay on screen without scrolling.
+
+### Why
+Brandon said a save-gated checkbox was not obvious enough, and the left panel required scrolling to reach buttons.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): smart-schedule pool column settings
+
+### What
+- Added a column-settings dropdown on the smart-schedule pool table: toggle visibility, reorder, and persist widths.
+- Name and actions stay pinned. Layout is stored separately from the account list.
+
+### Why
+Brandon asked to choose which pool columns are shown, like the account management list.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts`
+
+### Affected files
+`frontend/src/composables/useSmartSchedulePoolColumnLayout.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): reuse account-list columns in smart-schedule pool
+
+### What
+- Smart-schedule pool table now reuses the account-list DataTable: account concurrency (inline + capacity), this user’s pair occupancy/cap, clickable quality, today stats, groups, usage, schedulable/fallback, priority, upstream rate, last used, and account actions.
+- GET hydrates read-only pair `current_concurrency`. Pool remove stays “remove from pool”. Sorting matches the account list, plus pair cap.
+
+### Why
+Brandon asked the pool editor to show the same operational fields and actions as the account management list instead of a thin custom table.
+
+### Verification
+- `go test -tags=unit ./backend/internal/service -run "UserSmartScheduleService_HydratesPairCurrent|UserSmartScheduleService_EmptyPoolAndCopy" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/useSmartSchedulePoolAccountOps.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): upstream rate overlay
+
+### What
+- Added account field `upstream_rate_multiplier` (migration 203), independent of billing `rate_multiplier`.
+- Defaults: oauth/apikey `0.15`, other types `1`. Field is editable on create/edit/bulk/list.
+- Among already-eligible accounts, selection prefers the lowest upstream rate. Sticky and `fallback_only` are unchanged.
+
+### Why
+Brandon asked for a scheduling overlay that prefers cheaper upstreams without touching billing.
+
+### Verification
+- `go test -tags=unit ./backend/internal/service -run "UpstreamRate|SortAccountsByPriority|FilterByMin|OpenAIAccountCandidateBetter|BillingRateMultiplier" -count=1`
+- `go test -tags=unit ./backend/internal/repository -run "BuildSchedulerMetadataAccount" -count=1`
+
+### Affected files
+`backend/migrations/203_account_upstream_rate_multiplier.sql`,
+`backend/ent/schema/account.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): one-click and searchable pool add
+
+### What
+- Smart-schedule pool can one-click add currently scheduled API, OAuth, or all accounts on the active platform.
+- Single-account add is a searchable name dropdown; selecting a match adds it immediately.
+
+### Why
+The first pool editor only offered a 100-item native select, so operators could not quickly fill a platform pool from live API/OAuth inventory.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): smart-schedule column + split detail page
+
+### What
+- Users table now has a `smart_schedule` column showing enabled platforms and pool counts. Clicking it opens `/admin/users/:id/smart-schedule`.
+- The old “更多 → 智能调度” modal is gone. The detail page is a left user-policy panel (~20%) and a right account-pool panel.
+- List status comes from `POST /admin/users/smart-schedule/summaries`.
+
+### Why
+The first scheduling UI was buried in the overflow menu and cramped in a modal. Brandon asked to surface status as a user column and review a left/right detail layout.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "SmartSchedule|ListSummaries" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "SmartSchedule" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/router/index.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - feat(devcontrol): fast board, search, and stop
+
+### What
+- Sibling `E:\cursor project\devcontrol`: first paint uses cached board + cheap `GET /api/services?lite=1` (netstat only). Selected project health is a separate `GET /api/projects/{id}/services`.
+- Left sidebar search + last-selected project; main pane renders one project.
+- Stop kills known PID / runtime PID trees with `taskkill /F /T` and does not walk CIM. `wait_for_service_stop` default is 5s and returns as soon as ports are free.
+
+### Why
+Eight registered projects made `/api/services` ~5s and stop/restart sat on CIM + a 30s wait, so reload looked blank and Stop felt stuck.
+
+### Verification
+- `python -m unittest tests.test_server_status -v` in `devcontrol` → 10 OK
+- `GET /api/projects` 32ms; `GET /api/services?lite=1` 137ms; `GET /api/projects/api2sub/services` 327ms (was ~10.8s)
+
+### Affected files
+`E:\cursor project\devcontrol\server.py`,
+`E:\cursor project\devcontrol\static\index.html`,
+`E:\cursor project\devcontrol\tests\test_server_status.py`,
+this changelog.
+
+## 2026-08-16 - ops(local): unblock backend checksum + leftover air
+
+### What
+- Local `schema_migrations` checksum for uncommitted `202_user_smart_schedule.sql` was aligned to the current embedded file (`d2adaf9d…`). Tables were already present; no shipped compatibility whitelist was added.
+- Dev Control backend restart then served `/health` 200. An orphan `air.exe` left from a dead parent was killed so only one watcher remains.
+- Frontend `15174` stayed up and proxies `/api/v1/settings/public` again.
+
+### Why
+Editing the already-applied local migration made air's `server.exe` exit on startup. Dev Control kept the watcher PID and showed「启动中」even though the API was down.
+
+### Verification
+- `GET http://127.0.0.1:18081/health` → 200
+- `GET http://127.0.0.1:15174` and `/api/v1/settings/public` → 200
+- One `air.exe` after killing leftover `94660`
+
+### Affected files
+local PostgreSQL `schema_migrations` row only; this changelog.
+
+## 2026-08-16 - fix(schedule): empty pool fail-open + cooldown HASH TTL
+
+### What
+- Enabled smart-schedule with zero members now falls back to legacy admission instead of rejecting every account (covers last-member CASCADE / stale cache).
+- Pair cooldown HASH TTL is only extended, never shortened, so a short cooldown for one user cannot expire another user's longer field on the same account.
+
+### Why
+Check against D8/R11 and the no-extend cooldown contract found two fail-closed / shared-TTL bugs on the hot path.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "SmartSchedule|AdmitsSchedule|QualityGate" -count=1`
+- `go test -tags=unit ./internal/repository -run "UserSmartScheduleCache" -count=1`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): user × platform smart account pool
+
+### What
+- Admin configures a per-user, per-platform closed account pool on the user page (not the account page): enable, quality thresholds, pair cooldown, members, and per-member pair cap.
+- An enabled platform ignores that user×platform’s old `account_schedule_users` allow/deny/quality-gate/pair-cap. Other users and disabled platforms stay on the legacy path.
+- Quality breach writes a pair-only Redis cooldown (`HSETNX`, no extend). Resume clears the cooldown and reuses the existing 15-minute resume HASH grace. It does not `SetTempUnschedulable` or fold into `IsSchedulable()`.
+- Empty enabled pools are rejected on save; deleting the last member turns that platform off and falls back to legacy scheduling. Copy-from-platform copies enable/thresholds/cooldown only.
+
+### Why
+Operators need a user-centric allow-list and quality floor without inventing a second selector or writing user policy onto shared account scheduler snapshots.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "SmartSchedule|AdmitsSchedule|QualityGate" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "SmartSchedule" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/user/__tests__/UserSmartScheduleModal.spec.ts src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`backend/migrations/202_user_smart_schedule.sql`,
+`backend/ent/schema/user_smart_schedule_policy.go`,
+`backend/ent/schema/user_smart_schedule_account.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/components/admin/user/UserSmartScheduleModal.vue`,
+`frontend/src/views/admin/UsersView.vue`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
+## 2026-08-16 - feat(account): pool-mode hard-error eviction
+
+### What
+- API Key / Bedrock accounts can opt into `credentials.pool_mode_hard_eviction` (default off). `IsPoolModeHardEviction()` requires `IsPoolMode()` first.
+- Legacy pool mode (`pool_mode=true` only) still skips all local account status marking.
+- When both flags are on, R5 hard-maintenance errors (`402`, 400 credit/org/KYC, `INSUFFICIENT_BALANCE`, quota-exhausted 429, `API_KEY_EXPIRED` / `USER_INACTIVE` / `SUBSCRIPTION_*`) call `handleAuthError` → `SetError` immediately and do not fall through to `handle429` / `handle403`.
+- Custom error-code allowlists still win. Gemini API Key now forwards those R5 statuses (including 402/429) into `HandleUpstreamError`.
+- Admin create/edit API Key and Bedrock forms add the nested toggle; turning off pool mode deletes the new flag.
+
+### Why
+Upstream pool errors such as 401/403/429 should keep retrying the same local account, but billing-dead and tenant-dead errors were being swallowed by the pool-mode short-circuit.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestGetPoolModeRetryCount|TestCheckErrorPolicy|TestHandleUpstreamError_PoolMode|TestIsPoolModeHardEviction|TestIsPoolModeHardMaintenanceError" -count=1`
+- `go test -tags=unit ./internal/service -run "TestCheckErrorPolicy_GeminiAccounts|TestGemini.*ErrorPolicy" -count=1`
+- `pnpm --dir frontend run typecheck`
+
+### Affected files
+`backend/internal/service/account.go`,
+`backend/internal/service/account_pool_mode_test.go`,
+`backend/internal/service/ratelimit_service.go`,
+`backend/internal/service/error_policy_test.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`backend/internal/service/gemini_error_policy_test.go`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-15 - deploy: production v0.1.226
+
+### What
+- Released and deployed `v0.1.226` (`a9beee087`) to production as `ghcr.io/541968679/sub2api:0.1.226` / `:latest`.
+- Includes Codex compact V2 synthetic `encrypted_content` so the client can deserialize the compaction item.
+
+### Verification
+- Release workflow `31887049710` success; running digest `sha256:f24aafdbef2bcc89a3d3dbf10598bd31e749dbe3e976312242998986e5c12cb7`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `a9beee087c78411c2e4480cd6f50295a97e3b295`, version label `0.1.226`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-15 - fix(gateway): Codex compact V2 synthetic item needs encrypted_content
 
 ### What

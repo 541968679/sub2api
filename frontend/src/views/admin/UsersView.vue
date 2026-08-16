@@ -575,6 +575,46 @@
             />
           </template>
 
+          <template #header-smart_schedule="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.users.smartSchedule.columnHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-smart_schedule="{ row }">
+            <button
+              type="button"
+              class="max-w-[14rem] text-left"
+              :title="t('admin.users.smartSchedule.openDetail')"
+              data-testid="smart-schedule-cell"
+              @click="openSmartSchedule(row)"
+            >
+              <span
+                v-if="smartScheduleLoading"
+                class="text-xs text-gray-400 dark:text-gray-500"
+              >
+                {{ t('common.loading') }}
+              </span>
+              <span
+                v-else-if="!(smartScheduleSummaries[String(row.id)]?.enabled_platforms?.length)"
+                class="text-xs text-gray-400 dark:text-gray-500"
+              >
+                {{ t('admin.users.smartSchedule.off') }}
+              </span>
+              <span v-else class="flex flex-wrap gap-1">
+                <span
+                  v-for="platform in smartScheduleSummaries[String(row.id)].enabled_platforms"
+                  :key="platform"
+                  class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                >
+                  {{ t(`admin.groups.platforms.${platform}`) }}
+                  ·
+                  {{ smartScheduleSummaries[String(row.id)].pool_counts?.[platform] ?? 0 }}
+                </span>
+              </span>
+            </button>
+          </template>
+
           <template #header-quality_ttft="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -846,6 +886,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useIntervalFn } from '@vueuse/core'
 import { useAppStore } from '@/stores/app'
@@ -858,6 +899,7 @@ import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { AccountQualityStats } from '@/api/admin/accounts'
+import type { SmartScheduleSummary } from '@/api/admin/users'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -884,6 +926,7 @@ import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
 
 const appStore = useAppStore()
+const router = useRouter()
 
 const getUserStatusLabel = (status: UserStatus | string) => {
   switch (status) {
@@ -1007,6 +1050,7 @@ const allColumns = computed<Column[]>(() => [
     : []),
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
+  { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
   { key: 'quality_ttft', label: t('admin.users.columns.qualityTtft'), sortable: false },
   {
     key: 'quality_success_rate',
@@ -1080,7 +1124,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key === 'smart_schedule' || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -1097,6 +1141,7 @@ const hasVisibleUsageColumn = computed(() => !hiddenColumns.has('usage'))
 const hasVisibleQualityColumns = computed(
   () => !hiddenColumns.has('quality_ttft') || !hiddenColumns.has('quality_success_rate')
 )
+const hasVisibleSmartScheduleColumn = computed(() => !hiddenColumns.has('smart_schedule'))
 const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
 const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
 const hasVisibleAttributeColumns = computed(() =>
@@ -1432,6 +1477,8 @@ const usageStats = ref<Record<string, BatchUserUsageStats>>({})
 const qualityStatsByUserId = ref<Record<string, AccountQualityStats>>({})
 const qualityStatsLoading = ref(false)
 const qualityStatsError = ref<string | null>(null)
+const smartScheduleSummaries = ref<Record<string, SmartScheduleSummary>>({})
+const smartScheduleLoading = ref(false)
 // User attribute definitions and values
 const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
@@ -1473,6 +1520,27 @@ const loadUsersSecondaryData = async (
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
+        }
+      })()
+    )
+  }
+
+  if (hasVisibleSmartScheduleColumn.value) {
+    tasks.push(
+      (async () => {
+        smartScheduleLoading.value = true
+        try {
+          const response = await adminAPI.users.getBatchSmartScheduleSummaries(userIds)
+          if (signal?.aborted) return
+          if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+          smartScheduleSummaries.value = response.summaries ?? {}
+        } catch (e) {
+          if (signal?.aborted) return
+          console.error('Failed to load smart schedule summaries:', e)
+        } finally {
+          if (typeof expectedSeq !== 'number' || expectedSeq === secondaryDataSeq) {
+            smartScheduleLoading.value = false
+          }
         }
       })()
     )
@@ -1807,6 +1875,7 @@ const loadUsers = async () => {
     usageStats.value = {}
     qualityStatsByUserId.value = {}
     qualityStatsError.value = null
+    smartScheduleSummaries.value = {}
     burnRateStats.value = {}
     userAttributeValues.value = {}
 
@@ -1859,6 +1928,7 @@ const refreshUsersIncrementally = async () => {
         usageStats.value = {}
         qualityStatsByUserId.value = {}
         qualityStatsError.value = null
+        smartScheduleSummaries.value = {}
         burnRateStats.value = {}
         userAttributeValues.value = {}
       }
@@ -2084,6 +2154,10 @@ const handlePlatformQuota = (user: AdminUser) => {
 const closePlatformQuotaModal = () => {
   showPlatformQuotaModal.value = false
   platformQuotaUser.value = null
+}
+
+const openSmartSchedule = (user: AdminUser) => {
+  void router.push({ name: 'AdminUserSmartSchedule', params: { id: String(user.id) } })
 }
 
 const openGroupReplace = (user: AdminUser, group: { id: number; name: string }) => {

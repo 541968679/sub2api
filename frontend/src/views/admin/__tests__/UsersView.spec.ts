@@ -11,6 +11,7 @@ const {
   getBatchUsersUsage,
   getBatchUsersBurnRate,
   getBatchQualityStats,
+  getBatchSmartScheduleSummaries,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
@@ -20,8 +21,15 @@ const {
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
   getBatchQualityStats: vi.fn(),
+  getBatchSmartScheduleSummaries: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
+}))
+
+const routerPush = vi.hoisted(() => vi.fn())
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPush })
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -31,7 +39,8 @@ vi.mock('@/api/admin', () => ({
       update: updateUser,
       toggleStatus: vi.fn(),
       delete: vi.fn(),
-      getBatchQualityStats
+      getBatchQualityStats,
+      getBatchSmartScheduleSummaries
     },
     groups: {
       getAll: getAllGroups
@@ -93,6 +102,7 @@ const DataTableStub = {
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-email" :value="row.email" :row="row" />
+        <slot name="cell-smart_schedule" :row="row" />
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
         <slot name="cell-actions" :row="row" />
       </div>
@@ -112,6 +122,8 @@ describe('admin UsersView', () => {
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
     getBatchQualityStats.mockReset()
+    getBatchSmartScheduleSummaries.mockReset()
+    routerPush.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
 
@@ -127,6 +139,7 @@ describe('admin UsersView', () => {
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
+    getBatchSmartScheduleSummaries.mockResolvedValue({ summaries: {} })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
@@ -186,8 +199,9 @@ const mountUsersView = () => {
     expect(visibleColumns).not.toContain('last_login_at')
     const concurrencyIdx = visibleColumns.indexOf('concurrency')
     expect(concurrencyIdx).toBeGreaterThanOrEqual(0)
-    expect(visibleColumns[concurrencyIdx + 1]).toBe('quality_ttft')
-    expect(visibleColumns[concurrencyIdx + 2]).toBe('quality_success_rate')
+    expect(visibleColumns[concurrencyIdx + 1]).toBe('smart_schedule')
+    expect(visibleColumns[concurrencyIdx + 2]).toBe('quality_ttft')
+    expect(visibleColumns[concurrencyIdx + 3]).toBe('quality_success_rate')
 
     await wrapper.get('[data-test="sort-last-used"]').trigger('click')
     await flushPromises()
@@ -201,6 +215,21 @@ const mountUsersView = () => {
       }),
       expect.any(Object)
     )
+  })
+
+  it('opens smart schedule detail from the status column', async () => {
+    getBatchSmartScheduleSummaries.mockResolvedValue({
+      summaries: {
+        '42': { enabled_platforms: ['openai'], pool_counts: { openai: 3 } }
+      }
+    })
+    const wrapper = mountUsersView()
+    await flushPromises()
+    await wrapper.get('[data-testid="smart-schedule-cell"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'AdminUserSmartSchedule',
+      params: { id: '42' }
+    })
   })
 
   it('exposes auto-refresh control and persists enable preference', async () => {

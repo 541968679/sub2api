@@ -182,6 +182,20 @@ func (_c *AccountCreate) SetNillableRateMultiplier(v *float64) *AccountCreate {
 	return _c
 }
 
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (_c *AccountCreate) SetUpstreamRateMultiplier(v float64) *AccountCreate {
+	_c.mutation.SetUpstreamRateMultiplier(v)
+	return _c
+}
+
+// SetNillableUpstreamRateMultiplier sets the "upstream_rate_multiplier" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableUpstreamRateMultiplier(v *float64) *AccountCreate {
+	if v != nil {
+		_c.SetUpstreamRateMultiplier(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *AccountCreate) SetStatus(v string) *AccountCreate {
 	_c.mutation.SetStatus(v)
@@ -450,6 +464,21 @@ func (_c *AccountCreate) AddScheduleUsers(v ...*User) *AccountCreate {
 	return _c.AddScheduleUserIDs(ids...)
 }
 
+// AddSmartScheduleUserIDs adds the "smart_schedule_users" edge to the User entity by IDs.
+func (_c *AccountCreate) AddSmartScheduleUserIDs(ids ...int64) *AccountCreate {
+	_c.mutation.AddSmartScheduleUserIDs(ids...)
+	return _c
+}
+
+// AddSmartScheduleUsers adds the "smart_schedule_users" edges to the User entity.
+func (_c *AccountCreate) AddSmartScheduleUsers(v ...*User) *AccountCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSmartScheduleUserIDs(ids...)
+}
+
 // SetProxy sets the "proxy" edge to the Proxy entity.
 func (_c *AccountCreate) SetProxy(v *Proxy) *AccountCreate {
 	return _c.SetProxyID(v.ID)
@@ -581,6 +610,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.UpstreamRateMultiplier(); !ok {
+		v := account.DefaultUpstreamRateMultiplier
+		_c.mutation.SetUpstreamRateMultiplier(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := account.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -650,6 +683,9 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Account.rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.UpstreamRateMultiplier(); !ok {
+		return &ValidationError{Name: "upstream_rate_multiplier", err: errors.New(`ent: missing required field "Account.upstream_rate_multiplier"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Account.status"`)}
@@ -765,6 +801,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_spec.SetField(account.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
 	}
+	if value, ok := _c.mutation.UpstreamRateMultiplier(); ok {
+		_spec.SetField(account.FieldUpstreamRateMultiplier, field.TypeFloat64, value)
+		_node.UpstreamRateMultiplier = value
+	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
 		_node.Status = value
@@ -864,6 +904,26 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountScheduleUserCreate{config: _c.config, mutation: newAccountScheduleUserMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SmartScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.SmartScheduleUsersTable,
+			Columns: account.SmartScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _c.config, mutation: newUserSmartScheduleAccountMutation(_c.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
@@ -1188,6 +1248,24 @@ func (u *AccountUpsert) UpdateRateMultiplier() *AccountUpsert {
 // AddRateMultiplier adds v to the "rate_multiplier" field.
 func (u *AccountUpsert) AddRateMultiplier(v float64) *AccountUpsert {
 	u.Add(account.FieldRateMultiplier, v)
+	return u
+}
+
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (u *AccountUpsert) SetUpstreamRateMultiplier(v float64) *AccountUpsert {
+	u.Set(account.FieldUpstreamRateMultiplier, v)
+	return u
+}
+
+// UpdateUpstreamRateMultiplier sets the "upstream_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateUpstreamRateMultiplier() *AccountUpsert {
+	u.SetExcluded(account.FieldUpstreamRateMultiplier)
+	return u
+}
+
+// AddUpstreamRateMultiplier adds v to the "upstream_rate_multiplier" field.
+func (u *AccountUpsert) AddUpstreamRateMultiplier(v float64) *AccountUpsert {
+	u.Add(account.FieldUpstreamRateMultiplier, v)
 	return u
 }
 
@@ -1747,6 +1825,27 @@ func (u *AccountUpsertOne) AddRateMultiplier(v float64) *AccountUpsertOne {
 func (u *AccountUpsertOne) UpdateRateMultiplier() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (u *AccountUpsertOne) SetUpstreamRateMultiplier(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUpstreamRateMultiplier(v)
+	})
+}
+
+// AddUpstreamRateMultiplier adds v to the "upstream_rate_multiplier" field.
+func (u *AccountUpsertOne) AddUpstreamRateMultiplier(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddUpstreamRateMultiplier(v)
+	})
+}
+
+// UpdateUpstreamRateMultiplier sets the "upstream_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateUpstreamRateMultiplier() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUpstreamRateMultiplier()
 	})
 }
 
@@ -2518,6 +2617,27 @@ func (u *AccountUpsertBulk) AddRateMultiplier(v float64) *AccountUpsertBulk {
 func (u *AccountUpsertBulk) UpdateRateMultiplier() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (u *AccountUpsertBulk) SetUpstreamRateMultiplier(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUpstreamRateMultiplier(v)
+	})
+}
+
+// AddUpstreamRateMultiplier adds v to the "upstream_rate_multiplier" field.
+func (u *AccountUpsertBulk) AddUpstreamRateMultiplier(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddUpstreamRateMultiplier(v)
+	})
+}
+
+// UpdateUpstreamRateMultiplier sets the "upstream_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateUpstreamRateMultiplier() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUpstreamRateMultiplier()
 	})
 }
 

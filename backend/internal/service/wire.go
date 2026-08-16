@@ -248,6 +248,7 @@ func ProvideGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	antigravitySampler *AntigravityCreditSampler,
 	liveCache AccountQualityLiveCache,
+	smartSchedule SmartScheduleLookup,
 ) *GatewayService {
 	svc := NewGatewayService(
 		accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -256,6 +257,7 @@ func ProvideGatewayService(
 		digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, antigravitySampler,
 	)
 	svc.SetQualityLiveCache(liveCache)
+	svc.SetSmartScheduleCache(smartSchedule)
 	return svc
 }
 
@@ -282,6 +284,7 @@ func ProvideOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	liveCache AccountQualityLiveCache,
+	smartSchedule SmartScheduleLookup,
 ) *OpenAIGatewayService {
 	svc := NewOpenAIGatewayService(
 		accountRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -290,6 +293,7 @@ func ProvideOpenAIGatewayService(
 		balanceNotifyService, settingService,
 	)
 	svc.SetQualityLiveCache(liveCache)
+	svc.SetSmartScheduleCache(smartSchedule)
 	return svc
 }
 
@@ -304,12 +308,14 @@ func ProvideGeminiMessagesCompatService(
 	antigravityGatewayService *AntigravityGatewayService,
 	cfg *config.Config,
 	liveCache AccountQualityLiveCache,
+	smartSchedule SmartScheduleLookup,
 ) *GeminiMessagesCompatService {
 	svc := NewGeminiMessagesCompatService(
 		accountRepo, groupRepo, cache, schedulerSnapshot, tokenProvider, rateLimitService,
 		httpUpstream, antigravityGatewayService, cfg,
 	)
 	svc.SetQualityLiveCache(liveCache)
+	svc.SetSmartScheduleCache(smartSchedule)
 	return svc
 }
 
@@ -770,6 +776,8 @@ var ProviderSet = wire.NewSet(
 	ProvideImageChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
+	NewUserSmartScheduleService,
+	wire.Bind(new(SmartScheduleLookup), new(*UserSmartScheduleService)),
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,
 	NewBatchImageDownloadService,

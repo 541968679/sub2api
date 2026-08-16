@@ -1,0 +1,189 @@
+package service
+
+import (
+	"context"
+	"strings"
+	"time"
+)
+
+const (
+	DefaultSmartScheduleCooldownMinutes = 15
+	MinSmartScheduleCooldownMinutes     = 1
+	MaxSmartScheduleCooldownMinutes     = 1440
+	SmartScheduleUserCacheTTL           = 10 * time.Minute
+)
+
+// SmartScheduleAccountMember is one pool member + optional pair cap.
+// CurrentConcurrency is read-only live occupancy for this user on this account.
+type SmartScheduleAccountMember struct {
+	AccountID          int64  `json:"account_id"`
+	Platform           string `json:"platform"`
+	MaxConcurrency     *int   `json:"max_concurrency,omitempty"`
+	CurrentConcurrency int    `json:"current_concurrency,omitempty"`
+}
+
+// SmartSchedulePlatformPolicy is the hot-path view of one (user, platform) policy.
+type SmartSchedulePlatformPolicy struct {
+	Enabled                  bool
+	QualityMaxP50TTFTMs      *int
+	QualityMinSuccessRate    *float64
+	QualityMinSuccessSamples *int
+	QualityMinTTFTSamples    *int
+	QualityCondition         *string
+	CooldownMinutes          int
+	AccountIDs               map[int64]struct{}
+	Caps                     map[int64]int
+}
+
+func (p *SmartSchedulePlatformPolicy) HasAccount(accountID int64) bool {
+	if p == nil || accountID <= 0 {
+		return false
+	}
+	_, ok := p.AccountIDs[accountID]
+	return ok
+}
+
+func (p *SmartSchedulePlatformPolicy) PairCap(accountID int64) int {
+	if p == nil || accountID <= 0 || len(p.Caps) == 0 {
+		return 0
+	}
+	n := p.Caps[accountID]
+	if n < 1 {
+		return 0
+	}
+	return n
+}
+
+func (p *SmartSchedulePlatformPolicy) HasQualityMetrics() bool {
+	if p == nil {
+		return false
+	}
+	return p.QualityMaxP50TTFTMs != nil || p.QualityMinSuccessRate != nil
+}
+
+func (p *SmartSchedulePlatformPolicy) QualityGate() QualityHardCloseSettings {
+	if p == nil || !p.HasQualityMetrics() {
+		return QualityHardCloseSettings{}
+	}
+	return fillUserQualityGateDefaults(QualityHardCloseSettings{
+		MaxP50TTFTMs:      p.QualityMaxP50TTFTMs,
+		MinSuccessRate:    p.QualityMinSuccessRate,
+		MinSuccessSamples: derefPositiveOrZero(p.QualityMinSuccessSamples),
+		MinTTFTSamples:    derefPositiveOrZero(p.QualityMinTTFTSamples),
+		Condition:         derefString(p.QualityCondition),
+	})
+}
+
+func (p *SmartSchedulePlatformPolicy) MemberCount() int {
+	if p == nil {
+		return 0
+	}
+	return len(p.AccountIDs)
+}
+
+// UserSmartScheduleBundle is the cached per-user map of platform policies.
+type UserSmartScheduleBundle struct {
+	Policies map[string]*SmartSchedulePlatformPolicy `json:"policies"`
+}
+
+func (b *UserSmartScheduleBundle) Policy(platform string) *SmartSchedulePlatformPolicy {
+	if b == nil || len(b.Policies) == 0 {
+		return nil
+	}
+	return b.Policies[normalizeSmartSchedulePlatform(platform)]
+}
+
+func (b *UserSmartScheduleBundle) EnabledPolicy(platform string) *SmartSchedulePlatformPolicy {
+	p := b.Policy(platform)
+	if p == nil || !p.Enabled || p.MemberCount() == 0 {
+		// Empty pool has no business meaning. Treat it as disabled so the
+		// user falls back to legacy allow/deny/gate/cap instead of failing
+		// closed (e.g. last member CASCADE-deleted, stale cache).
+		return nil
+	}
+	return p
+}
+
+// SmartScheduleLookup is the hot-path reader for user smart-schedule policy + cooldown.
+// Cache miss / lookup error fail open to legacy AdmitsScheduleUser.
+type SmartScheduleLookup interface {
+	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
+	CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool
+	StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time)
+}
+
+// UserSmartScheduleCache is the admin + hot-path cache (invalidate on save).
+type UserSmartScheduleCache interface {
+	SmartScheduleLookup
+	Invalidate(ctx context.Context, userID int64) error
+	ClearCooldown(ctx context.Context, accountID, userID int64) error
+}
+
+// UserSmartScheduleRepository persists policies and pool members.
+type UserSmartScheduleRepository interface {
+	ListByUser(ctx context.Context, userID int64) (*UserSmartScheduleBundle, error)
+	ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error)
+	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
+}
+
+// UserSmartScheduleSummary is the compact list-column view of one user's smart schedule.
+type UserSmartScheduleSummary struct {
+	EnabledPlatforms []string       `json:"enabled_platforms"`
+	PoolCounts       map[string]int `json:"pool_counts"`
+}
+
+// SmartSchedulePlatformWrite is the replace-all payload for one platform.
+type SmartSchedulePlatformWrite struct {
+	Enabled                  bool
+	QualityMaxP50TTFTMs      *int
+	QualityMinSuccessRate    *float64
+	QualityMinSuccessSamples *int
+	QualityMinTTFTSamples    *int
+	QualityCondition         *string
+	CooldownMinutes          int
+	Accounts                 []SmartScheduleAccountMember
+}
+
+// SmartSchedulePlatformView is the admin GET/PUT response for one platform.
+type SmartSchedulePlatformView struct {
+	Enabled                  bool                          `json:"enabled"`
+	QualityMaxP50TTFTMs      *int                          `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate    *float64                      `json:"quality_min_success_rate"`
+	QualityMinSuccessSamples *int                          `json:"quality_min_success_samples"`
+	QualityMinTTFTSamples    *int                          `json:"quality_min_ttft_samples"`
+	QualityCondition         *string                       `json:"quality_condition"`
+	CooldownMinutes          int                           `json:"cooldown_minutes"`
+	Accounts                 []SmartScheduleAccountMember  `json:"accounts"`
+}
+
+// UserSmartScheduleView is GET /admin/users/:id/smart-schedule.
+type UserSmartScheduleView struct {
+	UserID    int64                               `json:"user_id"`
+	Platforms map[string]SmartSchedulePlatformView `json:"platforms"`
+}
+
+func normalizeSmartSchedulePlatform(platform string) string {
+	return strings.ToLower(strings.TrimSpace(platform))
+}
+
+func IsAllowedSmartSchedulePlatform(platform string) bool {
+	return IsAllowedQuotaPlatform(normalizeSmartSchedulePlatform(platform))
+}
+
+func lookupEnabledSmartPolicy(ctx context.Context, lookup SmartScheduleLookup, userID int64, platform string) *SmartSchedulePlatformPolicy {
+	if lookup == nil || userID <= 0 {
+		return nil
+	}
+	return lookup.Lookup(ctx, userID).EnabledPolicy(platform)
+}
+
+func resolvePairMaxConcurrency(ctx context.Context, account *Account, lookup SmartScheduleLookup) int {
+	if account == nil {
+		return 0
+	}
+	userID := scheduleUserIDFromContext(ctx, 0)
+	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform); policy != nil {
+		return policy.PairCap(account.ID)
+	}
+	return account.PairMaxConcurrency(userID)
+}

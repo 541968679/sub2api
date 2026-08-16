@@ -110,6 +110,12 @@ func (Account) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
 
+		// upstream_rate_multiplier: 调度选号上游倍率（>=0）。
+		// 与 rate_multiplier（计费）独立。缺省按账号类型：oauth/apikey=0.15，其余=1。
+		field.Float("upstream_rate_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(1.0),
+
 		// status: 账户状态，如 "active", "error", "disabled"
 		field.String("status").
 			MaxLen(20).
@@ -219,6 +225,9 @@ func (Account) Edges() []ent.Edge {
 		// schedule_users: independent allow/deny/pair-cap rows via account_schedule_users
 		edge.To("schedule_users", User.Type).
 			Through("account_schedule_users", AccountScheduleUser.Type),
+		// smart_schedule_users: user-centric pool members via user_smart_schedule_accounts
+		edge.To("smart_schedule_users", User.Type).
+			Through("user_smart_schedule_accounts", UserSmartScheduleAccount.Type),
 		// proxy: 账户使用的代理配置（可选的一对一关系）
 		// 使用已有的 proxy_id 外键字段
 		edge.To("proxy", Proxy.Type).

@@ -135,6 +135,7 @@ var (
 		{Name: "load_factor", Type: field.TypeInt, Nullable: true},
 		{Name: "priority", Type: field.TypeInt, Default: 50},
 		{Name: "rate_multiplier", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
+		{Name: "upstream_rate_multiplier", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "error_message", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
@@ -162,13 +163,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "accounts_proxies_proxy",
-				Columns:    []*schema.Column{AccountsColumns[30]},
+				Columns:    []*schema.Column{AccountsColumns[31]},
 				RefColumns: []*schema.Column{ProxiesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "accounts_accounts_children",
-				Columns:    []*schema.Column{AccountsColumns[31]},
+				Columns:    []*schema.Column{AccountsColumns[32]},
 				RefColumns: []*schema.Column{AccountsColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
@@ -187,12 +188,12 @@ var (
 			{
 				Name:    "account_status",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[14]},
+				Columns: []*schema.Column{AccountsColumns[15]},
 			},
 			{
 				Name:    "account_proxy_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[30]},
+				Columns: []*schema.Column{AccountsColumns[31]},
 			},
 			{
 				Name:    "account_priority",
@@ -202,27 +203,27 @@ var (
 			{
 				Name:    "account_last_used_at",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[16]},
+				Columns: []*schema.Column{AccountsColumns[17]},
 			},
 			{
 				Name:    "account_schedulable",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[19]},
+				Columns: []*schema.Column{AccountsColumns[20]},
 			},
 			{
 				Name:    "account_rate_limited_at",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[20]},
+				Columns: []*schema.Column{AccountsColumns[21]},
 			},
 			{
 				Name:    "account_rate_limit_reset_at",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[21]},
+				Columns: []*schema.Column{AccountsColumns[22]},
 			},
 			{
 				Name:    "account_overload_until",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[22]},
+				Columns: []*schema.Column{AccountsColumns[23]},
 			},
 			{
 				Name:    "account_platform_priority",
@@ -232,7 +233,7 @@ var (
 			{
 				Name:    "account_priority_status",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[12], AccountsColumns[14]},
+				Columns: []*schema.Column{AccountsColumns[12], AccountsColumns[15]},
 			},
 			{
 				Name:    "account_deleted_at",
@@ -242,7 +243,7 @@ var (
 			{
 				Name:    "account_parent_account_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[31]},
+				Columns: []*schema.Column{AccountsColumns[32]},
 			},
 		},
 	}
@@ -2111,6 +2112,87 @@ var (
 			},
 		},
 	}
+	// UserSmartScheduleAccountsColumns holds the columns for the "user_smart_schedule_accounts" table.
+	UserSmartScheduleAccountsColumns = []*schema.Column{
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "platform", Type: field.TypeString, Size: 32},
+		{Name: "max_concurrency", Type: field.TypeInt, Nullable: true},
+		{Name: "user_id", Type: field.TypeInt64},
+		{Name: "account_id", Type: field.TypeInt64},
+	}
+	// UserSmartScheduleAccountsTable holds the schema information for the "user_smart_schedule_accounts" table.
+	UserSmartScheduleAccountsTable = &schema.Table{
+		Name:       "user_smart_schedule_accounts",
+		Columns:    UserSmartScheduleAccountsColumns,
+		PrimaryKey: []*schema.Column{UserSmartScheduleAccountsColumns[4], UserSmartScheduleAccountsColumns[3]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "user_smart_schedule_accounts_users_user",
+				Columns:    []*schema.Column{UserSmartScheduleAccountsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "user_smart_schedule_accounts_accounts_account",
+				Columns:    []*schema.Column{UserSmartScheduleAccountsColumns[4]},
+				RefColumns: []*schema.Column{AccountsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "usersmartscheduleaccount_user_id_platform",
+				Unique:  false,
+				Columns: []*schema.Column{UserSmartScheduleAccountsColumns[3], UserSmartScheduleAccountsColumns[1]},
+			},
+			{
+				Name:    "usersmartscheduleaccount_account_id",
+				Unique:  false,
+				Columns: []*schema.Column{UserSmartScheduleAccountsColumns[4]},
+			},
+		},
+	}
+	// UserSmartSchedulePoliciesColumns holds the columns for the "user_smart_schedule_policies" table.
+	UserSmartSchedulePoliciesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "platform", Type: field.TypeString, Size: 32},
+		{Name: "enabled", Type: field.TypeBool, Default: false},
+		{Name: "quality_max_p50_ttft_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_min_success_rate", Type: field.TypeFloat64, Nullable: true},
+		{Name: "quality_min_success_samples", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_min_ttft_samples", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_condition", Type: field.TypeString, Nullable: true, Size: 8},
+		{Name: "cooldown_minutes", Type: field.TypeInt, Default: 15, SchemaType: map[string]string{"postgres": "integer"}},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// UserSmartSchedulePoliciesTable holds the schema information for the "user_smart_schedule_policies" table.
+	UserSmartSchedulePoliciesTable = &schema.Table{
+		Name:       "user_smart_schedule_policies",
+		Columns:    UserSmartSchedulePoliciesColumns,
+		PrimaryKey: []*schema.Column{UserSmartSchedulePoliciesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "user_smart_schedule_policies_users_smart_schedule_policies",
+				Columns:    []*schema.Column{UserSmartSchedulePoliciesColumns[11]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "usersmartschedulepolicy_user_id_platform",
+				Unique:  true,
+				Columns: []*schema.Column{UserSmartSchedulePoliciesColumns[11], UserSmartSchedulePoliciesColumns[3]},
+			},
+			{
+				Name:    "usersmartschedulepolicy_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{UserSmartSchedulePoliciesColumns[11]},
+			},
+		},
+	}
 	// UserSubscriptionsColumns holds the columns for the "user_subscriptions" table.
 	UserSubscriptionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2244,6 +2326,8 @@ var (
 		UserAttributeDefinitionsTable,
 		UserAttributeValuesTable,
 		UserPlatformQuotasTable,
+		UserSmartScheduleAccountsTable,
+		UserSmartSchedulePoliciesTable,
 		UserSubscriptionsTable,
 	}
 )
@@ -2402,6 +2486,15 @@ func init() {
 	UserPlatformQuotasTable.ForeignKeys[0].RefTable = UsersTable
 	UserPlatformQuotasTable.Annotation = &entsql.Annotation{
 		Table: "user_platform_quotas",
+	}
+	UserSmartScheduleAccountsTable.ForeignKeys[0].RefTable = UsersTable
+	UserSmartScheduleAccountsTable.ForeignKeys[1].RefTable = AccountsTable
+	UserSmartScheduleAccountsTable.Annotation = &entsql.Annotation{
+		Table: "user_smart_schedule_accounts",
+	}
+	UserSmartSchedulePoliciesTable.ForeignKeys[0].RefTable = UsersTable
+	UserSmartSchedulePoliciesTable.Annotation = &entsql.Annotation{
+		Table: "user_smart_schedule_policies",
 	}
 	UserSubscriptionsTable.ForeignKeys[0].RefTable = GroupsTable
 	UserSubscriptionsTable.ForeignKeys[1].RefTable = UsersTable

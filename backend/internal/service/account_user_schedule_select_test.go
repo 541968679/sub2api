@@ -684,6 +684,40 @@ func TestSelectAccount_UserScheduleRoutedPairFullFallsThrough(t *testing.T) {
 	require.Nil(t, result.WaitPlan)
 }
 
+func TestSelectAccount_SmartScheduleClosedPoolIgnoresLegacyDeny(t *testing.T) {
+	t.Parallel()
+
+	deniedButPooled := Account{
+		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
+		DenyUserIDs: []int64{16},
+	}
+	outsidePool := Account{
+		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{deniedButPooled, outsidePool},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+	lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(1, 0, nil))}
+	svc := &GatewayService{
+		accountRepo:        repo,
+		cache:              &mockGatewayCacheForPlatform{},
+		cfg:                testConfig(),
+		smartScheduleCache: lookup,
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	ctx = context.WithValue(ctx, ctxkey.UserID, int64(16))
+	account, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, int64(1), account.ID, "enabled smart pool must ignore legacy deny and reject accounts outside the pool")
+}
+
 func TestOpenAISelectAccount_LoadBatchDisabledPairFullReselects(t *testing.T) {
 	groupID := int64(101208)
 	full := Account{

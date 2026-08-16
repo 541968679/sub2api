@@ -212,8 +212,11 @@ type AccountQualityLiveCache interface {
 	MarkAccountResume(ctx context.Context, accountID int64) error
 }
 
-func loadLiveQualityForAdmission(ctx context.Context, cache AccountQualityLiveCache, account *Account) *AccountQualityStats {
-	if account == nil || len(account.UserQualityGates) == 0 || cache == nil {
+func loadLiveQualityForAdmission(ctx context.Context, cache AccountQualityLiveCache, account *Account, force bool) *AccountQualityStats {
+	if account == nil || cache == nil {
+		return nil
+	}
+	if !force && len(account.UserQualityGates) == 0 {
 		return nil
 	}
 	stats, err := cache.Get(ctx, account.ID)
@@ -223,11 +226,38 @@ func loadLiveQualityForAdmission(ctx context.Context, cache AccountQualityLiveCa
 	return stats
 }
 
-func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQualityLiveCache) bool {
+func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQualityLiveCache, lookup SmartScheduleLookup) bool {
 	if account == nil {
 		return false
 	}
-	return account.AdmitsScheduleUser(scheduleUserIDFromContext(ctx, 0), loadLiveQualityForAdmission(ctx, cache, account))
+	userID := scheduleUserIDFromContext(ctx, 0)
+	policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform)
+	if policy == nil {
+		return account.AdmitsScheduleUser(userID, loadLiveQualityForAdmission(ctx, cache, account, false))
+	}
+	if !policy.HasAccount(account.ID) {
+		return false
+	}
+	now := time.Now().UTC()
+	if lookup != nil && lookup.CooldownActive(ctx, account.ID, userID, now) {
+		return false
+	}
+	needLive := policy.HasQualityMetrics()
+	stats := loadLiveQualityForAdmission(ctx, cache, account, needLive)
+	if !needLive {
+		return true
+	}
+	if UserQualityResumeActive(stats, userID, now) {
+		return true
+	}
+	blocked, _ := EvaluateAccountQualityHardClose(stats, policy.QualityGate(), false)
+	if !blocked {
+		return true
+	}
+	if lookup != nil {
+		lookup.StartCooldown(ctx, account.ID, userID, policy.CooldownMinutes, now)
+	}
+	return false
 }
 
 func containsScheduleUserID(ids []int64, userID int64) bool {

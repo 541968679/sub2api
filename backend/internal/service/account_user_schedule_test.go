@@ -250,9 +250,9 @@ func TestAccount_QualityGateBlocksUserAndAdmitsScheduleUser(t *testing.T) {
 		require.False(t, acc.QualityGateBlocksUser(16, nil))
 		require.True(t, acc.AdmitsScheduleUser(16, nil))
 		ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
-		require.True(t, admitsScheduleUser(ctx, acc, nil))
-		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{}))
-		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{err: context.DeadlineExceeded}))
+		require.True(t, admitsScheduleUser(ctx, acc, nil, nil))
+		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{}, nil))
+		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{err: context.DeadlineExceeded}, nil))
 	})
 
 	t.Run("no gate never blocks", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestAccount_QualityGateBlocksUserAndAdmitsScheduleUser(t *testing.T) {
 		ctx := context.Background()
 		require.False(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{
 			byID: map[int64]*AccountQualityStats{1: ok},
-		}))
+		}, nil))
 	})
 
 	t.Run("live cache breach blocks admission", func(t *testing.T) {
@@ -344,7 +344,7 @@ func TestAccount_QualityGateBlocksUserAndAdmitsScheduleUser(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 		require.False(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{
 			byID: map[int64]*AccountQualityStats{1: liveQualityStats(4000, 12, 20, 0, 1)},
-		}))
+		}, nil))
 	})
 }
 

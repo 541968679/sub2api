@@ -29,33 +29,38 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx                       *QueryContext
-	order                     []user.OrderOption
-	inters                    []Interceptor
-	predicates                []predicate.User
-	withAPIKeys               *APIKeyQuery
-	withRedeemCodes           *RedeemCodeQuery
-	withSubscriptions         *UserSubscriptionQuery
-	withAssignedSubscriptions *UserSubscriptionQuery
-	withAnnouncementReads     *AnnouncementReadQuery
-	withAllowedGroups         *GroupQuery
-	withScheduledAccounts     *AccountQuery
-	withUsageLogs             *UsageLogQuery
-	withAttributeValues       *UserAttributeValueQuery
-	withPromoCodeUsages       *PromoCodeUsageQuery
-	withPaymentOrders         *PaymentOrderQuery
-	withAuthIdentities        *AuthIdentityQuery
-	withPendingAuthSessions   *PendingAuthSessionQuery
-	withPlatformQuotas        *UserPlatformQuotaQuery
-	withUserAllowedGroups     *UserAllowedGroupQuery
-	withAccountScheduleUsers  *AccountScheduleUserQuery
-	modifiers                 []func(*sql.Selector)
+	ctx                           *QueryContext
+	order                         []user.OrderOption
+	inters                        []Interceptor
+	predicates                    []predicate.User
+	withAPIKeys                   *APIKeyQuery
+	withRedeemCodes               *RedeemCodeQuery
+	withSubscriptions             *UserSubscriptionQuery
+	withAssignedSubscriptions     *UserSubscriptionQuery
+	withAnnouncementReads         *AnnouncementReadQuery
+	withAllowedGroups             *GroupQuery
+	withScheduledAccounts         *AccountQuery
+	withUsageLogs                 *UsageLogQuery
+	withAttributeValues           *UserAttributeValueQuery
+	withPromoCodeUsages           *PromoCodeUsageQuery
+	withPaymentOrders             *PaymentOrderQuery
+	withAuthIdentities            *AuthIdentityQuery
+	withPendingAuthSessions       *PendingAuthSessionQuery
+	withPlatformQuotas            *UserPlatformQuotaQuery
+	withSmartSchedulePolicies     *UserSmartSchedulePolicyQuery
+	withSmartScheduleAccounts     *AccountQuery
+	withUserAllowedGroups         *UserAllowedGroupQuery
+	withAccountScheduleUsers      *AccountScheduleUserQuery
+	withUserSmartScheduleAccounts *UserSmartScheduleAccountQuery
+	modifiers                     []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -400,6 +405,50 @@ func (_q *UserQuery) QueryPlatformQuotas() *UserPlatformQuotaQuery {
 	return query
 }
 
+// QuerySmartSchedulePolicies chains the current query on the "smart_schedule_policies" edge.
+func (_q *UserQuery) QuerySmartSchedulePolicies() *UserSmartSchedulePolicyQuery {
+	query := (&UserSmartSchedulePolicyClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(usersmartschedulepolicy.Table, usersmartschedulepolicy.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SmartSchedulePoliciesTable, user.SmartSchedulePoliciesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySmartScheduleAccounts chains the current query on the "smart_schedule_accounts" edge.
+func (_q *UserQuery) QuerySmartScheduleAccounts() *AccountQuery {
+	query := (&AccountClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.SmartScheduleAccountsTable, user.SmartScheduleAccountsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QueryUserAllowedGroups chains the current query on the "user_allowed_groups" edge.
 func (_q *UserQuery) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 	query := (&UserAllowedGroupClient{config: _q.config}).Query()
@@ -437,6 +486,28 @@ func (_q *UserQuery) QueryAccountScheduleUsers() *AccountScheduleUserQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(accountscheduleuser.Table, accountscheduleuser.UserColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, user.AccountScheduleUsersTable, user.AccountScheduleUsersColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryUserSmartScheduleAccounts chains the current query on the "user_smart_schedule_accounts" edge.
+func (_q *UserQuery) QueryUserSmartScheduleAccounts() *UserSmartScheduleAccountQuery {
+	query := (&UserSmartScheduleAccountClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(usersmartscheduleaccount.Table, usersmartscheduleaccount.UserColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.UserSmartScheduleAccountsTable, user.UserSmartScheduleAccountsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -631,27 +702,30 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:                    _q.config,
-		ctx:                       _q.ctx.Clone(),
-		order:                     append([]user.OrderOption{}, _q.order...),
-		inters:                    append([]Interceptor{}, _q.inters...),
-		predicates:                append([]predicate.User{}, _q.predicates...),
-		withAPIKeys:               _q.withAPIKeys.Clone(),
-		withRedeemCodes:           _q.withRedeemCodes.Clone(),
-		withSubscriptions:         _q.withSubscriptions.Clone(),
-		withAssignedSubscriptions: _q.withAssignedSubscriptions.Clone(),
-		withAnnouncementReads:     _q.withAnnouncementReads.Clone(),
-		withAllowedGroups:         _q.withAllowedGroups.Clone(),
-		withScheduledAccounts:     _q.withScheduledAccounts.Clone(),
-		withUsageLogs:             _q.withUsageLogs.Clone(),
-		withAttributeValues:       _q.withAttributeValues.Clone(),
-		withPromoCodeUsages:       _q.withPromoCodeUsages.Clone(),
-		withPaymentOrders:         _q.withPaymentOrders.Clone(),
-		withAuthIdentities:        _q.withAuthIdentities.Clone(),
-		withPendingAuthSessions:   _q.withPendingAuthSessions.Clone(),
-		withPlatformQuotas:        _q.withPlatformQuotas.Clone(),
-		withUserAllowedGroups:     _q.withUserAllowedGroups.Clone(),
-		withAccountScheduleUsers:  _q.withAccountScheduleUsers.Clone(),
+		config:                        _q.config,
+		ctx:                           _q.ctx.Clone(),
+		order:                         append([]user.OrderOption{}, _q.order...),
+		inters:                        append([]Interceptor{}, _q.inters...),
+		predicates:                    append([]predicate.User{}, _q.predicates...),
+		withAPIKeys:                   _q.withAPIKeys.Clone(),
+		withRedeemCodes:               _q.withRedeemCodes.Clone(),
+		withSubscriptions:             _q.withSubscriptions.Clone(),
+		withAssignedSubscriptions:     _q.withAssignedSubscriptions.Clone(),
+		withAnnouncementReads:         _q.withAnnouncementReads.Clone(),
+		withAllowedGroups:             _q.withAllowedGroups.Clone(),
+		withScheduledAccounts:         _q.withScheduledAccounts.Clone(),
+		withUsageLogs:                 _q.withUsageLogs.Clone(),
+		withAttributeValues:           _q.withAttributeValues.Clone(),
+		withPromoCodeUsages:           _q.withPromoCodeUsages.Clone(),
+		withPaymentOrders:             _q.withPaymentOrders.Clone(),
+		withAuthIdentities:            _q.withAuthIdentities.Clone(),
+		withPendingAuthSessions:       _q.withPendingAuthSessions.Clone(),
+		withPlatformQuotas:            _q.withPlatformQuotas.Clone(),
+		withSmartSchedulePolicies:     _q.withSmartSchedulePolicies.Clone(),
+		withSmartScheduleAccounts:     _q.withSmartScheduleAccounts.Clone(),
+		withUserAllowedGroups:         _q.withUserAllowedGroups.Clone(),
+		withAccountScheduleUsers:      _q.withAccountScheduleUsers.Clone(),
+		withUserSmartScheduleAccounts: _q.withUserSmartScheduleAccounts.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -812,6 +886,28 @@ func (_q *UserQuery) WithPlatformQuotas(opts ...func(*UserPlatformQuotaQuery)) *
 	return _q
 }
 
+// WithSmartSchedulePolicies tells the query-builder to eager-load the nodes that are connected to
+// the "smart_schedule_policies" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSmartSchedulePolicies(opts ...func(*UserSmartSchedulePolicyQuery)) *UserQuery {
+	query := (&UserSmartSchedulePolicyClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSmartSchedulePolicies = query
+	return _q
+}
+
+// WithSmartScheduleAccounts tells the query-builder to eager-load the nodes that are connected to
+// the "smart_schedule_accounts" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSmartScheduleAccounts(opts ...func(*AccountQuery)) *UserQuery {
+	query := (&AccountClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSmartScheduleAccounts = query
+	return _q
+}
+
 // WithUserAllowedGroups tells the query-builder to eager-load the nodes that are connected to
 // the "user_allowed_groups" edge. The optional arguments are used to configure the query builder of the edge.
 func (_q *UserQuery) WithUserAllowedGroups(opts ...func(*UserAllowedGroupQuery)) *UserQuery {
@@ -831,6 +927,17 @@ func (_q *UserQuery) WithAccountScheduleUsers(opts ...func(*AccountScheduleUserQ
 		opt(query)
 	}
 	_q.withAccountScheduleUsers = query
+	return _q
+}
+
+// WithUserSmartScheduleAccounts tells the query-builder to eager-load the nodes that are connected to
+// the "user_smart_schedule_accounts" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithUserSmartScheduleAccounts(opts ...func(*UserSmartScheduleAccountQuery)) *UserQuery {
+	query := (&UserSmartScheduleAccountClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withUserSmartScheduleAccounts = query
 	return _q
 }
 
@@ -912,7 +1019,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [16]bool{
+		loadedTypes = [19]bool{
 			_q.withAPIKeys != nil,
 			_q.withRedeemCodes != nil,
 			_q.withSubscriptions != nil,
@@ -927,8 +1034,11 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withAuthIdentities != nil,
 			_q.withPendingAuthSessions != nil,
 			_q.withPlatformQuotas != nil,
+			_q.withSmartSchedulePolicies != nil,
+			_q.withSmartScheduleAccounts != nil,
 			_q.withUserAllowedGroups != nil,
 			_q.withAccountScheduleUsers != nil,
+			_q.withUserSmartScheduleAccounts != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -1054,6 +1164,22 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			return nil, err
 		}
 	}
+	if query := _q.withSmartSchedulePolicies; query != nil {
+		if err := _q.loadSmartSchedulePolicies(ctx, query, nodes,
+			func(n *User) { n.Edges.SmartSchedulePolicies = []*UserSmartSchedulePolicy{} },
+			func(n *User, e *UserSmartSchedulePolicy) {
+				n.Edges.SmartSchedulePolicies = append(n.Edges.SmartSchedulePolicies, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSmartScheduleAccounts; query != nil {
+		if err := _q.loadSmartScheduleAccounts(ctx, query, nodes,
+			func(n *User) { n.Edges.SmartScheduleAccounts = []*Account{} },
+			func(n *User, e *Account) { n.Edges.SmartScheduleAccounts = append(n.Edges.SmartScheduleAccounts, e) }); err != nil {
+			return nil, err
+		}
+	}
 	if query := _q.withUserAllowedGroups; query != nil {
 		if err := _q.loadUserAllowedGroups(ctx, query, nodes,
 			func(n *User) { n.Edges.UserAllowedGroups = []*UserAllowedGroup{} },
@@ -1066,6 +1192,15 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			func(n *User) { n.Edges.AccountScheduleUsers = []*AccountScheduleUser{} },
 			func(n *User, e *AccountScheduleUser) {
 				n.Edges.AccountScheduleUsers = append(n.Edges.AccountScheduleUsers, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withUserSmartScheduleAccounts; query != nil {
+		if err := _q.loadUserSmartScheduleAccounts(ctx, query, nodes,
+			func(n *User) { n.Edges.UserSmartScheduleAccounts = []*UserSmartScheduleAccount{} },
+			func(n *User, e *UserSmartScheduleAccount) {
+				n.Edges.UserSmartScheduleAccounts = append(n.Edges.UserSmartScheduleAccounts, e)
 			}); err != nil {
 			return nil, err
 		}
@@ -1564,6 +1699,97 @@ func (_q *UserQuery) loadPlatformQuotas(ctx context.Context, query *UserPlatform
 	}
 	return nil
 }
+func (_q *UserQuery) loadSmartSchedulePolicies(ctx context.Context, query *UserSmartSchedulePolicyQuery, nodes []*User, init func(*User), assign func(*User, *UserSmartSchedulePolicy)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(usersmartschedulepolicy.FieldUserID)
+	}
+	query.Where(predicate.UserSmartSchedulePolicy(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.SmartSchedulePoliciesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadSmartScheduleAccounts(ctx context.Context, query *AccountQuery, nodes []*User, init func(*User), assign func(*User, *Account)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int64]*User)
+	nids := make(map[int64]map[*User]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(user.SmartScheduleAccountsTable)
+		s.Join(joinT).On(s.C(account.FieldID), joinT.C(user.SmartScheduleAccountsPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(user.SmartScheduleAccountsPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(user.SmartScheduleAccountsPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := values[0].(*sql.NullInt64).Int64
+				inValue := values[1].(*sql.NullInt64).Int64
+				if nids[inValue] == nil {
+					nids[inValue] = map[*User]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Account](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "smart_schedule_accounts" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
+}
 func (_q *UserQuery) loadUserAllowedGroups(ctx context.Context, query *UserAllowedGroupQuery, nodes []*User, init func(*User), assign func(*User, *UserAllowedGroup)) error {
 	fks := make([]driver.Value, 0, len(nodes))
 	nodeids := make(map[int64]*User)
@@ -1609,6 +1835,36 @@ func (_q *UserQuery) loadAccountScheduleUsers(ctx context.Context, query *Accoun
 	}
 	query.Where(predicate.AccountScheduleUser(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.AccountScheduleUsersColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadUserSmartScheduleAccounts(ctx context.Context, query *UserSmartScheduleAccountQuery, nodes []*User, init func(*User), assign func(*User, *UserSmartScheduleAccount)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(usersmartscheduleaccount.FieldUserID)
+	}
+	query.Where(predicate.UserSmartScheduleAccount(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.UserSmartScheduleAccountsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

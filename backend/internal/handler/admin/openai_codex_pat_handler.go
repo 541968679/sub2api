@@ -26,6 +26,7 @@ type OpenAICodexPATCreateRequest struct {
 	Concurrency             *int           `json:"concurrency"`
 	Priority                *int           `json:"priority"`
 	RateMultiplier          *float64       `json:"rate_multiplier"`
+	UpstreamRateMultiplier  *float64       `json:"upstream_rate_multiplier"`
 	LoadFactor              *int           `json:"load_factor"`
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
@@ -51,6 +52,10 @@ func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 	}
 	if req.RateMultiplier != nil && *req.RateMultiplier < 0 {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
+		return
+	}
+	if req.UpstreamRateMultiplier != nil && *req.UpstreamRateMultiplier < 0 {
+		response.BadRequest(c, "upstream_rate_multiplier must be >= 0")
 		return
 	}
 	if req.LoadFactor != nil && (*req.LoadFactor < 0 || *req.LoadFactor > 10000) {
@@ -99,22 +104,23 @@ func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 	skipDefaultGroupBind := req.SkipDefaultGroupBind != nil && *req.SkipDefaultGroupBind
 
 	account, err := h.adminService.CreateAccount(c.Request.Context(), &service.CreateAccountInput{
-		Name:                  buildOpenAICodexPATAccountName(req.Name, tokenInfo),
-		Notes:                 req.Notes,
-		Platform:              service.PlatformOpenAI,
-		Type:                  service.AccountTypeOAuth,
-		Credentials:           credentials,
-		Extra:                 extra,
-		ProxyID:               req.ProxyID,
-		Concurrency:           concurrency,
-		Priority:              priority,
-		RateMultiplier:        req.RateMultiplier,
-		LoadFactor:            req.LoadFactor,
-		GroupIDs:              req.GroupIDs,
-		ExpiresAt:             req.ExpiresAt,
-		AutoPauseOnExpired:    req.AutoPauseOnExpired,
-		SkipDefaultGroupBind:  skipDefaultGroupBind,
-		SkipMixedChannelCheck: req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk,
+		Name:                   buildOpenAICodexPATAccountName(req.Name, tokenInfo),
+		Notes:                  req.Notes,
+		Platform:               service.PlatformOpenAI,
+		Type:                   service.AccountTypeOAuth,
+		Credentials:            credentials,
+		Extra:                  extra,
+		ProxyID:                req.ProxyID,
+		Concurrency:            concurrency,
+		Priority:               priority,
+		RateMultiplier:         req.RateMultiplier,
+		UpstreamRateMultiplier: req.UpstreamRateMultiplier,
+		LoadFactor:             req.LoadFactor,
+		GroupIDs:               req.GroupIDs,
+		ExpiresAt:              req.ExpiresAt,
+		AutoPauseOnExpired:     req.AutoPauseOnExpired,
+		SkipDefaultGroupBind:   skipDefaultGroupBind,
+		SkipMixedChannelCheck:  req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

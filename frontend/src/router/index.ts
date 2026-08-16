@@ -443,6 +443,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/users/:id/smart-schedule',
+    name: 'AdminUserSmartSchedule',
+    component: () => import('@/views/admin/UserSmartScheduleView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'User Smart Schedule',
+      titleKey: 'admin.users.smartSchedule.title',
+      descriptionKey: 'admin.users.smartSchedule.pageDescription'
+    }
+  },
+  {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: () => import('@/views/admin/GroupsView.vue'),

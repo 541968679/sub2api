@@ -132,5 +132,11 @@ type UserAttributeValue func(*sql.Selector)
 // UserPlatformQuota is the predicate function for userplatformquota builders.
 type UserPlatformQuota func(*sql.Selector)
 
+// UserSmartScheduleAccount is the predicate function for usersmartscheduleaccount builders.
+type UserSmartScheduleAccount func(*sql.Selector)
+
+// UserSmartSchedulePolicy is the predicate function for usersmartschedulepolicy builders.
+type UserSmartSchedulePolicy func(*sql.Selector)
+
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)

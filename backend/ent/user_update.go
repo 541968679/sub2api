@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
@@ -704,6 +705,36 @@ func (_u *UserUpdate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
 	return _u.AddPlatformQuotaIDs(ids...)
 }
 
+// AddSmartSchedulePolicyIDs adds the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity by IDs.
+func (_u *UserUpdate) AddSmartSchedulePolicyIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddSmartSchedulePolicyIDs(ids...)
+	return _u
+}
+
+// AddSmartSchedulePolicies adds the "smart_schedule_policies" edges to the UserSmartSchedulePolicy entity.
+func (_u *UserUpdate) AddSmartSchedulePolicies(v ...*UserSmartSchedulePolicy) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartSchedulePolicyIDs(ids...)
+}
+
+// AddSmartScheduleAccountIDs adds the "smart_schedule_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdate) AddSmartScheduleAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddSmartScheduleAccountIDs(ids...)
+	return _u
+}
+
+// AddSmartScheduleAccounts adds the "smart_schedule_accounts" edges to the Account entity.
+func (_u *UserUpdate) AddSmartScheduleAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartScheduleAccountIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -1001,6 +1032,48 @@ func (_u *UserUpdate) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdate 
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePlatformQuotaIDs(ids...)
+}
+
+// ClearSmartSchedulePolicies clears all "smart_schedule_policies" edges to the UserSmartSchedulePolicy entity.
+func (_u *UserUpdate) ClearSmartSchedulePolicies() *UserUpdate {
+	_u.mutation.ClearSmartSchedulePolicies()
+	return _u
+}
+
+// RemoveSmartSchedulePolicyIDs removes the "smart_schedule_policies" edge to UserSmartSchedulePolicy entities by IDs.
+func (_u *UserUpdate) RemoveSmartSchedulePolicyIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveSmartSchedulePolicyIDs(ids...)
+	return _u
+}
+
+// RemoveSmartSchedulePolicies removes "smart_schedule_policies" edges to UserSmartSchedulePolicy entities.
+func (_u *UserUpdate) RemoveSmartSchedulePolicies(v ...*UserSmartSchedulePolicy) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartSchedulePolicyIDs(ids...)
+}
+
+// ClearSmartScheduleAccounts clears all "smart_schedule_accounts" edges to the Account entity.
+func (_u *UserUpdate) ClearSmartScheduleAccounts() *UserUpdate {
+	_u.mutation.ClearSmartScheduleAccounts()
+	return _u
+}
+
+// RemoveSmartScheduleAccountIDs removes the "smart_schedule_accounts" edge to Account entities by IDs.
+func (_u *UserUpdate) RemoveSmartScheduleAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveSmartScheduleAccountIDs(ids...)
+	return _u
+}
+
+// RemoveSmartScheduleAccounts removes "smart_schedule_accounts" edges to Account entities.
+func (_u *UserUpdate) RemoveSmartScheduleAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartScheduleAccountIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1874,6 +1947,108 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.SmartSchedulePoliciesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartSchedulePoliciesIDs(); len(nodes) > 0 && !_u.mutation.SmartSchedulePoliciesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartSchedulePoliciesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SmartScheduleAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartScheduleAccountsIDs(); len(nodes) > 0 && !_u.mutation.SmartScheduleAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartScheduleAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -2557,6 +2732,36 @@ func (_u *UserUpdateOne) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdateO
 	return _u.AddPlatformQuotaIDs(ids...)
 }
 
+// AddSmartSchedulePolicyIDs adds the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity by IDs.
+func (_u *UserUpdateOne) AddSmartSchedulePolicyIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddSmartSchedulePolicyIDs(ids...)
+	return _u
+}
+
+// AddSmartSchedulePolicies adds the "smart_schedule_policies" edges to the UserSmartSchedulePolicy entity.
+func (_u *UserUpdateOne) AddSmartSchedulePolicies(v ...*UserSmartSchedulePolicy) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartSchedulePolicyIDs(ids...)
+}
+
+// AddSmartScheduleAccountIDs adds the "smart_schedule_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdateOne) AddSmartScheduleAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddSmartScheduleAccountIDs(ids...)
+	return _u
+}
+
+// AddSmartScheduleAccounts adds the "smart_schedule_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) AddSmartScheduleAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSmartScheduleAccountIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -2854,6 +3059,48 @@ func (_u *UserUpdateOne) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpda
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePlatformQuotaIDs(ids...)
+}
+
+// ClearSmartSchedulePolicies clears all "smart_schedule_policies" edges to the UserSmartSchedulePolicy entity.
+func (_u *UserUpdateOne) ClearSmartSchedulePolicies() *UserUpdateOne {
+	_u.mutation.ClearSmartSchedulePolicies()
+	return _u
+}
+
+// RemoveSmartSchedulePolicyIDs removes the "smart_schedule_policies" edge to UserSmartSchedulePolicy entities by IDs.
+func (_u *UserUpdateOne) RemoveSmartSchedulePolicyIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveSmartSchedulePolicyIDs(ids...)
+	return _u
+}
+
+// RemoveSmartSchedulePolicies removes "smart_schedule_policies" edges to UserSmartSchedulePolicy entities.
+func (_u *UserUpdateOne) RemoveSmartSchedulePolicies(v ...*UserSmartSchedulePolicy) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartSchedulePolicyIDs(ids...)
+}
+
+// ClearSmartScheduleAccounts clears all "smart_schedule_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) ClearSmartScheduleAccounts() *UserUpdateOne {
+	_u.mutation.ClearSmartScheduleAccounts()
+	return _u
+}
+
+// RemoveSmartScheduleAccountIDs removes the "smart_schedule_accounts" edge to Account entities by IDs.
+func (_u *UserUpdateOne) RemoveSmartScheduleAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveSmartScheduleAccountIDs(ids...)
+	return _u
+}
+
+// RemoveSmartScheduleAccounts removes "smart_schedule_accounts" edges to Account entities.
+func (_u *UserUpdateOne) RemoveSmartScheduleAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSmartScheduleAccountIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -3755,6 +4002,108 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SmartSchedulePoliciesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartSchedulePoliciesIDs(); len(nodes) > 0 && !_u.mutation.SmartSchedulePoliciesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartSchedulePoliciesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SmartSchedulePoliciesTable,
+			Columns: []string{user.SmartSchedulePoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersmartschedulepolicy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SmartScheduleAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSmartScheduleAccountsIDs(); len(nodes) > 0 && !_u.mutation.SmartScheduleAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SmartScheduleAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.SmartScheduleAccountsTable,
+			Columns: user.SmartScheduleAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserSmartScheduleAccountCreate{config: _u.config, mutation: newUserSmartScheduleAccountMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &User{config: _u.config}

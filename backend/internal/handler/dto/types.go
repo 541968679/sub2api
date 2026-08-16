@@ -179,25 +179,26 @@ type AdminGroup struct {
 }
 
 type Account struct {
-	ID                 int64          `json:"id"`
-	Name               string         `json:"name"`
-	Notes              *string        `json:"notes"`
-	Platform           string         `json:"platform"`
-	Type               string         `json:"type"`
-	Credentials        map[string]any `json:"credentials"`
-	Extra              map[string]any `json:"extra"`
-	ProxyID            *int64         `json:"proxy_id"`
-	Concurrency        int            `json:"concurrency"`
-	LoadFactor         *int           `json:"load_factor,omitempty"`
-	Priority           int            `json:"priority"`
-	RateMultiplier     float64        `json:"rate_multiplier"`
-	Status             string         `json:"status"`
-	ErrorMessage       string         `json:"error_message"`
-	LastUsedAt         *time.Time     `json:"last_used_at"`
-	ExpiresAt          *int64         `json:"expires_at"`
-	AutoPauseOnExpired bool           `json:"auto_pause_on_expired"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	ID                     int64          `json:"id"`
+	Name                   string         `json:"name"`
+	Notes                  *string        `json:"notes"`
+	Platform               string         `json:"platform"`
+	Type                   string         `json:"type"`
+	Credentials            map[string]any `json:"credentials"`
+	Extra                  map[string]any `json:"extra"`
+	ProxyID                *int64         `json:"proxy_id"`
+	Concurrency            int            `json:"concurrency"`
+	LoadFactor             *int           `json:"load_factor,omitempty"`
+	Priority               int            `json:"priority"`
+	RateMultiplier         float64        `json:"rate_multiplier"`
+	UpstreamRateMultiplier float64        `json:"upstream_rate_multiplier"`
+	Status                 string         `json:"status"`
+	ErrorMessage           string         `json:"error_message"`
+	LastUsedAt             *time.Time     `json:"last_used_at"`
+	ExpiresAt              *int64         `json:"expires_at"`
+	AutoPauseOnExpired     bool           `json:"auto_pause_on_expired"`
+	CreatedAt              time.Time      `json:"created_at"`
+	UpdatedAt              time.Time      `json:"updated_at"`
 
 	// FallbackOnly is extracted from extra.fallback_only for admin forms.
 	// When true, the account is only selected after all primary peers are unavailable.

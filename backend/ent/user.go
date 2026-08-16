@@ -107,13 +107,19 @@ type UserEdges struct {
 	PendingAuthSessions []*PendingAuthSession `json:"pending_auth_sessions,omitempty"`
 	// PlatformQuotas holds the value of the platform_quotas edge.
 	PlatformQuotas []*UserPlatformQuota `json:"platform_quotas,omitempty"`
+	// SmartSchedulePolicies holds the value of the smart_schedule_policies edge.
+	SmartSchedulePolicies []*UserSmartSchedulePolicy `json:"smart_schedule_policies,omitempty"`
+	// SmartScheduleAccounts holds the value of the smart_schedule_accounts edge.
+	SmartScheduleAccounts []*Account `json:"smart_schedule_accounts,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// AccountScheduleUsers holds the value of the account_schedule_users edge.
 	AccountScheduleUsers []*AccountScheduleUser `json:"account_schedule_users,omitempty"`
+	// UserSmartScheduleAccounts holds the value of the user_smart_schedule_accounts edge.
+	UserSmartScheduleAccounts []*UserSmartScheduleAccount `json:"user_smart_schedule_accounts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [16]bool
+	loadedTypes [19]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -242,10 +248,28 @@ func (e UserEdges) PlatformQuotasOrErr() ([]*UserPlatformQuota, error) {
 	return nil, &NotLoadedError{edge: "platform_quotas"}
 }
 
+// SmartSchedulePoliciesOrErr returns the SmartSchedulePolicies value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SmartSchedulePoliciesOrErr() ([]*UserSmartSchedulePolicy, error) {
+	if e.loadedTypes[14] {
+		return e.SmartSchedulePolicies, nil
+	}
+	return nil, &NotLoadedError{edge: "smart_schedule_policies"}
+}
+
+// SmartScheduleAccountsOrErr returns the SmartScheduleAccounts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SmartScheduleAccountsOrErr() ([]*Account, error) {
+	if e.loadedTypes[15] {
+		return e.SmartScheduleAccounts, nil
+	}
+	return nil, &NotLoadedError{edge: "smart_schedule_accounts"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[14] {
+	if e.loadedTypes[16] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -254,10 +278,19 @@ func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
 // AccountScheduleUsersOrErr returns the AccountScheduleUsers value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) AccountScheduleUsersOrErr() ([]*AccountScheduleUser, error) {
-	if e.loadedTypes[15] {
+	if e.loadedTypes[17] {
 		return e.AccountScheduleUsers, nil
 	}
 	return nil, &NotLoadedError{edge: "account_schedule_users"}
+}
+
+// UserSmartScheduleAccountsOrErr returns the UserSmartScheduleAccounts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) UserSmartScheduleAccountsOrErr() ([]*UserSmartScheduleAccount, error) {
+	if e.loadedTypes[18] {
+		return e.UserSmartScheduleAccounts, nil
+	}
+	return nil, &NotLoadedError{edge: "user_smart_schedule_accounts"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -549,6 +582,16 @@ func (_m *User) QueryPlatformQuotas() *UserPlatformQuotaQuery {
 	return NewUserClient(_m.config).QueryPlatformQuotas(_m)
 }
 
+// QuerySmartSchedulePolicies queries the "smart_schedule_policies" edge of the User entity.
+func (_m *User) QuerySmartSchedulePolicies() *UserSmartSchedulePolicyQuery {
+	return NewUserClient(_m.config).QuerySmartSchedulePolicies(_m)
+}
+
+// QuerySmartScheduleAccounts queries the "smart_schedule_accounts" edge of the User entity.
+func (_m *User) QuerySmartScheduleAccounts() *AccountQuery {
+	return NewUserClient(_m.config).QuerySmartScheduleAccounts(_m)
+}
+
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
 func (_m *User) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 	return NewUserClient(_m.config).QueryUserAllowedGroups(_m)
@@ -557,6 +600,11 @@ func (_m *User) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 // QueryAccountScheduleUsers queries the "account_schedule_users" edge of the User entity.
 func (_m *User) QueryAccountScheduleUsers() *AccountScheduleUserQuery {
 	return NewUserClient(_m.config).QueryAccountScheduleUsers(_m)
+}
+
+// QueryUserSmartScheduleAccounts queries the "user_smart_schedule_accounts" edge of the User entity.
+func (_m *User) QueryUserSmartScheduleAccounts() *UserSmartScheduleAccountQuery {
+	return NewUserClient(_m.config).QueryUserSmartScheduleAccounts(_m)
 }
 
 // Update returns a builder for updating this User.

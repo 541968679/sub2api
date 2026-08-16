@@ -115,6 +115,11 @@ func RateMultiplier(v float64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldRateMultiplier, v))
 }
 
+// UpstreamRateMultiplier applies equality check predicate on the "upstream_rate_multiplier" field. It's identical to UpstreamRateMultiplierEQ.
+func UpstreamRateMultiplier(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUpstreamRateMultiplier, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldStatus, v))
@@ -793,6 +798,46 @@ func RateMultiplierLT(v float64) predicate.Account {
 // RateMultiplierLTE applies the LTE predicate on the "rate_multiplier" field.
 func RateMultiplierLTE(v float64) predicate.Account {
 	return predicate.Account(sql.FieldLTE(FieldRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierEQ applies the EQ predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUpstreamRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierNEQ applies the NEQ predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierNEQ(v float64) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldUpstreamRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierIn applies the In predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldUpstreamRateMultiplier, vs...))
+}
+
+// UpstreamRateMultiplierNotIn applies the NotIn predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierNotIn(vs ...float64) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldUpstreamRateMultiplier, vs...))
+}
+
+// UpstreamRateMultiplierGT applies the GT predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierGT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldUpstreamRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierGTE applies the GTE predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierGTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldUpstreamRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierLT applies the LT predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierLT(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldUpstreamRateMultiplier, v))
+}
+
+// UpstreamRateMultiplierLTE applies the LTE predicate on the "upstream_rate_multiplier" field.
+func UpstreamRateMultiplierLTE(v float64) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldUpstreamRateMultiplier, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.
@@ -1666,6 +1711,29 @@ func HasScheduleUsersWith(preds ...predicate.User) predicate.Account {
 	})
 }
 
+// HasSmartScheduleUsers applies the HasEdge predicate on the "smart_schedule_users" edge.
+func HasSmartScheduleUsers() predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, SmartScheduleUsersTable, SmartScheduleUsersPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSmartScheduleUsersWith applies the HasEdge predicate on the "smart_schedule_users" edge with a given conditions (other predicates).
+func HasSmartScheduleUsersWith(preds ...predicate.User) predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := newSmartScheduleUsersStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasProxy applies the HasEdge predicate on the "proxy" edge.
 func HasProxy() predicate.Account {
 	return predicate.Account(func(s *sql.Selector) {
@@ -1796,6 +1864,29 @@ func HasAccountScheduleUsers() predicate.Account {
 func HasAccountScheduleUsersWith(preds ...predicate.AccountScheduleUser) predicate.Account {
 	return predicate.Account(func(s *sql.Selector) {
 		step := newAccountScheduleUsersStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasUserSmartScheduleAccounts applies the HasEdge predicate on the "user_smart_schedule_accounts" edge.
+func HasUserSmartScheduleAccounts() predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, UserSmartScheduleAccountsTable, UserSmartScheduleAccountsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUserSmartScheduleAccountsWith applies the HasEdge predicate on the "user_smart_schedule_accounts" edge with a given conditions (other predicates).
+func HasUserSmartScheduleAccountsWith(preds ...predicate.UserSmartScheduleAccount) predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := newUserSmartScheduleAccountsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

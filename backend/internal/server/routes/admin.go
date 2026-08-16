@@ -278,6 +278,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		users.GET("", h.Admin.User.List)
 		users.POST("/quality-stats/batch", h.Admin.User.GetBatchQualityStats)
+		users.POST("/smart-schedule/summaries", h.Admin.User.GetBatchSmartScheduleSummaries)
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("/:id/auth-identities", h.Admin.User.BindAuthIdentity)
 		users.POST("", h.Admin.User.Create)
@@ -292,6 +293,9 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.GET("/:id/platform-quotas", h.Admin.User.GetUserPlatformQuotas)
 		users.PUT("/:id/platform-quotas", h.Admin.User.UpdateUserPlatformQuotas)
 		users.POST("/:id/platform-quotas/reset", h.Admin.User.ResetUserPlatformQuotaWindow)
+		users.GET("/:id/smart-schedule", h.Admin.User.GetUserSmartSchedule)
+		users.PUT("/:id/smart-schedule/:platform", h.Admin.User.UpdateUserSmartSchedule)
+		users.POST("/:id/smart-schedule/:platform/copy", h.Admin.User.CopyUserSmartSchedule)
 
 		// User attribute values
 		users.GET("/:id/attributes", h.Admin.UserAttribute.GetUserAttributes)
@@ -357,6 +361,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.GET("/:id/quality-hard-close", h.Admin.Account.GetQualityHardClose)
 		accounts.PUT("/:id/quality-hard-close", h.Admin.Account.UpdateQualityHardClose)
 		accounts.POST("/:id/quality-resume", h.Admin.Account.ResumeQuality)
+		accounts.POST("/:id/smart-schedule-resume", h.Admin.Account.ResumeSmartSchedule)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
 		accounts.POST("/:id/move-to-top", h.Admin.Account.MoveToTop)

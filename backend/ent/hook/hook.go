@@ -513,6 +513,30 @@ func (f UserPlatformQuotaFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserPlatformQuotaMutation", m)
 }
 
+// The UserSmartScheduleAccountFunc type is an adapter to allow the use of ordinary
+// function as UserSmartScheduleAccount mutator.
+type UserSmartScheduleAccountFunc func(context.Context, *ent.UserSmartScheduleAccountMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UserSmartScheduleAccountFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UserSmartScheduleAccountMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserSmartScheduleAccountMutation", m)
+}
+
+// The UserSmartSchedulePolicyFunc type is an adapter to allow the use of ordinary
+// function as UserSmartSchedulePolicy mutator.
+type UserSmartSchedulePolicyFunc func(context.Context, *ent.UserSmartSchedulePolicyMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UserSmartSchedulePolicyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UserSmartSchedulePolicyMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserSmartSchedulePolicyMutation", m)
+}
+
 // The UserSubscriptionFunc type is an adapter to allow the use of ordinary
 // function as UserSubscription mutator.
 type UserSubscriptionFunc func(context.Context, *ent.UserSubscriptionMutation) (ent.Value, error)

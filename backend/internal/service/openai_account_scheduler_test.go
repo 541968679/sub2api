@@ -1584,6 +1584,23 @@ func TestOpenAIAccountRuntimeStats_ReportConcurrent(t *testing.T) {
 	}
 }
 
+func TestIsOpenAIAccountCandidateBetter_CheapestUpstreamBeatsScore(t *testing.T) {
+	cheap := 0.15
+	expensive := 1.0
+	left := openAIAccountCandidateScore{
+		account:  &Account{ID: 1, Priority: 50, UpstreamRateMultiplier: &cheap},
+		loadInfo: &AccountLoadInfo{LoadRate: 90},
+		score:    1.0,
+	}
+	right := openAIAccountCandidateScore{
+		account:  &Account{ID: 2, Priority: 1, UpstreamRateMultiplier: &expensive},
+		loadInfo: &AccountLoadInfo{LoadRate: 10},
+		score:    99.0,
+	}
+	require.True(t, isOpenAIAccountCandidateBetter(left, right))
+	require.False(t, isOpenAIAccountCandidateBetter(right, left))
+}
+
 func TestSelectTopKOpenAICandidates(t *testing.T) {
 	candidates := []openAIAccountCandidateScore{
 		{

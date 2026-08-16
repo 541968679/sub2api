@@ -37,15 +37,18 @@ type Account struct {
 	Priority    int
 	// RateMultiplier 账号计费倍率（>=0，允许 0 表示该账号计费为 0）。
 	// 使用指针用于兼容旧版本调度缓存（Redis）中缺字段的情况：nil 表示按 1.0 处理。
-	RateMultiplier     *float64
-	LoadFactor         *int // 调度负载因子；nil 表示使用 Concurrency
-	Status             string
-	ErrorMessage       string
-	LastUsedAt         *time.Time
-	ExpiresAt          *time.Time
-	AutoPauseOnExpired bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	RateMultiplier *float64
+	// UpstreamRateMultiplier 调度选号上游倍率（>=0）。与计费倍率独立。
+	// nil 表示旧快照缺字段，按账号类型默认：oauth/apikey=0.15，其余=1。
+	UpstreamRateMultiplier *float64
+	LoadFactor             *int // 调度负载因子；nil 表示使用 Concurrency
+	Status                 string
+	ErrorMessage           string
+	LastUsedAt             *time.Time
+	ExpiresAt              *time.Time
+	AutoPauseOnExpired     bool
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 
 	Schedulable bool
 
@@ -153,6 +156,45 @@ func (a *Account) BillingRateMultiplier() float64 {
 		return 1.0
 	}
 	return *a.RateMultiplier
+}
+
+const (
+	defaultUpstreamRateSubscription = 0.15
+	defaultUpstreamRateStandard     = 1.0
+)
+
+// DefaultUpstreamRateMultiplier returns the create/backfill default for a type.
+// oauth and apikey default to 0.15; every other type defaults to 1.
+func DefaultUpstreamRateMultiplier(accountType string) float64 {
+	switch accountType {
+	case AccountTypeOAuth, AccountTypeAPIKey:
+		return defaultUpstreamRateSubscription
+	default:
+		return defaultUpstreamRateStandard
+	}
+}
+
+// EffectiveUpstreamRate is the scheduling overlay key. Lower wins among
+// already-eligible accounts. nil / negative fall back to the type default.
+func (a *Account) EffectiveUpstreamRate() float64 {
+	if a == nil {
+		return defaultUpstreamRateStandard
+	}
+	if a.UpstreamRateMultiplier == nil || *a.UpstreamRateMultiplier < 0 {
+		return DefaultUpstreamRateMultiplier(a.Type)
+	}
+	return *a.UpstreamRateMultiplier
+}
+
+func compareUpstreamRate(a, b *Account) int {
+	ar, br := a.EffectiveUpstreamRate(), b.EffectiveUpstreamRate()
+	if ar < br {
+		return -1
+	}
+	if ar > br {
+		return 1
+	}
+	return 0
 }
 
 func (a *Account) EffectiveLoadFactor() int {
@@ -1415,6 +1457,21 @@ func (a *Account) IsPoolMode() bool {
 		return false
 	}
 	if v, ok := a.Credentials["pool_mode"]; ok {
+		if enabled, ok := v.(bool); ok {
+			return enabled
+		}
+	}
+	return false
+}
+
+// IsPoolModeHardEviction reports whether pool-mode hard-error eviction is on.
+// The flag is ignored unless IsPoolMode() is already true, so leftover
+// credentials.pool_mode_hard_eviction cannot act on a non-pool account.
+func (a *Account) IsPoolModeHardEviction() bool {
+	if a == nil || !a.IsPoolMode() || a.Credentials == nil {
+		return false
+	}
+	if v, ok := a.Credentials["pool_mode_hard_eviction"]; ok {
 		if enabled, ok := v.(bool); ok {
 			return enabled
 		}

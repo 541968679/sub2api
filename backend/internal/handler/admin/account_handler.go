@@ -64,6 +64,7 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	settingService          *service.SettingService
 	qualityMaintenance      *service.AccountQualityMaintenanceService
+	smartSchedule           *service.UserSmartScheduleService
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -105,6 +106,13 @@ func NewAccountHandler(
 	}
 }
 
+func (h *AccountHandler) SetSmartScheduleService(svc *service.UserSmartScheduleService) {
+	if h == nil {
+		return
+	}
+	h.smartSchedule = svc
+}
+
 // CreateAccountRequest represents create account request
 type CreateAccountRequest struct {
 	Name                    string         `json:"name" binding:"required"`
@@ -118,6 +126,7 @@ type CreateAccountRequest struct {
 	Concurrency             int            `json:"concurrency"`
 	Priority                int            `json:"priority"`
 	RateMultiplier          *float64       `json:"rate_multiplier"`
+	UpstreamRateMultiplier  *float64       `json:"upstream_rate_multiplier"`
 	LoadFactor              *int           `json:"load_factor"`
 	GroupIDs                []int64        `json:"group_ids"`
 	ExpiresAt               *int64         `json:"expires_at"`
@@ -137,6 +146,7 @@ type UpdateAccountRequest struct {
 	Concurrency             *int                            `json:"concurrency"`
 	Priority                *int                            `json:"priority"`
 	RateMultiplier          *float64                        `json:"rate_multiplier"`
+	UpstreamRateMultiplier  *float64                        `json:"upstream_rate_multiplier"`
 	LoadFactor              *int                            `json:"load_factor"`
 	Status                  string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
 	GroupIDs                *[]int64                        `json:"group_ids"`
@@ -170,6 +180,7 @@ type BulkUpdateAccountsRequest struct {
 	Concurrency             *int                            `json:"concurrency"`
 	Priority                *int                            `json:"priority"`
 	RateMultiplier          *float64                        `json:"rate_multiplier"`
+	UpstreamRateMultiplier  *float64                        `json:"upstream_rate_multiplier"`
 	LoadFactor              *int                            `json:"load_factor"`
 	Status                  string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
 	Schedulable             *bool                           `json:"schedulable"`
@@ -508,6 +519,11 @@ func (h *AccountHandler) listAccountSchedulerScoreFilterPool(
 func (h *AccountHandler) List(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	platform := c.Query("platform")
+	selectedIDs, idsErr := parseAccountIDs(c)
+	if idsErr != nil {
+		response.BadRequest(c, idsErr.Error())
+		return
+	}
 	accountType := c.Query("type")
 	status := c.Query("status")
 	search := c.Query("search")
@@ -541,10 +557,32 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+	var accounts []service.Account
+	var total int64
+	var err error
+	if len(selectedIDs) > 0 {
+		fetched, getErr := h.adminService.GetAccountsByIDs(c.Request.Context(), selectedIDs)
+		if getErr != nil {
+			response.ErrorFrom(c, getErr)
+			return
+		}
+		accounts = make([]service.Account, 0, len(fetched))
+		for _, acc := range fetched {
+			if acc == nil {
+				continue
+			}
+			if platform != "" && acc.Platform != platform {
+				continue
+			}
+			accounts = append(accounts, *acc)
+		}
+		total = int64(len(accounts))
+	} else {
+		accounts, total, err = h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
 	}
 
 	// Get current concurrency counts for all accounts
@@ -823,6 +861,10 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
 		return
 	}
+	if req.UpstreamRateMultiplier != nil && *req.UpstreamRateMultiplier < 0 {
+		response.BadRequest(c, "upstream_rate_multiplier must be >= 0")
+		return
+	}
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 
@@ -831,22 +873,23 @@ func (h *AccountHandler) Create(c *gin.Context) {
 
 	result, err := executeAdminIdempotent(c, "admin.accounts.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		account, execErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
-			Name:                  req.Name,
-			Notes:                 req.Notes,
-			Platform:              req.Platform,
-			Type:                  req.Type,
-			Credentials:           req.Credentials,
-			Extra:                 req.Extra,
-			ProxyID:               req.ProxyID,
-			AutoAssignProxy:       req.AutoAssignProxy,
-			Concurrency:           req.Concurrency,
-			Priority:              req.Priority,
-			RateMultiplier:        req.RateMultiplier,
-			LoadFactor:            req.LoadFactor,
-			GroupIDs:              req.GroupIDs,
-			ExpiresAt:             req.ExpiresAt,
-			AutoPauseOnExpired:    req.AutoPauseOnExpired,
-			SkipMixedChannelCheck: skipCheck,
+			Name:                   req.Name,
+			Notes:                  req.Notes,
+			Platform:               req.Platform,
+			Type:                   req.Type,
+			Credentials:            req.Credentials,
+			Extra:                  req.Extra,
+			ProxyID:                req.ProxyID,
+			AutoAssignProxy:        req.AutoAssignProxy,
+			Concurrency:            req.Concurrency,
+			Priority:               req.Priority,
+			RateMultiplier:         req.RateMultiplier,
+			UpstreamRateMultiplier: req.UpstreamRateMultiplier,
+			LoadFactor:             req.LoadFactor,
+			GroupIDs:               req.GroupIDs,
+			ExpiresAt:              req.ExpiresAt,
+			AutoPauseOnExpired:     req.AutoPauseOnExpired,
+			SkipMixedChannelCheck:  skipCheck,
 		})
 		if execErr != nil {
 			return nil, execErr
@@ -900,6 +943,10 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
 		return
 	}
+	if req.UpstreamRateMultiplier != nil && *req.UpstreamRateMultiplier < 0 {
+		response.BadRequest(c, "upstream_rate_multiplier must be >= 0")
+		return
+	}
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 
@@ -907,29 +954,30 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
 	account, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
-		Name:                  req.Name,
-		Notes:                 req.Notes,
-		Type:                  req.Type,
-		Credentials:           req.Credentials,
-		Extra:                 req.Extra,
-		ProxyID:               req.ProxyID,
-		Concurrency:           req.Concurrency, // 指针类型，nil 表示未提供
-		Priority:              req.Priority,    // 指针类型，nil 表示未提供
-		RateMultiplier:        req.RateMultiplier,
-		LoadFactor:            req.LoadFactor,
-		Status:                req.Status,
-		GroupIDs:              req.GroupIDs,
-		ExpiresAt:             req.ExpiresAt,
-		AutoPauseOnExpired:    req.AutoPauseOnExpired,
-		SkipMixedChannelCheck: skipCheck,
-		UserScheduleMode:      req.UserScheduleMode,
-		ScheduleUserIDs:       req.ScheduleUserIDs,
-		AllowUserIDs:          req.AllowUserIDs,
-		DenyUserIDs:           req.DenyUserIDs,
-		UserConcurrencies:     req.UserConcurrencies,
-		UserConcurrencyPatch:  req.UserConcurrencyPatch,
-		UserQualityGates:      req.UserQualityGates,
-		UserQualityGatePatch:  req.UserQualityGatePatch,
+		Name:                   req.Name,
+		Notes:                  req.Notes,
+		Type:                   req.Type,
+		Credentials:            req.Credentials,
+		Extra:                  req.Extra,
+		ProxyID:                req.ProxyID,
+		Concurrency:            req.Concurrency, // 指针类型，nil 表示未提供
+		Priority:               req.Priority,    // 指针类型，nil 表示未提供
+		RateMultiplier:         req.RateMultiplier,
+		UpstreamRateMultiplier: req.UpstreamRateMultiplier,
+		LoadFactor:             req.LoadFactor,
+		Status:                 req.Status,
+		GroupIDs:               req.GroupIDs,
+		ExpiresAt:              req.ExpiresAt,
+		AutoPauseOnExpired:     req.AutoPauseOnExpired,
+		SkipMixedChannelCheck:  skipCheck,
+		UserScheduleMode:       req.UserScheduleMode,
+		ScheduleUserIDs:        req.ScheduleUserIDs,
+		AllowUserIDs:           req.AllowUserIDs,
+		DenyUserIDs:            req.DenyUserIDs,
+		UserConcurrencies:      req.UserConcurrencies,
+		UserConcurrencyPatch:   req.UserConcurrencyPatch,
+		UserQualityGates:       req.UserQualityGates,
+		UserQualityGatePatch:   req.UserQualityGatePatch,
 	})
 	if err != nil {
 		// 检查是否为混合渠道错误
@@ -1682,6 +1730,15 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 				})
 				continue
 			}
+			if item.UpstreamRateMultiplier != nil && *item.UpstreamRateMultiplier < 0 {
+				failed++
+				results = append(results, gin.H{
+					"name":    item.Name,
+					"success": false,
+					"error":   "upstream_rate_multiplier must be >= 0",
+				})
+				continue
+			}
 
 			// base_rpm 输入校验：负值归零，超过 10000 截断
 			sanitizeExtraBaseRPM(item.Extra)
@@ -1689,21 +1746,22 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 			skipCheck := item.ConfirmMixedChannelRisk != nil && *item.ConfirmMixedChannelRisk
 
 			account, err := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
-				Name:                  item.Name,
-				Notes:                 item.Notes,
-				Platform:              item.Platform,
-				Type:                  item.Type,
-				Credentials:           item.Credentials,
-				Extra:                 item.Extra,
-				ProxyID:               item.ProxyID,
-				AutoAssignProxy:       item.AutoAssignProxy,
-				Concurrency:           item.Concurrency,
-				Priority:              item.Priority,
-				RateMultiplier:        item.RateMultiplier,
-				GroupIDs:              item.GroupIDs,
-				ExpiresAt:             item.ExpiresAt,
-				AutoPauseOnExpired:    item.AutoPauseOnExpired,
-				SkipMixedChannelCheck: skipCheck,
+				Name:                   item.Name,
+				Notes:                  item.Notes,
+				Platform:               item.Platform,
+				Type:                   item.Type,
+				Credentials:            item.Credentials,
+				Extra:                  item.Extra,
+				ProxyID:                item.ProxyID,
+				AutoAssignProxy:        item.AutoAssignProxy,
+				Concurrency:            item.Concurrency,
+				Priority:               item.Priority,
+				RateMultiplier:         item.RateMultiplier,
+				UpstreamRateMultiplier: item.UpstreamRateMultiplier,
+				GroupIDs:               item.GroupIDs,
+				ExpiresAt:              item.ExpiresAt,
+				AutoPauseOnExpired:     item.AutoPauseOnExpired,
+				SkipMixedChannelCheck:  skipCheck,
 			})
 			if err != nil {
 				failed++
@@ -1873,6 +1931,10 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
 		return
 	}
+	if req.UpstreamRateMultiplier != nil && *req.UpstreamRateMultiplier < 0 {
+		response.BadRequest(c, "upstream_rate_multiplier must be >= 0")
+		return
+	}
 	if len(req.AccountIDs) == 0 && req.Filters == nil {
 		response.BadRequest(c, "account_ids or filters is required")
 		return
@@ -1888,6 +1950,7 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		req.Concurrency != nil ||
 		req.Priority != nil ||
 		req.RateMultiplier != nil ||
+		req.UpstreamRateMultiplier != nil ||
 		req.LoadFactor != nil ||
 		req.Status != "" ||
 		req.Schedulable != nil ||
@@ -1909,28 +1972,29 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 	}
 
 	result, err := h.adminService.BulkUpdateAccounts(c.Request.Context(), &service.BulkUpdateAccountsInput{
-		AccountIDs:            req.AccountIDs,
-		Filters:               toServiceBulkUpdateAccountFilters(req.Filters),
-		Name:                  req.Name,
-		ProxyID:               req.ProxyID,
-		Concurrency:           req.Concurrency,
-		Priority:              req.Priority,
-		RateMultiplier:        req.RateMultiplier,
-		LoadFactor:            req.LoadFactor,
-		Status:                req.Status,
-		Schedulable:           req.Schedulable,
-		GroupIDs:              req.GroupIDs,
-		Credentials:           req.Credentials,
-		Extra:                 req.Extra,
-		SkipMixedChannelCheck: skipCheck,
-		UserScheduleMode:      req.UserScheduleMode,
-		ScheduleUserIDs:       req.ScheduleUserIDs,
-		AllowUserIDs:          req.AllowUserIDs,
-		DenyUserIDs:           req.DenyUserIDs,
-		UserConcurrencies:     req.UserConcurrencies,
-		UserConcurrencyPatch:  req.UserConcurrencyPatch,
-		UserQualityGates:      req.UserQualityGates,
-		UserQualityGatePatch:  req.UserQualityGatePatch,
+		AccountIDs:             req.AccountIDs,
+		Filters:                toServiceBulkUpdateAccountFilters(req.Filters),
+		Name:                   req.Name,
+		ProxyID:                req.ProxyID,
+		Concurrency:            req.Concurrency,
+		Priority:               req.Priority,
+		RateMultiplier:         req.RateMultiplier,
+		UpstreamRateMultiplier: req.UpstreamRateMultiplier,
+		LoadFactor:             req.LoadFactor,
+		Status:                 req.Status,
+		Schedulable:            req.Schedulable,
+		GroupIDs:               req.GroupIDs,
+		Credentials:            req.Credentials,
+		Extra:                  req.Extra,
+		SkipMixedChannelCheck:  skipCheck,
+		UserScheduleMode:       req.UserScheduleMode,
+		ScheduleUserIDs:        req.ScheduleUserIDs,
+		AllowUserIDs:           req.AllowUserIDs,
+		DenyUserIDs:            req.DenyUserIDs,
+		UserConcurrencies:      req.UserConcurrencies,
+		UserConcurrencyPatch:   req.UserConcurrencyPatch,
+		UserQualityGates:       req.UserQualityGates,
+		UserQualityGatePatch:   req.UserQualityGatePatch,
 	})
 	if err != nil {
 		var mixedErr *service.MixedChannelError

@@ -51,6 +51,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
@@ -1244,6 +1246,60 @@ func (f TraverseUserPlatformQuota) Traverse(ctx context.Context, q ent.Query) er
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserPlatformQuotaQuery", q)
 }
 
+// The UserSmartScheduleAccountFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UserSmartScheduleAccountFunc func(context.Context, *ent.UserSmartScheduleAccountQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UserSmartScheduleAccountFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UserSmartScheduleAccountQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UserSmartScheduleAccountQuery", q)
+}
+
+// The TraverseUserSmartScheduleAccount type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUserSmartScheduleAccount func(context.Context, *ent.UserSmartScheduleAccountQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUserSmartScheduleAccount) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUserSmartScheduleAccount) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UserSmartScheduleAccountQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UserSmartScheduleAccountQuery", q)
+}
+
+// The UserSmartSchedulePolicyFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UserSmartSchedulePolicyFunc func(context.Context, *ent.UserSmartSchedulePolicyQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UserSmartSchedulePolicyFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UserSmartSchedulePolicyQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UserSmartSchedulePolicyQuery", q)
+}
+
+// The TraverseUserSmartSchedulePolicy type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUserSmartSchedulePolicy func(context.Context, *ent.UserSmartSchedulePolicyQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUserSmartSchedulePolicy) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUserSmartSchedulePolicy) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UserSmartSchedulePolicyQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UserSmartSchedulePolicyQuery", q)
+}
+
 // The UserSubscriptionFunc type is an adapter to allow the use of ordinary function as a Querier.
 type UserSubscriptionFunc func(context.Context, *ent.UserSubscriptionQuery) (ent.Value, error)
 
@@ -1358,6 +1414,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserAttributeValueQuery, predicate.UserAttributeValue, userattributevalue.OrderOption]{typ: ent.TypeUserAttributeValue, tq: q}, nil
 	case *ent.UserPlatformQuotaQuery:
 		return &query[*ent.UserPlatformQuotaQuery, predicate.UserPlatformQuota, userplatformquota.OrderOption]{typ: ent.TypeUserPlatformQuota, tq: q}, nil
+	case *ent.UserSmartScheduleAccountQuery:
+		return &query[*ent.UserSmartScheduleAccountQuery, predicate.UserSmartScheduleAccount, usersmartscheduleaccount.OrderOption]{typ: ent.TypeUserSmartScheduleAccount, tq: q}, nil
+	case *ent.UserSmartSchedulePolicyQuery:
+		return &query[*ent.UserSmartSchedulePolicyQuery, predicate.UserSmartSchedulePolicy, usersmartschedulepolicy.OrderOption]{typ: ent.TypeUserSmartSchedulePolicy, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
 	default:

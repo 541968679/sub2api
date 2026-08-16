@@ -48,6 +48,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
@@ -256,26 +258,30 @@ func init() {
 	accountDescRateMultiplier := accountFields[10].Descriptor()
 	// account.DefaultRateMultiplier holds the default value on creation for the rate_multiplier field.
 	account.DefaultRateMultiplier = accountDescRateMultiplier.Default.(float64)
+	// accountDescUpstreamRateMultiplier is the schema descriptor for upstream_rate_multiplier field.
+	accountDescUpstreamRateMultiplier := accountFields[11].Descriptor()
+	// account.DefaultUpstreamRateMultiplier holds the default value on creation for the upstream_rate_multiplier field.
+	account.DefaultUpstreamRateMultiplier = accountDescUpstreamRateMultiplier.Default.(float64)
 	// accountDescStatus is the schema descriptor for status field.
-	accountDescStatus := accountFields[11].Descriptor()
+	accountDescStatus := accountFields[12].Descriptor()
 	// account.DefaultStatus holds the default value on creation for the status field.
 	account.DefaultStatus = accountDescStatus.Default.(string)
 	// account.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	account.StatusValidator = accountDescStatus.Validators[0].(func(string) error)
 	// accountDescAutoPauseOnExpired is the schema descriptor for auto_pause_on_expired field.
-	accountDescAutoPauseOnExpired := accountFields[15].Descriptor()
+	accountDescAutoPauseOnExpired := accountFields[16].Descriptor()
 	// account.DefaultAutoPauseOnExpired holds the default value on creation for the auto_pause_on_expired field.
 	account.DefaultAutoPauseOnExpired = accountDescAutoPauseOnExpired.Default.(bool)
 	// accountDescSchedulable is the schema descriptor for schedulable field.
-	accountDescSchedulable := accountFields[16].Descriptor()
+	accountDescSchedulable := accountFields[17].Descriptor()
 	// account.DefaultSchedulable holds the default value on creation for the schedulable field.
 	account.DefaultSchedulable = accountDescSchedulable.Default.(bool)
 	// accountDescSessionWindowStatus is the schema descriptor for session_window_status field.
-	accountDescSessionWindowStatus := accountFields[24].Descriptor()
+	accountDescSessionWindowStatus := accountFields[25].Descriptor()
 	// account.SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	account.SessionWindowStatusValidator = accountDescSessionWindowStatus.Validators[0].(func(string) error)
 	// accountDescUserScheduleMode is the schema descriptor for user_schedule_mode field.
-	accountDescUserScheduleMode := accountFields[27].Descriptor()
+	accountDescUserScheduleMode := accountFields[28].Descriptor()
 	// account.DefaultUserScheduleMode holds the default value on creation for the user_schedule_mode field.
 	account.DefaultUserScheduleMode = accountDescUserScheduleMode.Default.(string)
 	// account.UserScheduleModeValidator is a validator for the "user_schedule_mode" field. It is called by the builders before save.
@@ -2638,6 +2644,77 @@ func init() {
 	userplatformquotaDescMonthlyUsageUsd := userplatformquotaFields[7].Descriptor()
 	// userplatformquota.DefaultMonthlyUsageUsd holds the default value on creation for the monthly_usage_usd field.
 	userplatformquota.DefaultMonthlyUsageUsd = userplatformquotaDescMonthlyUsageUsd.Default.(float64)
+	usersmartscheduleaccountFields := schema.UserSmartScheduleAccount{}.Fields()
+	_ = usersmartscheduleaccountFields
+	// usersmartscheduleaccountDescCreatedAt is the schema descriptor for created_at field.
+	usersmartscheduleaccountDescCreatedAt := usersmartscheduleaccountFields[2].Descriptor()
+	// usersmartscheduleaccount.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usersmartscheduleaccount.DefaultCreatedAt = usersmartscheduleaccountDescCreatedAt.Default.(func() time.Time)
+	// usersmartscheduleaccountDescPlatform is the schema descriptor for platform field.
+	usersmartscheduleaccountDescPlatform := usersmartscheduleaccountFields[3].Descriptor()
+	// usersmartscheduleaccount.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	usersmartscheduleaccount.PlatformValidator = func() func(string) error {
+		validators := usersmartscheduleaccountDescPlatform.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(platform string) error {
+			for _, fn := range fns {
+				if err := fn(platform); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	usersmartschedulepolicyMixin := schema.UserSmartSchedulePolicy{}.Mixin()
+	usersmartschedulepolicyMixinFields0 := usersmartschedulepolicyMixin[0].Fields()
+	_ = usersmartschedulepolicyMixinFields0
+	usersmartschedulepolicyFields := schema.UserSmartSchedulePolicy{}.Fields()
+	_ = usersmartschedulepolicyFields
+	// usersmartschedulepolicyDescCreatedAt is the schema descriptor for created_at field.
+	usersmartschedulepolicyDescCreatedAt := usersmartschedulepolicyMixinFields0[0].Descriptor()
+	// usersmartschedulepolicy.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usersmartschedulepolicy.DefaultCreatedAt = usersmartschedulepolicyDescCreatedAt.Default.(func() time.Time)
+	// usersmartschedulepolicyDescUpdatedAt is the schema descriptor for updated_at field.
+	usersmartschedulepolicyDescUpdatedAt := usersmartschedulepolicyMixinFields0[1].Descriptor()
+	// usersmartschedulepolicy.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	usersmartschedulepolicy.DefaultUpdatedAt = usersmartschedulepolicyDescUpdatedAt.Default.(func() time.Time)
+	// usersmartschedulepolicy.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	usersmartschedulepolicy.UpdateDefaultUpdatedAt = usersmartschedulepolicyDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// usersmartschedulepolicyDescPlatform is the schema descriptor for platform field.
+	usersmartschedulepolicyDescPlatform := usersmartschedulepolicyFields[1].Descriptor()
+	// usersmartschedulepolicy.PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
+	usersmartschedulepolicy.PlatformValidator = func() func(string) error {
+		validators := usersmartschedulepolicyDescPlatform.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(platform string) error {
+			for _, fn := range fns {
+				if err := fn(platform); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// usersmartschedulepolicyDescEnabled is the schema descriptor for enabled field.
+	usersmartschedulepolicyDescEnabled := usersmartschedulepolicyFields[2].Descriptor()
+	// usersmartschedulepolicy.DefaultEnabled holds the default value on creation for the enabled field.
+	usersmartschedulepolicy.DefaultEnabled = usersmartschedulepolicyDescEnabled.Default.(bool)
+	// usersmartschedulepolicyDescQualityCondition is the schema descriptor for quality_condition field.
+	usersmartschedulepolicyDescQualityCondition := usersmartschedulepolicyFields[7].Descriptor()
+	// usersmartschedulepolicy.QualityConditionValidator is a validator for the "quality_condition" field. It is called by the builders before save.
+	usersmartschedulepolicy.QualityConditionValidator = usersmartschedulepolicyDescQualityCondition.Validators[0].(func(string) error)
+	// usersmartschedulepolicyDescCooldownMinutes is the schema descriptor for cooldown_minutes field.
+	usersmartschedulepolicyDescCooldownMinutes := usersmartschedulepolicyFields[8].Descriptor()
+	// usersmartschedulepolicy.DefaultCooldownMinutes holds the default value on creation for the cooldown_minutes field.
+	usersmartschedulepolicy.DefaultCooldownMinutes = usersmartschedulepolicyDescCooldownMinutes.Default.(int)
 	usersubscriptionMixin := schema.UserSubscription{}.Mixin()
 	usersubscriptionMixinHooks1 := usersubscriptionMixin[1].Hooks()
 	usersubscription.Hooks[0] = usersubscriptionMixinHooks1[0]

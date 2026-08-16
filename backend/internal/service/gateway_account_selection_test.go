@@ -33,6 +33,40 @@ func makeAccWithLoad(id int64, priority int, loadRate int, lastUsed *time.Time, 
 
 // --- sortAccountsByPriorityAndLastUsed ---
 
+func TestSortAccountsByPriorityAndLastUsed_CheapestUpstreamFirst(t *testing.T) {
+	cheap := 0.15
+	expensive := 1.0
+	accounts := []*Account{
+		{ID: 1, Priority: 1, Type: AccountTypeSetupToken, UpstreamRateMultiplier: &expensive},
+		{ID: 2, Priority: 50, Type: AccountTypeOAuth, UpstreamRateMultiplier: &cheap},
+	}
+	sortAccountsByPriorityAndLastUsed(accounts, false)
+	require.Equal(t, int64(2), accounts[0].ID, "更低上游倍率应排在更高优先级之前")
+	require.Equal(t, int64(1), accounts[1].ID)
+}
+
+func TestFilterByMinUpstreamRate_SelectsCheapest(t *testing.T) {
+	cheap := 0.15
+	expensive := 1.0
+	accounts := []accountWithLoad{
+		{account: &Account{ID: 1, UpstreamRateMultiplier: &expensive}, loadInfo: &AccountLoadInfo{LoadRate: 10}},
+		{account: &Account{ID: 2, UpstreamRateMultiplier: &cheap}, loadInfo: &AccountLoadInfo{LoadRate: 90}},
+		{account: &Account{ID: 3, UpstreamRateMultiplier: &cheap}, loadInfo: &AccountLoadInfo{LoadRate: 10}},
+	}
+	result := filterByMinUpstreamRate(accounts)
+	require.Len(t, result, 2)
+	require.Equal(t, int64(2), result[0].account.ID)
+	require.Equal(t, int64(3), result[1].account.ID)
+}
+
+func TestSameAccountGroup_DifferentUpstreamRateNotShuffledTogether(t *testing.T) {
+	cheap := 0.15
+	expensive := 1.0
+	a := &Account{Priority: 1, UpstreamRateMultiplier: &cheap}
+	b := &Account{Priority: 1, UpstreamRateMultiplier: &expensive}
+	require.False(t, sameAccountGroup(a, b))
+}
+
 func TestSortAccountsByPriorityAndLastUsed_ByPriority(t *testing.T) {
 	now := time.Now()
 	accounts := []*Account{

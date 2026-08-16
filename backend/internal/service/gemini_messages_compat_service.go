@@ -55,6 +55,7 @@ type GeminiMessagesCompatService struct {
 	cfg                       *config.Config
 	responseHeaderFilter      *responseheaders.CompiledHeaderFilter
 	qualityLiveCache          AccountQualityLiveCache
+	smartScheduleCache        SmartScheduleLookup
 }
 
 func (s *GeminiMessagesCompatService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -64,8 +65,15 @@ func (s *GeminiMessagesCompatService) SetQualityLiveCache(cache AccountQualityLi
 	s.qualityLiveCache = cache
 }
 
+func (s *GeminiMessagesCompatService) SetSmartScheduleCache(lookup SmartScheduleLookup) {
+	if s == nil {
+		return
+	}
+	s.smartScheduleCache = lookup
+}
+
 func (s *GeminiMessagesCompatService) admitsScheduleUser(ctx context.Context, account *Account) bool {
-	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache, s.smartScheduleCache)
 }
 
 func NewGeminiMessagesCompatService(
@@ -2821,9 +2829,17 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if !account.ShouldHandleErrorCode(statusCode) {
 		return
 	}
-	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
-		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
-		return
+	if s.rateLimitService != nil {
+		if statusCode == 401 || statusCode == 403 || statusCode == 529 {
+			s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
+			return
+		}
+		// Pool-mode hard eviction must see R5 statuses that this path used to drop
+		// (402 / quota-exhausted 429 / 400 credit-balance, etc.).
+		if account.IsPoolModeHardEviction() && isPoolModeHardMaintenanceError(statusCode, body) {
+			s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
+			return
+		}
 	}
 	if statusCode != 429 {
 		return

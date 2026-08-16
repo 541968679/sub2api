@@ -377,6 +377,90 @@ export async function resetPlatformQuotaWindow(
 /**
  * Batch fetch user quality metrics (last 15 minutes rolling window).
  */
+export type SmartSchedulePlatform = PlatformQuotaPlatform
+
+export interface SmartScheduleAccountMember {
+  account_id: number
+  platform?: string
+  max_concurrency?: number | null
+  current_concurrency?: number
+}
+
+export interface SmartSchedulePlatformView {
+  enabled: boolean
+  quality_max_p50_ttft_ms: number | null
+  quality_min_success_rate: number | null
+  quality_min_success_samples: number | null
+  quality_min_ttft_samples: number | null
+  quality_condition: 'or' | 'and' | null
+  cooldown_minutes: number
+  accounts: SmartScheduleAccountMember[]
+}
+
+export interface UserSmartScheduleView {
+  user_id: number
+  platforms: Record<string, SmartSchedulePlatformView>
+}
+
+export interface SmartScheduleSummary {
+  enabled_platforms: string[]
+  pool_counts: Record<string, number>
+}
+
+export interface BatchSmartScheduleSummariesResponse {
+  summaries: Record<string, SmartScheduleSummary>
+}
+
+export interface SmartSchedulePlatformWrite {
+  enabled: boolean
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+  quality_condition?: 'or' | 'and' | null
+  cooldown_minutes: number
+  accounts: SmartScheduleAccountMember[]
+}
+
+export async function getSmartSchedule(id: number): Promise<UserSmartScheduleView> {
+  const { data } = await apiClient.get<UserSmartScheduleView>(`/admin/users/${id}/smart-schedule`)
+  return data
+}
+
+export async function updateSmartSchedule(
+  id: number,
+  platform: SmartSchedulePlatform,
+  payload: SmartSchedulePlatformWrite
+): Promise<UserSmartScheduleView> {
+  const { data } = await apiClient.put<UserSmartScheduleView>(
+    `/admin/users/${id}/smart-schedule/${platform}`,
+    payload
+  )
+  return data
+}
+
+export async function copySmartSchedule(
+  id: number,
+  toPlatform: SmartSchedulePlatform,
+  fromPlatform: SmartSchedulePlatform
+): Promise<UserSmartScheduleView> {
+  const { data } = await apiClient.post<UserSmartScheduleView>(
+    `/admin/users/${id}/smart-schedule/${toPlatform}/copy`,
+    { from_platform: fromPlatform }
+  )
+  return data
+}
+
+export async function getBatchSmartScheduleSummaries(
+  userIds: number[]
+): Promise<BatchSmartScheduleSummariesResponse> {
+  const { data } = await apiClient.post<BatchSmartScheduleSummariesResponse>(
+    '/admin/users/smart-schedule/summaries',
+    { user_ids: userIds }
+  )
+  return data
+}
+
 export async function getBatchQualityStats(userIds: number[]): Promise<BatchQualityStatsResponse> {
   const { data } = await apiClient.post<BatchQualityStatsResponse>('/admin/users/quality-stats/batch', {
     user_ids: userIds
@@ -401,6 +485,10 @@ export const usersAPI = {
   getPlatformQuotas,
   updatePlatformQuotas,
   resetPlatformQuotaWindow,
+  getSmartSchedule,
+  updateSmartSchedule,
+  copySmartSchedule,
+  getBatchSmartScheduleSummaries,
   getBatchQualityStats,
 }
 

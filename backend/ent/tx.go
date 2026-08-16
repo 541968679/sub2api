@@ -98,6 +98,10 @@ type Tx struct {
 	UserAttributeValue *UserAttributeValueClient
 	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
 	UserPlatformQuota *UserPlatformQuotaClient
+	// UserSmartScheduleAccount is the client for interacting with the UserSmartScheduleAccount builders.
+	UserSmartScheduleAccount *UserSmartScheduleAccountClient
+	// UserSmartSchedulePolicy is the client for interacting with the UserSmartSchedulePolicy builders.
+	UserSmartSchedulePolicy *UserSmartSchedulePolicyClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 
@@ -273,6 +277,8 @@ func (tx *Tx) init() {
 	tx.UserAttributeDefinition = NewUserAttributeDefinitionClient(tx.config)
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
 	tx.UserPlatformQuota = NewUserPlatformQuotaClient(tx.config)
+	tx.UserSmartScheduleAccount = NewUserSmartScheduleAccountClient(tx.config)
+	tx.UserSmartSchedulePolicy = NewUserSmartSchedulePolicyClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
 }
 

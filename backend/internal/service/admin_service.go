@@ -349,21 +349,22 @@ type UpdateGroupInput struct {
 }
 
 type CreateAccountInput struct {
-	Name               string
-	Notes              *string
-	Platform           string
-	Type               string
-	Credentials        map[string]any
-	Extra              map[string]any
-	ProxyID            *int64
-	AutoAssignProxy    bool // 如果为 true 且 ProxyID 为空，则从代理池自动分配
-	Concurrency        int
-	Priority           int
-	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor         *int
-	GroupIDs           []int64
-	ExpiresAt          *int64
-	AutoPauseOnExpired *bool
+	Name                   string
+	Notes                  *string
+	Platform               string
+	Type                   string
+	Credentials            map[string]any
+	Extra                  map[string]any
+	ProxyID                *int64
+	AutoAssignProxy        bool // 如果为 true 且 ProxyID 为空，则从代理池自动分配
+	Concurrency            int
+	Priority               int
+	RateMultiplier         *float64 // 账号计费倍率（>=0，允许 0）
+	UpstreamRateMultiplier *float64 // 调度上游倍率（>=0）；nil 时按类型默认
+	LoadFactor             *int
+	GroupIDs               []int64
+	ExpiresAt              *int64
+	AutoPauseOnExpired     *bool
 	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
 	SkipDefaultGroupBind bool
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
@@ -372,46 +373,48 @@ type CreateAccountInput struct {
 }
 
 type UpdateAccountInput struct {
-	Name                  string
-	Notes                 *string
-	Type                  string // Account type: oauth, setup-token, apikey
-	Credentials           map[string]any
-	Extra                 map[string]any
-	ProxyID               *int64
-	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
-	Priority              *int     // 使用指针区分"未提供"和"设置为0"
-	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor            *int
-	Status                string
-	GroupIDs              *[]int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
-	UserScheduleMode      *string
-	ScheduleUserIDs       *[]int64
-	AllowUserIDs          *[]int64
-	DenyUserIDs           *[]int64
-	UserConcurrencies     *[]UserConcurrencyEntry
-	UserConcurrencyPatch  *UserConcurrencyPatch
-	UserQualityGates      *[]UserQualityGateEntry
-	UserQualityGatePatch  *UserQualityGatePatch
+	Name                   string
+	Notes                  *string
+	Type                   string // Account type: oauth, setup-token, apikey
+	Credentials            map[string]any
+	Extra                  map[string]any
+	ProxyID                *int64
+	Concurrency            *int     // 使用指针区分"未提供"和"设置为0"
+	Priority               *int     // 使用指针区分"未提供"和"设置为0"
+	RateMultiplier         *float64 // 账号计费倍率（>=0，允许 0）
+	UpstreamRateMultiplier *float64 // 调度上游倍率（>=0）
+	LoadFactor             *int
+	Status                 string
+	GroupIDs               *[]int64
+	ExpiresAt              *int64
+	AutoPauseOnExpired     *bool
+	SkipMixedChannelCheck  bool // 跳过混合渠道检查（用户已确认风险）
+	UserScheduleMode       *string
+	ScheduleUserIDs        *[]int64
+	AllowUserIDs           *[]int64
+	DenyUserIDs            *[]int64
+	UserConcurrencies      *[]UserConcurrencyEntry
+	UserConcurrencyPatch   *UserConcurrencyPatch
+	UserQualityGates       *[]UserQualityGateEntry
+	UserQualityGatePatch   *UserQualityGatePatch
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
 type BulkUpdateAccountsInput struct {
-	AccountIDs     []int64
-	Filters        *BulkUpdateAccountFilters
-	Name           string
-	ProxyID        *int64
-	Concurrency    *int
-	Priority       *int
-	RateMultiplier *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor     *int
-	Status         string
-	Schedulable    *bool
-	GroupIDs       *[]int64
-	Credentials    map[string]any
-	Extra          map[string]any
+	AccountIDs             []int64
+	Filters                *BulkUpdateAccountFilters
+	Name                   string
+	ProxyID                *int64
+	Concurrency            *int
+	Priority               *int
+	RateMultiplier         *float64 // 账号计费倍率（>=0，允许 0）
+	UpstreamRateMultiplier *float64 // 调度上游倍率（>=0）
+	LoadFactor             *int
+	Status                 string
+	Schedulable            *bool
+	GroupIDs               *[]int64
+	Credentials            map[string]any
+	Extra                  map[string]any
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool
@@ -2852,6 +2855,15 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 		account.RateMultiplier = input.RateMultiplier
 	}
+	if input.UpstreamRateMultiplier != nil {
+		if *input.UpstreamRateMultiplier < 0 {
+			return nil, errors.New("upstream_rate_multiplier must be >= 0")
+		}
+		account.UpstreamRateMultiplier = input.UpstreamRateMultiplier
+	} else {
+		v := DefaultUpstreamRateMultiplier(input.Type)
+		account.UpstreamRateMultiplier = &v
+	}
 	if input.LoadFactor != nil && *input.LoadFactor > 0 {
 		if *input.LoadFactor > 10000 {
 			return nil, errors.New("load_factor must be <= 10000")
@@ -2979,6 +2991,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 		account.RateMultiplier = input.RateMultiplier
+	}
+	if input.UpstreamRateMultiplier != nil {
+		if *input.UpstreamRateMultiplier < 0 {
+			return nil, errors.New("upstream_rate_multiplier must be >= 0")
+		}
+		account.UpstreamRateMultiplier = input.UpstreamRateMultiplier
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {
@@ -3152,6 +3170,11 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
 	}
+	if input.UpstreamRateMultiplier != nil {
+		if *input.UpstreamRateMultiplier < 0 {
+			return nil, errors.New("upstream_rate_multiplier must be >= 0")
+		}
+	}
 
 	// 校验并规范化请求头覆写配置（批量路径为 JSONB 顶层 key 合并，直接校验增量即可）
 	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
@@ -3177,6 +3200,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	if input.RateMultiplier != nil {
 		repoUpdates.RateMultiplier = input.RateMultiplier
+	}
+	if input.UpstreamRateMultiplier != nil {
+		repoUpdates.UpstreamRateMultiplier = input.UpstreamRateMultiplier
 	}
 	if input.LoadFactor != nil {
 		if *input.LoadFactor <= 0 {

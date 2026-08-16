@@ -10,6 +10,25 @@ A user may sit on allow, deny, a cap, and a quality gate at once. Runtime identi
 
 Admin edit/bulk keep the last-column user-schedule zone and reuse `OpenAIFastPolicyUserSelector`. The account list `user_schedule` column is default-visible: all four empty shows `—`; otherwise union chips with allow/deny tags, a quality-state chip (`质量` / `已停` / `已恢复`), plus an inline pair-cap mark (`user_concurrency_patch`) and inline quality patch (`user_quality_gate_patch`). **立即恢复** shows `已恢复` and force-admits the pair. Clicking `已恢复`, or waiting 15 minutes, returns to `质量` and starts a new accumulation window (`quality_window_until`). List `schedulable` stacks the schedule toggle and fallback-only toggle. `concurrency` keeps the inline max editor plus the remaining capacity badges. `quality_ttft` shows p50 and success rate together. Scheduler evaluation is documented in [gateway.md](./gateway.md#account-user-schedule-filter).
 
+## Upstream rate (scheduling overlay)
+
+`accounts.upstream_rate_multiplier` is a scheduling-only field (migration 203). It is not `rate_multiplier` / `BillingRateMultiplier()`. Changing it must not change `actual_cost` or quota.
+
+- Editable for every account type.
+- Defaults: `oauth` / `apikey` → `0.15`; `setup-token` / `upstream` / `bedrock` / `service_account` → `1`.
+- Create omit → type default. Old Redis snapshots missing the field use the type default, not billing `1.0`.
+- Admin surfaces: create/edit/bulk, accounts list inline column, smart-schedule pool inline column, import/export.
+
+Among already-eligible accounts, selection prefers the lowest upstream rate. Same rate falls through to priority / load / last_used / Sub2 score. Sticky pins that still admit are not broken for a cheaper peer. `fallback_only` stays a hard partition; the overlay applies inside the active partition. See [gateway.md](./gateway.md#upstream-rate-overlay).
+
+## User × platform smart schedule
+
+Admin writes this only on the user smart-schedule page (`UsersView` smart-schedule column → `/admin/users/:id/smart-schedule`). The users table column shows enabled platforms and pool counts via `POST /admin/users/smart-schedule/summaries`. The detail page is a left user-policy panel plus a right account-pool panel. The per-platform enable control is a header switch that PUTs immediately; quality/cooldown/pool-cap edits still use Save. An empty pool cannot be turned on. Removing the last member turns the platform off and persists that disable. Storage is `user_smart_schedule_policies` + `user_smart_schedule_accounts` (migration 202), not `account_schedule_users`. One policy row per `(user_id, platform)` for `anthropic` / `openai` / `gemini` / `antigravity` / `grok`.
+
+When `enabled=true`, that user×platform is a closed allow-list: pool miss rejects; in-pool ignores the account-side allow/deny/gate/cap for that pair. Quality still reuses `EvaluateAccountQualityHardClose` and the live 15-minute cache. A breach writes pair cooldown `smart-schedule:cooldown:{accountID}` HASH field `u:{userID}` via `HSETNX` (no extend, not `TempUnschedulable`). **立即恢复** deletes that field and writes the existing resume HASH grace. Pair cap comes from the pool member, not `account.UserConcurrency`. GET/PUT responses also hydrate read-only `current_concurrency` from Redis pair slots (`GetAccountUserConcurrencyBatch`); writes ignore that field. Empty enabled saves are rejected; deleting the last member turns the platform off and returns to the legacy account-side rules. An enabled row with zero members (including last-member CASCADE delete) is treated as disabled on the hot path so the user is not fail-closed. Copy-from-platform copies enable/thresholds/cooldown only. Selection still uses `account.Platform` (mixed-scheduling Antigravity accounts stay on the antigravity tab). Do not copy this policy onto scheduler snapshots.
+
+The pool table reuses the account-list `DataTable` cells: account capacity (inline max + `AccountCapacityCell`), pair occupancy/cap, clickable quality (`AccountStabilityDialog`), today stats, groups, usage windows, schedulable/fallback toggles, priority, upstream rate, last used, and the account action set (edit / stability / usage / errors / more). Pool remove is “remove from pool”, not account delete. Pair-cap edits stay draft until Save; account concurrency / priority / upstream rate / schedulable save immediately via the account update API. Sorting is client-side and matches the account-list sortable columns, plus pair cap. Column settings reuse the account-list visibility / order / width pattern, persisted under `smart-schedule-pool-*` keys so they do not share the account list layout. Name and actions stay pinned.
+
 ## Grok account routing and quota state
 
 Grok has two credential modes with different default upstreams:
@@ -553,7 +572,7 @@ Important mechanisms:
 | 实体/字段 | 位置 | 说明 |
 |-----------|------|------|
 | Account entity | `backend/ent/schema/account.go` | 主表，包含 name, platform, type, status 等 |
-| credentials (JSONB) | 同上 | OAuth token 数据：access_token, refresh_token, email, project_id, plan_type, expires_at |
+| credentials (JSONB) | 同上 | OAuth token 数据：access_token, refresh_token, email, project_id, plan_type, expires_at。API Key / Bedrock 另有 `pool_mode`、`pool_mode_retry_count`、可选 `pool_mode_hard_eviction` |
 | extra (JSONB) | 同上 | 平台特有配置：allow_overages, mixed_scheduling, privacy_mode, model_rate_limits |
 | Account DTO | `backend/internal/handler/dto/types.go:133` | API 响应结构，包含 credentials 和 extra 完整输出 |
 | AccountUsageInfo | `frontend/src/types/index.ts:793` | 账号用量信息，含 ai_credits 数组 |
@@ -739,7 +758,7 @@ AccountsView.vue: handleDeleteExportedAccounts()
 AccountsView.vue: “导入 Codex 会话”
   -> CodexSessionImportModal.vue
      - raw access token / Codex auth JSON / JSON 数组 / 逐行混合输入
-     - 代理、OpenAI 分组、并发、优先级、计费倍率、负载因子
+     - 代理、OpenAI 分组、并发、优先级、计费倍率、上游倍率、负载因子
      - update_existing / skip_default_group_bind
   -> POST /api/v1/admin/accounts/import/codex-session
      -> account_codex_import.go: ImportCodexSession()
@@ -817,6 +836,7 @@ can be written by the request-path rate-limit/session-window logic.
 | 账号质量历史快照 | 维护任务每 5 分钟把上述同一套 15 分钟滚动窗口落进 `account_quality_snapshots`（有样本才写，保留 7 天，多实例 leader lock）。`GET /admin/accounts/:id/quality-history` 默认最近 24 小时、最大 7 天。硬关闭评估不要改这份 SQL，挂 `AccountQualityMaintenanceService.EvaluateHardClose` / `SetHardCloseEvaluator` | `account_quality_maintenance.go`, `account_quality_snapshot_repo.go`, `migrations/199_account_quality_snapshots.sql` |
 | 账号质量硬关闭 | 默认全关。全局 KV `quality_hard_close_settings` + 账号 `extra.quality_hard_close` 两层都开才评估本轮 live 15 分钟质量；越界则 `SetTempUnschedulable(..., "quality_hard_close:...")`，不改 `schedulable`。已有未过期临时停调度则跳过（冷却一次，也不覆盖 529/401）。不进 public settings | `account_quality_hard_close.go`, `GET/PUT /admin/settings/quality-hard-close`, `GET/PUT /admin/accounts/:id/quality-hard-close` |
 | 仅作兜底调度 (`fallback_only`) | `extra.fallback_only=true` 时账号进入硬兜底层：同池存在任意非兜底候选时永不负载均衡选中；全部 primary 不可用/被排除后才用兜底。与 soft `priority` 解耦。会话粘性若钉在兜底号且 primary 可用会逃逸；`previous_response` 多轮粘性保留 | `account.go` `IsFallbackOnly`, `preferPrimary*`, `openai_account_scheduler.go`, `gateway_service.go` |
+| 池模式硬错误停调度 | API Key / Bedrock 账号级开关 `credentials.pool_mode_hard_eviction`。必须先 `IsPoolMode()`。缺省/false = 旧池模式（上游错误不标记本地状态）。两开时余额不足、额度用尽、Key 过期/用户停用/订阅无效走 `handleAuthError` → `SetError`，不落入 429/403 计数。自定义错误码白名单仍优先。无新 Settings KV / 邮件 / webhook / 迁移 | `account.go` `IsPoolModeHardEviction`, `ratelimit_service.go` `isPoolModeHardMaintenanceError`, `CreateAccountModal.vue`, `EditAccountModal.vue` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 
 ## 已知陷阱
@@ -827,6 +847,7 @@ can be written by the request-path rate-limit/session-window logic.
 - **Credits 消耗冷启动窗**：`ai_credit_snapshots` 需要至少两条相邻采样才能算 delta。新部署或新窗口内无采样时 `GetAntigravityUsageRatio` 返回 `credits_consumed=0` + 比率 null；前端卡片显示"采样不足"。如果窗口内出现负 delta（充值/重置），只跳过该对不报错，但那一段消耗会丢。
 - **质量快照是重叠窗口**：每个点都是当时的 15 分钟滚动窗口，相邻 5 分钟点会重叠；无成功/错误/TTFT 样本的账号不写空行，曲线会有缺口。不要改 `GetAccountQualityStatsBatch` SQL。
 - **质量硬关闭默认全关**：部署后不会自动停号。评估用维护任务同一 tick 的 live stats，不是快照行；账号 overlay 只允许 `UpdateExtra` 合并 `quality_hard_close`，不要用 `Update()` 整表替换 Extra。
+- **池模式硬错误是 SetError，不是质量硬关闭**：`pool_mode_hard_eviction` 只在池模式开启时生效；命中余额/额度/租户死号时写 `status=error`，不要改成 `SetTempUnschedulable` 或折进 `quality_hard_close`。`extractUpstreamErrorCode` 读不到本仓库顶层 `{code,message}`，判定器必须自己读顶层 `code`。关掉池模式时同时 `delete` `pool_mode_hard_eviction`，不要回填 `false`。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。
 - **Antigravity usage 401 误判**：账号用量/AI Credits 探测必须和模型测试、真实网关请求一样走 `AntigravityTokenProvider`。如果直接读取 DB 中过期的 `credentials.access_token`，会在 refresh token 正常时偶发 401，并让前端误显示“需要重新授权”。

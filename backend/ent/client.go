@@ -57,6 +57,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 
 	stdsql "database/sql"
@@ -151,6 +153,10 @@ type Client struct {
 	UserAttributeValue *UserAttributeValueClient
 	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
 	UserPlatformQuota *UserPlatformQuotaClient
+	// UserSmartScheduleAccount is the client for interacting with the UserSmartScheduleAccount builders.
+	UserSmartScheduleAccount *UserSmartScheduleAccountClient
+	// UserSmartSchedulePolicy is the client for interacting with the UserSmartSchedulePolicy builders.
+	UserSmartSchedulePolicy *UserSmartSchedulePolicyClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 }
@@ -206,6 +212,8 @@ func (c *Client) init() {
 	c.UserAttributeDefinition = NewUserAttributeDefinitionClient(c.config)
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
+	c.UserSmartScheduleAccount = NewUserSmartScheduleAccountClient(c.config)
+	c.UserSmartSchedulePolicy = NewUserSmartSchedulePolicyClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
 }
 
@@ -341,6 +349,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
+		UserSmartScheduleAccount:      NewUserSmartScheduleAccountClient(cfg),
+		UserSmartSchedulePolicy:       NewUserSmartSchedulePolicyClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -403,6 +413,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
+		UserSmartScheduleAccount:      NewUserSmartScheduleAccountClient(cfg),
+		UserSmartSchedulePolicy:       NewUserSmartSchedulePolicyClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -445,7 +457,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.UserPlatformQuota, c.UserSmartScheduleAccount, c.UserSmartSchedulePolicy,
+		c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -467,7 +480,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
 		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
 		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.UserPlatformQuota, c.UserSmartScheduleAccount, c.UserSmartSchedulePolicy,
+		c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -560,6 +574,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserAttributeValue.mutate(ctx, m)
 	case *UserPlatformQuotaMutation:
 		return c.UserPlatformQuota.mutate(ctx, m)
+	case *UserSmartScheduleAccountMutation:
+		return c.UserSmartScheduleAccount.mutate(ctx, m)
+	case *UserSmartSchedulePolicyMutation:
+		return c.UserSmartSchedulePolicy.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
 	default:
@@ -1023,6 +1041,22 @@ func (c *AccountClient) QueryScheduleUsers(_m *Account) *UserQuery {
 	return query
 }
 
+// QuerySmartScheduleUsers queries the smart_schedule_users edge of a Account.
+func (c *AccountClient) QuerySmartScheduleUsers(_m *Account) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(account.Table, account.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, account.SmartScheduleUsersTable, account.SmartScheduleUsersPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryProxy queries the proxy edge of a Account.
 func (c *AccountClient) QueryProxy(_m *Account) *ProxyQuery {
 	query := (&ProxyClient{config: c.config}).Query()
@@ -1112,6 +1146,22 @@ func (c *AccountClient) QueryAccountScheduleUsers(_m *Account) *AccountScheduleU
 			sqlgraph.From(account.Table, account.FieldID, id),
 			sqlgraph.To(accountscheduleuser.Table, accountscheduleuser.AccountColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, account.AccountScheduleUsersTable, account.AccountScheduleUsersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUserSmartScheduleAccounts queries the user_smart_schedule_accounts edge of a Account.
+func (c *AccountClient) QueryUserSmartScheduleAccounts(_m *Account) *UserSmartScheduleAccountQuery {
+	query := (&UserSmartScheduleAccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(account.Table, account.FieldID, id),
+			sqlgraph.To(usersmartscheduleaccount.Table, usersmartscheduleaccount.AccountColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, account.UserSmartScheduleAccountsTable, account.UserSmartScheduleAccountsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -6594,6 +6644,38 @@ func (c *UserClient) QueryPlatformQuotas(_m *User) *UserPlatformQuotaQuery {
 	return query
 }
 
+// QuerySmartSchedulePolicies queries the smart_schedule_policies edge of a User.
+func (c *UserClient) QuerySmartSchedulePolicies(_m *User) *UserSmartSchedulePolicyQuery {
+	query := (&UserSmartSchedulePolicyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(usersmartschedulepolicy.Table, usersmartschedulepolicy.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SmartSchedulePoliciesTable, user.SmartSchedulePoliciesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySmartScheduleAccounts queries the smart_schedule_accounts edge of a User.
+func (c *UserClient) QuerySmartScheduleAccounts(_m *User) *AccountQuery {
+	query := (&AccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.SmartScheduleAccountsTable, user.SmartScheduleAccountsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUserAllowedGroups queries the user_allowed_groups edge of a User.
 func (c *UserClient) QueryUserAllowedGroups(_m *User) *UserAllowedGroupQuery {
 	query := (&UserAllowedGroupClient{config: c.config}).Query()
@@ -6619,6 +6701,22 @@ func (c *UserClient) QueryAccountScheduleUsers(_m *User) *AccountScheduleUserQue
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(accountscheduleuser.Table, accountscheduleuser.UserColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, user.AccountScheduleUsersTable, user.AccountScheduleUsersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUserSmartScheduleAccounts queries the user_smart_schedule_accounts edge of a User.
+func (c *UserClient) QueryUserSmartScheduleAccounts(_m *User) *UserSmartScheduleAccountQuery {
+	query := (&UserSmartScheduleAccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(usersmartscheduleaccount.Table, usersmartscheduleaccount.UserColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.UserSmartScheduleAccountsTable, user.UserSmartScheduleAccountsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -7236,6 +7334,271 @@ func (c *UserPlatformQuotaClient) mutate(ctx context.Context, m *UserPlatformQuo
 	}
 }
 
+// UserSmartScheduleAccountClient is a client for the UserSmartScheduleAccount schema.
+type UserSmartScheduleAccountClient struct {
+	config
+}
+
+// NewUserSmartScheduleAccountClient returns a client for the UserSmartScheduleAccount from the given config.
+func NewUserSmartScheduleAccountClient(c config) *UserSmartScheduleAccountClient {
+	return &UserSmartScheduleAccountClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `usersmartscheduleaccount.Hooks(f(g(h())))`.
+func (c *UserSmartScheduleAccountClient) Use(hooks ...Hook) {
+	c.hooks.UserSmartScheduleAccount = append(c.hooks.UserSmartScheduleAccount, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `usersmartscheduleaccount.Intercept(f(g(h())))`.
+func (c *UserSmartScheduleAccountClient) Intercept(interceptors ...Interceptor) {
+	c.inters.UserSmartScheduleAccount = append(c.inters.UserSmartScheduleAccount, interceptors...)
+}
+
+// Create returns a builder for creating a UserSmartScheduleAccount entity.
+func (c *UserSmartScheduleAccountClient) Create() *UserSmartScheduleAccountCreate {
+	mutation := newUserSmartScheduleAccountMutation(c.config, OpCreate)
+	return &UserSmartScheduleAccountCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of UserSmartScheduleAccount entities.
+func (c *UserSmartScheduleAccountClient) CreateBulk(builders ...*UserSmartScheduleAccountCreate) *UserSmartScheduleAccountCreateBulk {
+	return &UserSmartScheduleAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UserSmartScheduleAccountClient) MapCreateBulk(slice any, setFunc func(*UserSmartScheduleAccountCreate, int)) *UserSmartScheduleAccountCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UserSmartScheduleAccountCreateBulk{err: fmt.Errorf("calling to UserSmartScheduleAccountClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UserSmartScheduleAccountCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UserSmartScheduleAccountCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for UserSmartScheduleAccount.
+func (c *UserSmartScheduleAccountClient) Update() *UserSmartScheduleAccountUpdate {
+	mutation := newUserSmartScheduleAccountMutation(c.config, OpUpdate)
+	return &UserSmartScheduleAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserSmartScheduleAccountClient) UpdateOne(_m *UserSmartScheduleAccount) *UserSmartScheduleAccountUpdateOne {
+	mutation := newUserSmartScheduleAccountMutation(c.config, OpUpdateOne)
+	mutation.account = &_m.AccountID
+	mutation.user = &_m.UserID
+	return &UserSmartScheduleAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for UserSmartScheduleAccount.
+func (c *UserSmartScheduleAccountClient) Delete() *UserSmartScheduleAccountDelete {
+	mutation := newUserSmartScheduleAccountMutation(c.config, OpDelete)
+	return &UserSmartScheduleAccountDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for UserSmartScheduleAccount.
+func (c *UserSmartScheduleAccountClient) Query() *UserSmartScheduleAccountQuery {
+	return &UserSmartScheduleAccountQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUserSmartScheduleAccount},
+		inters: c.Interceptors(),
+	}
+}
+
+// QueryUser queries the user edge of a UserSmartScheduleAccount.
+func (c *UserSmartScheduleAccountClient) QueryUser(_m *UserSmartScheduleAccount) *UserQuery {
+	return c.Query().
+		Where(usersmartscheduleaccount.AccountID(_m.AccountID), usersmartscheduleaccount.UserID(_m.UserID)).
+		QueryUser()
+}
+
+// QueryAccount queries the account edge of a UserSmartScheduleAccount.
+func (c *UserSmartScheduleAccountClient) QueryAccount(_m *UserSmartScheduleAccount) *AccountQuery {
+	return c.Query().
+		Where(usersmartscheduleaccount.AccountID(_m.AccountID), usersmartscheduleaccount.UserID(_m.UserID)).
+		QueryAccount()
+}
+
+// Hooks returns the client hooks.
+func (c *UserSmartScheduleAccountClient) Hooks() []Hook {
+	return c.hooks.UserSmartScheduleAccount
+}
+
+// Interceptors returns the client interceptors.
+func (c *UserSmartScheduleAccountClient) Interceptors() []Interceptor {
+	return c.inters.UserSmartScheduleAccount
+}
+
+func (c *UserSmartScheduleAccountClient) mutate(ctx context.Context, m *UserSmartScheduleAccountMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UserSmartScheduleAccountCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UserSmartScheduleAccountUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UserSmartScheduleAccountUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UserSmartScheduleAccountDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown UserSmartScheduleAccount mutation op: %q", m.Op())
+	}
+}
+
+// UserSmartSchedulePolicyClient is a client for the UserSmartSchedulePolicy schema.
+type UserSmartSchedulePolicyClient struct {
+	config
+}
+
+// NewUserSmartSchedulePolicyClient returns a client for the UserSmartSchedulePolicy from the given config.
+func NewUserSmartSchedulePolicyClient(c config) *UserSmartSchedulePolicyClient {
+	return &UserSmartSchedulePolicyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `usersmartschedulepolicy.Hooks(f(g(h())))`.
+func (c *UserSmartSchedulePolicyClient) Use(hooks ...Hook) {
+	c.hooks.UserSmartSchedulePolicy = append(c.hooks.UserSmartSchedulePolicy, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `usersmartschedulepolicy.Intercept(f(g(h())))`.
+func (c *UserSmartSchedulePolicyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.UserSmartSchedulePolicy = append(c.inters.UserSmartSchedulePolicy, interceptors...)
+}
+
+// Create returns a builder for creating a UserSmartSchedulePolicy entity.
+func (c *UserSmartSchedulePolicyClient) Create() *UserSmartSchedulePolicyCreate {
+	mutation := newUserSmartSchedulePolicyMutation(c.config, OpCreate)
+	return &UserSmartSchedulePolicyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of UserSmartSchedulePolicy entities.
+func (c *UserSmartSchedulePolicyClient) CreateBulk(builders ...*UserSmartSchedulePolicyCreate) *UserSmartSchedulePolicyCreateBulk {
+	return &UserSmartSchedulePolicyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UserSmartSchedulePolicyClient) MapCreateBulk(slice any, setFunc func(*UserSmartSchedulePolicyCreate, int)) *UserSmartSchedulePolicyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UserSmartSchedulePolicyCreateBulk{err: fmt.Errorf("calling to UserSmartSchedulePolicyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UserSmartSchedulePolicyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UserSmartSchedulePolicyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for UserSmartSchedulePolicy.
+func (c *UserSmartSchedulePolicyClient) Update() *UserSmartSchedulePolicyUpdate {
+	mutation := newUserSmartSchedulePolicyMutation(c.config, OpUpdate)
+	return &UserSmartSchedulePolicyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserSmartSchedulePolicyClient) UpdateOne(_m *UserSmartSchedulePolicy) *UserSmartSchedulePolicyUpdateOne {
+	mutation := newUserSmartSchedulePolicyMutation(c.config, OpUpdateOne, withUserSmartSchedulePolicy(_m))
+	return &UserSmartSchedulePolicyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UserSmartSchedulePolicyClient) UpdateOneID(id int64) *UserSmartSchedulePolicyUpdateOne {
+	mutation := newUserSmartSchedulePolicyMutation(c.config, OpUpdateOne, withUserSmartSchedulePolicyID(id))
+	return &UserSmartSchedulePolicyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for UserSmartSchedulePolicy.
+func (c *UserSmartSchedulePolicyClient) Delete() *UserSmartSchedulePolicyDelete {
+	mutation := newUserSmartSchedulePolicyMutation(c.config, OpDelete)
+	return &UserSmartSchedulePolicyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserSmartSchedulePolicyClient) DeleteOne(_m *UserSmartSchedulePolicy) *UserSmartSchedulePolicyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *UserSmartSchedulePolicyClient) DeleteOneID(id int64) *UserSmartSchedulePolicyDeleteOne {
+	builder := c.Delete().Where(usersmartschedulepolicy.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserSmartSchedulePolicyDeleteOne{builder}
+}
+
+// Query returns a query builder for UserSmartSchedulePolicy.
+func (c *UserSmartSchedulePolicyClient) Query() *UserSmartSchedulePolicyQuery {
+	return &UserSmartSchedulePolicyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUserSmartSchedulePolicy},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a UserSmartSchedulePolicy entity by its id.
+func (c *UserSmartSchedulePolicyClient) Get(ctx context.Context, id int64) (*UserSmartSchedulePolicy, error) {
+	return c.Query().Where(usersmartschedulepolicy.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserSmartSchedulePolicyClient) GetX(ctx context.Context, id int64) *UserSmartSchedulePolicy {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a UserSmartSchedulePolicy.
+func (c *UserSmartSchedulePolicyClient) QueryUser(_m *UserSmartSchedulePolicy) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(usersmartschedulepolicy.Table, usersmartschedulepolicy.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, usersmartschedulepolicy.UserTable, usersmartschedulepolicy.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *UserSmartSchedulePolicyClient) Hooks() []Hook {
+	return c.hooks.UserSmartSchedulePolicy
+}
+
+// Interceptors returns the client interceptors.
+func (c *UserSmartSchedulePolicyClient) Interceptors() []Interceptor {
+	return c.inters.UserSmartSchedulePolicy
+}
+
+func (c *UserSmartSchedulePolicyClient) mutate(ctx context.Context, m *UserSmartSchedulePolicyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UserSmartSchedulePolicyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UserSmartSchedulePolicyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UserSmartSchedulePolicyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UserSmartSchedulePolicyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown UserSmartSchedulePolicy mutation op: %q", m.Op())
+	}
+}
+
 // UserSubscriptionClient is a client for the UserSubscription schema.
 type UserSubscriptionClient struct {
 	config
@@ -7448,7 +7811,8 @@ type (
 		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
 		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
 		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Hook
+		UserPlatformQuota, UserSmartScheduleAccount, UserSmartSchedulePolicy,
+		UserSubscription []ent.Hook
 	}
 	inters struct {
 		AICreditSnapshot, APIKey, Account, AccountGroup, AccountQualitySnapshot,
@@ -7461,7 +7825,8 @@ type (
 		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
 		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
 		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserPlatformQuota, UserSubscription []ent.Interceptor
+		UserPlatformQuota, UserSmartScheduleAccount, UserSmartSchedulePolicy,
+		UserSubscription []ent.Interceptor
 	}
 )
 

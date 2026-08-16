@@ -608,6 +608,7 @@ type GatewayService struct {
 	balanceNotifyService  *BalanceNotifyService
 	antigravitySampler    *AntigravityCreditSampler
 	qualityLiveCache      AccountQualityLiveCache
+	smartScheduleCache    SmartScheduleLookup
 }
 
 func (s *GatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -617,8 +618,15 @@ func (s *GatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
 	s.qualityLiveCache = cache
 }
 
+func (s *GatewayService) SetSmartScheduleCache(lookup SmartScheduleLookup) {
+	if s == nil {
+		return
+	}
+	s.smartScheduleCache = lookup
+}
+
 func (s *GatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
-	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache, s.smartScheduleCache)
 }
 
 // NewGatewayService creates a new GatewayService
@@ -1746,7 +1754,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
 
 						if rpmPass { // 粘性会话窗口费用+RPM 检查
-							pairFullSticky := isPairConcurrencyFull(stickyAccount, scheduleUserIDFromContext(ctx, 0), s.pairCountsForSelection(ctx, []*Account{stickyAccount})[stickyAccount.ID])
+							pairFullSticky := isPairConcurrencyFull(ctx, stickyAccount, s.pairCountsForSelection(ctx, []*Account{stickyAccount})[stickyAccount.ID], s.smartScheduleCache)
 							if !pairFullSticky {
 								result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, stickyAccount)
 								if pairFull {
@@ -1838,9 +1846,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 
 			if len(routingAvailable) > 0 {
-				// 排序：优先级 > 负载率 > 最后使用时间
+				// 排序：上游倍率 > 优先级 > 负载率 > 最后使用时间
 				sort.SliceStable(routingAvailable, func(i, j int) bool {
 					a, b := routingAvailable[i], routingAvailable[j]
+					if cmp := compareUpstreamRate(a.account, b.account); cmp != 0 {
+						return cmp < 0
+					}
 					if a.account.Priority != b.account.Priority {
 						return a.account.Priority < b.account.Priority
 					}
@@ -1869,7 +1880,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return out
 				}())
 				for _, item := range routingAvailable {
-					if isPairConcurrencyFull(item.account, scheduleUserIDFromContext(ctx, 0), routingPairCounts[item.account.ID]) {
+					if isPairConcurrencyFull(ctx, item.account, routingPairCounts[item.account.ID], s.smartScheduleCache) {
 						continue
 					}
 					result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, item.account)
@@ -1895,7 +1906,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				// 5. 所有路由账号槽位满，尝试返回等待计划（选择负载最低的）
 				// 遍历找到第一个满足会话限制的账号。Pair-full 不能 WaitPlan，交给 Layer 2 改选。
 				for _, item := range routingAvailable {
-					if isPairConcurrencyFull(item.account, scheduleUserIDFromContext(ctx, 0), routingPairCounts[item.account.ID]) {
+					if isPairConcurrencyFull(ctx, item.account, routingPairCounts[item.account.ID], s.smartScheduleCache) {
 						continue
 					}
 					if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
@@ -1960,7 +1971,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				)
 
 				if !clearSticky && platformOK && modelSupported && modelSchedulable && quotaOK && windowCostOK && rpmOK && schedulable {
-					pairFullSticky := isPairConcurrencyFull(account, scheduleUserIDFromContext(ctx, 0), s.pairCountsForSelection(ctx, []*Account{account})[account.ID])
+					pairFullSticky := isPairConcurrencyFull(ctx, account, s.pairCountsForSelection(ctx, []*Account{account})[account.ID], s.smartScheduleCache)
 					if !pairFullSticky {
 						result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, account)
 						if pairFull {
@@ -2096,7 +2107,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	pairCounts := s.pairCountsForSelection(ctx, candidates)
 	filtered := make([]*Account, 0, len(candidates))
 	for _, acc := range candidates {
-		if isPairConcurrencyFull(acc, scheduleUserIDFromContext(ctx, 0), pairCounts[acc.ID]) {
+		if isPairConcurrencyFull(ctx, acc, pairCounts[acc.ID], s.smartScheduleCache) {
 			continue
 		}
 		filtered = append(filtered, acc)
@@ -2136,13 +2147,15 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 		}
 
-		// 分层过滤选择：优先级 → 负载率 → LRU
+		// 分层过滤选择：上游倍率 → 优先级 → 负载率 → LRU
 		for len(available) > 0 {
-			// 1. 取优先级最小的集合
-			candidates := filterByMinPriority(available)
-			// 2. 取负载率最低的集合
+			// 1. 取上游倍率最低的集合
+			candidates := filterByMinUpstreamRate(available)
+			// 2. 取优先级最小的集合
+			candidates = filterByMinPriority(candidates)
+			// 3. 取负载率最低的集合
 			candidates = filterByMinLoadRate(candidates)
-			// 3. LRU 选择最久未用的账号
+			// 4. LRU 选择最久未用的账号
 			selected := selectByLRU(candidates, preferOAuth)
 			if selected == nil {
 				break
@@ -2870,6 +2883,26 @@ func (s *GatewayService) newSelectionResult(ctx context.Context, account *Accoun
 	}, nil
 }
 
+// filterByMinUpstreamRate 过滤出调度上游倍率最低的账号集合
+func filterByMinUpstreamRate(accounts []accountWithLoad) []accountWithLoad {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	minRate := accounts[0].account.EffectiveUpstreamRate()
+	for _, acc := range accounts[1:] {
+		if r := acc.account.EffectiveUpstreamRate(); r < minRate {
+			minRate = r
+		}
+	}
+	result := make([]accountWithLoad, 0, len(accounts))
+	for _, acc := range accounts {
+		if acc.account.EffectiveUpstreamRate() == minRate {
+			result = append(result, acc)
+		}
+	}
+	return result
+}
+
 // filterByMinPriority 过滤出优先级最小的账号集合
 func filterByMinPriority(accounts []accountWithLoad) []accountWithLoad {
 	if len(accounts) == 0 {
@@ -2973,6 +3006,9 @@ func selectByLRU(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad 
 func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
+		if cmp := compareUpstreamRate(a, b); cmp != 0 {
+			return cmp < 0
+		}
 		if a.Priority != b.Priority {
 			return a.Priority < b.Priority
 		}
@@ -2993,7 +3029,7 @@ func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	shuffleWithinPriorityAndLastUsed(accounts, preferOAuth)
 }
 
-// shuffleWithinSortGroups 对排序后的 accountWithLoad 切片，按 (Priority, LoadRate, LastUsedAt) 分组后组内随机打乱。
+// shuffleWithinSortGroups 对排序后的 accountWithLoad 切片，按 (UpstreamRate, Priority, LoadRate, LastUsedAt) 分组后组内随机打乱。
 // 防止并发请求读取同一快照时，确定性排序导致所有请求命中相同账号。
 func shuffleWithinSortGroups(accounts []accountWithLoad) {
 	if len(accounts) <= 1 {
@@ -3016,6 +3052,9 @@ func shuffleWithinSortGroups(accounts []accountWithLoad) {
 
 // sameAccountWithLoadGroup 判断两个 accountWithLoad 是否属于同一排序组
 func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
+	if a.account.EffectiveUpstreamRate() != b.account.EffectiveUpstreamRate() {
+		return false
+	}
 	if a.account.Priority != b.account.Priority {
 		return false
 	}
@@ -3025,7 +3064,7 @@ func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
 	return sameLastUsedAt(a.account.LastUsedAt, b.account.LastUsedAt)
 }
 
-// shuffleWithinPriorityAndLastUsed 对排序后的 []*Account 切片，按 (Priority, LastUsedAt) 分组后组内随机打乱。
+// shuffleWithinPriorityAndLastUsed 对排序后的 []*Account 切片，按 (UpstreamRate, Priority, LastUsedAt) 分组后组内随机打乱。
 //
 // 注意：当 preferOAuth=true 时，需要保证 OAuth 账号在同组内仍然优先，否则会把排序时的偏好打散掉。
 // 因此这里采用"组内分区 + 分区内 shuffle"的方式：
@@ -3070,8 +3109,11 @@ func shuffleWithinPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	}
 }
 
-// sameAccountGroup 判断两个 Account 是否属于同一排序组（Priority + LastUsedAt）
+// sameAccountGroup 判断两个 Account 是否属于同一排序组（UpstreamRate + Priority + LastUsedAt）
 func sameAccountGroup(a, b *Account) bool {
+	if a.EffectiveUpstreamRate() != b.EffectiveUpstreamRate() {
+		return false
+	}
 	if a.Priority != b.Priority {
 		return false
 	}
@@ -3107,6 +3149,9 @@ func (s *GatewayService) sortCandidatesForFallback(accounts []*Account, preferOA
 func sortAccountsByPriorityOnly(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
+		if cmp := compareUpstreamRate(a, b); cmp != 0 {
+			return cmp < 0
+		}
 		if a.Priority != b.Priority {
 			return a.Priority < b.Priority
 		}
@@ -3126,8 +3171,9 @@ func shuffleWithinPriority(accounts []*Account) {
 	start := 0
 	for start < len(accounts) {
 		priority := accounts[start].Priority
+		rate := accounts[start].EffectiveUpstreamRate()
 		end := start + 1
-		for end < len(accounts) && accounts[end].Priority == priority {
+		for end < len(accounts) && accounts[end].Priority == priority && accounts[end].EffectiveUpstreamRate() == rate {
 			end++
 		}
 		// 对 [start, end) 范围内的账户随机打乱
@@ -3762,7 +3808,7 @@ func (s *GatewayService) diagnoseSelectionFailure(
 	if _, excluded := excludedIDs[acc.ID]; excluded {
 		return selectionFailureDiagnosis{Category: "excluded"}
 	}
-			if !s.isAccountSchedulableForSelection(ctx, acc) {
+	if !s.isAccountSchedulableForSelection(ctx, acc) {
 		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "generic_unschedulable"}
 	}
 	if isPlatformFilteredForSelection(acc, platform, allowMixedScheduling) {

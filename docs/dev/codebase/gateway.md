@@ -11,9 +11,19 @@ tokens or building ChatGPT/FedRAMP headers. HTTP and WebSocket paths keep the
 shadow ID for connection ownership, usage snapshots, and Spark rate limits;
 the parent supplies authentication identity and the inherited proxy.
 
+## Upstream rate overlay
+
+After group / `IsSchedulable` / smart-schedule / quality / pair-cap / sticky / `fallback_only` have already produced the eligible set, selection ranks by `EffectiveUpstreamRate()` (lower first). This is `accounts.upstream_rate_multiplier`, not billing `rate_multiplier`.
+
+1. Sticky: if the pinned account still admits, keep it even when a cheaper account exists.
+2. `fallback_only` is a hard partition; never mix fallback with primary. Overlay applies inside the active partition.
+3. Same rate → existing priority / last_used / load / Sub2 score.
+4. Sort/shuffle groups include the rate so different rates are not shuffled together.
+5. Snapshot meta must copy `UpstreamRateMultiplier`. A missing field unmarshals nil and uses the type default (`oauth`/`apikey` 0.15, else 1).
+
 ## Account user-schedule filter
 
-After group/platform/`IsSchedulable` filters, selection calls `AdmitsScheduleUser` (identity `AllowsScheduleUser` plus optional live quality gate) then optional pair-cap checks. Do not fold pair limits or quality gates into `IsSchedulable()`.
+After group/platform/`IsSchedulable` filters, selection calls `admitsScheduleUser`. If the request user has an **enabled** smart-schedule policy for `account.Platform` **with at least one pool member**, that path is a closed pool + new quality gate + pair cooldown + pool-member pair cap, and the old account-side allow/deny/gate/cap for that user×platform are ignored. Enabled+empty (or last member gone) falls back to legacy. Otherwise it still calls `AdmitsScheduleUser` (identity `AllowsScheduleUser` plus optional live quality gate) then optional pair-cap checks. Do not fold pair limits, quality gates, or smart-schedule policy into `IsSchedulable()`, and do not write user policy onto shared account snapshots.
 
 1. Explicit `sub2apiUserID` if `> 0`, else `ctxkey.UserID`, else `0`.
 2. Priority: deny-list hit → cannot schedule (cap ignored); nonempty allow list and miss → cannot schedule (cap ignored); else identity-admitted.

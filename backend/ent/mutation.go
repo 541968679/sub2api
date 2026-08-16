@@ -55,6 +55,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
@@ -110,6 +112,8 @@ const (
 	TypeUserAttributeDefinition       = "UserAttributeDefinition"
 	TypeUserAttributeValue            = "UserAttributeValue"
 	TypeUserPlatformQuota             = "UserPlatformQuota"
+	TypeUserSmartScheduleAccount      = "UserSmartScheduleAccount"
+	TypeUserSmartSchedulePolicy       = "UserSmartSchedulePolicy"
 	TypeUserSubscription              = "UserSubscription"
 )
 
@@ -2814,62 +2818,67 @@ func (m *APIKeyMutation) ResetEdge(name string) error {
 // AccountMutation represents an operation that mutates the Account nodes in the graph.
 type AccountMutation struct {
 	config
-	op                        Op
-	typ                       string
-	id                        *int64
-	created_at                *time.Time
-	updated_at                *time.Time
-	deleted_at                *time.Time
-	name                      *string
-	notes                     *string
-	platform                  *string
-	_type                     *string
-	credentials               *map[string]interface{}
-	extra                     *map[string]interface{}
-	concurrency               *int
-	addconcurrency            *int
-	load_factor               *int
-	addload_factor            *int
-	priority                  *int
-	addpriority               *int
-	rate_multiplier           *float64
-	addrate_multiplier        *float64
-	status                    *string
-	error_message             *string
-	last_used_at              *time.Time
-	expires_at                *time.Time
-	auto_pause_on_expired     *bool
-	schedulable               *bool
-	rate_limited_at           *time.Time
-	rate_limit_reset_at       *time.Time
-	overload_until            *time.Time
-	temp_unschedulable_until  *time.Time
-	temp_unschedulable_reason *string
-	session_window_start      *time.Time
-	session_window_end        *time.Time
-	session_window_status     *string
-	quota_dimension           *account.QuotaDimension
-	user_schedule_mode        *string
-	clearedFields             map[string]struct{}
-	groups                    map[int64]struct{}
-	removedgroups             map[int64]struct{}
-	clearedgroups             bool
-	schedule_users            map[int64]struct{}
-	removedschedule_users     map[int64]struct{}
-	clearedschedule_users     bool
-	proxy                     *int64
-	clearedproxy              bool
-	parent                    *int64
-	clearedparent             bool
-	children                  map[int64]struct{}
-	removedchildren           map[int64]struct{}
-	clearedchildren           bool
-	usage_logs                map[int64]struct{}
-	removedusage_logs         map[int64]struct{}
-	clearedusage_logs         bool
-	done                      bool
-	oldValue                  func(context.Context) (*Account, error)
-	predicates                []predicate.Account
+	op                          Op
+	typ                         string
+	id                          *int64
+	created_at                  *time.Time
+	updated_at                  *time.Time
+	deleted_at                  *time.Time
+	name                        *string
+	notes                       *string
+	platform                    *string
+	_type                       *string
+	credentials                 *map[string]interface{}
+	extra                       *map[string]interface{}
+	concurrency                 *int
+	addconcurrency              *int
+	load_factor                 *int
+	addload_factor              *int
+	priority                    *int
+	addpriority                 *int
+	rate_multiplier             *float64
+	addrate_multiplier          *float64
+	upstream_rate_multiplier    *float64
+	addupstream_rate_multiplier *float64
+	status                      *string
+	error_message               *string
+	last_used_at                *time.Time
+	expires_at                  *time.Time
+	auto_pause_on_expired       *bool
+	schedulable                 *bool
+	rate_limited_at             *time.Time
+	rate_limit_reset_at         *time.Time
+	overload_until              *time.Time
+	temp_unschedulable_until    *time.Time
+	temp_unschedulable_reason   *string
+	session_window_start        *time.Time
+	session_window_end          *time.Time
+	session_window_status       *string
+	quota_dimension             *account.QuotaDimension
+	user_schedule_mode          *string
+	clearedFields               map[string]struct{}
+	groups                      map[int64]struct{}
+	removedgroups               map[int64]struct{}
+	clearedgroups               bool
+	schedule_users              map[int64]struct{}
+	removedschedule_users       map[int64]struct{}
+	clearedschedule_users       bool
+	smart_schedule_users        map[int64]struct{}
+	removedsmart_schedule_users map[int64]struct{}
+	clearedsmart_schedule_users bool
+	proxy                       *int64
+	clearedproxy                bool
+	parent                      *int64
+	clearedparent               bool
+	children                    map[int64]struct{}
+	removedchildren             map[int64]struct{}
+	clearedchildren             bool
+	usage_logs                  map[int64]struct{}
+	removedusage_logs           map[int64]struct{}
+	clearedusage_logs           bool
+	done                        bool
+	oldValue                    func(context.Context) (*Account, error)
+	predicates                  []predicate.Account
 }
 
 var _ ent.Mutation = (*AccountMutation)(nil)
@@ -3605,6 +3614,62 @@ func (m *AccountMutation) AddedRateMultiplier() (r float64, exists bool) {
 func (m *AccountMutation) ResetRateMultiplier() {
 	m.rate_multiplier = nil
 	m.addrate_multiplier = nil
+}
+
+// SetUpstreamRateMultiplier sets the "upstream_rate_multiplier" field.
+func (m *AccountMutation) SetUpstreamRateMultiplier(f float64) {
+	m.upstream_rate_multiplier = &f
+	m.addupstream_rate_multiplier = nil
+}
+
+// UpstreamRateMultiplier returns the value of the "upstream_rate_multiplier" field in the mutation.
+func (m *AccountMutation) UpstreamRateMultiplier() (r float64, exists bool) {
+	v := m.upstream_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamRateMultiplier returns the old "upstream_rate_multiplier" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldUpstreamRateMultiplier(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamRateMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamRateMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamRateMultiplier: %w", err)
+	}
+	return oldValue.UpstreamRateMultiplier, nil
+}
+
+// AddUpstreamRateMultiplier adds f to the "upstream_rate_multiplier" field.
+func (m *AccountMutation) AddUpstreamRateMultiplier(f float64) {
+	if m.addupstream_rate_multiplier != nil {
+		*m.addupstream_rate_multiplier += f
+	} else {
+		m.addupstream_rate_multiplier = &f
+	}
+}
+
+// AddedUpstreamRateMultiplier returns the value that was added to the "upstream_rate_multiplier" field in this mutation.
+func (m *AccountMutation) AddedUpstreamRateMultiplier() (r float64, exists bool) {
+	v := m.addupstream_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUpstreamRateMultiplier resets all changes to the "upstream_rate_multiplier" field.
+func (m *AccountMutation) ResetUpstreamRateMultiplier() {
+	m.upstream_rate_multiplier = nil
+	m.addupstream_rate_multiplier = nil
 }
 
 // SetStatus sets the "status" field.
@@ -4483,6 +4548,60 @@ func (m *AccountMutation) ResetScheduleUsers() {
 	m.removedschedule_users = nil
 }
 
+// AddSmartScheduleUserIDs adds the "smart_schedule_users" edge to the User entity by ids.
+func (m *AccountMutation) AddSmartScheduleUserIDs(ids ...int64) {
+	if m.smart_schedule_users == nil {
+		m.smart_schedule_users = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.smart_schedule_users[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSmartScheduleUsers clears the "smart_schedule_users" edge to the User entity.
+func (m *AccountMutation) ClearSmartScheduleUsers() {
+	m.clearedsmart_schedule_users = true
+}
+
+// SmartScheduleUsersCleared reports if the "smart_schedule_users" edge to the User entity was cleared.
+func (m *AccountMutation) SmartScheduleUsersCleared() bool {
+	return m.clearedsmart_schedule_users
+}
+
+// RemoveSmartScheduleUserIDs removes the "smart_schedule_users" edge to the User entity by IDs.
+func (m *AccountMutation) RemoveSmartScheduleUserIDs(ids ...int64) {
+	if m.removedsmart_schedule_users == nil {
+		m.removedsmart_schedule_users = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.smart_schedule_users, ids[i])
+		m.removedsmart_schedule_users[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSmartScheduleUsers returns the removed IDs of the "smart_schedule_users" edge to the User entity.
+func (m *AccountMutation) RemovedSmartScheduleUsersIDs() (ids []int64) {
+	for id := range m.removedsmart_schedule_users {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SmartScheduleUsersIDs returns the "smart_schedule_users" edge IDs in the mutation.
+func (m *AccountMutation) SmartScheduleUsersIDs() (ids []int64) {
+	for id := range m.smart_schedule_users {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSmartScheduleUsers resets all changes to the "smart_schedule_users" edge.
+func (m *AccountMutation) ResetSmartScheduleUsers() {
+	m.smart_schedule_users = nil
+	m.clearedsmart_schedule_users = false
+	m.removedsmart_schedule_users = nil
+}
+
 // ClearProxy clears the "proxy" edge to the Proxy entity.
 func (m *AccountMutation) ClearProxy() {
 	m.clearedproxy = true
@@ -4692,7 +4811,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 32)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4734,6 +4853,9 @@ func (m *AccountMutation) Fields() []string {
 	}
 	if m.rate_multiplier != nil {
 		fields = append(fields, account.FieldRateMultiplier)
+	}
+	if m.upstream_rate_multiplier != nil {
+		fields = append(fields, account.FieldUpstreamRateMultiplier)
 	}
 	if m.status != nil {
 		fields = append(fields, account.FieldStatus)
@@ -4822,6 +4944,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.Priority()
 	case account.FieldRateMultiplier:
 		return m.RateMultiplier()
+	case account.FieldUpstreamRateMultiplier:
+		return m.UpstreamRateMultiplier()
 	case account.FieldStatus:
 		return m.Status()
 	case account.FieldErrorMessage:
@@ -4893,6 +5017,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldPriority(ctx)
 	case account.FieldRateMultiplier:
 		return m.OldRateMultiplier(ctx)
+	case account.FieldUpstreamRateMultiplier:
+		return m.OldUpstreamRateMultiplier(ctx)
 	case account.FieldStatus:
 		return m.OldStatus(ctx)
 	case account.FieldErrorMessage:
@@ -5034,6 +5160,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRateMultiplier(v)
 		return nil
+	case account.FieldUpstreamRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamRateMultiplier(v)
+		return nil
 	case account.FieldStatus:
 		v, ok := value.(string)
 		if !ok {
@@ -5173,6 +5306,9 @@ func (m *AccountMutation) AddedFields() []string {
 	if m.addrate_multiplier != nil {
 		fields = append(fields, account.FieldRateMultiplier)
 	}
+	if m.addupstream_rate_multiplier != nil {
+		fields = append(fields, account.FieldUpstreamRateMultiplier)
+	}
 	return fields
 }
 
@@ -5189,6 +5325,8 @@ func (m *AccountMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedPriority()
 	case account.FieldRateMultiplier:
 		return m.AddedRateMultiplier()
+	case account.FieldUpstreamRateMultiplier:
+		return m.AddedUpstreamRateMultiplier()
 	}
 	return nil, false
 }
@@ -5225,6 +5363,13 @@ func (m *AccountMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddRateMultiplier(v)
+		return nil
+	case account.FieldUpstreamRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUpstreamRateMultiplier(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Account numeric field %s", name)
@@ -5394,6 +5539,9 @@ func (m *AccountMutation) ResetField(name string) error {
 	case account.FieldRateMultiplier:
 		m.ResetRateMultiplier()
 		return nil
+	case account.FieldUpstreamRateMultiplier:
+		m.ResetUpstreamRateMultiplier()
+		return nil
 	case account.FieldStatus:
 		m.ResetStatus()
 		return nil
@@ -5451,12 +5599,15 @@ func (m *AccountMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *AccountMutation) AddedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.groups != nil {
 		edges = append(edges, account.EdgeGroups)
 	}
 	if m.schedule_users != nil {
 		edges = append(edges, account.EdgeScheduleUsers)
+	}
+	if m.smart_schedule_users != nil {
+		edges = append(edges, account.EdgeSmartScheduleUsers)
 	}
 	if m.proxy != nil {
 		edges = append(edges, account.EdgeProxy)
@@ -5489,6 +5640,12 @@ func (m *AccountMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case account.EdgeSmartScheduleUsers:
+		ids := make([]ent.Value, 0, len(m.smart_schedule_users))
+		for id := range m.smart_schedule_users {
+			ids = append(ids, id)
+		}
+		return ids
 	case account.EdgeProxy:
 		if id := m.proxy; id != nil {
 			return []ent.Value{*id}
@@ -5515,12 +5672,15 @@ func (m *AccountMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *AccountMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.removedgroups != nil {
 		edges = append(edges, account.EdgeGroups)
 	}
 	if m.removedschedule_users != nil {
 		edges = append(edges, account.EdgeScheduleUsers)
+	}
+	if m.removedsmart_schedule_users != nil {
+		edges = append(edges, account.EdgeSmartScheduleUsers)
 	}
 	if m.removedchildren != nil {
 		edges = append(edges, account.EdgeChildren)
@@ -5547,6 +5707,12 @@ func (m *AccountMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case account.EdgeSmartScheduleUsers:
+		ids := make([]ent.Value, 0, len(m.removedsmart_schedule_users))
+		for id := range m.removedsmart_schedule_users {
+			ids = append(ids, id)
+		}
+		return ids
 	case account.EdgeChildren:
 		ids := make([]ent.Value, 0, len(m.removedchildren))
 		for id := range m.removedchildren {
@@ -5565,12 +5731,15 @@ func (m *AccountMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *AccountMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.clearedgroups {
 		edges = append(edges, account.EdgeGroups)
 	}
 	if m.clearedschedule_users {
 		edges = append(edges, account.EdgeScheduleUsers)
+	}
+	if m.clearedsmart_schedule_users {
+		edges = append(edges, account.EdgeSmartScheduleUsers)
 	}
 	if m.clearedproxy {
 		edges = append(edges, account.EdgeProxy)
@@ -5595,6 +5764,8 @@ func (m *AccountMutation) EdgeCleared(name string) bool {
 		return m.clearedgroups
 	case account.EdgeScheduleUsers:
 		return m.clearedschedule_users
+	case account.EdgeSmartScheduleUsers:
+		return m.clearedsmart_schedule_users
 	case account.EdgeProxy:
 		return m.clearedproxy
 	case account.EdgeParent:
@@ -5630,6 +5801,9 @@ func (m *AccountMutation) ResetEdge(name string) error {
 		return nil
 	case account.EdgeScheduleUsers:
 		m.ResetScheduleUsers()
+		return nil
+	case account.EdgeSmartScheduleUsers:
+		m.ResetSmartScheduleUsers()
 		return nil
 	case account.EdgeProxy:
 		m.ResetProxy()
@@ -54504,6 +54678,12 @@ type UserMutation struct {
 	platform_quotas                 map[int64]struct{}
 	removedplatform_quotas          map[int64]struct{}
 	clearedplatform_quotas          bool
+	smart_schedule_policies         map[int64]struct{}
+	removedsmart_schedule_policies  map[int64]struct{}
+	clearedsmart_schedule_policies  bool
+	smart_schedule_accounts         map[int64]struct{}
+	removedsmart_schedule_accounts  map[int64]struct{}
+	clearedsmart_schedule_accounts  bool
 	done                            bool
 	oldValue                        func(context.Context) (*User, error)
 	predicates                      []predicate.User
@@ -56581,6 +56761,114 @@ func (m *UserMutation) ResetPlatformQuotas() {
 	m.removedplatform_quotas = nil
 }
 
+// AddSmartSchedulePolicyIDs adds the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity by ids.
+func (m *UserMutation) AddSmartSchedulePolicyIDs(ids ...int64) {
+	if m.smart_schedule_policies == nil {
+		m.smart_schedule_policies = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.smart_schedule_policies[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSmartSchedulePolicies clears the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity.
+func (m *UserMutation) ClearSmartSchedulePolicies() {
+	m.clearedsmart_schedule_policies = true
+}
+
+// SmartSchedulePoliciesCleared reports if the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity was cleared.
+func (m *UserMutation) SmartSchedulePoliciesCleared() bool {
+	return m.clearedsmart_schedule_policies
+}
+
+// RemoveSmartSchedulePolicyIDs removes the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity by IDs.
+func (m *UserMutation) RemoveSmartSchedulePolicyIDs(ids ...int64) {
+	if m.removedsmart_schedule_policies == nil {
+		m.removedsmart_schedule_policies = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.smart_schedule_policies, ids[i])
+		m.removedsmart_schedule_policies[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSmartSchedulePolicies returns the removed IDs of the "smart_schedule_policies" edge to the UserSmartSchedulePolicy entity.
+func (m *UserMutation) RemovedSmartSchedulePoliciesIDs() (ids []int64) {
+	for id := range m.removedsmart_schedule_policies {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SmartSchedulePoliciesIDs returns the "smart_schedule_policies" edge IDs in the mutation.
+func (m *UserMutation) SmartSchedulePoliciesIDs() (ids []int64) {
+	for id := range m.smart_schedule_policies {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSmartSchedulePolicies resets all changes to the "smart_schedule_policies" edge.
+func (m *UserMutation) ResetSmartSchedulePolicies() {
+	m.smart_schedule_policies = nil
+	m.clearedsmart_schedule_policies = false
+	m.removedsmart_schedule_policies = nil
+}
+
+// AddSmartScheduleAccountIDs adds the "smart_schedule_accounts" edge to the Account entity by ids.
+func (m *UserMutation) AddSmartScheduleAccountIDs(ids ...int64) {
+	if m.smart_schedule_accounts == nil {
+		m.smart_schedule_accounts = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.smart_schedule_accounts[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSmartScheduleAccounts clears the "smart_schedule_accounts" edge to the Account entity.
+func (m *UserMutation) ClearSmartScheduleAccounts() {
+	m.clearedsmart_schedule_accounts = true
+}
+
+// SmartScheduleAccountsCleared reports if the "smart_schedule_accounts" edge to the Account entity was cleared.
+func (m *UserMutation) SmartScheduleAccountsCleared() bool {
+	return m.clearedsmart_schedule_accounts
+}
+
+// RemoveSmartScheduleAccountIDs removes the "smart_schedule_accounts" edge to the Account entity by IDs.
+func (m *UserMutation) RemoveSmartScheduleAccountIDs(ids ...int64) {
+	if m.removedsmart_schedule_accounts == nil {
+		m.removedsmart_schedule_accounts = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.smart_schedule_accounts, ids[i])
+		m.removedsmart_schedule_accounts[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSmartScheduleAccounts returns the removed IDs of the "smart_schedule_accounts" edge to the Account entity.
+func (m *UserMutation) RemovedSmartScheduleAccountsIDs() (ids []int64) {
+	for id := range m.removedsmart_schedule_accounts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SmartScheduleAccountsIDs returns the "smart_schedule_accounts" edge IDs in the mutation.
+func (m *UserMutation) SmartScheduleAccountsIDs() (ids []int64) {
+	for id := range m.smart_schedule_accounts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSmartScheduleAccounts resets all changes to the "smart_schedule_accounts" edge.
+func (m *UserMutation) ResetSmartScheduleAccounts() {
+	m.smart_schedule_accounts = nil
+	m.clearedsmart_schedule_accounts = false
+	m.removedsmart_schedule_accounts = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -57294,7 +57582,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 16)
 	if m.api_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -57336,6 +57624,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.platform_quotas != nil {
 		edges = append(edges, user.EdgePlatformQuotas)
+	}
+	if m.smart_schedule_policies != nil {
+		edges = append(edges, user.EdgeSmartSchedulePolicies)
+	}
+	if m.smart_schedule_accounts != nil {
+		edges = append(edges, user.EdgeSmartScheduleAccounts)
 	}
 	return edges
 }
@@ -57428,13 +57722,25 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeSmartSchedulePolicies:
+		ids := make([]ent.Value, 0, len(m.smart_schedule_policies))
+		for id := range m.smart_schedule_policies {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeSmartScheduleAccounts:
+		ids := make([]ent.Value, 0, len(m.smart_schedule_accounts))
+		for id := range m.smart_schedule_accounts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 16)
 	if m.removedapi_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -57476,6 +57782,12 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedplatform_quotas != nil {
 		edges = append(edges, user.EdgePlatformQuotas)
+	}
+	if m.removedsmart_schedule_policies != nil {
+		edges = append(edges, user.EdgeSmartSchedulePolicies)
+	}
+	if m.removedsmart_schedule_accounts != nil {
+		edges = append(edges, user.EdgeSmartScheduleAccounts)
 	}
 	return edges
 }
@@ -57568,13 +57880,25 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeSmartSchedulePolicies:
+		ids := make([]ent.Value, 0, len(m.removedsmart_schedule_policies))
+		for id := range m.removedsmart_schedule_policies {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeSmartScheduleAccounts:
+		ids := make([]ent.Value, 0, len(m.removedsmart_schedule_accounts))
+		for id := range m.removedsmart_schedule_accounts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 16)
 	if m.clearedapi_keys {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -57617,6 +57941,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedplatform_quotas {
 		edges = append(edges, user.EdgePlatformQuotas)
 	}
+	if m.clearedsmart_schedule_policies {
+		edges = append(edges, user.EdgeSmartSchedulePolicies)
+	}
+	if m.clearedsmart_schedule_accounts {
+		edges = append(edges, user.EdgeSmartScheduleAccounts)
+	}
 	return edges
 }
 
@@ -57652,6 +57982,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedpending_auth_sessions
 	case user.EdgePlatformQuotas:
 		return m.clearedplatform_quotas
+	case user.EdgeSmartSchedulePolicies:
+		return m.clearedsmart_schedule_policies
+	case user.EdgeSmartScheduleAccounts:
+		return m.clearedsmart_schedule_accounts
 	}
 	return false
 }
@@ -57709,6 +58043,12 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgePlatformQuotas:
 		m.ResetPlatformQuotas()
+		return nil
+	case user.EdgeSmartSchedulePolicies:
+		m.ResetSmartSchedulePolicies()
+		return nil
+	case user.EdgeSmartScheduleAccounts:
+		m.ResetSmartScheduleAccounts()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
@@ -61350,6 +61690,1739 @@ func (m *UserPlatformQuotaMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown UserPlatformQuota edge %s", name)
+}
+
+// UserSmartScheduleAccountMutation represents an operation that mutates the UserSmartScheduleAccount nodes in the graph.
+type UserSmartScheduleAccountMutation struct {
+	config
+	op                 Op
+	typ                string
+	created_at         *time.Time
+	platform           *string
+	max_concurrency    *int
+	addmax_concurrency *int
+	clearedFields      map[string]struct{}
+	user               *int64
+	cleareduser        bool
+	account            *int64
+	clearedaccount     bool
+	done               bool
+	oldValue           func(context.Context) (*UserSmartScheduleAccount, error)
+	predicates         []predicate.UserSmartScheduleAccount
+}
+
+var _ ent.Mutation = (*UserSmartScheduleAccountMutation)(nil)
+
+// usersmartscheduleaccountOption allows management of the mutation configuration using functional options.
+type usersmartscheduleaccountOption func(*UserSmartScheduleAccountMutation)
+
+// newUserSmartScheduleAccountMutation creates new mutation for the UserSmartScheduleAccount entity.
+func newUserSmartScheduleAccountMutation(c config, op Op, opts ...usersmartscheduleaccountOption) *UserSmartScheduleAccountMutation {
+	m := &UserSmartScheduleAccountMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeUserSmartScheduleAccount,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m UserSmartScheduleAccountMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m UserSmartScheduleAccountMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *UserSmartScheduleAccountMutation) SetAccountID(i int64) {
+	m.account = &i
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) AccountID() (r int64, exists bool) {
+	v := m.account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *UserSmartScheduleAccountMutation) ResetAccountID() {
+	m.account = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *UserSmartScheduleAccountMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *UserSmartScheduleAccountMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *UserSmartScheduleAccountMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *UserSmartScheduleAccountMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetPlatform sets the "platform" field.
+func (m *UserSmartScheduleAccountMutation) SetPlatform(s string) {
+	m.platform = &s
+}
+
+// Platform returns the value of the "platform" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) Platform() (r string, exists bool) {
+	v := m.platform
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPlatform resets all changes to the "platform" field.
+func (m *UserSmartScheduleAccountMutation) ResetPlatform() {
+	m.platform = nil
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (m *UserSmartScheduleAccountMutation) SetMaxConcurrency(i int) {
+	m.max_concurrency = &i
+	m.addmax_concurrency = nil
+}
+
+// MaxConcurrency returns the value of the "max_concurrency" field in the mutation.
+func (m *UserSmartScheduleAccountMutation) MaxConcurrency() (r int, exists bool) {
+	v := m.max_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddMaxConcurrency adds i to the "max_concurrency" field.
+func (m *UserSmartScheduleAccountMutation) AddMaxConcurrency(i int) {
+	if m.addmax_concurrency != nil {
+		*m.addmax_concurrency += i
+	} else {
+		m.addmax_concurrency = &i
+	}
+}
+
+// AddedMaxConcurrency returns the value that was added to the "max_concurrency" field in this mutation.
+func (m *UserSmartScheduleAccountMutation) AddedMaxConcurrency() (r int, exists bool) {
+	v := m.addmax_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (m *UserSmartScheduleAccountMutation) ClearMaxConcurrency() {
+	m.max_concurrency = nil
+	m.addmax_concurrency = nil
+	m.clearedFields[usersmartscheduleaccount.FieldMaxConcurrency] = struct{}{}
+}
+
+// MaxConcurrencyCleared returns if the "max_concurrency" field was cleared in this mutation.
+func (m *UserSmartScheduleAccountMutation) MaxConcurrencyCleared() bool {
+	_, ok := m.clearedFields[usersmartscheduleaccount.FieldMaxConcurrency]
+	return ok
+}
+
+// ResetMaxConcurrency resets all changes to the "max_concurrency" field.
+func (m *UserSmartScheduleAccountMutation) ResetMaxConcurrency() {
+	m.max_concurrency = nil
+	m.addmax_concurrency = nil
+	delete(m.clearedFields, usersmartscheduleaccount.FieldMaxConcurrency)
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *UserSmartScheduleAccountMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[usersmartscheduleaccount.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *UserSmartScheduleAccountMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *UserSmartScheduleAccountMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *UserSmartScheduleAccountMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// ClearAccount clears the "account" edge to the Account entity.
+func (m *UserSmartScheduleAccountMutation) ClearAccount() {
+	m.clearedaccount = true
+	m.clearedFields[usersmartscheduleaccount.FieldAccountID] = struct{}{}
+}
+
+// AccountCleared reports if the "account" edge to the Account entity was cleared.
+func (m *UserSmartScheduleAccountMutation) AccountCleared() bool {
+	return m.clearedaccount
+}
+
+// AccountIDs returns the "account" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AccountID instead. It exists only for internal usage by the builders.
+func (m *UserSmartScheduleAccountMutation) AccountIDs() (ids []int64) {
+	if id := m.account; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAccount resets all changes to the "account" edge.
+func (m *UserSmartScheduleAccountMutation) ResetAccount() {
+	m.account = nil
+	m.clearedaccount = false
+}
+
+// Where appends a list predicates to the UserSmartScheduleAccountMutation builder.
+func (m *UserSmartScheduleAccountMutation) Where(ps ...predicate.UserSmartScheduleAccount) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the UserSmartScheduleAccountMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *UserSmartScheduleAccountMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.UserSmartScheduleAccount, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *UserSmartScheduleAccountMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *UserSmartScheduleAccountMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (UserSmartScheduleAccount).
+func (m *UserSmartScheduleAccountMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *UserSmartScheduleAccountMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.account != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldAccountID)
+	}
+	if m.user != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldUserID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldCreatedAt)
+	}
+	if m.platform != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldPlatform)
+	}
+	if m.max_concurrency != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *UserSmartScheduleAccountMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case usersmartscheduleaccount.FieldAccountID:
+		return m.AccountID()
+	case usersmartscheduleaccount.FieldUserID:
+		return m.UserID()
+	case usersmartscheduleaccount.FieldCreatedAt:
+		return m.CreatedAt()
+	case usersmartscheduleaccount.FieldPlatform:
+		return m.Platform()
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		return m.MaxConcurrency()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *UserSmartScheduleAccountMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	return nil, errors.New("edge schema UserSmartScheduleAccount does not support getting old values")
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UserSmartScheduleAccountMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case usersmartscheduleaccount.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case usersmartscheduleaccount.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case usersmartscheduleaccount.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case usersmartscheduleaccount.FieldPlatform:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlatform(v)
+		return nil
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxConcurrency(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *UserSmartScheduleAccountMutation) AddedFields() []string {
+	var fields []string
+	if m.addmax_concurrency != nil {
+		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *UserSmartScheduleAccountMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		return m.AddedMaxConcurrency()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UserSmartScheduleAccountMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxConcurrency(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *UserSmartScheduleAccountMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(usersmartscheduleaccount.FieldMaxConcurrency) {
+		fields = append(fields, usersmartscheduleaccount.FieldMaxConcurrency)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *UserSmartScheduleAccountMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *UserSmartScheduleAccountMutation) ClearField(name string) error {
+	switch name {
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		m.ClearMaxConcurrency()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *UserSmartScheduleAccountMutation) ResetField(name string) error {
+	switch name {
+	case usersmartscheduleaccount.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case usersmartscheduleaccount.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case usersmartscheduleaccount.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case usersmartscheduleaccount.FieldPlatform:
+		m.ResetPlatform()
+		return nil
+	case usersmartscheduleaccount.FieldMaxConcurrency:
+		m.ResetMaxConcurrency()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *UserSmartScheduleAccountMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.user != nil {
+		edges = append(edges, usersmartscheduleaccount.EdgeUser)
+	}
+	if m.account != nil {
+		edges = append(edges, usersmartscheduleaccount.EdgeAccount)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *UserSmartScheduleAccountMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case usersmartscheduleaccount.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	case usersmartscheduleaccount.EdgeAccount:
+		if id := m.account; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *UserSmartScheduleAccountMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *UserSmartScheduleAccountMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *UserSmartScheduleAccountMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.cleareduser {
+		edges = append(edges, usersmartscheduleaccount.EdgeUser)
+	}
+	if m.clearedaccount {
+		edges = append(edges, usersmartscheduleaccount.EdgeAccount)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *UserSmartScheduleAccountMutation) EdgeCleared(name string) bool {
+	switch name {
+	case usersmartscheduleaccount.EdgeUser:
+		return m.cleareduser
+	case usersmartscheduleaccount.EdgeAccount:
+		return m.clearedaccount
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *UserSmartScheduleAccountMutation) ClearEdge(name string) error {
+	switch name {
+	case usersmartscheduleaccount.EdgeUser:
+		m.ClearUser()
+		return nil
+	case usersmartscheduleaccount.EdgeAccount:
+		m.ClearAccount()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *UserSmartScheduleAccountMutation) ResetEdge(name string) error {
+	switch name {
+	case usersmartscheduleaccount.EdgeUser:
+		m.ResetUser()
+		return nil
+	case usersmartscheduleaccount.EdgeAccount:
+		m.ResetAccount()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartScheduleAccount edge %s", name)
+}
+
+// UserSmartSchedulePolicyMutation represents an operation that mutates the UserSmartSchedulePolicy nodes in the graph.
+type UserSmartSchedulePolicyMutation struct {
+	config
+	op                             Op
+	typ                            string
+	id                             *int64
+	created_at                     *time.Time
+	updated_at                     *time.Time
+	platform                       *string
+	enabled                        *bool
+	quality_max_p50_ttft_ms        *int
+	addquality_max_p50_ttft_ms     *int
+	quality_min_success_rate       *float64
+	addquality_min_success_rate    *float64
+	quality_min_success_samples    *int
+	addquality_min_success_samples *int
+	quality_min_ttft_samples       *int
+	addquality_min_ttft_samples    *int
+	quality_condition              *string
+	cooldown_minutes               *int
+	addcooldown_minutes            *int
+	clearedFields                  map[string]struct{}
+	user                           *int64
+	cleareduser                    bool
+	done                           bool
+	oldValue                       func(context.Context) (*UserSmartSchedulePolicy, error)
+	predicates                     []predicate.UserSmartSchedulePolicy
+}
+
+var _ ent.Mutation = (*UserSmartSchedulePolicyMutation)(nil)
+
+// usersmartschedulepolicyOption allows management of the mutation configuration using functional options.
+type usersmartschedulepolicyOption func(*UserSmartSchedulePolicyMutation)
+
+// newUserSmartSchedulePolicyMutation creates new mutation for the UserSmartSchedulePolicy entity.
+func newUserSmartSchedulePolicyMutation(c config, op Op, opts ...usersmartschedulepolicyOption) *UserSmartSchedulePolicyMutation {
+	m := &UserSmartSchedulePolicyMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeUserSmartSchedulePolicy,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withUserSmartSchedulePolicyID sets the ID field of the mutation.
+func withUserSmartSchedulePolicyID(id int64) usersmartschedulepolicyOption {
+	return func(m *UserSmartSchedulePolicyMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *UserSmartSchedulePolicy
+		)
+		m.oldValue = func(ctx context.Context) (*UserSmartSchedulePolicy, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().UserSmartSchedulePolicy.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withUserSmartSchedulePolicy sets the old UserSmartSchedulePolicy of the mutation.
+func withUserSmartSchedulePolicy(node *UserSmartSchedulePolicy) usersmartschedulepolicyOption {
+	return func(m *UserSmartSchedulePolicyMutation) {
+		m.oldValue = func(context.Context) (*UserSmartSchedulePolicy, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m UserSmartSchedulePolicyMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m UserSmartSchedulePolicyMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *UserSmartSchedulePolicyMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *UserSmartSchedulePolicyMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().UserSmartSchedulePolicy.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *UserSmartSchedulePolicyMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *UserSmartSchedulePolicyMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *UserSmartSchedulePolicyMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *UserSmartSchedulePolicyMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *UserSmartSchedulePolicyMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *UserSmartSchedulePolicyMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetPlatform sets the "platform" field.
+func (m *UserSmartSchedulePolicyMutation) SetPlatform(s string) {
+	m.platform = &s
+}
+
+// Platform returns the value of the "platform" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) Platform() (r string, exists bool) {
+	v := m.platform
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlatform returns the old "platform" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldPlatform(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlatform is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlatform requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlatform: %w", err)
+	}
+	return oldValue.Platform, nil
+}
+
+// ResetPlatform resets all changes to the "platform" field.
+func (m *UserSmartSchedulePolicyMutation) ResetPlatform() {
+	m.platform = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *UserSmartSchedulePolicyMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *UserSmartSchedulePolicyMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (m *UserSmartSchedulePolicyMutation) SetQualityMaxP50TtftMs(i int) {
+	m.quality_max_p50_ttft_ms = &i
+	m.addquality_max_p50_ttft_ms = nil
+}
+
+// QualityMaxP50TtftMs returns the value of the "quality_max_p50_ttft_ms" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMaxP50TtftMs() (r int, exists bool) {
+	v := m.quality_max_p50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityMaxP50TtftMs returns the old "quality_max_p50_ttft_ms" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldQualityMaxP50TtftMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityMaxP50TtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityMaxP50TtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityMaxP50TtftMs: %w", err)
+	}
+	return oldValue.QualityMaxP50TtftMs, nil
+}
+
+// AddQualityMaxP50TtftMs adds i to the "quality_max_p50_ttft_ms" field.
+func (m *UserSmartSchedulePolicyMutation) AddQualityMaxP50TtftMs(i int) {
+	if m.addquality_max_p50_ttft_ms != nil {
+		*m.addquality_max_p50_ttft_ms += i
+	} else {
+		m.addquality_max_p50_ttft_ms = &i
+	}
+}
+
+// AddedQualityMaxP50TtftMs returns the value that was added to the "quality_max_p50_ttft_ms" field in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedQualityMaxP50TtftMs() (r int, exists bool) {
+	v := m.addquality_max_p50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (m *UserSmartSchedulePolicyMutation) ClearQualityMaxP50TtftMs() {
+	m.quality_max_p50_ttft_ms = nil
+	m.addquality_max_p50_ttft_ms = nil
+	m.clearedFields[usersmartschedulepolicy.FieldQualityMaxP50TtftMs] = struct{}{}
+}
+
+// QualityMaxP50TtftMsCleared returns if the "quality_max_p50_ttft_ms" field was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMaxP50TtftMsCleared() bool {
+	_, ok := m.clearedFields[usersmartschedulepolicy.FieldQualityMaxP50TtftMs]
+	return ok
+}
+
+// ResetQualityMaxP50TtftMs resets all changes to the "quality_max_p50_ttft_ms" field.
+func (m *UserSmartSchedulePolicyMutation) ResetQualityMaxP50TtftMs() {
+	m.quality_max_p50_ttft_ms = nil
+	m.addquality_max_p50_ttft_ms = nil
+	delete(m.clearedFields, usersmartschedulepolicy.FieldQualityMaxP50TtftMs)
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (m *UserSmartSchedulePolicyMutation) SetQualityMinSuccessRate(f float64) {
+	m.quality_min_success_rate = &f
+	m.addquality_min_success_rate = nil
+}
+
+// QualityMinSuccessRate returns the value of the "quality_min_success_rate" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinSuccessRate() (r float64, exists bool) {
+	v := m.quality_min_success_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityMinSuccessRate returns the old "quality_min_success_rate" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldQualityMinSuccessRate(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityMinSuccessRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityMinSuccessRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityMinSuccessRate: %w", err)
+	}
+	return oldValue.QualityMinSuccessRate, nil
+}
+
+// AddQualityMinSuccessRate adds f to the "quality_min_success_rate" field.
+func (m *UserSmartSchedulePolicyMutation) AddQualityMinSuccessRate(f float64) {
+	if m.addquality_min_success_rate != nil {
+		*m.addquality_min_success_rate += f
+	} else {
+		m.addquality_min_success_rate = &f
+	}
+}
+
+// AddedQualityMinSuccessRate returns the value that was added to the "quality_min_success_rate" field in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedQualityMinSuccessRate() (r float64, exists bool) {
+	v := m.addquality_min_success_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (m *UserSmartSchedulePolicyMutation) ClearQualityMinSuccessRate() {
+	m.quality_min_success_rate = nil
+	m.addquality_min_success_rate = nil
+	m.clearedFields[usersmartschedulepolicy.FieldQualityMinSuccessRate] = struct{}{}
+}
+
+// QualityMinSuccessRateCleared returns if the "quality_min_success_rate" field was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinSuccessRateCleared() bool {
+	_, ok := m.clearedFields[usersmartschedulepolicy.FieldQualityMinSuccessRate]
+	return ok
+}
+
+// ResetQualityMinSuccessRate resets all changes to the "quality_min_success_rate" field.
+func (m *UserSmartSchedulePolicyMutation) ResetQualityMinSuccessRate() {
+	m.quality_min_success_rate = nil
+	m.addquality_min_success_rate = nil
+	delete(m.clearedFields, usersmartschedulepolicy.FieldQualityMinSuccessRate)
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (m *UserSmartSchedulePolicyMutation) SetQualityMinSuccessSamples(i int) {
+	m.quality_min_success_samples = &i
+	m.addquality_min_success_samples = nil
+}
+
+// QualityMinSuccessSamples returns the value of the "quality_min_success_samples" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinSuccessSamples() (r int, exists bool) {
+	v := m.quality_min_success_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityMinSuccessSamples returns the old "quality_min_success_samples" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldQualityMinSuccessSamples(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityMinSuccessSamples is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityMinSuccessSamples requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityMinSuccessSamples: %w", err)
+	}
+	return oldValue.QualityMinSuccessSamples, nil
+}
+
+// AddQualityMinSuccessSamples adds i to the "quality_min_success_samples" field.
+func (m *UserSmartSchedulePolicyMutation) AddQualityMinSuccessSamples(i int) {
+	if m.addquality_min_success_samples != nil {
+		*m.addquality_min_success_samples += i
+	} else {
+		m.addquality_min_success_samples = &i
+	}
+}
+
+// AddedQualityMinSuccessSamples returns the value that was added to the "quality_min_success_samples" field in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedQualityMinSuccessSamples() (r int, exists bool) {
+	v := m.addquality_min_success_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (m *UserSmartSchedulePolicyMutation) ClearQualityMinSuccessSamples() {
+	m.quality_min_success_samples = nil
+	m.addquality_min_success_samples = nil
+	m.clearedFields[usersmartschedulepolicy.FieldQualityMinSuccessSamples] = struct{}{}
+}
+
+// QualityMinSuccessSamplesCleared returns if the "quality_min_success_samples" field was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinSuccessSamplesCleared() bool {
+	_, ok := m.clearedFields[usersmartschedulepolicy.FieldQualityMinSuccessSamples]
+	return ok
+}
+
+// ResetQualityMinSuccessSamples resets all changes to the "quality_min_success_samples" field.
+func (m *UserSmartSchedulePolicyMutation) ResetQualityMinSuccessSamples() {
+	m.quality_min_success_samples = nil
+	m.addquality_min_success_samples = nil
+	delete(m.clearedFields, usersmartschedulepolicy.FieldQualityMinSuccessSamples)
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (m *UserSmartSchedulePolicyMutation) SetQualityMinTtftSamples(i int) {
+	m.quality_min_ttft_samples = &i
+	m.addquality_min_ttft_samples = nil
+}
+
+// QualityMinTtftSamples returns the value of the "quality_min_ttft_samples" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinTtftSamples() (r int, exists bool) {
+	v := m.quality_min_ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityMinTtftSamples returns the old "quality_min_ttft_samples" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldQualityMinTtftSamples(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityMinTtftSamples is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityMinTtftSamples requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityMinTtftSamples: %w", err)
+	}
+	return oldValue.QualityMinTtftSamples, nil
+}
+
+// AddQualityMinTtftSamples adds i to the "quality_min_ttft_samples" field.
+func (m *UserSmartSchedulePolicyMutation) AddQualityMinTtftSamples(i int) {
+	if m.addquality_min_ttft_samples != nil {
+		*m.addquality_min_ttft_samples += i
+	} else {
+		m.addquality_min_ttft_samples = &i
+	}
+}
+
+// AddedQualityMinTtftSamples returns the value that was added to the "quality_min_ttft_samples" field in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedQualityMinTtftSamples() (r int, exists bool) {
+	v := m.addquality_min_ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (m *UserSmartSchedulePolicyMutation) ClearQualityMinTtftSamples() {
+	m.quality_min_ttft_samples = nil
+	m.addquality_min_ttft_samples = nil
+	m.clearedFields[usersmartschedulepolicy.FieldQualityMinTtftSamples] = struct{}{}
+}
+
+// QualityMinTtftSamplesCleared returns if the "quality_min_ttft_samples" field was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityMinTtftSamplesCleared() bool {
+	_, ok := m.clearedFields[usersmartschedulepolicy.FieldQualityMinTtftSamples]
+	return ok
+}
+
+// ResetQualityMinTtftSamples resets all changes to the "quality_min_ttft_samples" field.
+func (m *UserSmartSchedulePolicyMutation) ResetQualityMinTtftSamples() {
+	m.quality_min_ttft_samples = nil
+	m.addquality_min_ttft_samples = nil
+	delete(m.clearedFields, usersmartschedulepolicy.FieldQualityMinTtftSamples)
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (m *UserSmartSchedulePolicyMutation) SetQualityCondition(s string) {
+	m.quality_condition = &s
+}
+
+// QualityCondition returns the value of the "quality_condition" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityCondition() (r string, exists bool) {
+	v := m.quality_condition
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityCondition returns the old "quality_condition" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldQualityCondition(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityCondition is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityCondition requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityCondition: %w", err)
+	}
+	return oldValue.QualityCondition, nil
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (m *UserSmartSchedulePolicyMutation) ClearQualityCondition() {
+	m.quality_condition = nil
+	m.clearedFields[usersmartschedulepolicy.FieldQualityCondition] = struct{}{}
+}
+
+// QualityConditionCleared returns if the "quality_condition" field was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) QualityConditionCleared() bool {
+	_, ok := m.clearedFields[usersmartschedulepolicy.FieldQualityCondition]
+	return ok
+}
+
+// ResetQualityCondition resets all changes to the "quality_condition" field.
+func (m *UserSmartSchedulePolicyMutation) ResetQualityCondition() {
+	m.quality_condition = nil
+	delete(m.clearedFields, usersmartschedulepolicy.FieldQualityCondition)
+}
+
+// SetCooldownMinutes sets the "cooldown_minutes" field.
+func (m *UserSmartSchedulePolicyMutation) SetCooldownMinutes(i int) {
+	m.cooldown_minutes = &i
+	m.addcooldown_minutes = nil
+}
+
+// CooldownMinutes returns the value of the "cooldown_minutes" field in the mutation.
+func (m *UserSmartSchedulePolicyMutation) CooldownMinutes() (r int, exists bool) {
+	v := m.cooldown_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCooldownMinutes returns the old "cooldown_minutes" field's value of the UserSmartSchedulePolicy entity.
+// If the UserSmartSchedulePolicy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSmartSchedulePolicyMutation) OldCooldownMinutes(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCooldownMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCooldownMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCooldownMinutes: %w", err)
+	}
+	return oldValue.CooldownMinutes, nil
+}
+
+// AddCooldownMinutes adds i to the "cooldown_minutes" field.
+func (m *UserSmartSchedulePolicyMutation) AddCooldownMinutes(i int) {
+	if m.addcooldown_minutes != nil {
+		*m.addcooldown_minutes += i
+	} else {
+		m.addcooldown_minutes = &i
+	}
+}
+
+// AddedCooldownMinutes returns the value that was added to the "cooldown_minutes" field in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedCooldownMinutes() (r int, exists bool) {
+	v := m.addcooldown_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCooldownMinutes resets all changes to the "cooldown_minutes" field.
+func (m *UserSmartSchedulePolicyMutation) ResetCooldownMinutes() {
+	m.cooldown_minutes = nil
+	m.addcooldown_minutes = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *UserSmartSchedulePolicyMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[usersmartschedulepolicy.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *UserSmartSchedulePolicyMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *UserSmartSchedulePolicyMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *UserSmartSchedulePolicyMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the UserSmartSchedulePolicyMutation builder.
+func (m *UserSmartSchedulePolicyMutation) Where(ps ...predicate.UserSmartSchedulePolicy) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the UserSmartSchedulePolicyMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *UserSmartSchedulePolicyMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.UserSmartSchedulePolicy, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *UserSmartSchedulePolicyMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *UserSmartSchedulePolicyMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (UserSmartSchedulePolicy).
+func (m *UserSmartSchedulePolicyMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *UserSmartSchedulePolicyMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.created_at != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldUpdatedAt)
+	}
+	if m.user != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldUserID)
+	}
+	if m.platform != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldPlatform)
+	}
+	if m.enabled != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldEnabled)
+	}
+	if m.quality_max_p50_ttft_ms != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMaxP50TtftMs)
+	}
+	if m.quality_min_success_rate != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessRate)
+	}
+	if m.quality_min_success_samples != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessSamples)
+	}
+	if m.quality_min_ttft_samples != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinTtftSamples)
+	}
+	if m.quality_condition != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityCondition)
+	}
+	if m.cooldown_minutes != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldCooldownMinutes)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *UserSmartSchedulePolicyMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case usersmartschedulepolicy.FieldCreatedAt:
+		return m.CreatedAt()
+	case usersmartschedulepolicy.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case usersmartschedulepolicy.FieldUserID:
+		return m.UserID()
+	case usersmartschedulepolicy.FieldPlatform:
+		return m.Platform()
+	case usersmartschedulepolicy.FieldEnabled:
+		return m.Enabled()
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		return m.QualityMaxP50TtftMs()
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		return m.QualityMinSuccessRate()
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		return m.QualityMinSuccessSamples()
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		return m.QualityMinTtftSamples()
+	case usersmartschedulepolicy.FieldQualityCondition:
+		return m.QualityCondition()
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		return m.CooldownMinutes()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *UserSmartSchedulePolicyMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case usersmartschedulepolicy.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case usersmartschedulepolicy.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case usersmartschedulepolicy.FieldUserID:
+		return m.OldUserID(ctx)
+	case usersmartschedulepolicy.FieldPlatform:
+		return m.OldPlatform(ctx)
+	case usersmartschedulepolicy.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		return m.OldQualityMaxP50TtftMs(ctx)
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		return m.OldQualityMinSuccessRate(ctx)
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		return m.OldQualityMinSuccessSamples(ctx)
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		return m.OldQualityMinTtftSamples(ctx)
+	case usersmartschedulepolicy.FieldQualityCondition:
+		return m.OldQualityCondition(ctx)
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		return m.OldCooldownMinutes(ctx)
+	}
+	return nil, fmt.Errorf("unknown UserSmartSchedulePolicy field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UserSmartSchedulePolicyMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case usersmartschedulepolicy.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case usersmartschedulepolicy.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case usersmartschedulepolicy.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case usersmartschedulepolicy.FieldPlatform:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlatform(v)
+		return nil
+	case usersmartschedulepolicy.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMaxP50TtftMs(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinSuccessRate(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinSuccessSamples(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinTtftSamples(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityCondition:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityCondition(v)
+		return nil
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCooldownMinutes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedFields() []string {
+	var fields []string
+	if m.addquality_max_p50_ttft_ms != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMaxP50TtftMs)
+	}
+	if m.addquality_min_success_rate != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessRate)
+	}
+	if m.addquality_min_success_samples != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessSamples)
+	}
+	if m.addquality_min_ttft_samples != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinTtftSamples)
+	}
+	if m.addcooldown_minutes != nil {
+		fields = append(fields, usersmartschedulepolicy.FieldCooldownMinutes)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *UserSmartSchedulePolicyMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		return m.AddedQualityMaxP50TtftMs()
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		return m.AddedQualityMinSuccessRate()
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		return m.AddedQualityMinSuccessSamples()
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		return m.AddedQualityMinTtftSamples()
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		return m.AddedCooldownMinutes()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UserSmartSchedulePolicyMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMaxP50TtftMs(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinSuccessRate(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinSuccessSamples(v)
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinTtftSamples(v)
+		return nil
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCooldownMinutes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *UserSmartSchedulePolicyMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(usersmartschedulepolicy.FieldQualityMaxP50TtftMs) {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMaxP50TtftMs)
+	}
+	if m.FieldCleared(usersmartschedulepolicy.FieldQualityMinSuccessRate) {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessRate)
+	}
+	if m.FieldCleared(usersmartschedulepolicy.FieldQualityMinSuccessSamples) {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinSuccessSamples)
+	}
+	if m.FieldCleared(usersmartschedulepolicy.FieldQualityMinTtftSamples) {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityMinTtftSamples)
+	}
+	if m.FieldCleared(usersmartschedulepolicy.FieldQualityCondition) {
+		fields = append(fields, usersmartschedulepolicy.FieldQualityCondition)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *UserSmartSchedulePolicyMutation) ClearField(name string) error {
+	switch name {
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		m.ClearQualityMaxP50TtftMs()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		m.ClearQualityMinSuccessRate()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		m.ClearQualityMinSuccessSamples()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		m.ClearQualityMinTtftSamples()
+		return nil
+	case usersmartschedulepolicy.FieldQualityCondition:
+		m.ClearQualityCondition()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *UserSmartSchedulePolicyMutation) ResetField(name string) error {
+	switch name {
+	case usersmartschedulepolicy.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case usersmartschedulepolicy.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case usersmartschedulepolicy.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case usersmartschedulepolicy.FieldPlatform:
+		m.ResetPlatform()
+		return nil
+	case usersmartschedulepolicy.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMaxP50TtftMs:
+		m.ResetQualityMaxP50TtftMs()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessRate:
+		m.ResetQualityMinSuccessRate()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinSuccessSamples:
+		m.ResetQualityMinSuccessSamples()
+		return nil
+	case usersmartschedulepolicy.FieldQualityMinTtftSamples:
+		m.ResetQualityMinTtftSamples()
+		return nil
+	case usersmartschedulepolicy.FieldQualityCondition:
+		m.ResetQualityCondition()
+		return nil
+	case usersmartschedulepolicy.FieldCooldownMinutes:
+		m.ResetCooldownMinutes()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, usersmartschedulepolicy.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *UserSmartSchedulePolicyMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case usersmartschedulepolicy.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *UserSmartSchedulePolicyMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *UserSmartSchedulePolicyMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, usersmartschedulepolicy.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *UserSmartSchedulePolicyMutation) EdgeCleared(name string) bool {
+	switch name {
+	case usersmartschedulepolicy.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *UserSmartSchedulePolicyMutation) ClearEdge(name string) error {
+	switch name {
+	case usersmartschedulepolicy.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *UserSmartSchedulePolicyMutation) ResetEdge(name string) error {
+	switch name {
+	case usersmartschedulepolicy.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown UserSmartSchedulePolicy edge %s", name)
 }
 
 // UserSubscriptionMutation represents an operation that mutates the UserSubscription nodes in the graph.

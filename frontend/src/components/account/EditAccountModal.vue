@@ -1053,6 +1053,38 @@
               }}
             </p>
           </div>
+          <div v-if="poolModeEnabled" class="mt-3 flex items-center justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.accounts.poolModeHardEviction') }}</label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.poolModeHardEvictionHint') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="poolModeHardEviction = !poolModeHardEviction"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                poolModeHardEviction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+              ]"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  poolModeHardEviction ? 'translate-x-5' : 'translate-x-0'
+                ]"
+              />
+            </button>
+          </div>
+          <div
+            v-if="poolModeEnabled && poolModeHardEviction"
+            class="mt-3 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20"
+          >
+            <p class="text-xs text-amber-800 dark:text-amber-300">
+              <Icon name="exclamationCircle" size="sm" class="mr-1 inline" :stroke-width="2" />
+              {{ t('admin.accounts.poolModeHardEvictionInfo') }}
+            </p>
+          </div>
         </div>
       </div>
       <!-- Antigravity model restriction (applies to all antigravity types) -->
@@ -1321,6 +1353,38 @@
                   max: MAX_POOL_MODE_RETRY_COUNT
                 })
               }}
+            </p>
+          </div>
+          <div v-if="poolModeEnabled" class="mt-3 flex items-center justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.accounts.poolModeHardEviction') }}</label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.poolModeHardEvictionHint') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="poolModeHardEviction = !poolModeHardEviction"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                poolModeHardEviction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+              ]"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  poolModeHardEviction ? 'translate-x-5' : 'translate-x-0'
+                ]"
+              />
+            </button>
+          </div>
+          <div
+            v-if="poolModeEnabled && poolModeHardEviction"
+            class="mt-3 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20"
+          >
+            <p class="text-xs text-amber-800 dark:text-amber-300">
+              <Icon name="exclamationCircle" size="sm" class="mr-1 inline" :stroke-width="2" />
+              {{ t('admin.accounts.poolModeHardEvictionInfo') }}
             </p>
           </div>
         </div>
@@ -1771,6 +1835,11 @@
         <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
         <input v-model.number="form.rate_multiplier" type="number" min="0" step="0.001" class="input" />
         <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
+      </div>
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="input-label">{{ t('admin.accounts.upstreamRateMultiplier') }}</label>
+        <input v-model.number="form.upstream_rate_multiplier" type="number" min="0" step="0.001" class="input" />
+        <p class="input-hint">{{ t('admin.accounts.upstreamRateMultiplierHint') }}</p>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
@@ -2943,6 +3012,7 @@ import {
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
+import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
 import {
   ACCOUNT_QUALITY_WINDOW_SECONDS,
   optionalNumber,
@@ -3053,6 +3123,7 @@ const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const poolModeEnabled = ref(false)
 const poolModeRetryCount = ref(DEFAULT_POOL_MODE_RETRY_COUNT)
+const poolModeHardEviction = ref(false)
 const customErrorCodesEnabled = ref(false)
 const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
@@ -3389,6 +3460,7 @@ const form = reactive({
   load_factor: null as number | null,
   priority: 1,
   rate_multiplier: 1,
+  upstream_rate_multiplier: 1,
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
   expires_at: null as number | null,
@@ -3694,6 +3766,28 @@ const normalizePoolModeRetryCount = (value: number) => {
   return normalized
 }
 
+const applyPoolModeCredentials = (credentials: Record<string, unknown>) => {
+  if (poolModeEnabled.value) {
+    credentials.pool_mode = true
+    credentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
+    if (poolModeHardEviction.value) {
+      credentials.pool_mode_hard_eviction = true
+    } else {
+      delete credentials.pool_mode_hard_eviction
+    }
+    return
+  }
+  delete credentials.pool_mode
+  delete credentials.pool_mode_retry_count
+  delete credentials.pool_mode_hard_eviction
+}
+
+watch(poolModeEnabled, (enabled) => {
+  if (!enabled) {
+    poolModeHardEviction.value = false
+  }
+})
+
 // Suppress bridge-group cleanup watchers while hydrating the form from an account.
 // syncFormFromAccount briefly resets toggles (false → real value); without this flag
 // those intermediate writes would strip legitimate group checkboxes on open.
@@ -3741,6 +3835,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.load_factor = newAccount.load_factor ?? null
   form.priority = newAccount.priority
   form.rate_multiplier = newAccount.rate_multiplier ?? 1
+  form.upstream_rate_multiplier = newAccount.upstream_rate_multiplier ?? defaultUpstreamRateMultiplier(newAccount.type)
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
     ? newAccount.status
     : 'active'
@@ -3950,6 +4045,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     poolModeRetryCount.value = normalizePoolModeRetryCount(
       Number(credentials.pool_mode_retry_count ?? DEFAULT_POOL_MODE_RETRY_COUNT)
     )
+    poolModeHardEviction.value =
+      credentials.pool_mode === true && credentials.pool_mode_hard_eviction === true
 
     // Load custom error codes
     customErrorCodesEnabled.value = credentials.custom_error_codes_enabled === true
@@ -3985,6 +4082,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     poolModeEnabled.value = bedrockCreds.pool_mode === true
     const retryCount = bedrockCreds.pool_mode_retry_count
     poolModeRetryCount.value = (typeof retryCount === 'number' && retryCount >= 0) ? retryCount : DEFAULT_POOL_MODE_RETRY_COUNT
+    poolModeHardEviction.value =
+      bedrockCreds.pool_mode === true && bedrockCreds.pool_mode_hard_eviction === true
 
     // Load quota limits for bedrock
     const bedrockExtra = (newAccount.extra as Record<string, unknown>) || {}
@@ -4024,6 +4123,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     }
     poolModeEnabled.value = false
     poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
+    poolModeHardEviction.value = false
     customErrorCodesEnabled.value = false
     selectedErrorCodes.value = []
   }
@@ -4765,14 +4865,7 @@ const handleSubmit = async () => {
         }
       }
 
-      // Add pool mode if enabled
-      if (poolModeEnabled.value) {
-        newCredentials.pool_mode = true
-        newCredentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
-      } else {
-        delete newCredentials.pool_mode
-        delete newCredentials.pool_mode_retry_count
-      }
+      applyPoolModeCredentials(newCredentials)
 
       // Add custom error codes if enabled
       if (customErrorCodesEnabled.value) {
@@ -4887,14 +4980,7 @@ const handleSubmit = async () => {
         }
       }
 
-      // Pool mode
-      if (poolModeEnabled.value) {
-        newCredentials.pool_mode = true
-        newCredentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
-      } else {
-        delete newCredentials.pool_mode
-        delete newCredentials.pool_mode_retry_count
-      }
+      applyPoolModeCredentials(newCredentials)
 
       // Model mapping
       const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)

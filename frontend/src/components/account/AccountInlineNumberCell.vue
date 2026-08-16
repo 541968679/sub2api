@@ -52,13 +52,15 @@ const props = withDefaults(
     disabled?: boolean
     hint?: string
     blankWhenZero?: boolean
+    allowDecimal?: boolean
   }>(),
   {
     min: 0,
     step: 1,
     disabled: false,
     hint: '',
-    blankWhenZero: false
+    blankWhenZero: false,
+    allowDecimal: false
   }
 )
 
@@ -115,7 +117,7 @@ function commit() {
     committing = false
     return
   }
-  const next = Math.max(props.min, Math.trunc(parsed))
+  const next = Math.max(props.min, props.allowDecimal ? parsed : Math.trunc(parsed))
   editing.value = false
   if (next !== props.modelValue) {
     emit('save', next)

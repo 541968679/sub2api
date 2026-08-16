@@ -43,6 +43,7 @@ export async function list(
     privacy_mode?: string
     lite?: string
     include_scheduler_score?: string
+    ids?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   },
@@ -611,6 +612,17 @@ export async function updateQualityHardClose(
 }
 
 /** Force-admit one user on this account for one 15-minute quality window. Does not change the gate. */
+export async function resumeSmartSchedule(
+  accountId: number,
+  userId: number
+): Promise<{ account_id: number; user_id: number }> {
+  const { data } = await apiClient.post<{ account_id: number; user_id: number }>(
+    `/admin/accounts/${accountId}/smart-schedule-resume`,
+    { user_id: userId }
+  )
+  return data
+}
+
 export async function resumeUserQuality(
   id: number,
   userId: number,
@@ -1154,6 +1166,7 @@ export const accountsAPI = {
   getTodayStats,
   getBatchTodayStats,
   getBatchQualityStats,
+  resumeSmartSchedule,
   getQualityHistory,
   getQualityHardClose,
   updateQualityHardClose,

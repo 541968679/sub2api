@@ -18,22 +18,26 @@ func combineReleaseFuncs(first, second func()) func() {
 	}
 }
 
-func isPairConcurrencyFull(account *Account, userID int64, current int) bool {
+func isPairConcurrencyFull(ctx context.Context, account *Account, current int, lookup SmartScheduleLookup) bool {
 	if account == nil {
 		return false
 	}
-	max := account.PairMaxConcurrency(userID)
+	max := resolvePairMaxConcurrency(ctx, account, lookup)
 	return max > 0 && current >= max
 }
 
-func pairConcurrencyAccountIDs(accounts []*Account, userID int64) []int64 {
+func pairConcurrencyAccountIDs(ctx context.Context, accounts []*Account, userID int64, lookup SmartScheduleLookup) []int64 {
 	if userID <= 0 {
 		return nil
 	}
 	ids := make([]int64, 0)
 	seen := make(map[int64]struct{})
 	for _, acc := range accounts {
-		if acc == nil || acc.ID <= 0 || acc.PairMaxConcurrency(userID) <= 0 {
+		if acc == nil || acc.ID <= 0 {
+			continue
+		}
+		max := resolvePairMaxConcurrency(withScheduleUserID(ctx, userID), acc, lookup)
+		if max <= 0 {
 			continue
 		}
 		if _, ok := seen[acc.ID]; ok {
@@ -45,8 +49,8 @@ func pairConcurrencyAccountIDs(accounts []*Account, userID int64) []int64 {
 	return ids
 }
 
-func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, accounts []*Account, userID int64) map[int64]int {
-	ids := pairConcurrencyAccountIDs(accounts, userID)
+func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, accounts []*Account, userID int64, lookup SmartScheduleLookup) map[int64]int {
+	ids := pairConcurrencyAccountIDs(ctx, accounts, userID, lookup)
 	if len(ids) == 0 || svc == nil {
 		return map[int64]int{}
 	}
@@ -60,7 +64,7 @@ func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, acc
 // acquireAccountAndPairSlot acquires the account slot, then the pair slot when
 // PairMaxConcurrency>=1. pairFull is true only when the pair cap rejected the
 // acquire after the account slot succeeded (account slot is released).
-func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, account *Account, userID int64) (*AcquireResult, bool, error) {
+func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, account *Account, userID int64, pairMax int) (*AcquireResult, bool, error) {
 	if account == nil {
 		return &AcquireResult{Acquired: false}, false, nil
 	}
@@ -76,7 +80,10 @@ func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, acc
 		return result, false, nil
 	}
 
-	max := account.PairMaxConcurrency(userID)
+	max := pairMax
+	if max < 0 {
+		max = account.PairMaxConcurrency(userID)
+	}
 	if max <= 0 {
 		return result, false, nil
 	}
@@ -103,26 +110,26 @@ func (s *GatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, accou
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0))
+	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), resolvePairMaxConcurrency(ctx, account, s.smartScheduleCache))
 }
 
 func (s *OpenAIGatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, account *Account) (*AcquireResult, bool, error) {
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0))
+	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), resolvePairMaxConcurrency(ctx, account, s.smartScheduleCache))
 }
 
 func (s *GatewayService) pairCountsForSelection(ctx context.Context, accounts []*Account) map[int64]int {
 	if s == nil {
 		return map[int64]int{}
 	}
-	return loadPairConcurrencyCounts(ctx, s.concurrencyService, accounts, scheduleUserIDFromContext(ctx, 0))
+	return loadPairConcurrencyCounts(ctx, s.concurrencyService, accounts, scheduleUserIDFromContext(ctx, 0), s.smartScheduleCache)
 }
 
 func (s *OpenAIGatewayService) pairCountsForSelection(ctx context.Context, accounts []*Account) map[int64]int {
 	if s == nil {
 		return map[int64]int{}
 	}
-	return loadPairConcurrencyCounts(ctx, s.concurrencyService, accounts, scheduleUserIDFromContext(ctx, 0))
+	return loadPairConcurrencyCounts(ctx, s.concurrencyService, accounts, scheduleUserIDFromContext(ctx, 0), s.smartScheduleCache)
 }

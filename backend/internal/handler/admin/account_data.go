@@ -58,18 +58,19 @@ type DataProxy struct {
 }
 
 type DataAccount struct {
-	Name               string         `json:"name"`
-	Notes              *string        `json:"notes,omitempty"`
-	Platform           string         `json:"platform"`
-	Type               string         `json:"type"`
-	Credentials        map[string]any `json:"credentials"`
-	Extra              map[string]any `json:"extra,omitempty"`
-	ProxyKey           *string        `json:"proxy_key,omitempty"`
-	Concurrency        int            `json:"concurrency"`
-	Priority           int            `json:"priority"`
-	RateMultiplier     *float64       `json:"rate_multiplier,omitempty"`
-	ExpiresAt          *int64         `json:"expires_at,omitempty"`
-	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired,omitempty"`
+	Name                   string         `json:"name"`
+	Notes                  *string        `json:"notes,omitempty"`
+	Platform               string         `json:"platform"`
+	Type                   string         `json:"type"`
+	Credentials            map[string]any `json:"credentials"`
+	Extra                  map[string]any `json:"extra,omitempty"`
+	ProxyKey               *string        `json:"proxy_key,omitempty"`
+	Concurrency            int            `json:"concurrency"`
+	Priority               int            `json:"priority"`
+	RateMultiplier         *float64       `json:"rate_multiplier,omitempty"`
+	UpstreamRateMultiplier *float64       `json:"upstream_rate_multiplier,omitempty"`
+	ExpiresAt              *int64         `json:"expires_at,omitempty"`
+	AutoPauseOnExpired     *bool          `json:"auto_pause_on_expired,omitempty"`
 }
 
 type CodexAuthPayload struct {
@@ -203,18 +204,19 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 			expiresAt = &v
 		}
 		dataAccounts = append(dataAccounts, DataAccount{
-			Name:               acc.Name,
-			Notes:              acc.Notes,
-			Platform:           acc.Platform,
-			Type:               acc.Type,
-			Credentials:        acc.Credentials,
-			Extra:              acc.Extra,
-			ProxyKey:           proxyKey,
-			Concurrency:        acc.Concurrency,
-			Priority:           acc.Priority,
-			RateMultiplier:     acc.RateMultiplier,
-			ExpiresAt:          expiresAt,
-			AutoPauseOnExpired: &acc.AutoPauseOnExpired,
+			Name:                   acc.Name,
+			Notes:                  acc.Notes,
+			Platform:               acc.Platform,
+			Type:                   acc.Type,
+			Credentials:            acc.Credentials,
+			Extra:                  acc.Extra,
+			ProxyKey:               proxyKey,
+			Concurrency:            acc.Concurrency,
+			Priority:               acc.Priority,
+			RateMultiplier:         acc.RateMultiplier,
+			UpstreamRateMultiplier: acc.UpstreamRateMultiplier,
+			ExpiresAt:              expiresAt,
+			AutoPauseOnExpired:     &acc.AutoPauseOnExpired,
 		})
 	}
 
@@ -435,21 +437,22 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		enrichCredentialsFromIDToken(&item)
 
 		accountInput := &service.CreateAccountInput{
-			Name:                 item.Name,
-			Notes:                item.Notes,
-			Platform:             item.Platform,
-			Type:                 item.Type,
-			Credentials:          item.Credentials,
-			Extra:                item.Extra,
-			ProxyID:              proxyID,
-			AutoAssignProxy:      proxyID == nil && autoAssignProxy,
-			Concurrency:          item.Concurrency,
-			Priority:             item.Priority,
-			RateMultiplier:       item.RateMultiplier,
-			GroupIDs:             nil,
-			ExpiresAt:            item.ExpiresAt,
-			AutoPauseOnExpired:   item.AutoPauseOnExpired,
-			SkipDefaultGroupBind: skipDefaultGroupBind,
+			Name:                   item.Name,
+			Notes:                  item.Notes,
+			Platform:               item.Platform,
+			Type:                   item.Type,
+			Credentials:            item.Credentials,
+			Extra:                  item.Extra,
+			ProxyID:                proxyID,
+			AutoAssignProxy:        proxyID == nil && autoAssignProxy,
+			Concurrency:            item.Concurrency,
+			Priority:               item.Priority,
+			RateMultiplier:         item.RateMultiplier,
+			UpstreamRateMultiplier: item.UpstreamRateMultiplier,
+			GroupIDs:               nil,
+			ExpiresAt:              item.ExpiresAt,
+			AutoPauseOnExpired:     item.AutoPauseOnExpired,
+			SkipDefaultGroupBind:   skipDefaultGroupBind,
 		}
 
 		created, err := h.adminService.CreateAccount(ctx, accountInput)
@@ -792,6 +795,9 @@ func validateDataAccount(item DataAccount) error {
 	}
 	if item.RateMultiplier != nil && *item.RateMultiplier < 0 {
 		return errors.New("rate_multiplier must be >= 0")
+	}
+	if item.UpstreamRateMultiplier != nil && *item.UpstreamRateMultiplier < 0 {
+		return errors.New("upstream_rate_multiplier must be >= 0")
 	}
 	if item.Concurrency < 0 {
 		return errors.New("concurrency must be >= 0")

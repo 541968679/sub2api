@@ -100,17 +100,18 @@ func listAccountShadows(ctx context.Context, repo AccountRepository, parentID in
 // AccountBulkUpdate describes the fields that can be updated in a bulk operation.
 // Nil pointers mean "do not change".
 type AccountBulkUpdate struct {
-	Name           *string
-	ProxyID        *int64
-	Concurrency    *int
-	Priority       *int
-	RateMultiplier *float64
-	LoadFactor     *int
-	Status         *string
-	Schedulable    *bool
-	Credentials    map[string]any
-	Extra          map[string]any
-	UserScheduleMode *string
+	Name                   *string
+	ProxyID                *int64
+	Concurrency            *int
+	Priority               *int
+	RateMultiplier         *float64
+	UpstreamRateMultiplier *float64
+	LoadFactor             *int
+	Status                 *string
+	Schedulable            *bool
+	Credentials            map[string]any
+	Extra                  map[string]any
+	UserScheduleMode       *string
 }
 
 // CreateAccountRequest 创建账号请求
