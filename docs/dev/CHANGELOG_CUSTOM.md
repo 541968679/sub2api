@@ -1,3 +1,21 @@
+## 2026-08-17 - deploy: v0.1.230
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.230` (`d3cdb8cab`).
+- Image digest `sha256:27ae51ce035c574873ee174a9853d2bc4e83f2e71a815769d80939ab96b5c1ad`.
+- Rollback digest is `ghcr.io/541968679/sub2api@sha256:7037fcacc6603e380ba9980c04c30486164166e09b80e8be14b6051c5f24f541` (`v0.1.229`).
+- Production `lb_top_k` was not changed.
+
+### Why
+Ship pool display order on `sort_order` (stop overwriting `accounts.priority`) and uncapped pair occupancy `n/999`.
+
+### Verification
+- Release `31957644238` succeeded; production health `ok`, version label `0.1.230`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-16 - feat(ui): show uncapped pair occupancy as n/999
 
 ### What
