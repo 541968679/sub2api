@@ -131,6 +131,47 @@ func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, u
 	return c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
 }
 
+func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time {
+	out := map[int64]time.Time{}
+	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
+		return out
+	}
+	ids := make([]int64, 0, len(accountIDs))
+	seen := map[int64]struct{}{}
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, ok := seen[accountID]; ok {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		ids = append(ids, accountID)
+	}
+	if len(ids) == 0 {
+		return out
+	}
+	pipe := c.rdb.Pipeline()
+	cmds := make([]*redis.StringCmd, len(ids))
+	for i, accountID := range ids {
+		cmds[i] = pipe.HGet(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID))
+	}
+	_, _ = pipe.Exec(ctx)
+	nowUnix := now.Unix()
+	for i, cmd := range cmds {
+		raw, err := cmd.Result()
+		if err != nil || raw == "" {
+			continue
+		}
+		until, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr != nil || until <= nowUnix {
+			continue
+		}
+		out[ids[i]] = time.Unix(until, 0).UTC()
+	}
+	return out
+}
+
 func (c *userSmartScheduleCache) storeUserBundle(ctx context.Context, userID int64, bundle *service.UserSmartScheduleBundle) {
 	if c == nil || c.rdb == nil || bundle == nil {
 		return
@@ -148,14 +189,14 @@ type cachedSmartScheduleMember struct {
 }
 
 type cachedSmartSchedulePolicy struct {
-	Enabled                  bool                         `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                         `json:"quality_max_p50_ttft_ms,omitempty"`
-	QualityMinSuccessRate    *float64                     `json:"quality_min_success_rate,omitempty"`
-	QualityMinSuccessSamples *int                         `json:"quality_min_success_samples,omitempty"`
-	QualityMinTTFTSamples    *int                         `json:"quality_min_ttft_samples,omitempty"`
-	QualityCondition         *string                      `json:"quality_condition,omitempty"`
-	CooldownMinutes          int                          `json:"cooldown_minutes"`
-	Members                  []cachedSmartScheduleMember  `json:"members,omitempty"`
+	Enabled                  bool                        `json:"enabled"`
+	QualityMaxP50TTFTMs      *int                        `json:"quality_max_p50_ttft_ms,omitempty"`
+	QualityMinSuccessRate    *float64                    `json:"quality_min_success_rate,omitempty"`
+	QualityMinSuccessSamples *int                        `json:"quality_min_success_samples,omitempty"`
+	QualityMinTTFTSamples    *int                        `json:"quality_min_ttft_samples,omitempty"`
+	QualityCondition         *string                     `json:"quality_condition,omitempty"`
+	CooldownMinutes          int                         `json:"cooldown_minutes"`
+	Members                  []cachedSmartScheduleMember `json:"members,omitempty"`
 }
 
 type cachedSmartScheduleBundle struct {

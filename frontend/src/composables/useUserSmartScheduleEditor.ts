@@ -18,6 +18,13 @@ import {
   type QualityGateFormFields
 } from '@/utils/accountQualityHardClose'
 import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
+import {
+  isCurrentlySchedulingAccount,
+  pickDefaultSmartSchedulePlatform,
+  resolvePairCap
+} from '@/composables/smartSchedulePoolAdmission'
+
+export { isCurrentlySchedulingAccount }
 
 export const SMART_SCHEDULE_PLATFORMS: SmartSchedulePlatform[] = [
   'anthropic',
@@ -31,6 +38,7 @@ export type SmartSchedulePoolMemberDraft = {
   account_id: number
   max_concurrency: number | null
   current_concurrency?: number
+  cooldown_until?: string | null
 }
 
 export type SmartSchedulePlatformDraft = {
@@ -48,23 +56,21 @@ export type SmartScheduleAddScope = 'apikey' | 'oauth' | 'all'
 
 const CANDIDATE_PAGE_SIZE = 1000
 
-export function isCurrentlySchedulingAccount(account: {
-  status?: string
-  schedulable?: boolean
-  temp_unschedulable_until?: string | null
-  rate_limit_reset_at?: string | null
-}): boolean {
-  if (account.status !== 'active' || !account.schedulable) return false
-  const now = Date.now()
-  if (account.temp_unschedulable_until) {
-    const until = new Date(account.temp_unschedulable_until).getTime()
-    if (Number.isFinite(until) && until > now) return false
-  }
-  if (account.rate_limit_reset_at) {
-    const until = new Date(account.rate_limit_reset_at).getTime()
-    if (Number.isFinite(until) && until > now) return false
-  }
-  return true
+function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
+  const row = draft ?? emptySmartScheduleDraft()
+  return JSON.stringify({
+    enabled: row.enabled,
+    maxP50: row.maxP50,
+    successPercent: row.successPercent,
+    minSuccessSamples: row.minSuccessSamples,
+    minTtftSamples: row.minTtftSamples,
+    condition: row.condition,
+    cooldownMinutes: row.cooldownMinutes,
+    accounts: row.accounts.map((item) => ({
+      account_id: item.account_id,
+      max_concurrency: item.max_concurrency
+    }))
+  })
 }
 
 export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
@@ -102,6 +108,11 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   const candidateAccounts = ref<Account[]>([])
   const qualityStatsById = ref<Record<string, AccountQualityStats>>({})
   const todayStatsById = ref<Record<string, WindowStats>>({})
+  const savedSnapshots = reactive<Record<SmartSchedulePlatform, string>>(
+    {} as Record<SmartSchedulePlatform, string>
+  )
+  const selectedAccountIds = ref<number[]>([])
+  const refreshing = ref(false)
 
   const currentDraft = computed(() => drafts[activePlatform.value])
   const otherPlatforms = computed(() =>
@@ -134,19 +145,48 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     draft.accounts = (view.accounts ?? []).map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency ?? null,
-      current_concurrency: item.current_concurrency ?? 0
+      current_concurrency: item.current_concurrency ?? 0,
+      cooldown_until: item.cooldown_until ?? null
     }))
     return draft
+  }
+
+  function captureSnapshot(platform: SmartSchedulePlatform) {
+    savedSnapshots[platform] = snapshotDraft(drafts[platform])
+  }
+
+  function captureAllSnapshots() {
+    for (const platform of SMART_SCHEDULE_PLATFORMS) {
+      captureSnapshot(platform)
+    }
+  }
+
+  function isPlatformDirty(platform: SmartSchedulePlatform): boolean {
+    return snapshotDraft(drafts[platform]) !== (savedSnapshots[platform] ?? snapshotDraft(emptySmartScheduleDraft()))
   }
 
   function applyView(view: UserSmartScheduleView) {
     for (const platform of SMART_SCHEDULE_PLATFORMS) {
       drafts[platform] = viewToDraft(view.platforms?.[platform])
     }
+    captureAllSnapshots()
   }
 
   function applyPlatformView(platform: SmartSchedulePlatform, view: UserSmartScheduleView) {
     drafts[platform] = viewToDraft(view.platforms?.[platform])
+    captureSnapshot(platform)
+  }
+
+  function mergeRuntimeMembers(platform: SmartSchedulePlatform, view: SmartSchedulePlatformView | undefined) {
+    const draft = drafts[platform]
+    if (!draft || !view) return
+    const byID = new Map((view.accounts ?? []).map((item) => [item.account_id, item]))
+    for (const member of draft.accounts) {
+      const live = byID.get(member.account_id)
+      if (!live) continue
+      member.current_concurrency = live.current_concurrency ?? 0
+      member.cooldown_until = live.cooldown_until ?? null
+    }
   }
 
   function applyTemplateToDraft(fields: QualityGateFormFields) {
@@ -158,14 +198,20 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.max_concurrency ?? 0
   }
 
+  function memberCapOrNull(accountId: number): number | null {
+    return resolvePairCap(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.max_concurrency)
+  }
+
   function memberCurrent(accountId: number): number {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.current_concurrency ?? 0
   }
 
-  function effectivePairMax(account: Account): number {
-    const cap = memberCap(account.id)
-    if (cap >= 1) return cap
-    return account.concurrency || 0
+  function memberCooldownUntil(accountId: number): string | null {
+    return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
+  }
+
+  function effectivePairMax(_account: Account): number {
+    return memberCapOrNull(_account.id) ?? 0
   }
 
   function setMemberCap(accountId: number, value: number) {
@@ -206,6 +252,41 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     }
   }
 
+  function applyCapToAccounts(accountIds: number[]) {
+    if (!currentDraft.value || bulkCap.value == null || bulkCap.value < 1 || accountIds.length === 0) return
+    const targets = new Set(accountIds)
+    for (const member of currentDraft.value.accounts) {
+      if (targets.has(member.account_id)) {
+        member.max_concurrency = bulkCap.value
+      }
+    }
+  }
+
+  function pruneSelection(validIds?: Set<number>) {
+    if (!validIds) {
+      const used = new Set((currentDraft.value?.accounts ?? []).map((item) => item.account_id))
+      selectedAccountIds.value = selectedAccountIds.value.filter((id) => used.has(id))
+      return
+    }
+    selectedAccountIds.value = selectedAccountIds.value.filter((id) => validIds.has(id))
+  }
+
+  function toggleAccountSelection(accountId: number) {
+    if (selectedAccountIds.value.includes(accountId)) {
+      selectedAccountIds.value = selectedAccountIds.value.filter((id) => id !== accountId)
+      return
+    }
+    selectedAccountIds.value = [...selectedAccountIds.value, accountId]
+  }
+
+  function selectMatching(accountIds: number[]) {
+    selectedAccountIds.value = [...new Set(accountIds)]
+  }
+
+  function clearSelection() {
+    selectedAccountIds.value = []
+  }
+
   function addSelectedAccount() {
     if (!currentDraft.value || !selectedAddAccountId.value) return
     if (currentDraft.value.accounts.some((item) => item.account_id === selectedAddAccountId.value)) return
@@ -218,6 +299,22 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   function addAccountById(accountId: number) {
     selectedAddAccountId.value = accountId
     addSelectedAccount()
+  }
+
+  function addAccountsByIds(accountIds: number[]) {
+    if (!currentDraft.value || accountIds.length === 0) return 0
+    const used = new Set(currentDraft.value.accounts.map((item) => item.account_id))
+    let added = 0
+    for (const accountId of accountIds) {
+      if (used.has(accountId)) continue
+      currentDraft.value.accounts.push({ account_id: accountId, max_concurrency: null })
+      used.add(accountId)
+      added += 1
+    }
+    if (added === 0) return 0
+    emptyPoolError.value = false
+    void loadPoolDetails()
+    return added
   }
 
   function addSchedulingAccounts(scope: SmartScheduleAddScope) {
@@ -243,10 +340,12 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     appStore.showSuccess(t('admin.users.smartSchedule.addSchedulingSuccess', { count: String(targets.length) }))
   }
 
-  function removeAccount(accountId: number) {
-    if (!currentDraft.value) return
+  function removeAccounts(accountIds: number[]) {
+    if (!currentDraft.value || accountIds.length === 0) return
+    const removeSet = new Set(accountIds)
     const wasEnabled = currentDraft.value.enabled
-    currentDraft.value.accounts = currentDraft.value.accounts.filter((item) => item.account_id !== accountId)
+    currentDraft.value.accounts = currentDraft.value.accounts.filter((item) => !removeSet.has(item.account_id))
+    pruneSelection()
     if (currentDraft.value.accounts.length === 0) {
       currentDraft.value.enabled = false
       if (wasEnabled) {
@@ -257,6 +356,10 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
       }
     }
     void loadPoolDetails()
+  }
+
+  function removeAccount(accountId: number) {
+    removeAccounts([accountId])
   }
 
   async function loadPoolDetails() {
@@ -301,19 +404,40 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     }
   }
 
-  async function loadAll() {
+  async function loadAll(options?: { pickPlatform?: boolean; preserveDirty?: boolean; silent?: boolean }) {
     if (!userId.value) return
-    loading.value = true
+    if (!options?.silent) loading.value = true
+    else refreshing.value = true
     emptyPoolError.value = false
     try {
       const view = await adminAPI.users.getSmartSchedule(userId.value)
-      applyView(view)
+      if (options?.preserveDirty) {
+        for (const platform of SMART_SCHEDULE_PLATFORMS) {
+          if (isPlatformDirty(platform)) {
+            mergeRuntimeMembers(platform, view.platforms?.[platform])
+          } else {
+            applyPlatformView(platform, view)
+          }
+        }
+      } else {
+        applyView(view)
+      }
+      if (options?.pickPlatform) {
+        activePlatform.value = pickDefaultSmartSchedulePlatform(view, SMART_SCHEDULE_PLATFORMS)
+      }
       await Promise.all([loadPoolDetails(), loadCandidates()])
     } catch (error: unknown) {
-      appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
+      if (!options?.silent) {
+        appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
+      }
     } finally {
       loading.value = false
+      refreshing.value = false
     }
+  }
+
+  async function refreshAll(options?: { silent?: boolean }) {
+    await loadAll({ preserveDirty: true, silent: options?.silent ?? true })
   }
 
   function buildWrite(enabled = currentDraft.value.enabled) {
@@ -400,18 +524,21 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     if (!userId.value) return
     try {
       await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value)
+      const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+      if (member) member.cooldown_until = null
       appStore.showSuccess(t('admin.users.smartSchedule.resumeSuccess'))
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.resumeFailed')))
     }
   }
 
+  const isDirty = computed(() => isPlatformDirty(activePlatform.value))
+
   watch(
     userId,
     (id) => {
       if (id) {
-        activePlatform.value = 'anthropic'
-        void loadAll()
+        void loadAll({ pickPlatform: true })
       }
     },
     { immediate: true }
@@ -420,6 +547,7 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
   watch(activePlatform, () => {
     emptyPoolError.value = false
     selectedAddAccountId.value = 0
+    clearSelection()
     if (userId.value) {
       void Promise.all([loadPoolDetails(), loadCandidates()])
     }
@@ -430,8 +558,10 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     loading,
     submitting,
     copying,
+    refreshing,
     statsLoading,
     emptyPoolError,
+    isDirty,
     activePlatform,
     copyFromPlatform,
     selectedAddAccountId,
@@ -452,18 +582,28 @@ export function useUserSmartScheduleEditor(userId: Ref<number | null>) {
     applyTemplateToDraft,
     qualityGateFormFromDraft,
     memberCap,
+    memberCapOrNull,
     memberCurrent,
+    memberCooldownUntil,
     effectivePairMax,
     setMemberCap,
     patchPoolAccount,
     applyCapToAll,
+    applyCapToAccounts,
+    selectedAccountIds,
+    toggleAccountSelection,
+    selectMatching,
+    clearSelection,
     addSelectedAccount,
     addAccountById,
+    addAccountsByIds,
     addSchedulingAccounts,
     removeAccount,
+    removeAccounts,
     onToggleEnabled,
     onSave,
     onCopy,
-    resumePair
+    resumePair,
+    refreshAll
   }
 }

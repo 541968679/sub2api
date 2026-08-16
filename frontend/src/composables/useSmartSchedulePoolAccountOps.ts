@@ -110,6 +110,40 @@ export function useSmartSchedulePoolAccountOps(options: {
     await saveAccountPatch(account, { priority: value }, { ...account, priority: value })
   }
 
+  async function writeAccountPriorities(
+    updates: Array<{ account: Account; priority: number }>,
+    onProgress?: (done: number, total: number) => void
+  ): Promise<{ written: number; failed: number }> {
+    let written = 0
+    let failed = 0
+    for (let index = 0; index < updates.length; index++) {
+      const item = updates[index]
+      if (!item) continue
+      try {
+        const updated = await adminAPI.accounts.update(item.account.id, { priority: item.priority })
+        patch(updated)
+        written += 1
+      } catch {
+        failed += 1
+      }
+      onProgress?.(index + 1, updates.length)
+    }
+    return { written, failed }
+  }
+
+  async function handleMoveToTop(account: Account) {
+    inlineSavingId.value = account.id
+    try {
+      const updated = await adminAPI.accounts.moveAccountToTop(account.id)
+      patch(updated)
+      appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
+    } catch (error: unknown) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.accounts.moveToTopFailed')))
+    } finally {
+      inlineSavingId.value = null
+    }
+  }
+
   async function handleInlineUpstreamRate(account: Account, value: number) {
     if (value < 0 || value === (account.upstream_rate_multiplier ?? 1)) return
     await saveAccountPatch(
@@ -372,6 +406,8 @@ export function useSmartSchedulePoolAccountOps(options: {
     menu,
     handleInlineConcurrency,
     handleInlinePriority,
+    writeAccountPriorities,
+    handleMoveToTop,
     handleInlineUpstreamRate,
     handleToggleSchedulable,
     handleToggleFallbackOnly,

@@ -63,6 +63,24 @@ func TestUserSmartScheduleCache_LookupFailOpenWithoutRepo(t *testing.T) {
 	cache := NewUserSmartScheduleCache(nil, nil)
 	require.Nil(t, cache.Lookup(context.Background(), 16))
 	require.False(t, cache.CooldownActive(context.Background(), 7, 16, time.Now()))
+	require.Empty(t, cache.GetCooldownUntilBatch(context.Background(), []int64{7}, 16, time.Now()))
+}
+
+func TestUserSmartScheduleCache_GetCooldownUntilBatch(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+
+	cache.StartCooldown(ctx, 7, 16, 15, now)
+	cache.StartCooldown(ctx, 8, 16, 15, now.Add(-20*time.Minute))
+	got := cache.GetCooldownUntilBatch(ctx, []int64{7, 8, 9}, 16, now)
+	require.Len(t, got, 1)
+	require.Equal(t, now.Add(15*time.Minute).Unix(), got[7].Unix())
+	_, expired := got[8]
+	require.False(t, expired)
 }
 
 func mustParseUnix(t *testing.T, raw string) int64 {

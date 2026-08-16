@@ -80,10 +80,10 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	p50 := 1000
 	denied := &Account{
-		ID:           7,
-		Platform:     PlatformAnthropic,
-		DenyUserIDs:  []int64{16},
-		AllowUserIDs: []int64{99},
+		ID:              7,
+		Platform:        PlatformAnthropic,
+		DenyUserIDs:     []int64{16},
+		AllowUserIDs:    []int64{99},
 		UserConcurrency: map[int64]int{16: 2},
 		UserQualityGates: map[int64]QualityHardCloseSettings{
 			16: fillUserQualityGateDefaults(QualityHardCloseSettings{MaxP50TTFTMs: &p50}),
@@ -399,3 +399,114 @@ func TestUserSmartScheduleService_HydratesPairCurrent(t *testing.T) {
 	require.Equal(t, 3, *view.Platforms[PlatformAnthropic].Accounts[0].MaxConcurrency)
 }
 
+func TestUserSmartScheduleService_HydratesCooldownAndSkipsUncappedCurrent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	until := time.Now().UTC().Add(12 * time.Minute)
+	repo := &stubSmartRepo{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI: {
+			Enabled:         true,
+			CooldownMinutes: 15,
+			UpdatedAt:       time.Now().UTC(),
+			AccountIDs:      map[int64]struct{}{21: {}, 22: {}},
+			Caps:            map[int64]int{21: 4},
+		},
+	}}}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 21, Platform: PlatformOpenAI},
+		{ID: 22, Platform: PlatformOpenAI},
+	}}
+	svc := NewUserSmartScheduleService(repo, stubSmartCache{until: map[int64]time.Time{21: until}}, accounts, nil, stubPairConcurrency{counts: map[int64]int{21: 3, 22: 9}})
+	view, err := svc.Get(ctx, 16)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, view.DefaultPlatform)
+	byID := map[int64]SmartScheduleAccountMember{}
+	for _, member := range view.Platforms[PlatformOpenAI].Accounts {
+		byID[member.AccountID] = member
+	}
+	require.Equal(t, 3, byID[21].CurrentConcurrency)
+	require.NotNil(t, byID[21].CooldownUntil)
+	require.Equal(t, until.Unix(), byID[21].CooldownUntil.Unix())
+	require.Equal(t, 0, byID[22].CurrentConcurrency, "uncapped pair must not hydrate Redis occupancy")
+	require.Nil(t, byID[22].MaxConcurrency)
+}
+
+func TestPickDefaultSmartSchedulePlatform(t *testing.T) {
+	t.Parallel()
+	older := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+
+	t.Run("single enabled platform wins", func(t *testing.T) {
+		t.Parallel()
+		view := bundleToView(16, &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI: {
+				Enabled:    true,
+				AccountIDs: map[int64]struct{}{1: {}},
+				UpdatedAt:  older,
+			},
+			PlatformAnthropic: {
+				Enabled:    false,
+				AccountIDs: map[int64]struct{}{2: {}, 3: {}},
+				UpdatedAt:  newer,
+			},
+		}})
+		require.Equal(t, PlatformOpenAI, pickDefaultSmartSchedulePlatform(view))
+	})
+
+	t.Run("several enabled pick most recently updated", func(t *testing.T) {
+		t.Parallel()
+		view := bundleToView(16, &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformAnthropic: {
+				Enabled:    true,
+				AccountIDs: map[int64]struct{}{1: {}, 2: {}, 3: {}},
+				UpdatedAt:  older,
+			},
+			PlatformOpenAI: {
+				Enabled:    true,
+				AccountIDs: map[int64]struct{}{4: {}},
+				UpdatedAt:  newer,
+			},
+		}})
+		require.Equal(t, PlatformOpenAI, pickDefaultSmartSchedulePlatform(view))
+	})
+
+	t.Run("none enabled pick most recently updated pool", func(t *testing.T) {
+		t.Parallel()
+		view := bundleToView(16, &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformAnthropic: {
+				Enabled:    false,
+				AccountIDs: map[int64]struct{}{1: {}},
+				UpdatedAt:  older,
+			},
+			PlatformGemini: {
+				Enabled:    false,
+				AccountIDs: map[int64]struct{}{2: {}},
+				UpdatedAt:  newer,
+			},
+		}})
+		require.Equal(t, PlatformGemini, pickDefaultSmartSchedulePlatform(view))
+	})
+
+	t.Run("empty view falls back to anthropic", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, PlatformAnthropic, pickDefaultSmartSchedulePlatform(emptySmartScheduleView(16)))
+	})
+}
+
+type stubSmartCache struct {
+	until map[int64]time.Time
+}
+
+func (s stubSmartCache) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle { return nil }
+func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ time.Time) bool {
+	return false
+}
+func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ int, _ time.Time) {}
+func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error                           { return nil }
+func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64) error               { return nil }
+func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ int64, _ time.Time) map[int64]time.Time {
+	if s.until == nil {
+		return map[int64]time.Time{}
+	}
+	return s.until
+}

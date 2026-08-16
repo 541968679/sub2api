@@ -41,9 +41,21 @@
       </p>
 
       <section>
-        <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-white">
-          {{ t('admin.accounts.stability.chartTitle') }}
-        </h4>
+        <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
+          <h4 class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('admin.accounts.stability.chartTitle') }}
+          </h4>
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              data-test="stability-show-p95"
+              :checked="showP95"
+              @change="setShowP95(($event.target as HTMLInputElement).checked)"
+            />
+            {{ t('admin.accounts.stability.showP95') }}
+          </label>
+        </div>
         <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.accounts.stability.chartHint') }}
         </p>
@@ -56,6 +68,13 @@
           :title="t('admin.accounts.stability.noData')"
           :description="t('admin.accounts.stability.noDataHint')"
         />
+        <p
+          v-if="ttftAxis.clipped"
+          data-test="stability-p95-clipped"
+          class="mt-2 text-xs text-amber-700 dark:text-amber-300"
+        >
+          {{ t('admin.accounts.stability.p95ClippedHint') }}
+        </p>
         <p
           v-if="samplesSummary"
           class="mt-2 text-xs text-gray-500 dark:text-gray-400"
@@ -243,6 +262,12 @@ import {
   percentToSuccessRate,
   successRateToPercent
 } from '@/utils/accountQualityHardClose'
+import {
+  clampSeriesToMax,
+  computeStabilityTtftAxis,
+  readShowP95Preference,
+  writeShowP95Preference
+} from '@/utils/accountStabilityChart'
 import { formatDateTime } from '@/utils/format'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
@@ -267,6 +292,7 @@ const resumeBusy = ref(false)
 const historyItems = ref<AccountQualityHistoryItem[]>([])
 const globalEnabled = ref<boolean | null>(null)
 const resolved = ref<AccountQualityHardCloseResolved | null>(null)
+const showP95 = ref(readShowP95Preference())
 
 const form = reactive({
   enabled: false,
@@ -296,47 +322,62 @@ const chartTheme = computed(() => ({
   grid: isDarkMode.value ? '#374151' : '#e5e7eb'
 }))
 
+const p50Values = computed(() => historyItems.value.map((point) => point.p50_ttft_ms ?? null))
+const p95Values = computed(() => historyItems.value.map((point) => point.p95_ttft_ms ?? null))
+
+const ttftAxis = computed(() =>
+  computeStabilityTtftAxis({
+    p50Values: p50Values.value,
+    p95Values: p95Values.value,
+    showP95: showP95.value
+  })
+)
+
 const chartData = computed(() => {
   if (!historyItems.value.length) return null
+  const datasets: Array<Record<string, unknown>> = [
+    {
+      label: t('admin.accounts.stability.p50Series'),
+      data: p50Values.value,
+      borderColor: '#2563eb',
+      backgroundColor: '#2563eb1f',
+      pointRadius: 2,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: 'yMs'
+    }
+  ]
+  if (showP95.value) {
+    datasets.push({
+      label: t('admin.accounts.stability.p95Series'),
+      data: clampSeriesToMax(p95Values.value, ttftAxis.value.max),
+      rawMs: p95Values.value,
+      borderColor: '#7c3aed',
+      backgroundColor: '#7c3aed14',
+      pointRadius: 2,
+      borderWidth: 2,
+      tension: 0.25,
+      spanGaps: true,
+      yAxisID: 'yMs'
+    })
+  }
+  datasets.push({
+    label: t('admin.accounts.stability.successRateSeries'),
+    data: historyItems.value.map((point) =>
+      point.success_rate == null ? null : Math.round(point.success_rate * 1000) / 10
+    ),
+    borderColor: '#059669',
+    backgroundColor: '#05966914',
+    pointRadius: 2,
+    borderWidth: 2,
+    tension: 0.25,
+    spanGaps: true,
+    yAxisID: 'yRate'
+  })
   return {
     labels: historyItems.value.map((point) => formatCapturedAt(point.captured_at)),
-    datasets: [
-      {
-        label: t('admin.accounts.stability.p50Series'),
-        data: historyItems.value.map((point) => point.p50_ttft_ms ?? null),
-        borderColor: '#2563eb',
-        backgroundColor: '#2563eb1f',
-        pointRadius: 2,
-        borderWidth: 2,
-        tension: 0.25,
-        spanGaps: true,
-        yAxisID: 'yMs'
-      },
-      {
-        label: t('admin.accounts.stability.p95Series'),
-        data: historyItems.value.map((point) => point.p95_ttft_ms ?? null),
-        borderColor: '#7c3aed',
-        backgroundColor: '#7c3aed14',
-        pointRadius: 2,
-        borderWidth: 2,
-        tension: 0.25,
-        spanGaps: true,
-        yAxisID: 'yMs'
-      },
-      {
-        label: t('admin.accounts.stability.successRateSeries'),
-        data: historyItems.value.map((point) =>
-          point.success_rate == null ? null : Math.round(point.success_rate * 1000) / 10
-        ),
-        borderColor: '#059669',
-        backgroundColor: '#05966914',
-        pointRadius: 2,
-        borderWidth: 2,
-        tension: 0.25,
-        spanGaps: true,
-        yAxisID: 'yRate'
-      }
-    ]
+    datasets
   }
 })
 
@@ -359,6 +400,17 @@ const chartOptions = computed(() => ({
         padding: 12,
         font: { size: 11 }
       }
+    },
+    tooltip: {
+      callbacks: {
+        label(ctx: { dataset: { label?: string; yAxisID?: string; rawMs?: Array<number | null> }; dataIndex: number; parsed: { y: number | null } }) {
+          const raw = ctx.dataset.rawMs?.[ctx.dataIndex]
+          const value = raw ?? ctx.parsed.y
+          if (value == null) return ctx.dataset.label ?? ''
+          if (ctx.dataset.yAxisID === 'yRate') return `${ctx.dataset.label}: ${value}%`
+          return `${ctx.dataset.label}: ${value}ms`
+        }
+      }
     }
   },
   scales: {
@@ -374,6 +426,7 @@ const chartOptions = computed(() => ({
     yMs: {
       position: 'left' as const,
       beginAtZero: true,
+      ...(ttftAxis.value.max != null ? { max: ttftAxis.value.max } : {}),
       grid: { color: chartTheme.value.grid },
       ticks: {
         color: chartTheme.value.text,
@@ -394,6 +447,11 @@ const chartOptions = computed(() => ({
     }
   }
 }))
+
+function setShowP95(value: boolean) {
+  showP95.value = value
+  writeShowP95Preference(value)
+}
 
 const samplesSummary = computed(() => {
   const last = historyItems.value[historyItems.value.length - 1]

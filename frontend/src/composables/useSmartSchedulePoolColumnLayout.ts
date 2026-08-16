@@ -11,13 +11,15 @@ import {
 export const SMART_SCHEDULE_POOL_HIDDEN_KEY = 'smart-schedule-pool-hidden-columns'
 export const SMART_SCHEDULE_POOL_LAYOUT_KEY = 'smart-schedule-pool-column-layout'
 
-const PINNED_VISIBLE = new Set(['name', 'actions'])
+const PINNED_VISIBLE = new Set(['select', 'name', 'actions'])
 
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  select: 100,
   name: 180,
   platform_type: 140,
   concurrency: 130,
   pair_cap: 120,
+  admission: 140,
   status: 120,
   schedulable: 110,
   quality_ttft: 110,

@@ -809,6 +809,7 @@ import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { AccountQualityStats, OpenAIOauthFleetUsageSummary } from '@/api/admin/accounts'
 import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
+import { accountMatchesListFilters } from '@/utils/accountListFilters'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -2520,8 +2521,6 @@ const handleBulkUpdated = () => {
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
 const handleCodexSessionImported = () => { reload() }
-const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
-const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'
 const buildAccountQueryFilters = () => ({
   platform: params.platform || '',
   type: params.type || '',
@@ -2532,49 +2531,8 @@ const buildAccountQueryFilters = () => ({
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
-const accountMatchesCurrentFilters = (account: Account) => {
-  const filters = buildAccountQueryFilters()
-  if (filters.platform && account.platform !== filters.platform) return false
-  if (filters.type && account.type !== filters.type) return false
-  if (filters.status) {
-    const now = Date.now()
-    const rateLimitResetAt = account.rate_limit_reset_at ? new Date(account.rate_limit_reset_at).getTime() : Number.NaN
-    const isRateLimited = Number.isFinite(rateLimitResetAt) && rateLimitResetAt > now
-    const tempUnschedUntil = account.temp_unschedulable_until ? new Date(account.temp_unschedulable_until).getTime() : Number.NaN
-    const isTempUnschedulable = Number.isFinite(tempUnschedUntil) && tempUnschedUntil > now
-
-    if (filters.status === 'active') {
-      if (account.status !== 'active' || isRateLimited || isTempUnschedulable || !account.schedulable) return false
-    } else if (filters.status === 'rate_limited') {
-      if (account.status !== 'active' || !isRateLimited || isTempUnschedulable) return false
-    } else if (filters.status === 'temp_unschedulable') {
-      if (account.status !== 'active' || !isTempUnschedulable) return false
-    } else if (filters.status === 'unschedulable') {
-      if (account.status !== 'active' || account.schedulable || isRateLimited || isTempUnschedulable) return false
-    } else if (account.status !== filters.status) {
-      return false
-    }
-  }
-  if (filters.group) {
-    const groupIds = account.group_ids ?? account.groups?.map((group) => group.id) ?? []
-    if (filters.group === ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE) {
-      if (groupIds.length > 0) return false
-    } else if (!groupIds.includes(Number(filters.group))) {
-      return false
-    }
-  }
-  const privacyMode = typeof account.extra?.privacy_mode === 'string' ? account.extra.privacy_mode : ''
-  if (filters.privacy_mode) {
-    if (filters.privacy_mode === ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE) {
-      if (privacyMode.trim() !== '') return false
-    } else if (privacyMode !== filters.privacy_mode) {
-      return false
-    }
-  }
-  const search = String(filters.search || '').trim().toLowerCase()
-  if (search && !account.name.toLowerCase().includes(search)) return false
-  return true
-}
+const accountMatchesCurrentFilters = (account: Account) =>
+  accountMatchesListFilters(account, buildAccountQueryFilters())
 const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => ({
   ...updatedAccount,
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,

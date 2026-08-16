@@ -19,6 +19,63 @@
             {{ userLoading ? t('common.loading') : userSubtitle }}
           </p>
         </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="btn btn-secondary px-2 md:px-3"
+            :disabled="loading || refreshing || userLoading"
+            :title="t('admin.users.smartSchedule.refresh')"
+            data-testid="smart-schedule-refresh"
+            @click="handleManualRefresh"
+          >
+            <Icon name="refresh" size="sm" :class="refreshing || loading ? 'animate-spin' : ''" />
+            <span class="hidden md:inline">{{ t('admin.users.smartSchedule.refresh') }}</span>
+          </button>
+          <div class="relative" ref="autoRefreshDropdownRef">
+            <button
+              type="button"
+              class="btn btn-secondary px-2 md:px-3"
+              :title="t('admin.accounts.autoRefresh')"
+              data-testid="smart-schedule-auto-refresh"
+              @click="showAutoRefreshDropdown = !showAutoRefreshDropdown"
+            >
+              <Icon name="refresh" size="sm" :class="autoRefreshEnabled ? 'animate-spin' : ''" />
+              <span class="hidden md:inline">
+                {{
+                  autoRefreshEnabled
+                    ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
+                    : t('admin.accounts.autoRefresh')
+                }}
+              </span>
+            </button>
+            <div
+              v-if="showAutoRefreshDropdown"
+              class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+              data-testid="smart-schedule-auto-refresh-menu"
+            >
+              <div class="p-2">
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                  @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
+                >
+                  <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
+                  <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
+                </button>
+                <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                <button
+                  v-for="sec in autoRefreshIntervals"
+                  :key="sec"
+                  type="button"
+                  class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                  @click="setAutoRefreshInterval(sec)"
+                >
+                  <span>{{ autoRefreshIntervalLabel(sec) }}</span>
+                  <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
+                </button>
+              </div>
+            </div>
+          </div>
         <div
           v-if="currentDraft && !loading && !userLoading"
           class="flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm"
@@ -58,6 +115,20 @@
             />
           </button>
         </div>
+        </div>
+      </div>
+
+      <div v-if="user && !userLoading" data-testid="smart-schedule-user-row">
+        <AdminUserListRowTable
+          :user="user"
+          :groups="groups"
+          :quality-stats="userQualityStats"
+          :quality-loading="userQualityLoading"
+          :quality-error="userQualityError"
+          :usage-stats="userUsageStats"
+          :smart-schedule="userSmartScheduleSummary"
+          :smart-schedule-loading="loading"
+        />
       </div>
 
       <div v-if="loading || userLoading" class="py-16 text-center text-gray-500">
@@ -98,6 +169,7 @@
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-200 dark:hover:bg-dark-600'
                 "
                 :data-testid="`smart-schedule-tab-${platform}`"
+                :data-active="activePlatform === platform ? 'true' : 'false'"
                 @click="activePlatform = platform"
               >
                 <span>{{ platformLabel(platform) }}</span>
@@ -197,12 +269,16 @@
               <button
                 type="button"
                 class="btn btn-primary btn-sm"
+                :class="isDirty ? 'ring-2 ring-amber-400' : ''"
                 :disabled="submitting || loading"
                 data-testid="smart-schedule-save"
                 @click="onSave"
               >
                 {{ submitting ? t('admin.users.smartSchedule.saving') : t('admin.users.smartSchedule.save') }}
               </button>
+              <span v-if="isDirty" class="text-xs text-amber-600 dark:text-amber-400" data-testid="smart-schedule-dirty-hint">
+                {{ t('admin.users.smartSchedule.dirtySaveHint') }}
+              </span>
             </div>
           </div>
         </aside>
@@ -302,99 +378,64 @@
                 {{ t('admin.users.smartSchedule.poolHint') }}
               </p>
             </div>
-            <div class="flex flex-col items-stretch gap-3">
-              <div class="flex flex-wrap items-end gap-2">
-                <label class="relative min-w-[16rem] flex-1 space-y-1">
-                  <span class="block text-xs text-gray-500">{{ t('admin.users.smartSchedule.addAccount') }}</span>
-                  <input
-                    v-model="accountSearchQuery"
-                    type="text"
-                    class="input w-full"
-                    data-testid="smart-schedule-add-select"
-                    :placeholder="t('admin.users.smartSchedule.addAccountPlaceholder')"
-                    autocomplete="off"
-                    @focus="accountSearchOpen = true"
-                    @input="accountSearchOpen = true"
-                    @blur="onAccountSearchBlur"
-                  />
-                  <div
-                    v-if="accountSearchOpen"
-                    class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                    data-testid="smart-schedule-add-dropdown"
-                    @mousedown.prevent
-                  >
-                    <button
-                      v-for="account in filteredAddableAccounts"
-                      :key="account.id"
-                      type="button"
-                      class="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-dark-700"
-                      :data-testid="`smart-schedule-add-option-${account.id}`"
-                      @click="chooseAddableAccount(account.id)"
-                    >
-                      {{ account.name }} (#{{ account.id }})
-                    </button>
-                    <p
-                      v-if="filteredAddableAccounts.length === 0"
-                      class="px-3 py-2 text-sm text-gray-500"
-                    >
-                      {{ t('admin.users.smartSchedule.addAccountEmpty') }}
-                    </p>
-                  </div>
-                </label>
-                <label class="space-y-1">
-                  <span class="block text-xs text-gray-500">{{ t('admin.users.smartSchedule.applyCap') }}</span>
-                  <input v-model.number="bulkCap" type="number" min="1" class="input w-24" />
-                </label>
-                <button type="button" class="btn btn-secondary btn-sm" data-testid="smart-schedule-apply-cap" @click="applyCapToAll">
-                  {{ t('admin.users.smartSchedule.applyCapButton') }}
-                </button>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs text-gray-500">{{ t('admin.users.smartSchedule.addScheduling') }}</span>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="addableSchedulingApi.length === 0"
-                  data-testid="smart-schedule-add-api"
-                  @click="addSchedulingAccounts('apikey')"
-                >
-                  {{ t('admin.users.smartSchedule.addSchedulingApi', { count: addableSchedulingApi.length }) }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="addableSchedulingOauth.length === 0"
-                  data-testid="smart-schedule-add-oauth"
-                  @click="addSchedulingAccounts('oauth')"
-                >
-                  {{ t('admin.users.smartSchedule.addSchedulingOauth', { count: addableSchedulingOauth.length }) }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="addableSchedulingAll.length === 0"
-                  data-testid="smart-schedule-add-all"
-                  @click="addSchedulingAccounts('all')"
-                >
-                  {{ t('admin.users.smartSchedule.addSchedulingAll', { count: addableSchedulingAll.length }) }}
-                </button>
-              </div>
-            </div>
           </div>
+
+          <SmartSchedulePoolAddBar
+            v-model:search-query="accountSearchQuery"
+            v-model:search-open="accountSearchOpen"
+            :filtered-accounts="filteredAddableAccounts"
+            :api-count="addableSchedulingApi.length"
+            :oauth-count="addableSchedulingOauth.length"
+            :all-count="addableSchedulingAll.length"
+            :pool-empty="poolTableRows.length === 0"
+            :auto-sorting="autoSorting"
+            :auto-sort-done="autoSortDone"
+            :auto-sort-total="autoSortTotal"
+            @search-blur="onAccountSearchBlur"
+            @choose="chooseAddableAccount"
+            @open-filtered-add="showAddDialog = true"
+            @add-scheduling="addSchedulingAccounts"
+            @auto-sort="handlePoolAutoSort"
+          />
 
           <p v-if="emptyPoolError" class="text-sm text-red-600" data-testid="smart-schedule-empty-error">
             {{ t('admin.users.smartSchedule.emptyPool') }}
           </p>
 
+          <SmartSchedulePoolFilters v-model:filters="poolFilters" />
+
+          <p
+            v-if="isDirty"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            data-testid="smart-schedule-dirty-banner"
+          >
+            {{ t('admin.users.smartSchedule.dirtyBanner') }}
+          </p>
+
+          <SmartSchedulePoolBulkBar
+            v-if="poolTableRows.length > 0"
+            :selected-ids="filteredSelectedIds"
+            :filtered-count="filteredPoolRows.length"
+            :bulk-cap="bulkCap"
+            @update:bulk-cap="bulkCap = $event"
+            @select-page="selectMatching(filteredPoolRows.map((row) => row.id))"
+            @select-matching="selectMatching(filteredPoolRows.map((row) => row.id))"
+            @clear="clearSelection"
+            @apply-cap="applyCapToAccounts(filteredSelectedIds)"
+            @apply-cap-all="applyCapToAll"
+            @remove="removeAccounts(filteredSelectedIds)"
+          />
+
           <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
             <DataTable
+              ref="poolTableRef"
               :columns="poolColumns"
-              :data="poolTableRows"
+              :data="filteredPoolRows"
               :loading="statsLoading"
               row-key="id"
               :virtual-scroll="false"
               :resizable-columns="true"
-              default-sort-key="name"
+              default-sort-key="platform_type"
               default-sort-order="asc"
               sort-storage-key="smart-schedule-pool-sort"
               data-testid="smart-schedule-pool-table"
@@ -404,6 +445,27 @@
                 <p class="py-6 text-center text-sm text-gray-500">
                   {{ t('admin.users.smartSchedule.emptyPoolHint') }}
                 </p>
+              </template>
+              <template #cell-select="{ row }">
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    :checked="selectedAccountIds.includes(row.id)"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :data-testid="`smart-schedule-select-${row.id}`"
+                    @change="toggleAccountSelection(row.id)"
+                  />
+                  <button
+                    type="button"
+                    class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary-600 text-white shadow-sm transition-colors hover:bg-primary-700"
+                    :title="t('admin.accounts.moveToTop')"
+                    :aria-label="t('admin.accounts.moveToTop')"
+                    data-testid="account-move-to-top"
+                    @click.stop="handleMoveToTop(row)"
+                  >
+                    <Icon name="arrowUp" size="sm" :stroke-width="2.5" class="text-white" />
+                  </button>
+                </div>
               </template>
               <template #cell-name="{ row, value }">
                 <div class="flex flex-col">
@@ -460,10 +522,43 @@
                     @save="(value) => setMemberCap(row.id, value)"
                   />
                   <CapacityBadge
-                    :color-class="pairCapacityClass(memberCurrent(row.id), effectivePairMax(row))"
+                    v-if="memberCapOrNull(row.id) != null"
+                    :color-class="pairCapacityClass(memberCurrent(row.id), memberCapOrNull(row.id) ?? 0)"
                     :current="memberCurrent(row.id)"
-                    :max="effectivePairMax(row) || '—'"
+                    :max="memberCapOrNull(row.id) ?? 0"
+                    data-testid="smart-schedule-pair-badge"
                   />
+                  <span
+                    v-else
+                    class="text-xs text-gray-500 dark:text-gray-400"
+                    data-testid="smart-schedule-pair-uncapped"
+                  >
+                    {{ t('admin.users.smartSchedule.uncappedPair') }}
+                  </span>
+                </div>
+              </template>
+              <template #header-admission="{ column }">
+                <div class="flex items-center">
+                  <span>{{ column.label }}</span>
+                  <HelpTooltip :content="t('admin.users.smartSchedule.admissionHint')" width-class="w-72" />
+                </div>
+              </template>
+              <template #cell-admission="{ row }">
+                <div class="flex flex-col gap-0.5" data-testid="smart-schedule-admission">
+                  <span
+                    class="inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    :class="admissionChipClass(row.admission)"
+                  >
+                    {{ admissionLabel(row.admission) }}
+                  </span>
+                  <span
+                    v-if="row.admission === 'cooling' && row.cooldown_until"
+                    class="text-[10px] text-amber-700 dark:text-amber-300"
+                  >
+                    {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
+                    ·
+                    {{ t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) }) }}
+                  </span>
                 </div>
               </template>
               <template #cell-status="{ row }">
@@ -635,8 +730,14 @@
                   </button>
                   <button
                     type="button"
-                    class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-400"
-                    :title="t('admin.users.smartSchedule.resume')"
+                    class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
+                    :class="
+                      row.admission === 'cooling'
+                        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700'
+                    "
+                    :title="row.admission === 'cooling' ? t('admin.users.smartSchedule.resumeCooling') : t('admin.users.smartSchedule.resume')"
+                    :data-testid="row.admission === 'cooling' ? 'smart-schedule-resume-cooling' : 'smart-schedule-resume'"
                     @click="resumePair(row.id)"
                   >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -738,18 +839,44 @@
       :initial-tab="inspectTab"
       @close="inspectOpen = false"
     />
+    <SmartScheduleAddAccountDialog
+      :show="showAddDialog"
+      :platform="activePlatform"
+      :platform-label="platformLabel(activePlatform)"
+      :accounts="addableAccounts"
+      :groups="groups"
+      :proxies="proxies"
+      @close="showAddDialog = false"
+      @add="onFilteredAdd"
+    />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { Account, AdminUser } from '@/types'
+import type { AccountQualityStats } from '@/api/admin/accounts'
+import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatRelativeTime } from '@/utils/format'
+import { formatDateTime, formatRelativeTime } from '@/utils/format'
+import {
+  cooldownRemainingMinutes,
+  EMPTY_SMART_SCHEDULE_POOL_FILTERS,
+  matchesPoolFilters,
+  qualityBlockedFromDraft,
+  resolvePoolAdmission,
+  type PoolAdmissionState,
+  type SmartSchedulePoolFilters as PoolFilterState
+} from '@/composables/smartSchedulePoolAdmission'
+import {
+  assignPoolAutoSortPriorities,
+  sortSmartSchedulePoolMembers
+} from '@/composables/smartSchedulePoolAutoSort'
+import { smartScheduleSummaryFromDrafts } from '@/composables/adminUserListRow'
 import { useAppStore } from '@/stores/app'
 import { useUserSmartScheduleEditor } from '@/composables/useUserSmartScheduleEditor'
 import { useSmartSchedulePoolAccountOps } from '@/composables/useSmartSchedulePoolAccountOps'
@@ -777,6 +904,11 @@ import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
 import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
+import SmartSchedulePoolFilters from '@/components/admin/smart-schedule/SmartSchedulePoolFilters.vue'
+import SmartSchedulePoolBulkBar from '@/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue'
+import SmartSchedulePoolAddBar from '@/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue'
+import SmartScheduleAddAccountDialog from '@/components/admin/smart-schedule/SmartScheduleAddAccountDialog.vue'
+import AdminUserListRowTable from '@/components/admin/user/AdminUserListRowTable.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -785,8 +917,26 @@ const appStore = useAppStore()
 
 const user = ref<AdminUser | null>(null)
 const userLoading = ref(false)
+const userQualityStats = ref<AccountQualityStats | null>(null)
+const userQualityLoading = ref(false)
+const userQualityError = ref<string | null>(null)
+const userUsageStats = ref<BatchUserUsageStats | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
+const showAddDialog = ref(false)
+const poolFilters = ref<PoolFilterState>({ ...EMPTY_SMART_SCHEDULE_POOL_FILTERS })
+const AUTO_REFRESH_STORAGE_KEY = 'smart-schedule-auto-refresh'
+const autoRefreshIntervals = [5, 10, 15, 30] as const
+const autoRefreshEnabled = ref(false)
+const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(5)
+const autoRefreshCountdown = ref(0)
+const showAutoRefreshDropdown = ref(false)
+const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
+const poolTableRef = ref<{ setSort?: (key: string, order: 'asc' | 'desc') => void } | null>(null)
+const autoSorting = ref(false)
+const autoSortDone = ref(0)
+const autoSortTotal = ref(0)
+let autoRefreshTimer: number | null = null
 
 const userId = computed(() => {
   const raw = route.params.id
@@ -800,7 +950,9 @@ const {
   submitting,
   copying,
   statsLoading,
+  refreshing,
   emptyPoolError,
+  isDirty,
   activePlatform,
   copyFromPlatform,
   bulkCap,
@@ -820,18 +972,27 @@ const {
   applyTemplateToDraft,
   qualityGateFormFromDraft,
   memberCap,
+  memberCapOrNull,
   memberCurrent,
-  effectivePairMax,
+  memberCooldownUntil,
   setMemberCap,
   patchPoolAccount,
   applyCapToAll,
+  applyCapToAccounts,
+  selectedAccountIds,
+  toggleAccountSelection,
+  selectMatching,
+  clearSelection,
   addAccountById,
+  addAccountsByIds,
   addSchedulingAccounts,
   removeAccount,
+  removeAccounts,
   onToggleEnabled,
   onSave,
   onCopy,
-  resumePair
+  resumePair,
+  refreshAll
 } = useUserSmartScheduleEditor(userId)
 
 const {
@@ -866,6 +1027,8 @@ const {
   menu,
   handleInlineConcurrency,
   handleInlinePriority,
+  writeAccountPriorities,
+  handleMoveToTop,
   handleInlineUpstreamRate,
   handleToggleSchedulable,
   handleToggleFallbackOnly,
@@ -895,10 +1058,12 @@ const {
 } = useSmartSchedulePoolAccountOps({ patchPoolAccount })
 
 const allPoolColumns = computed<Column[]>(() => [
+  { key: 'select', label: '', sortable: false, minWidth: 88, resizable: false },
   { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, minWidth: 140 },
   { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true, minWidth: 120 },
   { key: 'concurrency', label: t('admin.accounts.columns.capacity'), sortable: true, minWidth: 88 },
   { key: 'pair_cap', label: t('admin.users.smartSchedule.pairCap'), sortable: true, minWidth: 88 },
+  { key: 'admission', label: t('admin.users.smartSchedule.admission'), sortable: true, minWidth: 110 },
   { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, minWidth: 88 },
   { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, minWidth: 88 },
   { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false, minWidth: 88 },
@@ -925,13 +1090,67 @@ const {
 } = useSmartSchedulePoolColumnLayout(allPoolColumns)
 
 const poolTableRows = computed(() =>
-  poolAccounts.value.map((account) => ({
-    ...account,
-    platform_type: `${account.platform} ${account.type}`,
-    pair_cap: memberCap(account.id),
-    pair_current: memberCurrent(account.id)
-  }))
+  poolAccounts.value.map((account) => {
+    const admission = resolvePoolAdmission({
+      account,
+      pairCap: memberCapOrNull(account.id),
+      pairCurrent: memberCurrent(account.id),
+      cooldownUntil: memberCooldownUntil(account.id),
+      qualityBlocked: qualityBlockedFromDraft(currentDraft.value, qualityStatsById.value[String(account.id)])
+    })
+    return {
+      ...account,
+      platform_type: `${account.platform} ${account.type}`,
+      pair_cap: memberCap(account.id),
+      pair_current: memberCurrent(account.id),
+      cooldown_until: memberCooldownUntil(account.id),
+      admission: admission.state
+    }
+  })
 )
+
+const filteredPoolRows = computed(() =>
+  poolTableRows.value.filter((row) => matchesPoolFilters(row, row.admission, poolFilters.value))
+)
+
+const filteredSelectedIds = computed(() => {
+  const visible = new Set(filteredPoolRows.value.map((row) => row.id))
+  return selectedAccountIds.value.filter((id) => visible.has(id))
+})
+
+const userSmartScheduleSummary = computed(() =>
+  smartScheduleSummaryFromDrafts(platforms, drafts)
+)
+
+function admissionLabel(state: PoolAdmissionState) {
+  switch (state) {
+    case 'cooling':
+      return t('admin.users.smartSchedule.admissionCooling')
+    case 'pair_full':
+      return t('admin.users.smartSchedule.admissionPairFull')
+    case 'stopped':
+      return t('admin.users.smartSchedule.admissionStopped')
+    case 'quality_blocked':
+      return t('admin.users.smartSchedule.admissionQualityBlocked')
+    default:
+      return t('admin.users.smartSchedule.admissionSelectable')
+  }
+}
+
+function admissionChipClass(state: PoolAdmissionState) {
+  switch (state) {
+    case 'cooling':
+      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+    case 'pair_full':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    case 'stopped':
+      return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
+    case 'quality_blocked':
+      return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+    default:
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+  }
+}
 
 function getAccountEmail(row: Account): string | undefined {
   const email = row.extra?.email_address || row.credentials?.email || row.parent_email
@@ -974,6 +1193,14 @@ function chooseAddableAccount(accountId: number) {
   accountSearchOpen.value = false
 }
 
+function onFilteredAdd(accountIds: number[]) {
+  const added = addAccountsByIds(accountIds)
+  showAddDialog.value = false
+  if (added > 0) {
+    appStore.showSuccess(t('admin.users.smartSchedule.addFilteredSuccess', { count: String(added) }))
+  }
+}
+
 function onAccountSearchBlur() {
   window.setTimeout(() => {
     accountSearchOpen.value = false
@@ -984,23 +1211,238 @@ function platformLabel(platform: string) {
   return t(`admin.groups.platforms.${platform}`)
 }
 
+function showPoolPrioritySort() {
+  poolTableRef.value?.setSort?.('priority', 'asc')
+}
+
+async function handlePoolAutoSort() {
+  if (autoSorting.value || poolTableRows.value.length === 0) return
+  const sorted = sortSmartSchedulePoolMembers(
+    poolTableRows.value.map((row) => ({
+      id: row.id,
+      admission: row.admission,
+      pairCap: memberCapOrNull(row.id),
+      pairCurrent: row.pair_current ?? 0,
+      concurrency: row.concurrency ?? 1,
+      priority: row.priority ?? 0,
+      lastUsedAt: row.last_used_at ?? null
+    }))
+  )
+  const assigned = assignPoolAutoSortPriorities(sorted)
+  const byID = new Map(poolAccounts.value.map((account) => [account.id, account]))
+  const updates = assigned.flatMap((row) => {
+    const account = byID.get(row.id)
+    if (!account || (account.priority ?? 0) === row.nextPriority) return []
+    return [{ account, priority: row.nextPriority }]
+  })
+  if (updates.length === 0) {
+    showPoolPrioritySort()
+    appStore.showInfo(t('admin.users.smartSchedule.autoSortUnchanged'))
+    return
+  }
+  autoSorting.value = true
+  autoSortDone.value = 0
+  autoSortTotal.value = updates.length
+  appStore.showInfo(
+    t('admin.users.smartSchedule.autoSortProgress', { done: 0, total: updates.length })
+  )
+  try {
+    const result = await writeAccountPriorities(updates, (done, total) => {
+      autoSortDone.value = done
+      autoSortTotal.value = total
+    })
+    showPoolPrioritySort()
+    if (result.failed === 0) {
+      appStore.showSuccess(t('admin.users.smartSchedule.autoSortSuccess', { count: result.written }))
+      return
+    }
+    if (result.written === 0) {
+      appStore.showError(t('admin.users.smartSchedule.autoSortFailed'))
+      return
+    }
+    appStore.showWarning(
+      t('admin.users.smartSchedule.autoSortPartial', {
+        written: result.written,
+        failed: result.failed
+      })
+    )
+  } finally {
+    autoSorting.value = false
+  }
+}
+
 function goBack() {
   void router.push({ name: 'AdminUsers' })
+}
+
+async function loadUserListRowExtras(detail: AdminUser) {
+  const id = detail.id
+  userQualityLoading.value = true
+  userQualityError.value = null
+  const tasks: Promise<void>[] = [
+    (async () => {
+      try {
+        const qualityResponse = await adminAPI.users.getBatchQualityStats([id])
+        if (user.value?.id !== id) return
+        userQualityStats.value = qualityResponse.stats?.[String(id)] ?? null
+      } catch {
+        if (user.value?.id !== id) return
+        userQualityError.value = 'Failed'
+        userQualityStats.value = null
+      } finally {
+        if (user.value?.id === id) userQualityLoading.value = false
+      }
+    })(),
+    (async () => {
+      try {
+        const usageResponse = await adminAPI.dashboard.getBatchUsersUsage([id])
+        if (user.value?.id !== id) return
+        userUsageStats.value = usageResponse.stats?.[String(id)] ?? null
+      } catch {
+        if (user.value?.id !== id) return
+        userUsageStats.value = null
+      }
+    })(),
+    (async () => {
+      try {
+        const listed = await adminAPI.users.list(1, 5, {
+          search: detail.email,
+          include_subscriptions: true
+        })
+        if (user.value?.id !== id) return
+        const match = listed.items.find((item) => item.id === id)
+        if (!match) return
+        user.value = {
+          ...user.value,
+          current_concurrency: match.current_concurrency,
+          subscriptions: match.subscriptions ?? user.value.subscriptions,
+          last_used_at: match.last_used_at ?? user.value.last_used_at,
+          last_active_at: match.last_active_at ?? user.value.last_active_at
+        }
+      } catch {
+        // getById already has the core user DTO; list-only fields stay empty
+      }
+    })()
+  ]
+  await Promise.allSettled(tasks)
 }
 
 async function loadUser() {
   if (!userId.value) return
   userLoading.value = true
   try {
-    user.value = await adminAPI.users.getById(userId.value)
+    const detail = await adminAPI.users.getById(userId.value)
+    user.value = detail
+    userLoading.value = false
+    void loadUserListRowExtras(detail)
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
-  } finally {
     userLoading.value = false
   }
 }
 
+const autoRefreshIntervalLabel = (sec: number) => {
+  if (sec === 5) return t('admin.accounts.refreshInterval5s')
+  if (sec === 10) return t('admin.accounts.refreshInterval10s')
+  if (sec === 15) return t('admin.accounts.refreshInterval15s')
+  return t('admin.accounts.refreshInterval30s')
+}
+
+function loadSavedAutoRefresh() {
+  try {
+    const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY)
+    if (!saved) return
+    const parsed = JSON.parse(saved) as { enabled?: boolean; interval_seconds?: number }
+    autoRefreshEnabled.value = parsed.enabled === true
+    const interval = Number(parsed.interval_seconds)
+    if (autoRefreshIntervals.includes(interval as (typeof autoRefreshIntervals)[number])) {
+      autoRefreshIntervalSeconds.value = interval as (typeof autoRefreshIntervals)[number]
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveAutoRefreshToStorage() {
+  try {
+    localStorage.setItem(
+      AUTO_REFRESH_STORAGE_KEY,
+      JSON.stringify({
+        enabled: autoRefreshEnabled.value,
+        interval_seconds: autoRefreshIntervalSeconds.value
+      })
+    )
+  } catch {
+    // ignore
+  }
+}
+
+function stopAutoRefreshTimer() {
+  if (autoRefreshTimer != null) {
+    window.clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
+
+function startAutoRefreshTimer() {
+  stopAutoRefreshTimer()
+  if (!autoRefreshEnabled.value) return
+  autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
+  autoRefreshTimer = window.setInterval(() => {
+    if (!autoRefreshEnabled.value) return
+    if (loading.value || refreshing.value) return
+    if (autoRefreshCountdown.value <= 1) {
+      autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
+      void handleAutoRefresh()
+      return
+    }
+    autoRefreshCountdown.value -= 1
+  }, 1000)
+}
+
+function setAutoRefreshEnabled(enabled: boolean) {
+  autoRefreshEnabled.value = enabled
+  saveAutoRefreshToStorage()
+  if (enabled) startAutoRefreshTimer()
+  else {
+    stopAutoRefreshTimer()
+    autoRefreshCountdown.value = 0
+  }
+}
+
+function setAutoRefreshInterval(seconds: (typeof autoRefreshIntervals)[number]) {
+  autoRefreshIntervalSeconds.value = seconds
+  saveAutoRefreshToStorage()
+  if (autoRefreshEnabled.value) {
+    autoRefreshCountdown.value = seconds
+    startAutoRefreshTimer()
+  }
+}
+
+async function handleManualRefresh() {
+  await Promise.all([loadUser(), refreshAll({ silent: false })])
+}
+
+async function handleAutoRefresh() {
+  await Promise.all([loadUser(), refreshAll({ silent: true })])
+}
+
+function handleAutoRefreshClickOutside(event: MouseEvent) {
+  const target = event.target as Node | null
+  if (autoRefreshDropdownRef.value && target && !autoRefreshDropdownRef.value.contains(target)) {
+    showAutoRefreshDropdown.value = false
+  }
+}
+
 onMounted(() => {
+  loadSavedAutoRefresh()
+  if (autoRefreshEnabled.value) startAutoRefreshTimer()
+  document.addEventListener('click', handleAutoRefreshClickOutside)
   void loadUser()
+})
+
+onUnmounted(() => {
+  stopAutoRefreshTimer()
+  document.removeEventListener('click', handleAutoRefreshClickOutside)
 })
 </script>

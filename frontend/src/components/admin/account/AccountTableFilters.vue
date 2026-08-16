@@ -1,7 +1,10 @@
 <template>
   <div class="space-y-3">
     <!-- Row 1: Platform tabs (underline style, matching ModelPricingTab) -->
-    <div class="flex flex-wrap items-end gap-x-5 gap-y-0 border-b border-gray-200 dark:border-gray-700">
+    <div
+      v-if="!hidePlatform"
+      class="flex flex-wrap items-end gap-x-5 gap-y-0 border-b border-gray-200 dark:border-gray-700"
+    >
       <span class="pb-3 text-xs font-medium text-gray-500 shrink-0 dark:text-gray-400">
         {{ t('admin.modelPricing.providerLabel') }}
       </span>
@@ -22,7 +25,7 @@
     <div class="flex flex-wrap items-center gap-3">
       <SearchInput
         :model-value="searchQuery"
-        :placeholder="t('admin.accounts.searchAccounts')"
+        :placeholder="searchPlaceholder || t('admin.accounts.searchAccounts')"
         class="w-full sm:w-64"
         @update:model-value="$emit('update:searchQuery', $event)"
         @search="$emit('change')"
@@ -31,7 +34,8 @@
       <Select :model-value="filters.status" class="w-40" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
       <Select :model-value="filters.privacy_mode" class="w-40" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
       <Select :model-value="filters.group" class="w-40" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
-      <Select :model-value="sortValue" class="w-52" :options="sortOpts" @update:model-value="updateSort" />
+      <Select v-if="showSort" :model-value="sortValue" class="w-52" :options="sortOpts" @update:model-value="updateSort" />
+      <slot name="extra" />
     </div>
   </div>
 </template>
@@ -43,11 +47,17 @@ import Select from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import type { AdminGroup } from '@/types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   searchQuery: string
   filters: Record<string, any>
   groups?: AdminGroup[]
-}>()
+  hidePlatform?: boolean
+  showSort?: boolean
+  searchPlaceholder?: string
+}>(), {
+  hidePlatform: false,
+  showSort: true
+})
 
 const emit = defineEmits(['update:searchQuery', 'update:filters', 'change'])
 const { t } = useI18n()

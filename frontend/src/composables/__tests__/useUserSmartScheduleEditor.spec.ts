@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isCurrentlySchedulingAccount } from '../useUserSmartScheduleEditor'
+import { resolvePairCap } from '../smartSchedulePoolAdmission'
 
 describe('isCurrentlySchedulingAccount', () => {
   it('accepts active schedulable accounts', () => {
@@ -23,5 +24,13 @@ describe('isCurrentlySchedulingAccount', () => {
         rate_limit_reset_at: new Date(Date.now() + 60_000).toISOString()
       })
     ).toBe(false)
+  })
+})
+
+describe('effective pair cap display', () => {
+  it('does not fall back to account-wide concurrency', () => {
+    expect(resolvePairCap(null)).toBeNull()
+    expect(resolvePairCap(0)).toBeNull()
+    expect(resolvePairCap(4)).toBe(4)
   })
 })

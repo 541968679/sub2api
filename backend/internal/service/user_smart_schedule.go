@@ -15,11 +15,13 @@ const (
 
 // SmartScheduleAccountMember is one pool member + optional pair cap.
 // CurrentConcurrency is read-only live occupancy for this user on this account.
+// CooldownUntil is read-only: when the pair cooldown HASH field is still in the future.
 type SmartScheduleAccountMember struct {
-	AccountID          int64  `json:"account_id"`
-	Platform           string `json:"platform"`
-	MaxConcurrency     *int   `json:"max_concurrency,omitempty"`
-	CurrentConcurrency int    `json:"current_concurrency,omitempty"`
+	AccountID          int64      `json:"account_id"`
+	Platform           string     `json:"platform"`
+	MaxConcurrency     *int       `json:"max_concurrency,omitempty"`
+	CurrentConcurrency int        `json:"current_concurrency,omitempty"`
+	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
 }
 
 // SmartSchedulePlatformPolicy is the hot-path view of one (user, platform) policy.
@@ -31,6 +33,7 @@ type SmartSchedulePlatformPolicy struct {
 	QualityMinTTFTSamples    *int
 	QualityCondition         *string
 	CooldownMinutes          int
+	UpdatedAt                time.Time
 	AccountIDs               map[int64]struct{}
 	Caps                     map[int64]int
 }
@@ -117,6 +120,7 @@ type UserSmartScheduleCache interface {
 	SmartScheduleLookup
 	Invalidate(ctx context.Context, userID int64) error
 	ClearCooldown(ctx context.Context, accountID, userID int64) error
+	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time
 }
 
 // UserSmartScheduleRepository persists policies and pool members.
@@ -146,20 +150,22 @@ type SmartSchedulePlatformWrite struct {
 
 // SmartSchedulePlatformView is the admin GET/PUT response for one platform.
 type SmartSchedulePlatformView struct {
-	Enabled                  bool                          `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                          `json:"quality_max_p50_ttft_ms"`
-	QualityMinSuccessRate    *float64                      `json:"quality_min_success_rate"`
-	QualityMinSuccessSamples *int                          `json:"quality_min_success_samples"`
-	QualityMinTTFTSamples    *int                          `json:"quality_min_ttft_samples"`
-	QualityCondition         *string                       `json:"quality_condition"`
-	CooldownMinutes          int                           `json:"cooldown_minutes"`
-	Accounts                 []SmartScheduleAccountMember  `json:"accounts"`
+	Enabled                  bool                         `json:"enabled"`
+	QualityMaxP50TTFTMs      *int                         `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate    *float64                     `json:"quality_min_success_rate"`
+	QualityMinSuccessSamples *int                         `json:"quality_min_success_samples"`
+	QualityMinTTFTSamples    *int                         `json:"quality_min_ttft_samples"`
+	QualityCondition         *string                      `json:"quality_condition"`
+	CooldownMinutes          int                          `json:"cooldown_minutes"`
+	UpdatedAt                time.Time                    `json:"updated_at,omitempty"`
+	Accounts                 []SmartScheduleAccountMember `json:"accounts"`
 }
 
 // UserSmartScheduleView is GET /admin/users/:id/smart-schedule.
 type UserSmartScheduleView struct {
-	UserID    int64                               `json:"user_id"`
-	Platforms map[string]SmartSchedulePlatformView `json:"platforms"`
+	UserID          int64                                `json:"user_id"`
+	DefaultPlatform string                               `json:"default_platform,omitempty"`
+	Platforms       map[string]SmartSchedulePlatformView `json:"platforms"`
 }
 
 func normalizeSmartSchedulePlatform(platform string) string {

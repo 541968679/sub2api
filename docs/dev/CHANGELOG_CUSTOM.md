@@ -1,3 +1,129 @@
+## 2026-08-16 - feat(ui): smart-schedule pool toolbar three regions + filtered add
+
+### What
+- `/admin/users/:id/smart-schedule` pool ops are now three distinct regions: add, in-pool filters, and bulk.
+- Add region keeps quick typeahead and one-click “currently scheduling API / OAuth / all”, plus a **筛选添加** dialog.
+- The dialog reuses account-list `AccountTableFilters` (platform locked) plus schedulable / currently-scheduling / proxy, previews candidates not already in this platform pool, then add-selected or add-all-matching. Membership stays Save-gated; enable switch is still immediate PUT.
+- In-pool filters use the same SearchInput + Select chrome as account management. Bulk bar matches `AccountBulkActionsBar` (select page / select filtered / clear) and keeps batch remove-from-pool plus pair-cap apply. No account-delete.
+
+### Why
+Add controls and pool filters were mixed, and add-account filtering was too weak for ops who already use the account-list filter language.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountListFilters.spec.ts src/composables/__tests__/smartScheduleAddCandidates.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAddAccountDialog.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/utils/accountListFilters.ts`,
+`frontend/src/composables/smartScheduleAddCandidates.ts`,
+`frontend/src/components/admin/account/AccountTableFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAddAccountDialog.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): smart-schedule user header matches users list
+
+### What
+- `/admin/users/:id/smart-schedule` top user facts are now one `UsersView` table row (`AdminUserListRowTable`), not a custom field grid.
+- Reuses list cells: `AccountQualityCell` (首字 p50/p95 + 成功率), `UserConcurrencyCell`, `GroupBadge`, groups/status/usage/smart-schedule chips, and the same i18n column labels.
+- Loads user quality via `POST /admin/users/quality-stats/batch` and today/30d usage via `POST /admin/dashboard/users-usage`. Overlays list-only `current_concurrency` / subscriptions from `GET /admin/users?search=email`.
+
+### Why
+The previous core-params card omitted TTFT/success and did not match the user-management row operators already scan.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/components/admin/user/AdminUserListRowTable.vue`,
+`frontend/src/composables/adminUserListRow.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): smart-schedule pool auto-sort
+
+### What
+- Pool toolbar has one-click **自动排序**. It reorders the current platform’s pool members by admission (`selectable` → `pair_full` → `cooling` → `quality_blocked` → `stopped`), then pair headroom (uncapped uses a high sentinel, never `account.concurrency`), account concurrency, existing priority, LRU `last_used_at`, and account id.
+- Writes distinct `accounts.priority` values immediately via the existing per-account update API (no batch-per-row API; sequential with progress/error toasts). Does not remove members and does not Save-gate membership/caps.
+- Assignment reuses this pool’s existing priority slots, smallest number first, spreading duplicates upward. Lower `priority` stays more preferred (Claude ranking and same-rate OpenAI). Does not sort by `upstream_rate_multiplier`.
+- After a write, the pool table switches to `priority asc` (`smart-schedule-pool-sort`).
+
+### Why
+Ops needed a one-click layout of “who looks ready / has capacity” that also persists into the account priority field used on the hot path.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts`,
+`frontend/src/composables/useSmartSchedulePoolAccountOps.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/components/common/DataTable.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-16 - fix(ui): stability chart p50 scale
+
+### What
+- Account stability dialog can hide p95 (default) and persists that choice in localStorage.
+- Left TTFT axis now scales from currently visible series only. Hidden p95 uses p50 + headroom; both-visible clips to `max(p50)*2.5` so p50 stays readable, with overflow p95 clamped and a hint.
+
+### Why
+p95 is usually much higher than p50, so Chart.js auto-max flattened p50 into an unreadable line.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountStabilityChart.spec.ts src/components/account/__tests__/AccountStabilityDialog.spec.ts`
+
+### Affected files
+`frontend/src/utils/accountStabilityChart.ts`,
+`frontend/src/utils/__tests__/accountStabilityChart.spec.ts`,
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/components/account/__tests__/AccountStabilityDialog.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-08-16 - feat(schedule): smart-schedule pool admin UX
+
+### What
+- Pool table now has row selection, type/schedulable/admission filters, and Save-gated batch remove / pair-cap on the current filtered selection.
+- Pair badge no longer uses `account.concurrency` when the pool cap is empty; uncapped rows show “不额外限制”.
+- GET hydrates `cooldown_until` and `default_platform`. The page opens the enabled / most recently updated platform (zuoge85 lands on openai) and shows users-list core fields plus auto/manual refresh that keeps dirty drafts.
+
+### Why
+Ops could not filter stopped members, the pair badge looked like `0/99` on uncapped pools, resume looked like a no-op, and the page always opened Anthropic.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "UserSmartScheduleService_|PickDefaultSmartSchedule" -count=1`
+- `go test -tags=unit ./internal/repository -run UserSmartScheduleCache -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-16 - deploy: v0.1.227
 
 ### What

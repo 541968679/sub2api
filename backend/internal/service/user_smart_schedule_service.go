@@ -76,6 +76,8 @@ func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*User
 	}
 	view := bundleToView(userID, bundle)
 	s.hydratePairCurrent(ctx, userID, view)
+	s.hydratePairCooldown(ctx, userID, view)
+	view.DefaultPlatform = pickDefaultSmartSchedulePlatform(view)
 	return view, nil
 }
 
@@ -308,10 +310,91 @@ func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userI
 	}
 	for platformKey, platform := range view.Platforms {
 		for i := range platform.Accounts {
+			if platform.Accounts[i].MaxConcurrency == nil || *platform.Accounts[i].MaxConcurrency < 1 {
+				continue
+			}
 			platform.Accounts[i].CurrentConcurrency = counts[platform.Accounts[i].AccountID]
 		}
 		view.Platforms[platformKey] = platform
 	}
+}
+
+func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, userID int64, view *UserSmartScheduleView) {
+	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
+		return
+	}
+	ids := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, platform := range view.Platforms {
+		for _, member := range platform.Accounts {
+			if member.AccountID <= 0 {
+				continue
+			}
+			if _, ok := seen[member.AccountID]; ok {
+				continue
+			}
+			seen[member.AccountID] = struct{}{}
+			ids = append(ids, member.AccountID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	untilByAccount := s.cache.GetCooldownUntilBatch(ctx, ids, userID, time.Now().UTC())
+	if len(untilByAccount) == 0 {
+		return
+	}
+	for platformKey, platform := range view.Platforms {
+		for i := range platform.Accounts {
+			until, ok := untilByAccount[platform.Accounts[i].AccountID]
+			if !ok || until.IsZero() {
+				continue
+			}
+			copied := until
+			platform.Accounts[i].CooldownUntil = &copied
+		}
+		view.Platforms[platformKey] = platform
+	}
+}
+
+func pickDefaultSmartSchedulePlatform(view *UserSmartScheduleView) string {
+	if view == nil || len(view.Platforms) == 0 {
+		return PlatformAnthropic
+	}
+	type candidate struct {
+		platform string
+		members  int
+		updated  time.Time
+	}
+	var enabled, withPool []candidate
+	for _, platform := range AllowedQuotaPlatforms {
+		row := view.Platforms[platform]
+		item := candidate{platform: platform, members: len(row.Accounts), updated: row.UpdatedAt}
+		if row.Enabled && item.members > 0 {
+			enabled = append(enabled, item)
+		}
+		if item.members > 0 {
+			withPool = append(withPool, item)
+		}
+	}
+	pool := enabled
+	if len(pool) == 0 {
+		pool = withPool
+	}
+	if len(pool) == 0 {
+		return PlatformAnthropic
+	}
+	best := pool[0]
+	for _, item := range pool[1:] {
+		if item.updated.After(best.updated) {
+			best = item
+			continue
+		}
+		if item.updated.Equal(best.updated) && item.members > best.members {
+			best = item
+		}
+	}
+	return best.platform
 }
 
 func emptySmartScheduleSummary() UserSmartScheduleSummary {
@@ -369,6 +452,7 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	if policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
 		view.CooldownMinutes = policy.CooldownMinutes
 	}
+	view.UpdatedAt = policy.UpdatedAt
 	accountIDs := make([]int64, 0, len(policy.AccountIDs))
 	for accountID := range policy.AccountIDs {
 		accountIDs = append(accountIDs, accountID)

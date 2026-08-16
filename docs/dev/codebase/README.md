@@ -7,7 +7,7 @@
 | 模块 | 文件 | 说明 | 最后更新 |
 |------|------|------|---------|
 | Grok Codex + 跨平台调研 | [../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md](../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md) | 需求 A：Grok Key + Codex 多轮（WS→HTTP/SSE）；需求 B：OpenAI Key 直用 Grok；与上游差异、故意不合并原因、方案选项 | 2026-07-15 |
-| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入、OpenAI Claude-GPT bridge 账号绑定、账号级用户调度 allow/deny、15 分钟质量快照、质量硬关闭 | 2026-08-14 |
+| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入、OpenAI Claude-GPT bridge 账号绑定、账号级用户调度 allow/deny、15 分钟质量快照、质量硬关闭、用户智能调度账号池 | 2026-08-16 |
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符、Claude-GPT 账号级映射 | 2026-06-03 |
 | 计费系统 | [billing.md](billing.md) | 五级定价链、费用计算、展示变换、费率乘数、缓存命中计费、Claude-GPT bridge 缓存展示 | 2026-06-03 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、账号级用户调度过滤、Antigravity Claude-GPT bridge preflight、Codex remote compact V2 API-key 兜底；bridge timeout 调查见 [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md)；Grok/Codex 多轮与 OpenAI Key 跨平台 Grok 见 [../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md](../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md) | 2026-08-15 |

@@ -3,6 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import AccountStabilityDialog from '../AccountStabilityDialog.vue'
 import type { Account } from '@/types'
+import {
+  STABILITY_P95_CLIP_FACTOR,
+  STABILITY_SHOW_P95_STORAGE_KEY,
+  STABILITY_TTFT_HEADROOM
+} from '@/utils/accountStabilityChart'
 
 const {
   getQualityHistory,
@@ -50,7 +55,7 @@ vi.mock('vue-chartjs', () => ({
   Line: {
     props: ['data', 'options'],
     template:
-      '<div data-test="line-chart">{{ data.labels.join(",") }}|{{ data.datasets.map((dataset) => dataset.label + ":" + dataset.data.join("/")).join("|") }}</div>'
+      '<div data-test="line-chart">{{ data.labels.join(",") }}|{{ data.datasets.map((dataset) => dataset.label + ":" + dataset.data.join("/")).join("|") }}|ymax:{{ options?.scales?.yMs?.max ?? "" }}</div>'
   }
 }))
 
@@ -185,8 +190,40 @@ function mountDialog(account: Account | null = makeAccount()) {
   })
 }
 
+const historyWithSkewedP95 = {
+  items: [
+    {
+      captured_at: '2026-08-14T10:00:00Z',
+      window_seconds: 900,
+      success_count: 10,
+      error_count: 2,
+      success_rate: 0.833,
+      avg_ttft_ms: 400,
+      p50_ttft_ms: 300,
+      p95_ttft_ms: 9000,
+      max_ttft_ms: 12000,
+      ttft_samples: 10
+    },
+    {
+      captured_at: '2026-08-14T10:05:00Z',
+      window_seconds: 900,
+      success_count: 12,
+      error_count: 1,
+      success_rate: 0.923,
+      avg_ttft_ms: 350,
+      p50_ttft_ms: 280,
+      p95_ttft_ms: 8000,
+      max_ttft_ms: 11000,
+      ttft_samples: 12
+    }
+  ],
+  from: '2026-08-13T10:00:00Z',
+  to: '2026-08-14T10:05:00Z'
+}
+
 describe('AccountStabilityDialog', () => {
   beforeEach(() => {
+    localStorage.removeItem(STABILITY_SHOW_P95_STORAGE_KEY)
     getQualityHistory.mockReset()
     getQualityHardClose.mockReset()
     updateQualityHardClose.mockReset()
@@ -233,36 +270,7 @@ describe('AccountStabilityDialog', () => {
   })
 
   it('plots overlapping quality-history window points on the chart', async () => {
-    getQualityHistory.mockResolvedValue({
-      items: [
-        {
-          captured_at: '2026-08-14T10:00:00Z',
-          window_seconds: 900,
-          success_count: 10,
-          error_count: 2,
-          success_rate: 0.833,
-          avg_ttft_ms: 400,
-          p50_ttft_ms: 300,
-          p95_ttft_ms: 900,
-          max_ttft_ms: 1200,
-          ttft_samples: 10
-        },
-        {
-          captured_at: '2026-08-14T10:05:00Z',
-          window_seconds: 900,
-          success_count: 12,
-          error_count: 1,
-          success_rate: 0.923,
-          avg_ttft_ms: 350,
-          p50_ttft_ms: 280,
-          p95_ttft_ms: 800,
-          max_ttft_ms: 1100,
-          ttft_samples: 12
-        }
-      ],
-      from: '2026-08-13T10:00:00Z',
-      to: '2026-08-14T10:05:00Z'
-    })
+    getQualityHistory.mockResolvedValue(historyWithSkewedP95)
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -271,9 +279,48 @@ describe('AccountStabilityDialog', () => {
     expect(wrapper.find('[data-test="stability-empty"]').exists()).toBe(false)
     const chart = wrapper.get('[data-test="line-chart"]').text()
     expect(chart).toContain('300/280')
-    expect(chart).toContain('900/800')
+    expect(chart).not.toContain('9000/8000')
     expect(chart).toContain('83.3/92.3')
+    expect(chart).toContain(`ymax:${Math.ceil(300 * STABILITY_TTFT_HEADROOM)}`)
+    expect(wrapper.get('[data-test="stability-show-p95"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('admin.accounts.stability.chartHint')
+  })
+
+  it('hides p95 by default and rescales the left axis to p50', async () => {
+    getQualityHistory.mockResolvedValue(historyWithSkewedP95)
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const checkbox = wrapper.get<HTMLInputElement>('[data-test="stability-show-p95"]')
+    expect(checkbox.element.checked).toBe(false)
+    expect(wrapper.get('[data-test="line-chart"]').text()).toContain(`ymax:${Math.ceil(300 * STABILITY_TTFT_HEADROOM)}`)
+    expect(wrapper.find('[data-test="stability-p95-clipped"]').exists()).toBe(false)
+  })
+
+  it('shows clipped p95 on a p50-focused axis and persists the toggle', async () => {
+    getQualityHistory.mockResolvedValue(historyWithSkewedP95)
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-test="stability-show-p95"]').setValue(true)
+    await flushPromises()
+
+    const chart = wrapper.get('[data-test="line-chart"]').text()
+    expect(chart).toContain('300/280')
+    expect(chart).toContain(`${Math.ceil(300 * STABILITY_P95_CLIP_FACTOR)}/${Math.ceil(300 * STABILITY_P95_CLIP_FACTOR)}`)
+    expect(chart).not.toContain('9000/8000')
+    expect(chart).toContain(`ymax:${Math.ceil(300 * STABILITY_P95_CLIP_FACTOR)}`)
+    expect(wrapper.get('[data-test="stability-p95-clipped"]').text()).toContain('admin.accounts.stability.p95ClippedHint')
+    expect(localStorage.getItem(STABILITY_SHOW_P95_STORAGE_KEY)).toBe('1')
+
+    wrapper.unmount()
+    const reopened = mountDialog()
+    await flushPromises()
+    expect(reopened.get<HTMLInputElement>('[data-test="stability-show-p95"]').element.checked).toBe(true)
+    expect(reopened.get('[data-test="line-chart"]').text()).toContain(`ymax:${Math.ceil(300 * STABILITY_P95_CLIP_FACTOR)}`)
+    reopened.unmount()
   })
 
   it('saves the overlay as a top-level payload and converts percent to 0-1', async () => {

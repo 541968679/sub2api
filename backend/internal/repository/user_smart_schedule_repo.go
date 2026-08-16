@@ -181,6 +181,7 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 			QualityMinTTFTSamples:    row.QualityMinTtftSamples,
 			QualityCondition:         row.QualityCondition,
 			CooldownMinutes:          row.CooldownMinutes,
+			UpdatedAt:                row.UpdatedAt,
 			AccountIDs:               map[int64]struct{}{},
 			Caps:                     map[int64]int{},
 		}

@@ -384,6 +384,7 @@ export interface SmartScheduleAccountMember {
   platform?: string
   max_concurrency?: number | null
   current_concurrency?: number
+  cooldown_until?: string | null
 }
 
 export interface SmartSchedulePlatformView {
@@ -394,11 +395,13 @@ export interface SmartSchedulePlatformView {
   quality_min_ttft_samples: number | null
   quality_condition: 'or' | 'and' | null
   cooldown_minutes: number
+  updated_at?: string
   accounts: SmartScheduleAccountMember[]
 }
 
 export interface UserSmartScheduleView {
   user_id: number
+  default_platform?: SmartSchedulePlatform
   platforms: Record<string, SmartSchedulePlatformView>
 }
 

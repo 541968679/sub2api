@@ -833,11 +833,19 @@ watch(
   { flush: 'post' }
 )
 
+function setSort(key: string, order: 'asc' | 'desc' = 'asc') {
+  const normalized = normalizeSortKey(key)
+  if (!normalized) return
+  sortKey.value = normalized
+  sortOrder.value = normalizeSortOrder(order)
+}
+
 defineExpose({
   virtualizer: rowVirtualizer,
   sortedData,
   resolveRowKey,
   tableWrapperEl: tableWrapperRef,
+  setSort,
 })
 </script>
 
