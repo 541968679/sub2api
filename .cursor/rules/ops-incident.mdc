@@ -1,0 +1,31 @@
+---
+description: 生产/报错/排查必须先读生产入口并拉日志，再看代码
+alwaysApply: true
+---
+
+# 生产事故 MUST
+
+任务信号含「生产 / 线上 / 报错 / 排查 / 日志 / incident」时：
+
+- MUST 先读 `docs/dev/PRODUCTION.md`，先 SSH 拉日志，再看代码。
+- 禁止先搜业务代码、先改实现、或擅自发版。
+- 正确：SSH `tail -n 120 /opt/sub2api/deploy.log` 与 `docker inspect` health。
+- 错误：先 Grep `gateway_handler.go` 或先改 gateway。
+
+| 项 | 值 |
+|----|----|
+| 主机 | `root@172.245.247.80` |
+| SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
+| Compose | `/opt/sub2api` |
+| 部署日志 | `/opt/sub2api/deploy.log` |
+| 镜像 | `ghcr.io/541968679/sub2api:latest` |
+
+```powershell
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "docker inspect sub2api --format '{{.Config.Image}} {{.Image}} {{.State.Health.Status}}'"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose logs --tail=120 aiclient2api"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2api/deploy.log"
+```
+
+禁止：无当次用户许可不得 push/deploy；生产只 GHCR pull；禁止 `v0.1.232` / `v0.1.233`。
+详细步骤只看 `docs/dev/PRODUCTION.md`；发版流程看 `docs/dev/DEPLOYMENT.md`。

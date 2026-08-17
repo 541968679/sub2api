@@ -10,6 +10,8 @@
 
 ### 1.1 本项目生产环境速查
 
+线上排查 / 生产报错 / 拉日志：先读 `docs/dev/PRODUCTION.md`，先拉日志再看代码。本节继续管部署入口与发布历史。
+
 生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`；InvokeAI 侧车说明见 `docs/dev/INVOKEAI_SIDECAR.md`。
 
 | 项目 | 值 |

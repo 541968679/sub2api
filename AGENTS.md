@@ -87,6 +87,48 @@ data model -> key files -> core flow -> important mechanisms -> known pitfalls.
 Update `docs/dev/ARCHITECTURE.md` only for top-level modules, cross-cutting
 conventions, reusable task templates, or environment/build pitfalls.
 
+## Task Signal Reading Chain
+
+Pick the first document from the task signal. Do not treat every task as a
+code-exploration walk.
+
+| Task signal | Read first |
+|-------------|------------|
+| Unfamiliar code / change a module | Existing Start Here chain: `ARCHITECTURE.md` → `codebase/README.md` → `codebase/{module}.md` |
+| 生产 / 线上 / 报错 / 排查 / 日志 / incident | `docs/dev/PRODUCTION.md` — pull logs before reading or changing code |
+| Deploy / release process | `docs/dev/DEPLOYMENT.md` — not the same as an incident |
+
+## Production incidents (MUST)
+
+If the task includes 生产 / 线上 / 报错 / 排查 / 日志 / incident:
+
+- MUST read `docs/dev/PRODUCTION.md` first, SSH-pull logs, then look at code.
+- MUST NOT search business code or change implementations first.
+- Wrong: Grep `gateway_handler.go` first. Right: SSH `tail` / `docker inspect` health first.
+
+| Item | Value |
+|------|-------|
+| Host | `root@172.245.247.80` |
+| SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
+| Compose | `/opt/sub2api` |
+| Deploy log | `/opt/sub2api/deploy.log` |
+| Image | `ghcr.io/541968679/sub2api:latest` |
+
+```powershell
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "docker inspect sub2api --format '{{.Config.Image}} {{.Image}} {{.State.Health.Status}}'"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose logs --tail=120 aiclient2api"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2api/deploy.log"
+```
+
+The same §1.1 block also has `docker compose logs --tail=120 invokeai`. Full
+playbook: `docs/dev/PRODUCTION.md`. Release flow: `docs/dev/DEPLOYMENT.md`.
+
+- No push/deploy without explicit user permission for this turn.
+- Production main service: GHCR pull only. No production-host `docker build` /
+  `sub2api-custom:*`.
+- Never redeploy `v0.1.232` or `v0.1.233`.
+
 ## Local Development Environment
 
 ### Port Rules (STRICT — never use low ports)
@@ -166,6 +208,8 @@ will override `backend/config.yaml`. If the backend unexpectedly binds to port
 - `docs/dev/CHANGELOG_CUSTOM.md` - custom-change log; append every verified
   local change here.
 - `docs/dev/SECONDARY_DEV.md` - secondary development guide.
+- `docs/dev/PRODUCTION.md` - production incident / log playbook (host, SSH,
+  pull-logs-first).
 - `docs/dev/DEPLOYMENT.md` - deployment and operations guide.
 - `docs/dev/SECURITY_OPERATIONS.md` - credential rotation and security
   operations guide.

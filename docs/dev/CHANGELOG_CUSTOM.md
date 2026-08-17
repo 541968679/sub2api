@@ -1,3 +1,27 @@
+## 2026-08-17 - docs(ops): production incident reading chain
+
+### What
+- Added `docs/dev/PRODUCTION.md` as the incident/log playbook (entry table + pull-logs-first order).
+- Always-apply: compact production entry + MUST in `AGENTS.md` and `.cursor/rules/ops-incident.mdc`.
+- Pointers from `DEPLOYMENT.md` §1.1, `ARCHITECTURE.md` §0 (including the three `/api/v1/admin/ops` error APIs), `codebase/ops.md`, and `codebase/README.md`.
+
+### Why
+`docs/dev` is gitignored, so agents could not discover the production host/SSH/log commands by search. Incidents must pull logs before reading or changing code.
+
+### Verification
+- Desktop V1–V4: always-apply answers host/key/compose/deploy.log/GHCR and the copied log commands without searching `docs/dev`.
+- No SSH to production, no commit/push/deploy, `.gitignore` unchanged.
+
+### Affected files
+`docs/dev/PRODUCTION.md`,
+`docs/dev/DEPLOYMENT.md`,
+`AGENTS.md`,
+`.cursor/rules/ops-incident.mdc`,
+`docs/dev/ARCHITECTURE.md`,
+`docs/dev/codebase/ops.md`,
+`docs/dev/codebase/README.md`,
+this changelog.
+
 ## 2026-08-17 - fix(bridge): harvest content_part text on empty-delta GPT streams
 
 ### What

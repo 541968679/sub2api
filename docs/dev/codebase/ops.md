@@ -3,6 +3,20 @@
 > Admin operations dashboard, alert rules, account availability rollups, and
 > runtime account-state indicators.
 
+## Production logs
+
+Production SSH / docker log commands live in
+[`docs/dev/PRODUCTION.md`](../PRODUCTION.md). This file is the admin Ops code
+map, not the host runbook.
+
+In-product error APIs under `/api/v1/admin/ops`:
+
+- `GET /api/v1/admin/ops/request-errors`
+- `GET /api/v1/admin/ops/upstream-errors`
+- `GET /api/v1/admin/ops/errors`
+
+Do not repeat the SSH playbook here.
+
 ## Data Model
 
 | Data | Source | Notes |
