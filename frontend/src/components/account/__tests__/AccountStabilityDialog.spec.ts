@@ -12,6 +12,7 @@ import {
 const {
   getQualityHistory,
   getQualityHardClose,
+  getBatchQualityStats,
   updateQualityHardClose,
   recoverState,
   getQualityHardCloseSettings,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
   getQualityHistory: vi.fn(),
   getQualityHardClose: vi.fn(),
+  getBatchQualityStats: vi.fn(),
   updateQualityHardClose: vi.fn(),
   recoverState: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
@@ -34,6 +36,7 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       getQualityHistory,
       getQualityHardClose,
+      getBatchQualityStats,
       updateQualityHardClose,
       recoverState
     },
@@ -78,6 +81,9 @@ vi.mock('vue-i18n', async () => {
       t: (key: string, params?: Record<string, string>) => {
         if (key === 'admin.accounts.stability.title') return `stability:${params?.name ?? ''}`
         if (key === 'admin.accounts.stability.pauseBanner') return `paused:${params?.time ?? ''}`
+        if (key === 'admin.accounts.stability.bridgeSamples') {
+          return `bridgeSamples:${params?.success ?? ''}/${params?.error ?? ''}`
+        }
         return key
       }
     })
@@ -226,6 +232,7 @@ describe('AccountStabilityDialog', () => {
     localStorage.removeItem(STABILITY_SHOW_P95_STORAGE_KEY)
     getQualityHistory.mockReset()
     getQualityHardClose.mockReset()
+    getBatchQualityStats.mockReset()
     updateQualityHardClose.mockReset()
     recoverState.mockReset()
     getQualityHardCloseSettings.mockReset()
@@ -234,6 +241,7 @@ describe('AccountStabilityDialog', () => {
     showError.mockReset()
     getQualityHistory.mockResolvedValue({ items: [], from: '2026-08-13T00:00:00Z', to: '2026-08-14T00:00:00Z' })
     getQualityHardClose.mockResolvedValue({ ...defaultHardClose })
+    getBatchQualityStats.mockResolvedValue({ stats: {} })
     updateQualityHardClose.mockResolvedValue({
       ...defaultHardClose,
       overlay: { ...defaultHardClose.overlay, enabled: true, use_global: false }
@@ -264,7 +272,10 @@ describe('AccountStabilityDialog', () => {
 
     expect(getQualityHistory).toHaveBeenCalledWith(12)
     expect(getQualityHardClose).toHaveBeenCalledWith(12)
+    expect(getBatchQualityStats).toHaveBeenCalledWith([12])
     expect(wrapper.get('[data-test="stability-empty"]').text()).toContain('admin.accounts.stability.noData')
+    expect(wrapper.get('[data-test="stability-bridge-rate-value"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-bridge-empty"]').text()).toContain('admin.accounts.stability.bridgeEmpty')
     expect(wrapper.find('[data-test="line-chart"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="global-disabled-hint"]').exists()).toBe(true)
   })
@@ -469,5 +480,64 @@ describe('AccountStabilityDialog', () => {
     })
     expect(updateQualityHardClose).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
+  })
+
+  it('shows the live 15-minute bridge error rate and sample counts', async () => {
+    getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '12': {
+          window_seconds: 900,
+          success_count: 10,
+          error_count: 1,
+          success_rate: 0.91,
+          bridge_success_count: 4,
+          bridge_error_count: 6,
+          bridge_error_rate: 0.6,
+          avg_ttft_ms: 400,
+          p50_ttft_ms: 300,
+          p95_ttft_ms: 900,
+          max_ttft_ms: 1200,
+          ttft_samples: 10
+        }
+      }
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(getBatchQualityStats).toHaveBeenCalledWith([12])
+    expect(wrapper.get('[data-test="stability-bridge-rate"]').text()).toContain('admin.accounts.stability.bridgeTitle')
+    expect(wrapper.get('[data-test="stability-bridge-rate-value"]').text()).toBe('60.0%')
+    expect(wrapper.get('[data-test="stability-bridge-samples"]').text()).toBe('bridgeSamples:4/6')
+    expect(wrapper.find('[data-test="stability-bridge-empty"]').exists()).toBe(false)
+  })
+
+  it('does not render 0% when the live window has no bridge samples', async () => {
+    getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '12': {
+          window_seconds: 900,
+          success_count: 10,
+          error_count: 1,
+          success_rate: 0.91,
+          bridge_success_count: 0,
+          bridge_error_count: 0,
+          bridge_error_rate: 0,
+          avg_ttft_ms: 400,
+          p50_ttft_ms: 300,
+          p95_ttft_ms: 900,
+          max_ttft_ms: 1200,
+          ttft_samples: 10
+        }
+      }
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="stability-bridge-rate-value"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-bridge-empty"]').text()).toContain('admin.accounts.stability.bridgeEmpty')
+    expect(wrapper.text()).not.toContain('0.0%')
+    expect(wrapper.find('[data-test="stability-bridge-samples"]').exists()).toBe(false)
   })
 })

@@ -177,3 +177,23 @@ func IsClaudeGPTBridgeError(platform, upstreamModel string) bool {
 	um := strings.ToLower(strings.TrimSpace(upstreamModel))
 	return strings.HasPrefix(um, "gpt-")
 }
+
+// SQLClaudeGPTBridgeErrorPredicate matches ops_error_logs rows that the
+// admin error page treats as Claude→GPT bridge. Column names are internal
+// identifiers only.
+func SQLClaudeGPTBridgeErrorPredicate(platformCol, upstreamCol string) string {
+	return "(LOWER(COALESCE(" + platformCol + ",'')) IN ('antigravity','anthropic') AND LOWER(COALESCE(" + upstreamCol + ",'')) LIKE 'gpt-%')"
+}
+
+// SQLExcludeClaudeGPTBridgeError is the complementary filter for scheduling
+// quality ErrorCount (native failures only).
+func SQLExcludeClaudeGPTBridgeError(platformCol, upstreamCol string) string {
+	return "NOT " + SQLClaudeGPTBridgeErrorPredicate(platformCol, upstreamCol)
+}
+
+// SQLClaudeGPTBridgeUsagePredicate matches usage_logs rows for the same
+// bridge class. usage_logs has no platform column; requested/model is Claude
+// and upstream is GPT.
+func SQLClaudeGPTBridgeUsagePredicate(requestedCol, modelCol, upstreamCol string) string {
+	return "(LOWER(COALESCE(" + upstreamCol + ",'')) LIKE 'gpt-%' AND (LOWER(COALESCE(" + requestedCol + ",'')) LIKE 'claude-%' OR LOWER(COALESCE(" + modelCol + ",'')) LIKE 'claude-%'))"
+}

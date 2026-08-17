@@ -2262,7 +2262,7 @@ const enBase = {
         ttftHint:
           'True first-token latency for this user over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
-          'Request success rate for this user over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.'
+          'Scheduling success rate for this user over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens and Claude→GPT bridge failures). Shows — when empty.'
       },
       schedulePnl: {
         columnHint: 'Enabled smart-schedule users: sum of this-user × pool-account revenue/cost/profit. Off shows —. Click for the trend.',
@@ -4509,13 +4509,15 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Live 15-minute account quality: p50 first-token latency on top, success rate below. Click to open the stability curve and hard-close settings.',
+          'Live 15-minute account quality: p50 first-token latency, then scheduling success rate (bridge failures excluded). The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling. Click to open the stability curve, bridge error rate, and hard-close settings.',
         successShort: 'ok',
+        bridgeShort: 'br',
         ttftHint:
           'True first-token latency over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
-          'Request success rate over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.',
+          'Scheduling success rate over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens and Claude→GPT bridge failures). Shows — when empty.',
         tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}',
+        bridgeTooltip: 'Last {windowMinutes} min · bridge success {success} · bridge fail {error} (not used for scheduling)',
         ttftTooltip:
           'Last {windowMinutes} min · samples {samples} · p50 {p50}ms · p95 {p95}ms · avg {avg}ms · max {max}ms'
       },
@@ -4525,7 +4527,7 @@ const enBase = {
         chartHint: 'Each point is the live 15-minute rolling window at that time (adjacent points overlap), not a disjoint bucket.',
         noData: 'No quality snapshots',
         noDataHint: 'No persisted snapshots in this range. Idle accounts do not write empty points.',
-        clickToOpen: 'Click to open the stability curve and hard-close settings',
+        clickToOpen: 'Click to open the stability curve, bridge error rate, and hard-close settings',
         openShort: 'Open',
         openAria: 'Open account stability window',
         pauseBanner: 'Quality hard-close paused scheduling. Expected resume at {time}',
@@ -4564,7 +4566,11 @@ const enBase = {
         showP95: 'Show p95',
         p95ClippedHint: 'Some p95 points exceed this scale and are clipped to the top. Hide p95 to zoom the left axis to p50.',
         successRateSeries: 'Success rate (%)',
-        samplesSummary: 'Latest point: success {success} · fail {error} · TTFT samples {ttft}'
+        samplesSummary: 'Latest point: success {success} · fail {error} · TTFT samples {ttft}',
+        bridgeTitle: 'Claude→GPT bridge error rate',
+        bridgeHint: 'Live 15-minute window. Display-only; not used by smart-schedule gates or hard-close.',
+        bridgeSamples: 'Bridge success {success} · bridge fail {error}',
+        bridgeEmpty: 'No bridge samples in this window'
       },
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       oauthFleetUsage: {

@@ -2376,8 +2376,10 @@ func allowlistedQualityStatsIDColumn(column string) (string, error) {
 }
 
 // GetAccountQualityStatsBatch aggregates recent success counts, error counts, and average TTFT
-// for account list quality columns. Success comes from usage_logs; errors from ops_error_logs
-// (status_code >= 400, excluding count_tokens probes). Missing accounts get zero-sample stats.
+// for account list quality columns. Success comes from usage_logs; scheduling errors from
+// ops_error_logs (status_code >= 400, excluding count_tokens and Claude-GPT bridge rows).
+// Bridge successes/errors are returned separately and must not feed gates. Missing accounts
+// get zero-sample stats.
 func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
 	return r.getQualityStatsBatch(ctx, accountIDs, startTime, qualityStatsIDColumnAccount)
 }
@@ -2400,13 +2402,15 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 	}
 
 	type rawAgg struct {
-		successCount int64
-		errorCount   int64
-		ttftSamples  int64
-		avgTTFT      sql.NullFloat64
-		p50TTFT      sql.NullFloat64
-		p95TTFT      sql.NullFloat64
-		maxTTFT      sql.NullFloat64
+		successCount       int64
+		bridgeSuccessCount int64
+		errorCount         int64
+		bridgeErrorCount   int64
+		ttftSamples        int64
+		avgTTFT            sql.NullFloat64
+		p50TTFT            sql.NullFloat64
+		p95TTFT            sql.NullFloat64
+		maxTTFT            sql.NullFloat64
 	}
 	aggs := make(map[int64]*rawAgg, len(ids))
 	for _, id := range ids {
@@ -2415,10 +2419,12 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 
 	// Percentiles resist single-pathological outliers better than AVG alone.
 	// p50 = typical latency; p95 = tail; avg/max kept for context.
+	bridgeUsagePred := service.SQLClaudeGPTBridgeUsagePredicate("requested_model", "model", "upstream_model")
 	usageQuery := fmt.Sprintf(`
 		SELECT
 			%s,
 			COUNT(*) AS success_count,
+			COUNT(*) FILTER (WHERE %s) AS bridge_success_count,
 			COUNT(COALESCE(true_first_token_ms, first_token_ms)) AS ttft_samples,
 			AVG(COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS avg_ttft_ms,
 			PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS p50_ttft_ms,
@@ -2427,7 +2433,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 		FROM usage_logs
 		WHERE %s = ANY($1) AND created_at >= $2
 		GROUP BY %s
-	`, idColumn, idColumn, idColumn)
+	`, idColumn, bridgeUsagePred, idColumn, idColumn)
 	usageRows, err := r.sql.QueryContext(ctx, usageQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err
@@ -2436,9 +2442,9 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 
 	for usageRows.Next() {
 		var id int64
-		var successCount, ttftSamples int64
+		var successCount, bridgeSuccessCount, ttftSamples int64
 		var avgTTFT, p50TTFT, p95TTFT, maxTTFT sql.NullFloat64
-		if err := usageRows.Scan(&id, &successCount, &ttftSamples, &avgTTFT, &p50TTFT, &p95TTFT, &maxTTFT); err != nil {
+		if err := usageRows.Scan(&id, &successCount, &bridgeSuccessCount, &ttftSamples, &avgTTFT, &p50TTFT, &p95TTFT, &maxTTFT); err != nil {
 			return nil, err
 		}
 		agg := aggs[id]
@@ -2447,6 +2453,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 			aggs[id] = agg
 		}
 		agg.successCount = successCount
+		agg.bridgeSuccessCount = bridgeSuccessCount
 		agg.ttftSamples = ttftSamples
 		agg.avgTTFT = avgTTFT
 		agg.p50TTFT = p50TTFT
@@ -2461,17 +2468,19 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 	if idColumn == qualityStatsIDColumnUser {
 		errorNullGuard = fmt.Sprintf("\n\t\t  AND %s IS NOT NULL", idColumn)
 	}
+	bridgeErrorPred := service.SQLClaudeGPTBridgeErrorPredicate("platform", "upstream_model")
 	errorQuery := fmt.Sprintf(`
 		SELECT
 			%s,
-			COUNT(*) AS error_count
+			COUNT(*) FILTER (WHERE %s) AS error_count,
+			COUNT(*) FILTER (WHERE %s) AS bridge_error_count
 		FROM ops_error_logs
 		WHERE %s = ANY($1)
 		  AND created_at >= $2
 		  AND COALESCE(status_code, 0) >= 400
 		  AND is_count_tokens = FALSE%s
 		GROUP BY %s
-	`, idColumn, idColumn, errorNullGuard, idColumn)
+	`, idColumn, service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model"), bridgeErrorPred, idColumn, errorNullGuard, idColumn)
 	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err
@@ -2480,8 +2489,8 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 
 	for errorRows.Next() {
 		var id int64
-		var errorCount int64
-		if err := errorRows.Scan(&id, &errorCount); err != nil {
+		var errorCount, bridgeErrorCount int64
+		if err := errorRows.Scan(&id, &errorCount, &bridgeErrorCount); err != nil {
 			return nil, err
 		}
 		agg := aggs[id]
@@ -2490,6 +2499,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 			aggs[id] = agg
 		}
 		agg.errorCount = errorCount
+		agg.bridgeErrorCount = bridgeErrorCount
 	}
 	if err := errorRows.Err(); err != nil {
 		return nil, err
@@ -2509,13 +2519,15 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 			result[id] = service.BuildAccountQualityStats(0, 0, service.TTFTAggregate{})
 			continue
 		}
-		result[id] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, service.TTFTAggregate{
+		stats := service.BuildAccountQualityStats(agg.successCount, agg.errorCount, service.TTFTAggregate{
 			Samples: agg.ttftSamples,
 			Avg:     nullF(agg.avgTTFT),
 			P50:     nullF(agg.p50TTFT),
 			P95:     nullF(agg.p95TTFT),
 			Max:     nullF(agg.maxTTFT),
 		})
+		service.AttachBridgeQualityCounts(stats, agg.bridgeSuccessCount, agg.bridgeErrorCount)
+		result[id] = stats
 	}
 	return result, nil
 }

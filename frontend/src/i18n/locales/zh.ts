@@ -2112,7 +2112,7 @@ const zhBase = {
         ttftHint:
           '最近 15 分钟内该用户真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
-          '最近 15 分钟内该用户请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。'
+          '最近 15 分钟内该用户调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens 与 Claude→GPT 桥接失败）。无样本显示 —。'
       },
       schedulePnl: {
         columnHint: '已开启智能调度的用户：合计当前 enabled 池内本用户×账号的收入/成本/利润。未开启显示 —。点击查看趋势。',
@@ -4095,13 +4095,15 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '最近 15 分钟账号质量：上行 p50 首字延迟，下行成功率。点击打开稳定性曲线与硬关闭。',
+          '最近 15 分钟账号质量：上行 p50 首字延迟，下行调度成功率（不含桥接失败）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度。点击打开稳定性曲线、桥接错误率与硬关闭。',
         successShort: '率',
+        bridgeShort: '桥',
         ttftHint:
           '最近 15 分钟真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
-          '最近 15 分钟内该账号请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。',
+          '最近 15 分钟调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens 与 Claude→GPT 桥接失败）。无样本显示 —。',
         tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}',
+        bridgeTooltip: '最近 {windowMinutes} 分钟 · 桥接成功 {success} · 桥接失败 {error}（不进调度）',
         ttftTooltip:
           '最近 {windowMinutes} 分钟 · 样本 {samples} · p50 {p50}ms · p95 {p95}ms · 均值 {avg}ms · 最大 {max}ms'
       },
@@ -4111,7 +4113,7 @@ const zhBase = {
         chartHint: '每个点都是当时的 15 分钟滚动窗口（相邻点会重叠），不是互斥时间桶。',
         noData: '暂无质量快照',
         noDataHint: '该时段没有已落库的质量快照。无流量账号不会写入空点。',
-        clickToOpen: '点击查看稳定性曲线与硬关闭配置',
+        clickToOpen: '点击查看稳定性曲线、桥接错误率与硬关闭配置',
         openShort: '打开',
         openAria: '打开账号稳定性窗口',
         pauseBanner: '质量硬关闭已暂停调度，预计 {time} 恢复',
@@ -4150,7 +4152,11 @@ const zhBase = {
         showP95: '显示 p95',
         p95ClippedHint: '部分 p95 超出当前刻度，已夹到顶部。隐藏 p95 可按 p50 放大左轴。',
         successRateSeries: '成功率（%）',
-        samplesSummary: '最近一点：成功 {success} · 失败 {error} · 首字样本 {ttft}'
+        samplesSummary: '最近一点：成功 {success} · 失败 {error} · 首字样本 {ttft}',
+        bridgeTitle: 'Claude→GPT 桥接错误率',
+        bridgeHint: '当前 15 分钟 live 窗口。只展示，不进智能调度门槛或硬关闭。',
+        bridgeSamples: '桥接成功 {success} · 桥接失败 {error}',
+        bridgeEmpty: '该窗口无桥接样本'
       },
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       oauthFleetUsage: {

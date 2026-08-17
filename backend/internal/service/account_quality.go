@@ -46,6 +46,11 @@ type AccountQualityStats struct {
 	SuccessRate   *float64 `json:"success_rate"`
 	// ErrorRate is 1-SuccessRate when the window has success+error samples; nil when empty.
 	ErrorRate *float64 `json:"error_rate"`
+	// Bridge* is display-only Claude→GPT bridge traffic. It must not feed
+	// scheduling gates or hard-close. ErrorCount above excludes these rows.
+	BridgeSuccessCount int64    `json:"bridge_success_count"`
+	BridgeErrorCount   int64    `json:"bridge_error_count"`
+	BridgeErrorRate    *float64 `json:"bridge_error_rate"`
 	// AvgTTFTMs kept for backward compatibility; prefer P50 for display.
 	AvgTTFTMs   *int  `json:"avg_ttft_ms"`
 	P50TTFTMs   *int  `json:"p50_ttft_ms"`
@@ -102,6 +107,18 @@ func BuildAccountQualityStats(successCount, errorCount int64, ttft TTFTAggregate
 	return stats
 }
 
+// AttachBridgeQualityCounts sets the display-only bridge window and recomputes
+// BridgeErrorRate. Scheduling ErrorCount / SuccessRate are left untouched.
+func AttachBridgeQualityCounts(stats *AccountQualityStats, successCount, errorCount int64) {
+	if stats == nil {
+		return
+	}
+	stats.BridgeSuccessCount = successCount
+	stats.BridgeErrorCount = errorCount
+	stats.BridgeErrorRate = nil
+	NormalizeAccountQualityRates(stats)
+}
+
 // QualityRateSamples is the success+error count used for rate display and gates.
 func QualityRateSamples(stats *AccountQualityStats) int64 {
 	if stats == nil {
@@ -120,15 +137,24 @@ func NormalizeAccountQualityRates(stats *AccountQualityStats) {
 	if total <= 0 {
 		stats.SuccessRate = nil
 		stats.ErrorRate = nil
+	} else {
+		if stats.SuccessRate == nil {
+			rate := float64(stats.SuccessCount) / float64(total)
+			stats.SuccessRate = &rate
+		}
+		if stats.ErrorRate == nil {
+			rate := float64(stats.ErrorCount) / float64(total)
+			stats.ErrorRate = &rate
+		}
+	}
+	bridgeTotal := stats.BridgeSuccessCount + stats.BridgeErrorCount
+	if bridgeTotal <= 0 {
+		stats.BridgeErrorRate = nil
 		return
 	}
-	if stats.SuccessRate == nil {
-		rate := float64(stats.SuccessCount) / float64(total)
-		stats.SuccessRate = &rate
-	}
-	if stats.ErrorRate == nil {
-		rate := float64(stats.ErrorCount) / float64(total)
-		stats.ErrorRate = &rate
+	if stats.BridgeErrorRate == nil {
+		rate := float64(stats.BridgeErrorCount) / float64(bridgeTotal)
+		stats.BridgeErrorRate = &rate
 	}
 }
 
@@ -325,7 +351,8 @@ func HasAccountQualitySamples(stats *AccountQualityStats) bool {
 	if stats == nil {
 		return false
 	}
-	return stats.SuccessCount > 0 || stats.ErrorCount > 0 || stats.TTFTSamples > 0
+	return stats.SuccessCount > 0 || stats.ErrorCount > 0 || stats.TTFTSamples > 0 ||
+		stats.BridgeSuccessCount > 0 || stats.BridgeErrorCount > 0
 }
 
 // TruncateToAccountQualitySnapshotTime truncates t to a 5-minute UTC boundary.

@@ -1139,11 +1139,9 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	}
 	switch strings.ToLower(strings.TrimSpace(filter.Bridge)) {
 	case "bridge":
-		// Claude/Antigravity inbound + GPT upstream (Claude-GPT bridge heuristic).
-		clauses = append(clauses, "LOWER(COALESCE(e.platform,'')) IN ('antigravity','anthropic')")
-		clauses = append(clauses, "LOWER(COALESCE(e.upstream_model,'')) LIKE 'gpt-%'")
+		clauses = append(clauses, service.SQLClaudeGPTBridgeErrorPredicate("e.platform", "e.upstream_model"))
 	case "non_bridge":
-		clauses = append(clauses, "NOT (LOWER(COALESCE(e.platform,'')) IN ('antigravity','anthropic') AND LOWER(COALESCE(e.upstream_model,'')) LIKE 'gpt-%')")
+		clauses = append(clauses, service.SQLExcludeClaudeGPTBridgeError("e.platform", "e.upstream_model"))
 	}
 	if et := strings.TrimSpace(filter.ErrorType); et != "" {
 		args = append(args, et)

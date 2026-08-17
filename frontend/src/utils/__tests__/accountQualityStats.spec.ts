@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatQualityBridgeErrorRate,
   formatQualityErrorRate,
   formatQualitySuccessRate,
+  hasDisplayableBridgeErrorRate,
   hasDisplayableQualityRate,
+  qualityBridgeSampleCount,
   qualityRateSampleCount
 } from '@/utils/accountQualityStats'
 
@@ -52,5 +55,21 @@ describe('accountQualityStats rate display', () => {
     expect(hasDisplayableQualityRate(mixed)).toBe(true)
     expect(formatQualitySuccessRate(mixed)).toBe('90.9%')
     expect(formatQualityErrorRate(mixed)).toBe('9.1%')
+  })
+
+  it('formats a separate bridge error rate and hides empty bridge windows', () => {
+    expect(qualityBridgeSampleCount(mixed)).toBe(0)
+    expect(hasDisplayableBridgeErrorRate(mixed)).toBe(false)
+    expect(formatQualityBridgeErrorRate(mixed)).toBeNull()
+
+    const bridge = {
+      ...mixed,
+      bridge_success_count: 4,
+      bridge_error_count: 6,
+      bridge_error_rate: 0.6
+    }
+    expect(qualityBridgeSampleCount(bridge)).toBe(10)
+    expect(hasDisplayableBridgeErrorRate(bridge)).toBe(true)
+    expect(formatQualityBridgeErrorRate(bridge)).toBe('60.0%')
   })
 })

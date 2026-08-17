@@ -40,6 +40,46 @@
         {{ t('admin.accounts.stability.globalDisabledHint') }}
       </p>
 
+      <section
+        data-test="stability-bridge-rate"
+        class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+      >
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h4 class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('admin.accounts.stability.bridgeTitle') }}
+          </h4>
+          <span
+            class="font-mono text-sm font-medium"
+            :class="bridgeToneClass"
+            data-test="stability-bridge-rate-value"
+          >
+            {{ bridgeRateDisplay }}
+          </span>
+        </div>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.bridgeHint') }}
+        </p>
+        <p
+          v-if="hasBridgeErrorRate"
+          class="mt-1 text-xs text-gray-600 dark:text-gray-300"
+          data-test="stability-bridge-samples"
+        >
+          {{
+            t('admin.accounts.stability.bridgeSamples', {
+              success: liveQualityStats?.bridge_success_count ?? 0,
+              error: liveQualityStats?.bridge_error_count ?? 0
+            })
+          }}
+        </p>
+        <p
+          v-else
+          class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+          data-test="stability-bridge-empty"
+        >
+          {{ t('admin.accounts.stability.bridgeEmpty') }}
+        </p>
+      </section>
+
       <section>
         <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
           <h4 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -248,6 +288,7 @@ import type {
   AccountQualityHardCloseOverlay,
   AccountQualityHardCloseResolved,
   AccountQualityHistoryItem,
+  AccountQualityStats,
   QualityHardCloseCondition
 } from '@/api/admin/accounts'
 import type { QualityHardCloseSettings } from '@/api/admin/settings'
@@ -264,6 +305,10 @@ import {
   percentToSuccessRate,
   successRateToPercent
 } from '@/utils/accountQualityHardClose'
+import {
+  formatQualityBridgeErrorRate,
+  hasDisplayableBridgeErrorRate
+} from '@/utils/accountQualityStats'
 import {
   clampSeriesToMax,
   computeStabilityTtftAxis,
@@ -292,6 +337,7 @@ const saving = ref(false)
 const templateBusy = ref(false)
 const resumeBusy = ref(false)
 const historyItems = ref<AccountQualityHistoryItem[]>([])
+const liveQualityStats = ref<AccountQualityStats | null>(null)
 const globalEnabled = ref<boolean | null>(null)
 const resolved = ref<AccountQualityHardCloseResolved | null>(null)
 const showP95 = ref(readShowP95Preference())
@@ -469,6 +515,19 @@ const samplesSummary = computed(() => {
   })
 })
 
+const hasBridgeErrorRate = computed(() => hasDisplayableBridgeErrorRate(liveQualityStats.value))
+
+const bridgeRateDisplay = computed(() => formatQualityBridgeErrorRate(liveQualityStats.value) ?? '—')
+
+const bridgeToneClass = computed(() => {
+  if (!hasBridgeErrorRate.value) return 'text-gray-500 dark:text-gray-400'
+  const rate = liveQualityStats.value?.bridge_error_rate
+  if (rate == null) return 'text-gray-500 dark:text-gray-400'
+  if (rate >= 0.1) return 'text-red-600 dark:text-red-400'
+  if (rate >= 0.05) return 'text-amber-600 dark:text-amber-400'
+  return 'text-gray-700 dark:text-gray-300'
+})
+
 function formatCapturedAt(raw: string): string {
   const date = new Date(raw)
   if (Number.isNaN(date.getTime())) return raw
@@ -568,15 +627,18 @@ async function load() {
   if (!props.account) return
   loading.value = true
   historyItems.value = []
+  liveQualityStats.value = null
   globalEnabled.value = null
   resolved.value = null
   resetForm()
   try {
-    const [history, hardClose] = await Promise.all([
+    const [history, hardClose, qualityBatch] = await Promise.all([
       adminAPI.accounts.getQualityHistory(props.account.id),
-      adminAPI.accounts.getQualityHardClose(props.account.id)
+      adminAPI.accounts.getQualityHardClose(props.account.id),
+      adminAPI.accounts.getBatchQualityStats([props.account.id])
     ])
     historyItems.value = history.items ?? []
+    liveQualityStats.value = qualityBatch.stats?.[String(props.account.id)] ?? null
     globalEnabled.value = hardClose.global_enabled
     resolved.value = hardClose.resolved
     applyOverlay(hardClose.overlay, hardClose.resolved)

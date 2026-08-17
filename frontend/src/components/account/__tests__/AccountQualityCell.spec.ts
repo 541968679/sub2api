@@ -59,6 +59,28 @@ describe('AccountQualityCell', () => {
     expect(wrapper.text()).toContain('91.0%')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.tooltip')
+    expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
+    expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
+  })
+
+  it('combined mode does not render an in-cell bridge error rate', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          bridge_success_count: 4,
+          bridge_error_count: 6,
+          bridge_error_rate: 0.6
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('300ms')
+    expect(wrapper.text()).toContain('91.0%')
+    expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
+    expect(wrapper.text()).not.toContain('60.0%')
+    expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
   })
 
   it('clickable keeps the existing tooltip on stats', () => {
@@ -80,6 +102,9 @@ describe('AccountQualityCell', () => {
           error_count: 0,
           success_rate: 0,
           error_rate: 0,
+          bridge_success_count: 0,
+          bridge_error_count: 0,
+          bridge_error_rate: 0,
           avg_ttft_ms: null,
           p50_ttft_ms: null,
           p95_ttft_ms: null,

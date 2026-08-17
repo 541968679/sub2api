@@ -19,17 +19,18 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	ids := []int64{10, 20}
 
 	usageRows := sqlmock.NewRows([]string{
-		"account_id", "success_count", "ttft_samples", "avg_ttft_ms", "p50_ttft_ms", "p95_ttft_ms", "max_ttft_ms",
-	}).AddRow(int64(10), int64(8), int64(7), 321.6, 280.0, 900.4, 5000.0)
-	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*FROM usage_logs[\s\S]*WHERE account_id = ANY`).
+		"account_id", "success_count", "bridge_success_count", "ttft_samples", "avg_ttft_ms", "p50_ttft_ms", "p95_ttft_ms", "max_ttft_ms",
+	}).AddRow(int64(10), int64(8), int64(3), int64(7), 321.6, 280.0, 900.4, 5000.0)
+	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*bridge_success_count[\s\S]*FROM usage_logs[\s\S]*WHERE account_id = ANY`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(usageRows)
 
-	errorRows := sqlmock.NewRows([]string{"account_id", "error_count"}).
-		AddRow(int64(10), int64(2)).
-		AddRow(int64(20), int64(1))
+	errorRows := sqlmock.NewRows([]string{"account_id", "error_count", "bridge_error_count"}).
+		AddRow(int64(10), int64(2), int64(4)).
+		AddRow(int64(20), int64(1), int64(0))
 	// Shared helper must keep account filters: account_id grouping, no user_id NULL guard.
-	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*AND COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE\s+GROUP BY account_id`).
+	// Scheduling error_count excludes Claude-GPT bridge; bridge_error_count is separate.
+	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*NOT \(LOWER\(COALESCE\(platform,''\)\) IN \('antigravity','anthropic'\)[\s\S]*bridge_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*AND COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE\s+GROUP BY account_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
 
@@ -41,8 +42,12 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	require.NotNil(t, acc10)
 	require.Equal(t, int64(8), acc10.SuccessCount)
 	require.Equal(t, int64(2), acc10.ErrorCount)
+	require.Equal(t, int64(3), acc10.BridgeSuccessCount)
+	require.Equal(t, int64(4), acc10.BridgeErrorCount)
 	require.NotNil(t, acc10.SuccessRate)
 	require.InDelta(t, 0.8, *acc10.SuccessRate, 1e-9)
+	require.NotNil(t, acc10.BridgeErrorRate)
+	require.InDelta(t, 4.0/7.0, *acc10.BridgeErrorRate, 1e-9)
 	require.NotNil(t, acc10.AvgTTFTMs)
 	require.Equal(t, 322, *acc10.AvgTTFTMs)
 	require.NotNil(t, acc10.P50TTFTMs)
@@ -87,15 +92,15 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 	ids := []int64{10, 20}
 
 	usageRows := sqlmock.NewRows([]string{
-		"user_id", "success_count", "ttft_samples", "avg_ttft_ms", "p50_ttft_ms", "p95_ttft_ms", "max_ttft_ms",
-	}).AddRow(int64(10), int64(8), int64(7), 321.6, 280.0, 900.4, 5000.0)
-	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM usage_logs[\s\S]*WHERE user_id = ANY`).
+		"user_id", "success_count", "bridge_success_count", "ttft_samples", "avg_ttft_ms", "p50_ttft_ms", "p95_ttft_ms", "max_ttft_ms",
+	}).AddRow(int64(10), int64(8), int64(1), int64(7), 321.6, 280.0, 900.4, 5000.0)
+	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*bridge_success_count[\s\S]*FROM usage_logs[\s\S]*WHERE user_id = ANY`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(usageRows)
 
-	errorRows := sqlmock.NewRows([]string{"user_id", "error_count"}).
-		AddRow(int64(10), int64(2)).
-		AddRow(int64(20), int64(1))
+	errorRows := sqlmock.NewRows([]string{"user_id", "error_count", "bridge_error_count"}).
+		AddRow(int64(10), int64(2), int64(5)).
+		AddRow(int64(20), int64(1), int64(0))
 	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*user_id IS NOT NULL[\s\S]*GROUP BY user_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
@@ -108,8 +113,12 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 	require.NotNil(t, user10)
 	require.Equal(t, int64(8), user10.SuccessCount)
 	require.Equal(t, int64(2), user10.ErrorCount)
+	require.Equal(t, int64(1), user10.BridgeSuccessCount)
+	require.Equal(t, int64(5), user10.BridgeErrorCount)
 	require.NotNil(t, user10.SuccessRate)
 	require.InDelta(t, 0.8, *user10.SuccessRate, 1e-9)
+	require.NotNil(t, user10.BridgeErrorRate)
+	require.InDelta(t, 5.0/6.0, *user10.BridgeErrorRate, 1e-9)
 	require.NotNil(t, user10.AvgTTFTMs)
 	require.Equal(t, 322, *user10.AvgTTFTMs)
 	require.NotNil(t, user10.P50TTFTMs)

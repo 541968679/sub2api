@@ -510,6 +510,10 @@ export interface AccountQualityStats {
   success_rate: number | null
   /** 1 - success_rate when the window has samples; null when empty. */
   error_rate?: number | null
+  /** Display-only Claude→GPT bridge window. Not used by scheduling gates. */
+  bridge_success_count?: number
+  bridge_error_count?: number
+  bridge_error_rate?: number | null
   /** Mean TTFT — skewed by outliers; prefer p50 for list display */
   avg_ttft_ms: number | null
   /** Median TTFT — primary, outlier-resistant */

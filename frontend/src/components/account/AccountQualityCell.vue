@@ -63,7 +63,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountQualityStats } from '@/api/admin/accounts'
-import { formatQualitySuccessRate, hasDisplayableQualityRate } from '@/utils/accountQualityStats'
+import {
+  formatQualitySuccessRate,
+  hasDisplayableQualityRate
+} from '@/utils/accountQualityStats'
 
 const props = withDefaults(
   defineProps<{
@@ -143,7 +146,7 @@ const tooltipText = computed(() => {
   const clickHint = props.clickable ? t('admin.accounts.stability.clickToOpen') : ''
   let base = ''
   if (props.mode === 'combined') {
-    base = [
+    const parts = [
       t('admin.accounts.quality.ttftTooltip', {
         windowMinutes: Math.round((stats.window_seconds || 900) / 60),
         samples: stats.ttft_samples ?? 0,
@@ -158,7 +161,8 @@ const tooltipText = computed(() => {
         error: stats.error_count ?? 0,
         ttftSamples: stats.ttft_samples ?? 0
       })
-    ].join('\n')
+    ]
+    base = parts.join('\n')
   } else if (props.mode === 'ttft') {
     base = t('admin.accounts.quality.ttftTooltip', {
       windowMinutes: Math.round((stats.window_seconds || 900) / 60),

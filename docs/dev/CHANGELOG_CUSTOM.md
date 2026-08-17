@@ -1,3 +1,31 @@
+## 2026-08-17 - fix(schedule): keep bridge errors off the scheduling error rate
+
+### What
+- Scheduling quality `ErrorCount` now excludes Claude→GPT bridge failures (same heuristic as the ops error-page bridge filter).
+- The same 15-minute window exposes a separate `bridge_*` error rate for display only.
+- Bridge forward failures no longer write the in-process OpenAI scheduler EWMA.
+- The stability / hard-close details dialog shows the live 15-minute bridge error rate and sample counts. The quality grid cell stays p50 + scheduling success rate only.
+
+### Why
+Bridge failures are protocol/mapping issues and were cooling or scoring accounts as if native traffic was unhealthy.
+
+### Verification
+- Targeted Go unit tests for quality batch SQL, bridge rate math, and EWMA skip.
+- Frontend vitest for `accountQualityStats`, `AccountQualityCell`, and `AccountStabilityDialog`.
+
+### Affected files
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/utils/accountQualityStats.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-17 - docs(ops): production incident reading chain
 
 ### What

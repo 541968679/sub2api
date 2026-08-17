@@ -101,6 +101,32 @@ func TestHasAccountQualitySamples(t *testing.T) {
 	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(1, 0, TTFTAggregate{})))
 	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 1, TTFTAggregate{})))
 	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{Samples: 1})))
+	bridgeOnly := BuildAccountQualityStats(0, 0, TTFTAggregate{})
+	AttachBridgeQualityCounts(bridgeOnly, 0, 2)
+	require.True(t, HasAccountQualitySamples(bridgeOnly))
+}
+
+func TestAttachBridgeQualityCounts_SeparateFromScheduleRate(t *testing.T) {
+	stats := BuildAccountQualityStats(9, 1, TTFTAggregate{})
+	AttachBridgeQualityCounts(stats, 4, 6)
+	require.Equal(t, int64(9), stats.SuccessCount)
+	require.Equal(t, int64(1), stats.ErrorCount)
+	require.NotNil(t, stats.SuccessRate)
+	require.InDelta(t, 0.9, *stats.SuccessRate, 1e-9)
+	require.Equal(t, int64(4), stats.BridgeSuccessCount)
+	require.Equal(t, int64(6), stats.BridgeErrorCount)
+	require.NotNil(t, stats.BridgeErrorRate)
+	require.InDelta(t, 0.6, *stats.BridgeErrorRate, 1e-9)
+}
+
+func TestSQLClaudeGPTBridgePredicates(t *testing.T) {
+	errPred := SQLClaudeGPTBridgeErrorPredicate("platform", "upstream_model")
+	require.Contains(t, errPred, "IN ('antigravity','anthropic')")
+	require.Contains(t, errPred, "LIKE 'gpt-%'")
+	require.Equal(t, "NOT "+errPred, SQLExcludeClaudeGPTBridgeError("platform", "upstream_model"))
+	usagePred := SQLClaudeGPTBridgeUsagePredicate("requested_model", "model", "upstream_model")
+	require.Contains(t, usagePred, "LIKE 'claude-%'")
+	require.Contains(t, usagePred, "LIKE 'gpt-%'")
 }
 
 func TestTruncateToAccountQualitySnapshotTime(t *testing.T) {

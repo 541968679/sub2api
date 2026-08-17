@@ -549,3 +549,30 @@ func TestMessagesClaudeGPTBridge_ClientCancelDoesNotRecordAccountFailure(t *test
 			"client cancellation must not record account failure, got failure report for account %d", report.accountID)
 	}
 }
+
+func TestReportOpenAIAccountScheduleResult_SkipsBridgeFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	scheduler := &bridgeCancelSchedulerSpy{}
+	svc := &service.OpenAIGatewayService{}
+	svc.SetOpenAIAccountSchedulerForTest(scheduler)
+	h := &OpenAIGatewayHandler{gatewayService: svc}
+
+	bridgeCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	bridgeCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	bridgeCtx.Set(openAIClaudeGPTBridgeContextKey, true)
+
+	h.reportOpenAIAccountScheduleResult(bridgeCtx, 77, false, nil)
+	require.Empty(t, scheduler.reports)
+
+	h.reportOpenAIAccountScheduleResult(bridgeCtx, 77, true, nil)
+	require.Len(t, scheduler.reports, 1)
+	require.True(t, scheduler.reports[0].success)
+	require.Equal(t, int64(77), scheduler.reports[0].accountID)
+
+	nativeCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	nativeCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	h.reportOpenAIAccountScheduleResult(nativeCtx, 88, false, nil)
+	require.Len(t, scheduler.reports, 2)
+	require.False(t, scheduler.reports[1].success)
+	require.Equal(t, int64(88), scheduler.reports[1].accountID)
+}
