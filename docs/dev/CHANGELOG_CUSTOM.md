@@ -1,3 +1,22 @@
+## 2026-08-17 - deploy: v0.1.234
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.234` (`c1b335974`).
+- Image digest `sha256:55958f1a21bb0ec7e088e1c47ec20504f282274644f73da10883fe9077a7f65e`.
+- Rollback digest is `ghcr.io/541968679/sub2api@sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61` (`v0.1.231`).
+- Synced `/opt/sub2api/update.sh` before recreate. Preflight passed on attempt 2/36; live cutover healthy.
+- `schema_migrations` has `205_usage_log_true_cost.sql` (applied by the 0.1.233 preflight) and `206_usage_log_true_cost_index_notx.sql` (applied by 0.1.234). Partial index `idx_usage_logs_true_cost_user_account_created` exists.
+
+### Why
+Ship the migration comment-split fix so 206 can apply. Do not redeploy `v0.1.232` or `v0.1.233`.
+
+### Verification
+- Release `32029373475` succeeded; production `/health` `ok`, version label `0.1.234`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-17 - fix(migrate): ignore semicolons inside SQL comments
 
 ### What

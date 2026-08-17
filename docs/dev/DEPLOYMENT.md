@@ -33,7 +33,7 @@
 
 Sub2API 主服务必须使用 GitHub Actions 发布到 GHCR 的镜像。不要在生产服务器执行 `docker build`，不要部署 `sub2api-custom:*`。当前 `deploy/update.sh` 主服务路径：写入 GHCR compose override → `docker compose pull sub2api` → **用 `sub2api-preflight` 侧车跑通 InitEnt/`/health`（此时线上 `sub2api` 继续服务）** → 预检通过后才 `force-recreate`。预检失败则中止，旧容器不动。生产使用前先把本仓库的脚本同步到 `/opt/sub2api/update.sh`。
 
-**禁止再部署 `v0.1.232`。** 该 tag 在启动时被迁移校验器拒绝（`205_usage_log_true_cost.sql` 注释含 `CONCURRENTLY`），新进程 crash-loop，而旧脚本会先 `force-recreate` 杀掉健康容器。下一版必须是新版本号（`0.1.233+`），不要复用 `0.1.232`。
+**禁止再部署 `v0.1.232` 或 `v0.1.233`。** `v0.1.232` 在启动时被迁移校验器拒绝（`205_usage_log_true_cost.sql` 注释含 `CONCURRENTLY`），旧脚本会先 `force-recreate` 杀掉健康容器。`v0.1.233` 预检失败：206 注释里的分号被当成 SQL 执行。下一版必须是新版本号（`0.1.234+`），不要复用这两个 tag。
 
 ```powershell
 # 只部署 Sub2API 主服务（GHCR）
@@ -62,7 +62,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 注意事项：
 
 - Sub2API 主服务镜像由 GitHub Actions 构建并发布到 GHCR；生产部署只允许 `docker compose pull/up` 已发布镜像，不允许在生产服务器 `docker build`。
-- **禁止部署 `v0.1.232`**（启动校验器因 205 注释里的 `CONCURRENTLY` crash-loop）。下一版必须是 `0.1.233+`。`update.sh` 会拒绝该 tag，且必须先预检再 recreate。
+- **禁止部署 `v0.1.232` / `v0.1.233`**（232：205 注释含 `CONCURRENTLY` crash-loop；233：206 注释分号被 Exec 为 SQL）。下一版必须是 `0.1.234+`。`update.sh` 会拒绝这两个 tag，且必须先预检再 recreate。
 - 当前 Release workflow 只会在 `v*` tag 推送或手动 `workflow_dispatch` 时发布 GHCR 镜像；单独 push `main` 不会刷新 `ghcr.io/541968679/sub2api:latest`。生产 `pull/up` 前必须确认目标 tag 或 `latest` 已经存在，并且镜像 label 指向本次要部署的 commit。
 - `deploy/update.sh` 会替换由旧脚本生成的 `sub2api-custom:latest` override；遇到无法识别的自定义 override 会拒绝覆盖。部署前后都要确认 `docker compose config` 解析出的 `sub2api.image` 是 `ghcr.io/541968679/sub2api:latest` 或本次明确批准的 GHCR tag/digest。
 - 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
@@ -136,8 +136,10 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-17 | `v0.1.232` | (banned) | `ghcr.io/541968679/sub2api:0.1.232` | `0.1.232` | **BANNED — never redeploy.** Crash-loop: `validate migration 205_usage_log_true_cost.sql: CONCURRENTLY statements must be placed in *_notx.sql migrations` (comment-only token). 205/206 were not applied. Rolled back to `v0.1.231`. Next release must be `0.1.233+`. |
-| 2026-08-17 | `v0.1.231` | `f9a701878` | `ghcr.io/541968679/sub2api:0.1.231` | `0.1.231` | **current after 232 rollback**; digest `sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61`, `/health` ok, healthy; uncapped pair occupancy writes + live pool 调度优先级; `lb_top_k` unchanged |
+| 2026-08-17 | `v0.1.234` | `c1b335974` | `ghcr.io/541968679/sub2api:0.1.234` | `0.1.234` | **current**; digest `sha256:55958f1a21bb0ec7e088e1c47ec20504f282274644f73da10883fe9077a7f65e`, `/health` ok, healthy; migrate comment-split fix; 205 already applied by 233 preflight, 206 applied; rollback digest `sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61` (`v0.1.231`) |
+| 2026-08-17 | `v0.1.233` | (banned) | `ghcr.io/541968679/sub2api:0.1.233` | `0.1.233` | **BANNED — never redeploy.** Preflight failed: 206 comment semicolon was Exec'd as SQL. Live stayed on `v0.1.231`. 205 was applied by that preflight. |
+| 2026-08-17 | `v0.1.232` | (banned) | `ghcr.io/541968679/sub2api:0.1.232` | `0.1.232` | **BANNED — never redeploy.** Crash-loop: `validate migration 205_usage_log_true_cost.sql: CONCURRENTLY statements must be placed in *_notx.sql migrations` (comment-only token). 205/206 were not applied. Rolled back to `v0.1.231`. Do not reuse. |
+| 2026-08-17 | `v0.1.231` | `f9a701878` | `ghcr.io/541968679/sub2api:0.1.231` | `0.1.231` | superseded by `v0.1.234`; rollback digest `sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61`, `/health` ok, healthy; uncapped pair occupancy writes + live pool 调度优先级; `lb_top_k` unchanged |
 | 2026-08-17 | `v0.1.230` | `d3cdb8cab` | `ghcr.io/541968679/sub2api:0.1.230` | `0.1.230` | superseded by `v0.1.231`; rollback digest `sha256:27ae51ce035c574873ee174a9853d2bc4e83f2e71a815769d80939ab96b5c1ad`; pool `sort_order` + uncapped pair `n/999`; `lb_top_k` unchanged |
 | 2026-08-16 | `v0.1.229` | `838d370a7` | `ghcr.io/541968679/sub2api:0.1.229` | `0.1.229` | superseded by `v0.1.230`; rollback digest `sha256:7037fcacc6603e380ba9980c04c30486164166e09b80e8be14b6051c5f24f541`; smart-schedule UX batch + pool-mode hard eviction |
 | 2026-08-16 | `v0.1.228` | `409e37c83` | `ghcr.io/541968679/sub2api:0.1.228` | `0.1.228` | superseded by `v0.1.229`; rollback digest `sha256:aa32950bf9b1a0eccfe3578f00ca3c8cbe418a83585c1edb0385b1ddb6d21634`; smart-schedule pool admin UX + stability chart |
