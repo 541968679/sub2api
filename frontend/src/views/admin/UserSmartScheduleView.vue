@@ -847,6 +847,7 @@ import {
 import {
   assignPoolAutoSortOrders,
   assignPoolMoveToTopSortOrders,
+  effectivePoolAutoSortRate,
   poolSortOrdersUnchanged,
   sortSmartSchedulePoolMembers
 } from '@/composables/smartSchedulePoolAutoSort'
@@ -1341,7 +1342,7 @@ async function handlePoolAutoSort() {
       pairCurrent: row.pair_current ?? 0,
       concurrency: row.concurrency ?? 1,
       priority: row.priority ?? 0,
-      lastUsedAt: row.last_used_at ?? null
+      upstreamRate: effectivePoolAutoSortRate(row.upstream_rate_multiplier, row.type)
     }))
   )
   const assigned = assignPoolAutoSortOrders(sorted)

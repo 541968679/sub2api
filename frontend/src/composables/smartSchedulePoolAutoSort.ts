@@ -1,3 +1,4 @@
+import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
 import type { PoolAdmissionState } from './smartSchedulePoolAdmission'
 
 export const POOL_ADMISSION_SORT_RANK: Record<PoolAdmissionState, number> = {
@@ -20,7 +21,7 @@ export type PoolAutoSortItem = {
   pairCurrent: number
   concurrency: number
   priority: number
-  lastUsedAt?: string | null
+  upstreamRate: number
 }
 
 export type PoolSortAssignment = {
@@ -38,16 +39,30 @@ export function pairHeadroomForAutoSort(pairCap: number | null, pairCurrent: num
   return pairCap - pairCurrent
 }
 
-function lastUsedMs(value?: string | null): number {
-  if (!value) return Number.NEGATIVE_INFINITY
-  const ms = new Date(value).getTime()
-  return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY
+export function isPoolAutoSortProducing(pairCurrent: number): boolean {
+  return pairCurrent > 0
+}
+
+/** Same defaulting as account `EffectiveUpstreamRate`: missing/negative uses type default. */
+export function effectivePoolAutoSortRate(
+  rate: number | null | undefined,
+  type?: string | null
+): number {
+  if (rate != null && Number.isFinite(rate) && rate >= 0) return rate
+  return defaultUpstreamRateMultiplier(type ?? '')
 }
 
 export function comparePoolAutoSort(a: PoolAutoSortItem, b: PoolAutoSortItem): number {
   const admission =
     (POOL_ADMISSION_SORT_RANK[a.admission] ?? 99) - (POOL_ADMISSION_SORT_RANK[b.admission] ?? 99)
   if (admission !== 0) return admission
+
+  const producing =
+    Number(isPoolAutoSortProducing(b.pairCurrent)) - Number(isPoolAutoSortProducing(a.pairCurrent))
+  if (producing !== 0) return producing
+
+  const rate = (a.upstreamRate ?? 0) - (b.upstreamRate ?? 0)
+  if (rate !== 0) return rate
 
   const headroom =
     pairHeadroomForAutoSort(b.pairCap, b.pairCurrent) - pairHeadroomForAutoSort(a.pairCap, a.pairCurrent)
@@ -59,9 +74,6 @@ export function comparePoolAutoSort(a: PoolAutoSortItem, b: PoolAutoSortItem): n
   // Read-only tie-break: accounts.priority is scheduling weight (smaller = more preferred).
   const priority = (a.priority ?? 0) - (b.priority ?? 0)
   if (priority !== 0) return priority
-
-  const lastUsed = lastUsedMs(a.lastUsedAt) - lastUsedMs(b.lastUsedAt)
-  if (Number.isFinite(lastUsed) && lastUsed !== 0) return lastUsed
 
   return a.id - b.id
 }

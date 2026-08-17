@@ -983,13 +983,20 @@ describe('UserSmartScheduleView', () => {
     await button.trigger('click')
     await flushPromises()
     expect(autoSortMocks.sortSmartSchedulePoolMembers).toHaveBeenCalled()
-    const firstCall = autoSortMocks.sortSmartSchedulePoolMembers.mock.calls[0]?.[0] as Array<{ id: number }>
+    const firstCall = autoSortMocks.sortSmartSchedulePoolMembers.mock.calls[0]?.[0] as Array<{
+      id: number
+      upstreamRate: number
+      lastUsedAt?: string | null
+    }>
     expect(firstCall.map((row) => row.id).sort((a, b) => a - b)).toEqual([11, 12])
+    expect(firstCall.every((row) => typeof row.upstreamRate === 'number')).toBe(true)
+    expect(firstCall.every((row) => !('lastUsedAt' in row))).toBe(true)
     expect(apiMocks.updateSmartScheduleSortOrder).toHaveBeenCalled()
     const payload = apiMocks.updateSmartScheduleSortOrder.mock.calls[0]?.[2] as {
-      accounts: Array<{ account_id: number; sort_order: number }>
+      accounts: Array<{ account_id: number; sort_order: number; priority?: number }>
     }
     expect(payload.accounts.map((row) => row.sort_order)).toEqual([1, 2])
+    expect(payload.accounts.every((row) => Object.keys(row).sort().join() === 'account_id,sort_order')).toBe(true)
     expect(apiMocks.updateAccount).not.toHaveBeenCalled()
     expect(tableMocks.setSort).toHaveBeenCalledWith('sort_order', 'asc')
   })

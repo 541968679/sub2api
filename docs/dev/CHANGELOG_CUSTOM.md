@@ -1,3 +1,25 @@
+## 2026-08-17 - feat(smart-schedule): auto-sort by this-user volume then upstream rate
+
+### What
+- Pool auto-sort now ranks: admission → this-user producing (`pair_current > 0`) → cheaper `upstream_rate_multiplier` → pair headroom → account concurrency → `accounts.priority` → id.
+- It no longer uses LRU / account-global `last_used`. `sort_order` is still display-only.
+
+### Why
+A cheaper in-use `0.06` account was ranking below an idle better-priority `0.08` because auto-sort ignored live pair occupancy and upstream rate.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-17 - deploy: v0.1.231
 
 ### What

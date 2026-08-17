@@ -2602,7 +2602,7 @@ const enBase = {
         batchApplyCap: 'Apply pair cap',
         autoSort: 'Auto-sort',
         autoSortHint:
-          'Reorders current-platform pool members by admission → pair headroom → account concurrency → existing account priority (read-only tie-break) → LRU, then writes pool order 1..N immediately. Does not change account scheduling priority. Does not sort by upstream rate; the hot path already applies that overlay. Does not remove members.',
+          'Reorders current-platform pool members by admission → this-user producing (pair occupancy > 0) → upstream rate (lower first) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes pool order 1..N immediately. Does not change account scheduling priority. Does not change hot-path selection. Does not remove members.',
         autoSortProgress: 'Writing pool order…',
         autoSortSuccess: 'Wrote auto-sort pool order for {count} accounts',
         autoSortUnchanged: 'Pool order already matches auto-sort; nothing to write',
