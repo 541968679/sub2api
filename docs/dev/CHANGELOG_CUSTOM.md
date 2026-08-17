@@ -1,3 +1,21 @@
+## 2026-08-17 - deploy: v0.1.236
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:latest` (`0.1.236`, `8d0fc0ea5`).
+- Image digest `sha256:926dd9aee523a4c9ba3abc681caa4b29871f1f9da870db5ddde72347aea9da71`.
+- Rollback digest is `ghcr.io/541968679/sub2api@sha256:f3bed8ed271032ac2bc73acecfe367435beebb25844fbaf6e8b180b6c10d3716` (`v0.1.235`).
+- `update.sh` already matched the repo; no script sync. Preflight passed on attempt 2/36; live cutover healthy.
+
+### Why
+Ship the smart-schedule pool `调度利润` cell: today PnL + readable upstream balance, compact 对齐/偏离 cue, and column settings on the table toolbar.
+
+### Verification
+- Release `32036357784` succeeded; production `/health` `ok`, version label `0.1.236`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-17 - fix(smart-schedule): restore pool column settings and enlarge today PnL + balance
 
 ### What
