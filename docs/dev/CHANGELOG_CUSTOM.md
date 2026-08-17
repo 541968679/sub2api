@@ -1,3 +1,21 @@
+## 2026-08-17 - deploy: v0.1.235
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.235` (`c439daec0`).
+- Image digest `sha256:f3bed8ed271032ac2bc73acecfe367435beebb25844fbaf6e8b180b6c10d3716`.
+- Rollback digest is `ghcr.io/541968679/sub2api@sha256:55958f1a21bb0ec7e088e1c47ec20504f282274644f73da10883fe9077a7f65e` (`v0.1.234`).
+- `update.sh` already matched the repo; no script sync. Preflight passed on attempt 2/36; live cutover healthy.
+
+### Why
+Ship the empty-delta content_part harvest, production-incident reading chain, and schedule-quality exclusion of Claude→GPT bridge failures.
+
+### Verification
+- Release `32033511524` succeeded; production `/health` `ok`, version label `0.1.235`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-17 - fix(schedule): keep bridge errors off the scheduling error rate
 
 ### What
