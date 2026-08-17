@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-17 | `v0.1.230` | `d3cdb8cab` | `ghcr.io/541968679/sub2api:0.1.230` | `0.1.230` | running, healthy, digest `sha256:27ae51ce035c574873ee174a9853d2bc4e83f2e71a815769d80939ab96b5c1ad`, internal `/health` OK; pool `sort_order` + uncapped pair `n/999`; `lb_top_k` unchanged |
+| 2026-08-17 | `v0.1.231` | `f9a701878` | `ghcr.io/541968679/sub2api:0.1.231` | `0.1.231` | running, healthy, digest `sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61`, internal `/health` OK; uncapped pair occupancy writes + live pool 调度优先级; `lb_top_k` unchanged |
+| 2026-08-17 | `v0.1.230` | `d3cdb8cab` | `ghcr.io/541968679/sub2api:0.1.230` | `0.1.230` | superseded by `v0.1.231`; rollback digest `sha256:27ae51ce035c574873ee174a9853d2bc4e83f2e71a815769d80939ab96b5c1ad`; pool `sort_order` + uncapped pair `n/999`; `lb_top_k` unchanged |
 | 2026-08-16 | `v0.1.229` | `838d370a7` | `ghcr.io/541968679/sub2api:0.1.229` | `0.1.229` | superseded by `v0.1.230`; rollback digest `sha256:7037fcacc6603e380ba9980c04c30486164166e09b80e8be14b6051c5f24f541`; smart-schedule UX batch + pool-mode hard eviction |
 | 2026-08-16 | `v0.1.228` | `409e37c83` | `ghcr.io/541968679/sub2api:0.1.228` | `0.1.228` | superseded by `v0.1.229`; rollback digest `sha256:aa32950bf9b1a0eccfe3578f00ca3c8cbe418a83585c1edb0385b1ddb6d21634`; smart-schedule pool admin UX + stability chart |
 | 2026-08-16 | `v0.1.227` | `264a6cda7` | `ghcr.io/541968679/sub2api:0.1.227` | `0.1.227` | superseded by `v0.1.228`; user smart schedule pools + upstream rate overlay |

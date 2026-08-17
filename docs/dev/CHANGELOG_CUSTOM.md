@@ -1,3 +1,21 @@
+## 2026-08-17 - deploy: v0.1.231
+
+### What
+- Production now runs `ghcr.io/541968679/sub2api:0.1.231` (`f9a701878`).
+- Image digest `sha256:4954c27bc7c0764b9a665526020742ab22ea03fa3c25a66c1570a43efd1d8a61`.
+- Rollback digest is `ghcr.io/541968679/sub2api@sha256:27ae51ce035c574873ee174a9853d2bc4e83f2e71a815769d80939ab96b5c1ad` (`v0.1.230`).
+- Production `openai_advanced_scheduler_lb_top_k` was not changed (still `1`).
+
+### Why
+Ship uncapped closed-pool pair occupancy writes and live pool 调度优先级 (`accounts.priority`).
+
+### Verification
+- Release `31991234398` succeeded; production health `ok`, version label `0.1.231`, container healthy.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-17 - fix(smart-schedule): pool 调度优先级 reads live accounts.priority
 
 ### What
