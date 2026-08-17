@@ -501,7 +501,10 @@ func validateMigrationExecutionMode(name, content string) (bool, error) {
 }
 
 func splitSQLStatements(content string) []string {
-	parts := strings.Split(content, ";")
+	// Strip comments first. A semicolon inside `-- ...` is not a statement
+	// terminator. v0.1.233 preflight failed because 206's comment contained
+	// "; a regular CREATE INDEX..." and that fragment was Exec'd as SQL.
+	parts := strings.Split(stripSQLComments(content), ";")
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
 		if strings.TrimSpace(part) == "" {

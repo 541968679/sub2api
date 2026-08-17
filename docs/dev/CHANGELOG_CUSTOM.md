@@ -1,3 +1,25 @@
+## 2026-08-17 - fix(migrate): ignore semicolons inside SQL comments
+
+### What
+- `splitSQLStatements` now strips `--` / `/* */` comments before splitting on `;`.
+- 206 comment no longer contains a semicolon. File was never applied, so checksum can change.
+- `update.sh` also refuses tag `0.1.233`. Next release is `0.1.234`. Do not modify applied 205.
+
+### Why
+Production preflight of `v0.1.233` aborted (old container stayed on `v0.1.231`): 206's comment `-- ... table; a regular CREATE INDEX...` was concatenated onto the real `CREATE INDEX` and Postgres failed at `a`. 205 was already written by that preflight.
+
+### Verification
+- `go test ./internal/repository -count=1 -run "SplitSQLStatements|ValidateMigrationExecutionMode|EmbeddedMigrationsPassExecutionMode|TrueCost"`
+- `go test ./migrations -count=1 -run TrueCostMigrations`
+
+### Affected files
+`backend/internal/repository/migrations_runner.go`,
+`backend/internal/repository/migrations_runner_notx_test.go`,
+`backend/migrations/206_usage_log_true_cost_index_notx.sql`,
+`backend/cmd/server/VERSION`,
+`deploy/update.sh`,
+this changelog.
+
 ## 2026-08-17 - fix(deploy): preflight new image before killing live sub2api
 
 ### What

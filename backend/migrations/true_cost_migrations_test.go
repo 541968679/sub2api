@@ -27,4 +27,10 @@ func TestTrueCostMigrationsDoNotLockUsageLogsWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(indexSQL), "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_true_cost_user_account_created")
 	require.Contains(t, string(indexSQL), "true_cost IS NOT NULL")
+	for _, line := range strings.Split(string(indexSQL), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "--") {
+			require.NotContains(t, trimmed, ";", "206 comments must not contain semicolons: %s", trimmed)
+		}
+	}
 }

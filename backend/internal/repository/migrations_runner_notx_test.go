@@ -90,6 +90,22 @@ func TestEmbeddedMigrationsPassExecutionModeValidation(t *testing.T) {
 	}
 }
 
+func TestSplitSQLStatementsIgnoresSemicolonInComments(t *testing.T) {
+	stmts := splitSQLStatements(`
+-- usage_logs is a hot append table; a regular CREATE INDEX would block writes.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_a ON t(a);
+`)
+	require.Len(t, stmts, 1)
+	require.Contains(t, stmts[0], "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_a")
+	require.NotContains(t, strings.ToLower(stmts[0]), "regular create index")
+
+	embedded, err := migrations.FS.ReadFile("206_usage_log_true_cost_index_notx.sql")
+	require.NoError(t, err)
+	embeddedStmts := splitSQLStatements(string(embedded))
+	require.Len(t, embeddedStmts, 1)
+	require.Contains(t, embeddedStmts[0], "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_true_cost_user_account_created")
+}
+
 func TestStripSQLCommentsIgnoresConcurrentlyInCommentsOnly(t *testing.T) {
 	stripped := stripSQLComments(`
 -- CONCURRENTLY in a line comment

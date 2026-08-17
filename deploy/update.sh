@@ -77,11 +77,13 @@ ensure_sub2api_image_is_ghcr() {
         log "Set SUB2API_IMAGE to ghcr.io/541968679/sub2api:<tag> or a GHCR digest."
         return 1
     fi
-    # v0.1.232 crash-loops: 205's comment contained CONCURRENTLY and the
-    # boot validator rejected the file before listen. Never redeploy that tag.
-    if [[ "$image_ref" == *:0.1.232 || "$image_ref" == *:v0.1.232 || "$image_ref" == *:0.1.232-* ]]; then
+    # v0.1.232 crash-loops: 205's comment contained CONCURRENTLY.
+    # v0.1.233 preflight failed: 206's comment semicolon was Exec'd as SQL.
+    # Never redeploy those tags.
+    if [[ "$image_ref" == *:0.1.232 || "$image_ref" == *:v0.1.232 || "$image_ref" == *:0.1.232-* ||
+          "$image_ref" == *:0.1.233 || "$image_ref" == *:v0.1.233 || "$image_ref" == *:0.1.233-* ]]; then
         log "ERROR: Refusing banned sub2api tag ${image_ref}"
-        log "v0.1.232 cannot boot. Deploy a new version (0.1.233+) instead."
+        log "v0.1.232/v0.1.233 cannot boot. Deploy a new version (0.1.234+) instead."
         return 1
     fi
 }
