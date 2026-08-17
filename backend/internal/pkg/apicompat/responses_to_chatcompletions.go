@@ -444,14 +444,42 @@ func NewBufferedResponseAccumulator() *BufferedResponseAccumulator {
 	}
 }
 
+func (a *BufferedResponseAccumulator) absorbFullText(full string) {
+	if full == "" {
+		return
+	}
+	cur := a.text.String()
+	if cur == "" {
+		_, _ = a.text.WriteString(full)
+		return
+	}
+	if full == cur || strings.HasPrefix(full, cur) {
+		a.text.Reset()
+		_, _ = a.text.WriteString(full)
+	}
+}
+
 // ProcessEvent inspects a single Responses SSE event and accumulates any
-// content it carries. Only delta events that contribute to the final output
-// are handled; all other event types are silently ignored.
+// content it carries. Delta text, content_part snapshots, and terminal
+// message items are folded together so empty completed.output can be rebuilt.
 func (a *BufferedResponseAccumulator) ProcessEvent(event *ResponsesStreamEvent) {
+	if event == nil {
+		return
+	}
 	switch event.Type {
 	case "response.output_text.delta":
 		if event.Delta != "" {
 			_, _ = a.text.WriteString(event.Delta)
+		}
+	case "response.output_text.done":
+		a.absorbFullText(responsesVisibleTextFromStreamEvent(event))
+	case "response.content_part.added", "response.content_part.done":
+		a.absorbFullText(responsesVisibleTextFromPart(event.Part))
+	case "response.output_item.done":
+		if event.Item != nil && event.Item.Type == "message" {
+			for i := range event.Item.Content {
+				a.absorbFullText(responsesVisibleTextFromPart(&event.Item.Content[i]))
+			}
 		}
 	case "response.output_item.added":
 		if event.Item != nil && (event.Item.Type == "function_call" || event.Item.Type == "custom_tool_call") {
@@ -523,11 +551,37 @@ func (a *BufferedResponseAccumulator) BuildOutput() []ResponsesOutput {
 // when the terminal event delivered an empty output array. If resp.Output is
 // already populated, this is a no-op (preserves backward compatibility).
 func (a *BufferedResponseAccumulator) SupplementResponseOutput(resp *ResponsesResponse) {
-	if resp == nil || len(resp.Output) > 0 {
+	if resp == nil {
 		return
 	}
-	if !a.HasContent() {
+	if len(resp.Output) == 0 {
+		if a.HasContent() {
+			resp.Output = a.BuildOutput()
+		}
 		return
 	}
-	resp.Output = a.BuildOutput()
+	if a.text.Len() == 0 {
+		return
+	}
+	for i := range resp.Output {
+		if resp.Output[i].Type != "message" {
+			continue
+		}
+		if responsesMessageHasVisibleText(resp.Output[i]) {
+			return
+		}
+		resp.Output[i].Content = []ResponsesContentPart{{
+			Type: "output_text",
+			Text: a.text.String(),
+		}}
+		return
+	}
+	resp.Output = append(resp.Output, ResponsesOutput{
+		Type: "message",
+		Role: "assistant",
+		Content: []ResponsesContentPart{{
+			Type: "output_text",
+			Text: a.text.String(),
+		}},
+	})
 }

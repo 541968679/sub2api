@@ -591,6 +591,96 @@ func TestResponsesEventToAnthropicEvents_TopLevelTerminalUsage(t *testing.T) {
 	assert.Equal(t, "message_stop", events[1].Type)
 }
 
+func TestResponsesEventToAnthropicEvents_ContentPartTextWithoutDeltas(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_part", Model: "gpt-5.6-terra"},
+	}, state)
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item:        &ResponsesOutput{Type: "message", ID: "msg_1", Role: "assistant"},
+	}, state)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:         "response.content_part.added",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Part:         &ResponsesContentPart{Type: "output_text", Text: "hello from terra"},
+	}, state)
+	require.NotEmpty(t, events)
+	var text string
+	for _, evt := range events {
+		if evt.Type == "content_block_delta" && evt.Delta != nil {
+			text += evt.Delta.Text
+		}
+	}
+	assert.Equal(t, "hello from terra", text)
+
+	// Empty output_text.done must not wipe or duplicate the part snapshot.
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:         "response.output_text.done",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Text:         "",
+	}, state)
+	for _, evt := range events {
+		if evt.Type == "content_block_delta" && evt.Delta != nil {
+			assert.Empty(t, evt.Delta.Text)
+		}
+	}
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:         "response.content_part.done",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Part:         &ResponsesContentPart{Type: "output_text", Text: "hello from terra"},
+	}, state)
+	for _, evt := range events {
+		if evt.Type == "content_block_delta" && evt.Delta != nil {
+			assert.Empty(t, evt.Delta.Text)
+		}
+	}
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			ID:     "resp_part",
+			Status: "completed",
+			Output: []ResponsesOutput{{
+				Type:    "message",
+				Role:    "assistant",
+				Content: []ResponsesContentPart{{Type: "output_text", Text: ""}},
+			}},
+		},
+	}, state)
+	for _, evt := range events {
+		if evt.Type == "content_block_delta" && evt.Delta != nil {
+			assert.Empty(t, evt.Delta.Text)
+		}
+	}
+}
+
+func TestResponsesToAnthropic_AcceptsPlainTextPartType(t *testing.T) {
+	anth := ResponsesToAnthropic(&ResponsesResponse{
+		ID:     "resp_text_alias",
+		Status: "completed",
+		Output: []ResponsesOutput{{
+			Type: "message",
+			Role: "assistant",
+			Content: []ResponsesContentPart{{
+				Type: "text",
+				Text: "alias text",
+			}},
+		}},
+	}, "claude-sonnet-4-6")
+	require.NotNil(t, anth)
+	require.Len(t, anth.Content, 1)
+	assert.Equal(t, "text", anth.Content[0].Type)
+	assert.Equal(t, "alias text", anth.Content[0].Text)
+}
+
 func TestResponsesEventToAnthropicEvents_TerminalOutputTextOnly(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 

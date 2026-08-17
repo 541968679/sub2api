@@ -114,6 +114,29 @@ func TestOpenAIMessagesStreamReasoningOnlyTriggersFailoverBeforeEmptyReply(t *te
 	require.Empty(t, rec.Body.String(), "reasoning-only preamble must stay buffered so another account can be tried")
 }
 
+func TestOpenAIMessagesStreamContentPartWithoutDeltasIsVisible(t *testing.T) {
+	// Production gpt-5.6-terra / gpt-5.5 bridge shape: no output_text.delta,
+	// text lives on content_part, output_text.done and completed.output are empty.
+	result, err, rec := handleMessagesTestStream(t,
+		`{"type":"response.created","response":{"id":"resp_terra","model":"gpt-5.6-terra","status":"in_progress"}}`,
+		`{"type":"response.in_progress","response":{"id":"resp_terra","status":"in_progress"}}`,
+		`{"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[]}}`,
+		`{"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[]}}`,
+		`{"type":"response.output_item.added","output_index":1,"item":{"id":"msg_1","type":"message","role":"assistant","content":[]}}`,
+		`{"type":"response.content_part.added","output_index":1,"content_index":0,"part":{"type":"output_text","text":"usable terra reply"}}`,
+		`{"type":"response.output_text.done","output_index":1,"content_index":0,"text":""}`,
+		`{"type":"response.content_part.done","output_index":1,"content_index":0,"part":{"type":"output_text","text":"usable terra reply"}}`,
+		`{"type":"response.output_item.done","output_index":1,"item":{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":""}]}}`,
+		`{"type":"response.completed","response":{"id":"resp_terra","status":"completed","output":[{"type":"reasoning","summary":[]},{"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]}],"usage":{"input_tokens":23783,"output_tokens":29,"total_tokens":23812}}}`,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "usable terra reply")
+	require.Contains(t, rec.Body.String(), "event: message_stop")
+	require.NotContains(t, rec.Body.String(), "without assistant content")
+}
+
 func TestOpenAIMessagesStreamReplaysTerminalOnlyText(t *testing.T) {
 	result, err, rec := handleMessagesTestStream(t,
 		`{"type":"response.created","response":{"id":"resp_text","model":"gpt-5.5","status":"in_progress"}}`,

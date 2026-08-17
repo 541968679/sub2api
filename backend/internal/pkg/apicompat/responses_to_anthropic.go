@@ -41,10 +41,10 @@ func ResponsesToAnthropic(resp *ResponsesResponse, model string) *AnthropicRespo
 			}
 		case "message":
 			for _, part := range item.Content {
-				if part.Type == "output_text" && part.Text != "" {
+				if text := responsesVisibleTextFromPart(&part); text != "" {
 					blocks = append(blocks, AnthropicContentBlock{
 						Type: "text",
-						Text: part.Text,
+						Text: text,
 					})
 				}
 			}
@@ -136,6 +136,50 @@ func anthropicToolUseInputFromResponsesOutput(item ResponsesOutput) json.RawMess
 		return json.RawMessage("{}")
 	}
 	return input
+}
+
+func isResponsesVisibleTextPartType(partType string) bool {
+	switch strings.TrimSpace(partType) {
+	case "", "output_text", "text":
+		return true
+	default:
+		return false
+	}
+}
+
+// ResponsesVisibleTextFromPart returns assistant-visible text from a Responses
+// content part. GPT-5.6-class streams may use type=text as well as output_text.
+func ResponsesVisibleTextFromPart(part *ResponsesContentPart) string {
+	if part == nil || !isResponsesVisibleTextPartType(part.Type) {
+		return ""
+	}
+	return part.Text
+}
+
+func responsesVisibleTextFromPart(part *ResponsesContentPart) string {
+	return ResponsesVisibleTextFromPart(part)
+}
+
+func responsesVisibleTextFromStreamEvent(evt *ResponsesStreamEvent) string {
+	if evt == nil {
+		return ""
+	}
+	if evt.Text != "" {
+		return evt.Text
+	}
+	return ResponsesVisibleTextFromPart(evt.Part)
+}
+
+func responsesMessageHasVisibleText(item ResponsesOutput) bool {
+	if item.Type != "message" {
+		return false
+	}
+	for i := range item.Content {
+		if responsesVisibleTextFromPart(&item.Content[i]) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func responsesStatusToAnthropicStopReason(status string, details *ResponsesIncompleteDetails, blocks []AnthropicContentBlock) string {
@@ -255,6 +299,8 @@ func ResponsesEventToAnthropicEvents(
 		return resToAnthHandleTextDelta(evt, state)
 	case "response.output_text.done":
 		return resToAnthHandleTextDone(evt, state)
+	case "response.content_part.added", "response.content_part.done":
+		return resToAnthHandleContentPart(evt, state)
 	case "response.function_call_arguments.delta",
 		// custom/freeform 工具的输入增量与 function_call 参数增量同形。
 		"response.custom_tool_call_input.delta":
@@ -468,10 +514,23 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	return events
 }
 
+func resToAnthHandleContentPart(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	text := responsesVisibleTextFromPart(evt.Part)
+	if text == "" {
+		return nil
+	}
+	return resToAnthHandleTextDone(&ResponsesStreamEvent{
+		Type:         "response.content_part_text",
+		OutputIndex:  evt.OutputIndex,
+		ContentIndex: evt.ContentIndex,
+		Text:         text,
+	}, state)
+}
+
 func resToAnthHandleTextDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
 	key := responsesAnthropicTextKey{OutputIndex: evt.OutputIndex, ContentIndex: evt.ContentIndex}
 	emitted := state.EmittedText[key]
-	fullText := evt.Text
+	fullText := responsesVisibleTextFromStreamEvent(evt)
 	suffix := ""
 	if fullText != "" && strings.HasPrefix(fullText, emitted) {
 		suffix = strings.TrimPrefix(fullText, emitted)
@@ -655,10 +714,26 @@ func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEv
 		}, state)
 	}
 
-	if state.ContentBlockOpen {
-		return closeCurrentBlock(state)
+	var events []AnthropicStreamEvent
+	if evt.Item.Type == "message" {
+		for contentIndex, part := range evt.Item.Content {
+			text := responsesVisibleTextFromPart(&part)
+			if text == "" {
+				continue
+			}
+			events = append(events, resToAnthHandleTextDone(&ResponsesStreamEvent{
+				Type:         "response.output_item_text",
+				OutputIndex:  evt.OutputIndex,
+				ContentIndex: contentIndex,
+				Text:         text,
+			}, state)...)
+		}
 	}
-	return nil
+
+	if state.ContentBlockOpen {
+		events = append(events, closeCurrentBlock(state)...)
+	}
+	return events
 }
 
 // resToAnthHandleWebSearchDone converts an OpenAI web_search_call output item
@@ -813,7 +888,8 @@ func resToAnthHandleTerminalOutput(resp *ResponsesResponse, state *ResponsesEven
 	for outputIndex, output := range resp.Output {
 		if output.Type == "message" {
 			for contentIndex, part := range output.Content {
-				if part.Type != "output_text" || part.Text == "" {
+				text := responsesVisibleTextFromPart(&part)
+				if text == "" {
 					continue
 				}
 				if !state.MessageStartSent {
@@ -823,7 +899,7 @@ func resToAnthHandleTerminalOutput(resp *ResponsesResponse, state *ResponsesEven
 					Type:         "response.terminal_output_text",
 					OutputIndex:  outputIndex,
 					ContentIndex: contentIndex,
-					Text:         part.Text,
+					Text:         text,
 				}, state)...)
 			}
 			if state.HandledOutputIndexes[outputIndex] {

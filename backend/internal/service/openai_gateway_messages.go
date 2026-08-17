@@ -1944,6 +1944,7 @@ type openAIMessagesStreamDiagnostic struct {
 	OutputItemTypes             map[string]int
 	FinalOutputTypes            map[string]int
 	OutputTextDeltaBytes        int
+	ContentPartTextBytes        int
 	ReasoningDeltaBytes         int
 	FunctionArgumentsDeltaBytes int
 	TerminalType                string
@@ -1984,6 +1985,8 @@ func (d *openAIMessagesStreamDiagnostic) Record(evt apicompat.ResponsesStreamEve
 	switch eventType {
 	case "response.output_text.delta":
 		d.OutputTextDeltaBytes += len(evt.Delta)
+	case "response.content_part.added", "response.content_part.done":
+		d.ContentPartTextBytes += len(apicompat.ResponsesVisibleTextFromPart(evt.Part))
 	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
 		d.ReasoningDeltaBytes += len(evt.Delta)
 	case "response.function_call_arguments.delta", "response.custom_tool_call_input.delta":
@@ -2003,10 +2006,8 @@ func (d *openAIMessagesStreamDiagnostic) Record(evt apicompat.ResponsesStreamEve
 		d.FinalOutputTypes[outputType]++
 		switch outputType {
 		case "message":
-			for _, part := range output.Content {
-				if strings.TrimSpace(part.Type) == "output_text" {
-					d.TerminalMessageTextBytes += len(part.Text)
-				}
+			for i := range output.Content {
+				d.TerminalMessageTextBytes += len(apicompat.ResponsesVisibleTextFromPart(&output.Content[i]))
 			}
 		case "reasoning":
 			for _, summary := range output.Summary {
@@ -2035,6 +2036,7 @@ func (d *openAIMessagesStreamDiagnostic) ZapFields() []zap.Field {
 		zap.Any("responses_output_item_types", d.OutputItemTypes),
 		zap.Any("responses_final_output_types", d.FinalOutputTypes),
 		zap.Int("output_text_delta_bytes", d.OutputTextDeltaBytes),
+		zap.Int("content_part_text_bytes", d.ContentPartTextBytes),
 		zap.Int("reasoning_delta_bytes", d.ReasoningDeltaBytes),
 		zap.Int("function_arguments_delta_bytes", d.FunctionArgumentsDeltaBytes),
 		zap.String("terminal_event_type", d.TerminalType),

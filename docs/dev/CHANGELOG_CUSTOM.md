@@ -1,3 +1,28 @@
+## 2026-08-17 - fix(bridge): harvest content_part text on empty-delta GPT streams
+
+### What
+- Anthropic Messages ← Responses conversion now treats `response.content_part.added/done` as visible text when `part.text` is non-empty.
+- `output_text.done` falls back to `part.text`; `output_item.done` and terminal `message` parts accept `type=text` as well as `output_text`.
+- Buffered accumulator folds content_part / done snapshots into empty terminal `message` content instead of leaving a blank completed output.
+- Stream diagnostic logs `content_part_text_bytes`.
+
+### Why
+Production `sub2api` (v0.1.231) logged 72 `openai_messages.stream_completed_without_visible_output` in 24h, all `terminal_status=completed`. 60 were `claude-sonnet-4-6`→`gpt-5.6-terra`, 12 `claude-haiku-4-5`→`gpt-5.5`. Every event had `content_part.added/done` + `output_text.done`, **no** `output_text.delta`, and `terminal_message_text_bytes=0`. One Sonnet sample had only a `message` item and 4 output tokens — the reply lived on content_part and was dropped, then returned as 502.
+
+### Verification
+- `go test -tags=unit ./internal/pkg/apicompat -count=1 -run "ContentPartTextWithoutDeltas|AcceptsPlainTextPartType|SupplementFillsEmptyMessageFromContentPart"`
+- `go test -tags=unit ./internal/service -count=1 -run "ContentPartWithoutDeltasIsVisible|StreamReasoningOnly|StreamReplaysTerminalOnlyText"`
+
+### Affected files
+`backend/internal/pkg/apicompat/responses_to_anthropic.go`,
+`backend/internal/pkg/apicompat/responses_to_chatcompletions.go`,
+`backend/internal/pkg/apicompat/anthropic_responses_test.go`,
+`backend/internal/pkg/apicompat/chatcompletions_responses_test.go`,
+`backend/internal/service/openai_gateway_messages.go`,
+`backend/internal/service/openai_gateway_messages_empty_output_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-17 - deploy: v0.1.234
 
 ### What

@@ -1556,6 +1556,37 @@ func TestBufferedResponseAccumulator_NoSupplementWhenOutputExists(t *testing.T) 
 	assert.Equal(t, "from terminal event", resp.Output[0].Content[0].Text)
 }
 
+func TestBufferedResponseAccumulator_SupplementFillsEmptyMessageFromContentPart(t *testing.T) {
+	acc := NewBufferedResponseAccumulator()
+	acc.ProcessEvent(&ResponsesStreamEvent{
+		Type:         "response.content_part.added",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Part:         &ResponsesContentPart{Type: "output_text", Text: "part snapshot"},
+	})
+	acc.ProcessEvent(&ResponsesStreamEvent{
+		Type:         "response.output_text.done",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Text:         "",
+	})
+
+	resp := &ResponsesResponse{
+		ID:     "resp_empty_msg",
+		Status: "completed",
+		Output: []ResponsesOutput{{
+			Type:    "message",
+			Role:    "assistant",
+			Content: []ResponsesContentPart{{Type: "output_text", Text: ""}},
+		}},
+	}
+	acc.SupplementResponseOutput(resp)
+
+	require.Len(t, resp.Output, 1)
+	require.Len(t, resp.Output[0].Content, 1)
+	assert.Equal(t, "part snapshot", resp.Output[0].Content[0].Text)
+}
+
 func TestBufferedResponseAccumulator_EmptyDeltas(t *testing.T) {
 	acc := NewBufferedResponseAccumulator()
 
