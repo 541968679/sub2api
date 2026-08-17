@@ -34,13 +34,39 @@
       </div>
 
       <div class="card p-4">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-          <DateRangePicker
-            v-model:start-date="startDate"
-            v-model:end-date="endDate"
-            @change="onDateRangeChange"
-          />
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+            <DateRangePicker
+              v-model:start-date="startDate"
+              v-model:end-date="endDate"
+              @change="onDateRangeChange"
+            />
+          </div>
+          <div
+            class="ml-auto flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm"
+            data-testid="inspect-usage-cost-summary"
+            :title="t('usage.inSelectedRange')"
+          >
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('usage.totalCost') }}</span>
+              <span class="font-semibold tabular-nums text-green-600 dark:text-green-400">
+                {{ statsLoading && !usageStats ? '…' : formatUsd(usageStats?.total_actual_cost) }}
+              </span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('usage.accountCost') }}</span>
+              <span class="tabular-nums text-orange-500">
+                {{ statsLoading && !usageStats ? '…' : formatUsd(usageStats?.total_account_cost) }}
+              </span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('usage.totalRequests') }}</span>
+              <span class="tabular-nums text-gray-800 dark:text-gray-200">
+                {{ statsLoading && !usageStats ? '…' : (usageStats?.total_requests || 0).toLocaleString() }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -163,7 +189,7 @@ import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { adminAPI } from '@/api/admin'
-import type { AdminUsageQueryParams } from '@/api/admin/usage'
+import type { AdminUsageQueryParams, AdminUsageStatsResponse } from '@/api/admin/usage'
 import { opsAPI, type OpsErrorLog } from '@/api/admin/ops'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
@@ -276,6 +302,9 @@ const filters = ref<AdminUsageQueryParams>(applyLockedIds({
 const errorFilters = ref<ErrorRequestFilterState>(applyLockedIds(emptyErrorFilters()))
 
 const usageLogs = ref<AdminUsageLog[]>([])
+const usageStats = ref<AdminUsageStatsResponse | null>(null)
+const statsLoading = ref(false)
+let statsReqSeq = 0
 const loading = ref(false)
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 const sortState = reactive({
@@ -329,6 +358,7 @@ const columnDropdownRef = ref<HTMLElement | null>(null)
 
 const toDayStartISO = (d: string) => new Date(`${d}T00:00:00`).toISOString()
 const toDayEndISO = (d: string) => new Date(`${d}T23:59:59.999`).toISOString()
+const formatUsd = (value?: number) => `$${(value || 0).toFixed(4)}`
 
 const buildUsageListParams = (page: number, pageSize: number): AdminUsageQueryParams => {
   const requestType = filters.value.request_type
@@ -367,6 +397,33 @@ const loadLogs = async () => {
     }
   } finally {
     if (abortController === c) loading.value = false
+  }
+}
+
+const buildStatsParams = () => {
+  const requestType = filters.value.request_type
+  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+  return applyLockedIds({
+    ...filters.value,
+    stream: legacyStream === null ? undefined : legacyStream,
+    start_date: startDate.value,
+    end_date: endDate.value
+  })
+}
+
+const loadStats = async () => {
+  const seq = ++statsReqSeq
+  statsLoading.value = true
+  try {
+    const s = await adminAPI.usage.getStats(buildStatsParams())
+    if (seq !== statsReqSeq) return
+    usageStats.value = s
+  } catch (error) {
+    if (seq !== statsReqSeq) return
+    console.error('Failed to load usage stats:', error)
+    usageStats.value = null
+  } finally {
+    if (seq === statsReqSeq) statsLoading.value = false
   }
 }
 
@@ -428,6 +485,7 @@ const seedFromSubject = () => {
   errorFilters.value = applyLockedIds(emptyErrorFilters())
   pagination.page = 1
   errorPage.value = 1
+  usageStats.value = null
   errorsMounted.value = props.initialTab === 'errors'
   activeTab.value = props.initialTab
 }
@@ -440,6 +498,7 @@ const applyUsageFilters = () => {
     end_date: endDate.value
   })
   void loadLogs()
+  void loadStats()
 }
 
 const resetFilters = () => {
@@ -462,6 +521,7 @@ const onDateRangeChange = (range: { startDate: string; endDate: string }) => {
   if (activeTab.value === 'errors') {
     errorPage.value = 1
     void loadErrorLogs()
+    void loadStats()
     return
   }
   applyUsageFilters()
@@ -544,11 +604,13 @@ watch(
   ([show]) => {
     if (!show) {
       abortController?.abort()
+      statsReqSeq += 1
       closeNestedOverlays()
       return
     }
     if (!props.subjectId) return
     seedFromSubject()
+    void loadStats()
     if (activeTab.value === 'errors') {
       void loadErrorLogs()
     } else {

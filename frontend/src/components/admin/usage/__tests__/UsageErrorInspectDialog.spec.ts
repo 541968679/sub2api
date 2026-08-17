@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageErrorInspectDialog from '../UsageErrorInspectDialog.vue'
 
-const { list, listErrorLogs, getById, resolve, showError } = vi.hoisted(() => ({
+const { list, getStats, listErrorLogs, getById, resolve, showError } = vi.hoisted(() => ({
   list: vi.fn(),
+  getStats: vi.fn(),
   listErrorLogs: vi.fn(),
   getById: vi.fn(),
   resolve: vi.fn(),
@@ -13,7 +14,7 @@ const { list, listErrorLogs, getById, resolve, showError } = vi.hoisted(() => ({
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    usage: { list },
+    usage: { list, getStats },
     users: { getById }
   }
 }))
@@ -54,11 +55,18 @@ const BaseDialogStub = {
 describe('UsageErrorInspectDialog', () => {
   beforeEach(() => {
     list.mockReset()
+    getStats.mockReset()
     listErrorLogs.mockReset()
     getById.mockReset()
     resolve.mockReset()
     showError.mockReset()
     list.mockResolvedValue({ items: [{ id: 1 }], total: 1 })
+    getStats.mockResolvedValue({
+      total_requests: 12,
+      total_actual_cost: 1.2345,
+      total_account_cost: 0.89,
+      total_cost: 2
+    })
     listErrorLogs.mockResolvedValue({ items: [{ id: 9 }], total: 1 })
     resolve.mockReturnValue({ href: '/admin/usage?account_id=7' })
   })
@@ -162,6 +170,30 @@ describe('UsageErrorInspectDialog', () => {
       expect.objectContaining({ user_id: 42 }),
       expect.anything()
     )
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ user_id: 42 }))
+    wrapper.unmount()
+  })
+
+  it('renders selected-range cost summary beside the date range', async () => {
+    const wrapper = mountDialog({
+      scope: 'user',
+      subjectId: 42,
+      subjectLabel: 'user@example.com'
+    })
+    await flushPromises()
+
+    const summary = wrapper.get('[data-testid="inspect-usage-cost-summary"]')
+    expect(summary.text()).toContain('$1.2345')
+    expect(summary.text()).toContain('$0.8900')
+    expect(summary.text()).toContain('12')
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ user_id: 42 }))
+    wrapper.unmount()
+  })
+
+  it('loads locked-account stats next to the shared date range', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ account_id: 7 }))
     wrapper.unmount()
   })
 

@@ -1,3 +1,20 @@
+## 2026-08-17 - feat(admin-usage): compact cost summary in inspect dialog
+
+### What
+- Admin user/account「查看使用」弹窗在时间范围右侧显示所选范围的总消费、成本和请求数，不增加垂直卡片。
+- 汇总随日期和用量筛选变化，走现有 `GET /admin/usage/stats`，主数字为 `total_actual_cost`。
+
+### Why
+弹窗原先只有日志列表，管理员无法一眼看到该用户/账号在当前时间范围内的金额消耗。
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`
+
+### Affected files
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`,
+this changelog.
+
 ## 2026-08-17 - deploy: v0.1.230
 
 ### What
