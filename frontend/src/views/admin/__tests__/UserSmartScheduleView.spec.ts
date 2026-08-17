@@ -13,13 +13,17 @@ const apiMocks = vi.hoisted(() => ({
   updateSmartScheduleSortOrder: vi.fn(),
   copySmartSchedule: vi.fn(),
   listAccounts: vi.fn(),
+  getAccountById: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
   updateQualityHardCloseSettings: vi.fn(),
   updateAccount: vi.fn(),
   moveAccountToTop: vi.fn(),
-  resumeSmartSchedule: vi.fn()
+  resumeSmartSchedule: vi.fn(),
+  getSmartSchedulePnlPairs: vi.fn(),
+  getBatchSmartSchedulePnlSummaries: vi.fn(),
+  getSmartSchedulePnlTrend: vi.fn()
 }))
 
 const tableMocks = vi.hoisted(() => ({
@@ -50,7 +54,10 @@ vi.mock('@/api/admin', () => ({
       getSmartSchedule: apiMocks.getSmartSchedule,
       updateSmartSchedule: apiMocks.updateSmartSchedule,
       updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
-      copySmartSchedule: apiMocks.copySmartSchedule
+      copySmartSchedule: apiMocks.copySmartSchedule,
+      getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs,
+      getBatchSmartSchedulePnlSummaries: apiMocks.getBatchSmartSchedulePnlSummaries,
+      getSmartSchedulePnlTrend: apiMocks.getSmartSchedulePnlTrend
     },
     dashboard: {
       getBatchUsersUsage: apiMocks.getBatchUsersUsage,
@@ -58,6 +65,7 @@ vi.mock('@/api/admin', () => ({
     },
     accounts: {
       list: apiMocks.listAccounts,
+      getById: apiMocks.getAccountById,
       getBatchQualityStats: apiMocks.getBatchQualityStats,
       getBatchTodayStats: apiMocks.getBatchTodayStats,
       update: apiMocks.updateAccount,
@@ -139,6 +147,7 @@ vi.mock('@/components/common/DataTable.vue', () => ({
           <slot name="cell-burn_rate" :row="row" />
           <slot name="cell-concurrency" :row="row" />
           <slot name="cell-usage" :row="row" />
+          <slot name="cell-schedule_pnl" :row="row" />
           <slot name="cell-groups" :row="row" />
           <slot name="cell-smart_schedule" :row="row" />
           <slot name="cell-pair_cap" :row="row" />
@@ -194,6 +203,21 @@ vi.mock('@/components/common/GroupBadge.vue', () => ({
 vi.mock('@/components/account/AccountTodayStatsCell.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/AccountGroupsCell.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/AccountUsageCell.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/components/admin/user/SmartSchedulePnlCell.vue', () => ({
+  default: {
+    props: ['summary', 'account', 'loading'],
+    template: '<button data-testid="smart-schedule-pnl-cell" @click="$emit(\'click\')" />'
+  }
+}))
+vi.mock('@/components/admin/user/UserSchedulePnlCell.vue', () => ({
+  default: {
+    props: ['summary', 'loading'],
+    template: '<button data-testid="user-schedule-pnl-cell" @click="$emit(\'click\')" />'
+  }
+}))
+vi.mock('@/components/admin/user/SchedulePnlTrendDialog.vue', () => ({
+  default: { template: '<div data-testid="schedule-pnl-trend-dialog" />' }
+}))
 vi.mock('@/components/account/AccountInlineNumberCell.vue', () => ({
   default: {
     props: ['modelValue'],
@@ -257,8 +281,15 @@ vi.mock('@/components/account/AccountStabilityDialog.vue', () => ({
   }
 }))
 vi.mock('@/components/account', () => ({
-  EditAccountModal: { template: '<div />' },
+  EditAccountModal: {
+    props: ['show', 'account'],
+    template:
+      '<div v-if="show" data-testid="edit-account-modal">{{ account?.name }}|{{ account?.notes }}|{{ account?.credentials?.access_token }}</div>'
+  },
   TempUnschedStatusModal: { template: '<div />' }
+}))
+vi.mock('@/components/admin/user/AdminUserListRowActions.vue', () => ({
+  default: { template: '<div data-testid="admin-user-list-row-actions" />' }
 }))
 vi.mock('@/components/admin/account/AccountActionMenu.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/admin/account/ReAuthAccountModal.vue', () => ({ default: { template: '<div />' } }))
@@ -296,6 +327,44 @@ function makeView() {
   }
 }
 
+function echoSmartScheduleWrite(
+  _userId: number,
+  platform: string,
+  body: {
+    enabled?: boolean
+    quality_max_p50_ttft_ms?: number | null
+    quality_min_success_rate?: number | null
+    quality_min_success_samples?: number | null
+    quality_min_ttft_samples?: number | null
+    quality_condition?: string | null
+    cooldown_minutes?: number
+    accounts?: Array<{
+      account_id: number
+      platform?: string
+      max_concurrency?: number | null
+      sort_order?: number | null
+    }>
+  }
+) {
+  return {
+    user_id: 99,
+    platforms: {
+      ...makeView().platforms,
+      [platform]: {
+        ...emptyPlatform(),
+        enabled: Boolean(body.enabled),
+        quality_max_p50_ttft_ms: body.quality_max_p50_ttft_ms ?? null,
+        quality_min_success_rate: body.quality_min_success_rate ?? null,
+        quality_min_success_samples: body.quality_min_success_samples ?? null,
+        quality_min_ttft_samples: body.quality_min_ttft_samples ?? null,
+        quality_condition: body.quality_condition ?? null,
+        cooldown_minutes: body.cooldown_minutes ?? 15,
+        accounts: body.accounts ?? []
+      }
+    }
+  }
+}
+
 async function mountPage() {
   const w = mount(UserSmartScheduleView)
   await flushPromises()
@@ -321,16 +390,30 @@ beforeEach(() => {
     allowed_groups: []
   })
   apiMocks.getSmartSchedule.mockResolvedValue(makeView())
-  apiMocks.updateSmartSchedule.mockResolvedValue(makeView())
+  apiMocks.updateSmartSchedule.mockImplementation((userId: number, platform: string, body: Parameters<typeof echoSmartScheduleWrite>[2]) =>
+    Promise.resolve(echoSmartScheduleWrite(userId, platform, body))
+  )
   apiMocks.updateSmartScheduleSortOrder.mockResolvedValue(makeView())
   apiMocks.copySmartSchedule.mockResolvedValue(makeView())
   apiMocks.listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
+  apiMocks.getAccountById.mockReset()
+  apiMocks.getAccountById.mockResolvedValue({
+    id: 21,
+    name: 'oa-1',
+    notes: 'full notes',
+    platform: 'openai',
+    type: 'oauth',
+    credentials: { access_token: 'tok' }
+  })
   apiMocks.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5, pages: 0 })
   apiMocks.getUserBatchQualityStats.mockResolvedValue({ stats: {} })
   apiMocks.getBatchUsersUsage.mockResolvedValue({ stats: {} })
   apiMocks.getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
   apiMocks.getBatchQualityStats.mockResolvedValue({ stats: {} })
   apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
+  apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
+  apiMocks.getBatchSmartSchedulePnlSummaries.mockResolvedValue({ summaries: {} })
+  apiMocks.getSmartSchedulePnlTrend.mockResolvedValue({ range: '24h', granularity: 'hour', points: [] })
   apiMocks.updateAccount.mockReset()
   apiMocks.updateAccount.mockResolvedValue({})
   apiMocks.moveAccountToTop.mockReset()
@@ -588,9 +671,58 @@ describe('UserSmartScheduleView', () => {
     expect(headers.get('[data-column="pair_cap"]').attributes('data-sortable')).toBe('true')
     expect(headers.get('[data-column="status"]').attributes('data-sortable')).toBe('true')
     expect(headers.get('[data-column="quality_ttft"]').attributes('data-sortable')).toBe('false')
+    expect(headers.get('[data-column="schedule_pnl"]').exists()).toBe(true)
+    expect(headers.find('[data-column="usage"]').exists()).toBe(false)
     expect(w.get('[data-testid="account-open-stability"]').exists()).toBe(true)
     await w.get('[data-testid="account-quality-cell-button"]').trigger('click')
     expect(w.get('[data-testid="account-stability-dialog"]').exists()).toBe(true)
+  })
+
+  it('loads the full account before opening the edit modal', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 2 }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 11,
+          name: 'acc-11',
+          platform: 'anthropic',
+          type: 'apikey',
+          status: 'active',
+          credentials: { plan_type: 'pro' }
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    apiMocks.getAccountById.mockResolvedValue({
+      id: 11,
+      name: 'acc-11',
+      notes: 'secret notes',
+      platform: 'anthropic',
+      type: 'apikey',
+      credentials: { access_token: 'full-token', api_key: 'sk-live' }
+    })
+    const w = await mountPage()
+    expect(w.find('[data-testid="edit-account-modal"]').exists()).toBe(false)
+    await w.get('[data-testid="account-edit"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.getAccountById).toHaveBeenCalledWith(11)
+    const modal = w.get('[data-testid="edit-account-modal"]')
+    expect(modal.text()).toContain('acc-11')
+    expect(modal.text()).toContain('secret notes')
+    expect(modal.text()).toContain('full-token')
   })
 
   it('can hide a pool column from column settings', async () => {
@@ -692,7 +824,10 @@ describe('UserSmartScheduleView', () => {
     expect(headers.get('[data-column="quality_ttft"]').exists()).toBe(true)
     expect(headers.get('[data-column="quality_success_rate"]').exists()).toBe(true)
     expect(headers.get('[data-column="usage"]').exists()).toBe(true)
+    expect(headers.get('[data-column="schedule_pnl"]').exists()).toBe(true)
     expect(headers.get('[data-column="concurrency"]').exists()).toBe(true)
+    expect(headers.get('[data-column="actions"]').exists()).toBe(true)
+    expect(row.get('[data-testid="admin-user-list-row-actions"]').exists()).toBe(true)
     expect(row.get('[data-testid="user-quality-ttft"]').text()).toContain('320')
     expect(row.get('[data-testid="user-quality-success_rate"]').text()).toContain('0.97')
     expect(row.get('[data-testid="user-concurrency-cell"]').text()).toContain('8')
@@ -832,7 +967,14 @@ describe('UserSmartScheduleView', () => {
     await w.get('[data-testid="smart-schedule-batch-remove"]').trigger('click')
     await flushPromises()
     expect(w.text()).not.toContain('stopped-acc')
-    expect(w.get('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(true)
+    expect(w.find('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(false)
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({
+        accounts: [expect.objectContaining({ account_id: 11 })]
+      })
+    )
   })
 
   it('renders refresh controls and an admission column', async () => {
@@ -920,7 +1062,7 @@ describe('UserSmartScheduleView', () => {
     expect(w.find('[data-testid="smart-schedule-add-dialog"]').exists()).toBe(false)
   })
 
-  it('adds matching candidates from the filtered-add dialog without writing until save', async () => {
+  it('adds matching candidates from the filtered-add dialog and persists immediately', async () => {
     const candidates = [
       { id: 31, name: 'dialog-api', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true },
       { id: 32, name: 'dialog-oauth', platform: 'anthropic', type: 'oauth', status: 'active', schedulable: true }
@@ -948,7 +1090,27 @@ describe('UserSmartScheduleView', () => {
     await flushPromises()
     expect(w.text()).toContain('dialog-api')
     expect(w.text()).toContain('dialog-oauth')
+    expect(w.find('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(false)
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({
+        accounts: expect.arrayContaining([
+          expect.objectContaining({ account_id: 31 }),
+          expect.objectContaining({ account_id: 32 })
+        ])
+      })
+    )
+  })
+
+  it('shows the dirty banner only for unsaved pair-cap or threshold drafts', async () => {
+    const w = await mountPage()
+    expect(w.find('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(false)
+    await w.get('[data-testid="smart-schedule-p50"]').setValue(120)
+    await flushPromises()
     expect(w.get('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-dirty-hint"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-save"]').exists()).toBe(true)
     expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
   })
 

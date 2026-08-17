@@ -3,6 +3,7 @@ import {
   buildAdminUserListRowColumns,
   formatAdminUserBurnRateAmount,
   formatAdminUserBurnRateDisplay,
+  getAdminUserToggleStatusTarget,
   pickBatchUserStat,
   smartScheduleSummaryFromDrafts
 } from '../adminUserListRow'
@@ -24,6 +25,14 @@ describe('buildAdminUserListRowColumns', () => {
     expect(keys).not.toContain('username')
     expect(keys).toContain('burn_rate')
     expect(keys.indexOf('burn_rate')).toBe(keys.indexOf('balance') + 1)
+    expect(keys.at(-1)).toBe('actions')
+    expect(keys.indexOf('schedule_pnl')).toBe(keys.indexOf('smart_schedule') + 1)
+  })
+
+  it('maps toggle status the same way as UsersView', () => {
+    expect(getAdminUserToggleStatusTarget('active')).toBe('disabled')
+    expect(getAdminUserToggleStatusTarget('disabled')).toBe('active')
+    expect(getAdminUserToggleStatusTarget('pending_approval')).toBe('active')
   })
 })
 

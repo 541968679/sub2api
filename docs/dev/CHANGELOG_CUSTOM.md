@@ -1,3 +1,87 @@
+## 2026-08-17 - fix(schedule-pnl): production crash and lock hazards
+
+### What
+- Split `usage_logs` true_cost index into `206_usage_log_true_cost_index_notx.sql` (`CREATE INDEX CONCURRENTLY`). Migration 205 only adds nullable columns.
+- `applyTrueCost` refuses NaN/Inf so a bad rate cannot fail `usage_logs` INSERT.
+- Trend SQL never sends PostgreSQL timezone `Local` (Windows default).
+- Smart-schedule pool still loads accounts if the PnL/quality/today secondary requests fail.
+
+### Why
+A regular index build on `usage_logs` can block all billing writes. A failed PnL request used `Promise.all` and wiped the pool. Windows `time.Local` is not a valid `AT TIME ZONE` name.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TrueCost|SchedulePnl|SmartSchedulePnl"`
+- `go test -tags=unit ./internal/repository -count=1 -run "TrueCost|SchedulePnl"`
+- `go test ./migrations -count=1 -run TrueCostMigrations`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+
+### Affected files
+`backend/migrations/205_usage_log_true_cost.sql`,
+`backend/migrations/206_usage_log_true_cost_index_notx.sql`,
+`backend/internal/service/true_cost.go`,
+`backend/internal/repository/schedule_pnl_repo.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+this changelog.
+
+## 2026-08-17 - fix(true_cost): never leak BillingService fallback prices
+
+### What
+- `liteLLMTrueCostPrices` now calls only `PricingService.GetModelPricing` (LiteLLM + fuzzy match). LiteLLM miss leaves that component at 0.
+- Added a unit test that `BillingService.GetModelPricing` / user-global billing `InputPrice` cannot leak into `true_cost`.
+- Pair/user schedule PnL cells now show revenue and cost next to profit/margin.
+
+### Why
+The previous LiteLLM helper also called `BillingService.GetModelPricing`, which injects hardcoded billing fallbacks when LiteLLM misses. PRD D2 forbids that.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TrueCost|SchedulePnl|SmartSchedulePnl"`
+- `go test -tags=unit ./internal/repository -count=1 -run "TrueCost|SchedulePnl"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "SchedulePnl|SmartSchedulePnl"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/schedulePnl.spec.ts src/composables/__tests__/adminUserListRow.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`backend/internal/service/true_cost.go`,
+`backend/internal/service/true_cost_test.go`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/components/admin/user/UserSchedulePnlCell.vue`,
+`docs/dev/codebase/billing.md`,
+this changelog.
+
+## 2026-08-17 - feat(smart-schedule): persist true_cost and show schedule PnL
+
+### What
+- New `usage_logs.true_cost` / `true_cost_rate` (migration 205, no backfill). Write path snapshots display_* → LiteLLM × real tokens × `EffectiveUpstreamRate()` after `ActualCost` is set.
+- Admin APIs: pair summaries, enabled-pool user totals, and 24h/today/yesterday/7d trend. Revenue = `SUM(actual_cost)` only when `true_cost IS NOT NULL`.
+- Smart-schedule pool replaces that page's usage-window cell with `SmartSchedulePnlCell`. Users list + header add `schedule_pnl` after `smart_schedule`. Shared trend dialog. AccountsView `AccountUsageCell` unchanged.
+
+### Why
+Operators need this-user × this-account profit for scheduling, not account-wide A$/U$/req/token windows and not billing `account_stats_cost`.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TrueCost|SchedulePnl|SmartSchedulePnl"`
+- `go test -tags=unit ./internal/repository -count=1 -run "TrueCost|SchedulePnl"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "SchedulePnl|SmartSchedulePnl"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/adminUserListRow.spec.ts src/composables/__tests__/schedulePnl.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/views/admin/__tests__/UsersView.spec.ts src/components/admin/user/__tests__/AdminUserListRowActions.spec.ts`
+
+### Affected files
+`backend/migrations/205_usage_log_true_cost.sql`,
+`backend/ent/schema/usage_log.go`,
+`backend/internal/service/true_cost.go`,
+`backend/internal/service/schedule_pnl.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/schedule_pnl_repo.go`,
+`backend/internal/handler/admin/user_smart_schedule_pnl.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/components/admin/user/UserSchedulePnlCell.vue`,
+`frontend/src/components/admin/user/SchedulePnlTrendDialog.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/UsersView.vue`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/billing.md`,
+this changelog.
+
 ## 2026-08-17 - feat(smart-schedule): auto-sort by this-user volume then upstream rate
 
 ### What
@@ -8,7 +92,7 @@
 A cheaper in-use `0.06` account was ranking below an idle better-priority `0.08` because auto-sort ignored live pair occupancy and upstream rate.
 
 ### Verification
-- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts -t "auto-sort|producing|upstream"`
 
 ### Affected files
 `frontend/src/composables/smartSchedulePoolAutoSort.ts`,
@@ -17,6 +101,50 @@ A cheaper in-use `0.06` account was ranking below an idle better-priority `0.08`
 `frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-17 - fix(smart-schedule): add-account no longer looks like an unsaved draft
+
+### What
+- Adding or removing pool members now writes immediately, same as the platform enable switch.
+- The amber dirty banner / save hint no longer appears after add-account. It still appears for unsaved pair-cap or threshold drafts, next to the existing Save button.
+- Copy no longer tells operators to click Save after joining accounts.
+
+### Why
+Add-account only mutated the local draft, so `isDirty` showed 「有未保存的账号池 / 配对并发 / 门槛修改…需点保存后才会生效」. That banner sits above the pool table, away from Save, and membership is not supposed to need a second click.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/adminUserListRow.spec.ts src/composables/__tests__/useSmartSchedulePoolAccountOps.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAddAccountDialog.spec.ts`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-08-17 - fix(smart-schedule): user-row actions + full account edit
+
+### What
+- The smart-schedule user status row now has the same actions column as UsersView (edit / usage / errors / toggle / more).
+- Pool account **编辑** fetches `GET /admin/accounts/:id` before opening the modal, so the form is not filled from the lite list row.
+
+### Why
+`AdminUserListRowTable` was display-only. Pool members load with `lite=1`, which strips credentials and `schedule_users`; `EditAccountModal` then looked empty.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/adminUserListRow.spec.ts src/composables/__tests__/useAdminUserRowActions.spec.ts src/composables/__tests__/useSmartSchedulePoolAccountOps.spec.ts src/components/admin/user/__tests__/AdminUserListRowActions.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts -t "actions|full account|users-list row|toggle status"`
+
+### Affected files
+`frontend/src/composables/adminUserListRow.ts`,
+`frontend/src/composables/useAdminUserRowActions.ts`,
+`frontend/src/composables/useSmartSchedulePoolAccountOps.ts`,
+`frontend/src/components/admin/user/AdminUserListRowTable.vue`,
+`frontend/src/components/admin/user/AdminUserListRowActions.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
 `docs/dev/codebase/account.md`,
 this changelog.
 

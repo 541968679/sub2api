@@ -9001,6 +9001,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			cost.TotalCost,
 		)
 	}
+	applyTrueCost(ctx, usageLog, account.EffectiveUpstreamRate(), s.resolver)
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		wroteUsage := writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")

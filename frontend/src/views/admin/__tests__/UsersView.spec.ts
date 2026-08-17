@@ -12,6 +12,7 @@ const {
   getBatchUsersBurnRate,
   getBatchQualityStats,
   getBatchSmartScheduleSummaries,
+  getBatchSmartSchedulePnlSummaries,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   getBatchUsersBurnRate: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getBatchSmartScheduleSummaries: vi.fn(),
+  getBatchSmartSchedulePnlSummaries: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
 }))
@@ -40,7 +42,8 @@ vi.mock('@/api/admin', () => ({
       toggleStatus: vi.fn(),
       delete: vi.fn(),
       getBatchQualityStats,
-      getBatchSmartScheduleSummaries
+      getBatchSmartScheduleSummaries,
+      getBatchSmartSchedulePnlSummaries
     },
     groups: {
       getAll: getAllGroups
@@ -123,6 +126,7 @@ describe('admin UsersView', () => {
     getBatchUsersBurnRate.mockReset()
     getBatchQualityStats.mockReset()
     getBatchSmartScheduleSummaries.mockReset()
+    getBatchSmartSchedulePnlSummaries.mockReset()
     routerPush.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
@@ -140,6 +144,7 @@ describe('admin UsersView', () => {
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
     getBatchSmartScheduleSummaries.mockResolvedValue({ summaries: {} })
+    getBatchSmartSchedulePnlSummaries.mockResolvedValue({ summaries: {} })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
@@ -179,6 +184,8 @@ const mountUsersView = () => {
         UserBalanceHistoryManageModal: true,
         GroupReplaceModal: true,
         UsageErrorInspectDialog: true,
+        UserSchedulePnlCell: true,
+        SchedulePnlTrendDialog: true,
         Icon: true,
         Teleport: true
       }
@@ -200,8 +207,9 @@ const mountUsersView = () => {
     const concurrencyIdx = visibleColumns.indexOf('concurrency')
     expect(concurrencyIdx).toBeGreaterThanOrEqual(0)
     expect(visibleColumns[concurrencyIdx + 1]).toBe('smart_schedule')
-    expect(visibleColumns[concurrencyIdx + 2]).toBe('quality_ttft')
-    expect(visibleColumns[concurrencyIdx + 3]).toBe('quality_success_rate')
+    expect(visibleColumns[concurrencyIdx + 2]).toBe('schedule_pnl')
+    expect(visibleColumns[concurrencyIdx + 3]).toBe('quality_ttft')
+    expect(visibleColumns[concurrencyIdx + 4]).toBe('quality_success_rate')
 
     await wrapper.get('[data-test="sort-last-used"]').trigger('click')
     await flushPromises()

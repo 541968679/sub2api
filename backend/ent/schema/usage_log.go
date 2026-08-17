@@ -193,6 +193,18 @@ func (UsageLog) Fields() []ent.Field {
 			Default(time.Now).
 			Immutable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+
+		// Appended after created_at so generated ent/runtime field indexes stay stable.
+		// true_cost: display_* → LiteLLM × real tokens × EffectiveUpstreamRate().
+		// NULL means historical / write-failed rows and must stay NULL (no backfill).
+		field.Float("true_cost").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Float("true_cost_rate").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
 	}
 }
 

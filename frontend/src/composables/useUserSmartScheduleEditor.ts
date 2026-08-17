@@ -5,6 +5,7 @@ import { adminAPI } from '@/api/admin'
 import type { Account, WindowStats } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import type {
+  SchedulePnlSummary,
   SmartSchedulePlatform,
   SmartSchedulePlatformView,
   UserSmartScheduleView
@@ -117,6 +118,7 @@ type LocalPairResumeGrace = {
 export type SmartSchedulePoolFetchNeeds = {
   quality: boolean
   today: boolean
+  pnl: boolean
 }
 
 export function useUserSmartScheduleEditor(
@@ -149,6 +151,7 @@ export function useUserSmartScheduleEditor(
   const candidateAccounts = ref<Account[]>([])
   const qualityStatsById = ref<Record<string, AccountQualityStats>>({})
   const todayStatsById = ref<Record<string, WindowStats>>({})
+  const pairPnlById = ref<Record<string, SchedulePnlSummary>>({})
   const savedSnapshots = reactive<Record<SmartSchedulePlatform, string>>(
     {} as Record<SmartSchedulePlatform, string>
   )
@@ -379,23 +382,54 @@ export function useUserSmartScheduleEditor(
     selectedAccountIds.value = []
   }
 
+  function clonePoolMembers() {
+    return (currentDraft.value?.accounts ?? []).map((item) => ({ ...item }))
+  }
+
+  async function persistMembershipChange(
+    previousAccounts: SmartSchedulePoolMemberDraft[],
+    options?: {
+      previousEnabled?: boolean
+      enabled?: boolean
+      successKey?: string
+      silent?: boolean
+    }
+  ) {
+    const ok = await persistCurrentPlatform({
+      enabled: options?.enabled,
+      successKey: options?.successKey,
+      silent: options?.silent
+    })
+    if (!ok && currentDraft.value) {
+      currentDraft.value.accounts = previousAccounts
+      if (options?.previousEnabled != null) {
+        currentDraft.value.enabled = options.previousEnabled
+      }
+      await loadPoolDetails()
+    }
+    return ok
+  }
+
   function addSelectedAccount() {
-    if (!currentDraft.value || !selectedAddAccountId.value) return
-    if (currentDraft.value.accounts.some((item) => item.account_id === selectedAddAccountId.value)) return
-    currentDraft.value.accounts.push({ account_id: selectedAddAccountId.value, max_concurrency: null })
+    if (!selectedAddAccountId.value) return
+    void addAccountById(selectedAddAccountId.value)
+  }
+
+  async function addAccountById(accountId: number) {
+    if (!currentDraft.value || submitting.value) return
+    if (currentDraft.value.accounts.some((item) => item.account_id === accountId)) return
+    const previous = clonePoolMembers()
+    currentDraft.value.accounts.push({ account_id: accountId, max_concurrency: null })
     selectedAddAccountId.value = 0
     emptyPoolError.value = false
     void loadPoolDetails()
+    await persistMembershipChange(previous, { silent: true })
   }
 
-  function addAccountById(accountId: number) {
-    selectedAddAccountId.value = accountId
-    addSelectedAccount()
-  }
-
-  function addAccountsByIds(accountIds: number[]) {
-    if (!currentDraft.value || accountIds.length === 0) return 0
+  async function addAccountsByIds(accountIds: number[]) {
+    if (!currentDraft.value || accountIds.length === 0 || submitting.value) return 0
     const used = new Set(currentDraft.value.accounts.map((item) => item.account_id))
+    const previous = clonePoolMembers()
     let added = 0
     for (const accountId of accountIds) {
       if (used.has(accountId)) continue
@@ -406,11 +440,12 @@ export function useUserSmartScheduleEditor(
     if (added === 0) return 0
     emptyPoolError.value = false
     void loadPoolDetails()
-    return added
+    const ok = await persistMembershipChange(previous, { silent: true })
+    return ok ? added : 0
   }
 
   async function addSchedulingAccounts(scope: SmartScheduleAddScope) {
-    if (!currentDraft.value) return
+    if (!currentDraft.value || submitting.value) return
     await ensureCandidates()
     const targets =
       scope === 'apikey'
@@ -423,32 +458,39 @@ export function useUserSmartScheduleEditor(
       return
     }
     const used = new Set(currentDraft.value.accounts.map((item) => item.account_id))
+    const previous = clonePoolMembers()
+    let added = 0
     for (const account of targets) {
       if (used.has(account.id)) continue
       currentDraft.value.accounts.push({ account_id: account.id, max_concurrency: null })
       used.add(account.id)
+      added += 1
     }
     emptyPoolError.value = false
     await loadPoolDetails()
+    if (added > 0) {
+      const ok = await persistMembershipChange(previous, { silent: true })
+      if (!ok) return
+    }
     appStore.showSuccess(t('admin.users.smartSchedule.addSchedulingSuccess', { count: String(targets.length) }))
   }
 
   function removeAccounts(accountIds: number[]) {
-    if (!currentDraft.value || accountIds.length === 0) return
+    if (!currentDraft.value || accountIds.length === 0 || submitting.value) return
     const removeSet = new Set(accountIds)
+    const previous = clonePoolMembers()
     const wasEnabled = currentDraft.value.enabled
     currentDraft.value.accounts = currentDraft.value.accounts.filter((item) => !removeSet.has(item.account_id))
     pruneSelection()
-    if (currentDraft.value.accounts.length === 0) {
-      currentDraft.value.enabled = false
-      if (wasEnabled) {
-        void persistCurrentPlatform({
-          enabled: false,
-          successKey: 'admin.users.smartSchedule.disableSuccess'
-        })
-      }
-    }
+    const emptied = currentDraft.value.accounts.length === 0
+    if (emptied) currentDraft.value.enabled = false
     void loadPoolDetails()
+    void persistMembershipChange(previous, {
+      previousEnabled: wasEnabled,
+      enabled: emptied ? false : currentDraft.value.enabled,
+      successKey: emptied && wasEnabled ? 'admin.users.smartSchedule.disableSuccess' : undefined,
+      silent: !(emptied && wasEnabled)
+    })
   }
 
   function removeAccount(accountId: number) {
@@ -456,7 +498,7 @@ export function useUserSmartScheduleEditor(
   }
 
   function resolvePoolFetchNeeds(): SmartSchedulePoolFetchNeeds {
-    return options?.poolFetchNeeds ?? { quality: true, today: true }
+    return options?.poolFetchNeeds ?? { quality: true, today: true, pnl: true }
   }
 
   async function loadPoolDetails() {
@@ -465,10 +507,11 @@ export function useUserSmartScheduleEditor(
       poolAccounts.value = []
       qualityStatsById.value = {}
       todayStatsById.value = {}
+      pairPnlById.value = {}
       return
     }
     const needs = resolvePoolFetchNeeds()
-    const spinStats = needs.quality || needs.today
+    const spinStats = needs.quality || needs.today || needs.pnl
     if (spinStats) statsLoading.value = true
     try {
       const listedPromise = adminAPI.accounts.list(1, ids.length, {
@@ -477,16 +520,20 @@ export function useUserSmartScheduleEditor(
         lite: '1'
       })
       const qualityPromise = needs.quality
-        ? adminAPI.accounts.getBatchQualityStats(ids)
+        ? adminAPI.accounts.getBatchQualityStats(ids).catch(() => ({ stats: {} as Record<string, AccountQualityStats> }))
         : Promise.resolve({ stats: {} as Record<string, AccountQualityStats> })
       const todayPromise = needs.today
-        ? adminAPI.accounts.getBatchTodayStats(ids)
+        ? adminAPI.accounts.getBatchTodayStats(ids).catch(() => ({ stats: {} as Record<string, WindowStats> }))
         : Promise.resolve({ stats: {} as Record<string, WindowStats> })
-      const [listed, quality, today] = await Promise.all([listedPromise, qualityPromise, todayPromise])
+      const pnlPromise = needs.pnl && userId.value
+        ? adminAPI.users.getSmartSchedulePnlPairs(userId.value, ids).catch(() => ({ pairs: {} as Record<string, SchedulePnlSummary> }))
+        : Promise.resolve({ pairs: {} as Record<string, SchedulePnlSummary> })
+      const [listed, quality, today, pnl] = await Promise.all([listedPromise, qualityPromise, todayPromise, pnlPromise])
       const byID = new Map((listed.items ?? []).map((item) => [item.id, item]))
       poolAccounts.value = ids.map((id) => byID.get(id)).filter((item): item is Account => Boolean(item))
       qualityStatsById.value = needs.quality ? (quality.stats ?? {}) : {}
       todayStatsById.value = needs.today ? (today.stats ?? {}) : {}
+      pairPnlById.value = needs.pnl ? (pnl.pairs ?? {}) : {}
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
     } finally {
@@ -631,7 +678,11 @@ export function useUserSmartScheduleEditor(
     }
   }
 
-  async function persistCurrentPlatform(options?: { enabled?: boolean; successKey?: string }) {
+  async function persistCurrentPlatform(options?: {
+    enabled?: boolean
+    successKey?: string
+    silent?: boolean
+  }) {
     if (!userId.value || !currentDraft.value) return false
     const nextEnabled = options?.enabled ?? currentDraft.value.enabled
     if (nextEnabled && currentDraft.value.accounts.length === 0) {
@@ -647,7 +698,9 @@ export function useUserSmartScheduleEditor(
       const view = await adminAPI.users.updateSmartSchedule(userId.value, activePlatform.value, buildWrite(nextEnabled))
       applyPlatformView(activePlatform.value, view)
       await loadPoolDetails()
-      appStore.showSuccess(t(options?.successKey || 'admin.users.smartSchedule.updateSuccess'))
+      if (!options?.silent) {
+        appStore.showSuccess(t(options?.successKey || 'admin.users.smartSchedule.updateSuccess'))
+      }
       return true
     } catch (error: unknown) {
       currentDraft.value.enabled = previousEnabled
@@ -756,6 +809,7 @@ export function useUserSmartScheduleEditor(
     poolAccounts,
     qualityStatsById,
     todayStatsById,
+    pairPnlById,
     currentDraft,
     currentSavedDraft,
     otherPlatforms,

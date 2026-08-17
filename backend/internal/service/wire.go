@@ -777,6 +777,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 	NewUserSmartScheduleService,
+	NewSchedulePnlService,
 	wire.Bind(new(SmartScheduleLookup), new(*UserSmartScheduleService)),
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,

@@ -54,6 +54,7 @@ export function useSmartSchedulePoolAccountOps(options: {
 
   const showEdit = ref(false)
   const edAcc = ref<Account | null>(null)
+  const editingAccountId = ref<number | null>(null)
   const showStability = ref(false)
   const stabilityAcc = ref<Account | null>(null)
   const showTempUnsched = ref(false)
@@ -138,9 +139,19 @@ export function useSmartSchedulePoolAccountOps(options: {
     await saveAccountPatch(account, { extra }, { ...account, fallback_only: next, extra: extra as Account['extra'] })
   }
 
-  function handleEdit(account: Account) {
-    edAcc.value = account
-    showEdit.value = true
+  async function handleEdit(account: Account) {
+    const requestId = account.id
+    editingAccountId.value = requestId
+    try {
+      const full = await adminAPI.accounts.getById(account.id)
+      if (editingAccountId.value !== requestId) return
+      edAcc.value = full
+      showEdit.value = true
+    } catch (error: unknown) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.accounts.failedToLoad')))
+    } finally {
+      if (editingAccountId.value === requestId) editingAccountId.value = null
+    }
   }
 
   function handleAccountUpdated(account: Account) {

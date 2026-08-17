@@ -124,11 +124,17 @@ export function buildAdminUserListRowColumns(t: AdminUserListRowTranslate): Colu
     { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
     { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: false },
     { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
+    { key: 'schedule_pnl', label: t('admin.users.columns.schedulePnl'), sortable: false },
     { key: 'quality_ttft', label: t('admin.users.columns.qualityTtft'), sortable: false },
     { key: 'quality_success_rate', label: t('admin.users.columns.qualitySuccessRate'), sortable: false },
     { key: 'status', label: t('admin.users.columns.status'), sortable: false },
     { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: false },
     { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: false },
-    { key: 'created_at', label: t('admin.users.columns.created'), sortable: false }
+    { key: 'created_at', label: t('admin.users.columns.created'), sortable: false },
+    { key: 'actions', label: t('admin.users.columns.actions'), sortable: false }
   ]
+}
+
+export function getAdminUserToggleStatusTarget(status: UserStatus | string): UserStatus {
+  return status === 'active' ? 'disabled' : 'active'
 }

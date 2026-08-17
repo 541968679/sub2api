@@ -157,6 +157,11 @@ type UsageLog struct {
 	AccountRateMultiplier *float64
 	// AccountStatsCost 账号统计定价预计算费用（nil = 使用默认公式 total_cost × account_rate_multiplier）
 	AccountStatsCost *float64
+	// TrueCost is display_* → LiteLLM × real tokens × EffectiveUpstreamRate().
+	// nil means the row was written before this field or applyTrueCost failed.
+	TrueCost *float64
+	// TrueCostRate is the EffectiveUpstreamRate() snapshot used for TrueCost.
+	TrueCostRate *float64
 
 	BillingType      int8
 	RequestType      RequestType

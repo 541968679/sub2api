@@ -483,6 +483,91 @@ export async function getBatchSmartScheduleSummaries(
   return data
 }
 
+export type SchedulePnlWindow = {
+  revenue: number
+  cost: number
+  profit: number
+  margin: number | null
+}
+
+export type SchedulePnlSummary = {
+  today: SchedulePnlWindow | null
+  seven_day: SchedulePnlWindow | null
+}
+
+export type SchedulePnlTrendRange = '24h' | 'today' | 'yesterday' | '7d'
+
+export type SchedulePnlTrendPoint = {
+  bucket: string
+  revenue: number | null
+  cost: number | null
+  profit: number | null
+  margin: number | null
+}
+
+export type SchedulePnlTrend = {
+  range: SchedulePnlTrendRange | string
+  granularity: 'hour' | 'day' | string
+  points: SchedulePnlTrendPoint[]
+}
+
+export type BatchSmartSchedulePnlSummariesResponse = {
+  summaries: Record<string, SchedulePnlSummary>
+}
+
+export type SmartSchedulePnlPairsResponse = {
+  pairs: Record<string, SchedulePnlSummary>
+}
+
+function adminTimezoneParam() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return 'UTC'
+  }
+}
+
+export async function getBatchSmartSchedulePnlSummaries(
+  userIds: number[]
+): Promise<BatchSmartSchedulePnlSummariesResponse> {
+  const { data } = await apiClient.post<BatchSmartSchedulePnlSummariesResponse>(
+    '/admin/users/smart-schedule/pnl/summaries',
+    { user_ids: userIds },
+    { params: { timezone: adminTimezoneParam() } }
+  )
+  return data
+}
+
+export async function getSmartSchedulePnlPairs(
+  userId: number,
+  accountIds: number[]
+): Promise<SmartSchedulePnlPairsResponse> {
+  const { data } = await apiClient.post<SmartSchedulePnlPairsResponse>(
+    `/admin/users/${userId}/smart-schedule/pnl/pairs`,
+    { account_ids: accountIds },
+    { params: { timezone: adminTimezoneParam() } }
+  )
+  return data
+}
+
+export async function getSmartSchedulePnlTrend(
+  userId: number,
+  range: SchedulePnlTrendRange = '24h',
+  accountId?: number
+): Promise<SchedulePnlTrend> {
+  const { data } = await apiClient.get<SchedulePnlTrend>(
+    `/admin/users/${userId}/smart-schedule/pnl/trend`,
+    {
+      params: {
+        range,
+        timezone: adminTimezoneParam(),
+        ...(accountId && accountId > 0 ? { account_id: accountId } : {})
+      }
+    }
+  )
+  return data
+}
+
 export async function getBatchQualityStats(userIds: number[]): Promise<BatchQualityStatsResponse> {
   const { data } = await apiClient.post<BatchQualityStatsResponse>('/admin/users/quality-stats/batch', {
     user_ids: userIds
@@ -512,6 +597,9 @@ export const usersAPI = {
   updateSmartScheduleSortOrder,
   copySmartSchedule,
   getBatchSmartScheduleSummaries,
+  getBatchSmartSchedulePnlSummaries,
+  getSmartSchedulePnlPairs,
+  getSmartSchedulePnlTrend,
   getBatchQualityStats,
 }
 

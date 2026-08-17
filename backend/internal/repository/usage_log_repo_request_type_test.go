@@ -95,6 +95,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // long_context_input_multiplier
 			sqlmock.AnyArg(), // long_context_output_multiplier
 			sqlmock.AnyArg(), // account_stats_cost
+			sqlmock.AnyArg(), // true_cost
+			sqlmock.AnyArg(), // true_cost_rate
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -183,6 +185,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // long_context_input_multiplier
 			sqlmock.AnyArg(), // long_context_output_multiplier
 			sqlmock.AnyArg(), // account_stats_cost
+			sqlmock.AnyArg(), // true_cost
+			sqlmock.AnyArg(), // true_cost_rate
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -670,6 +674,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // long_context_input_multiplier
 			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // true_cost
+			sql.NullFloat64{}, // true_cost_rate
 			now,
 		}})
 		require.NoError(t, err)
@@ -726,6 +732,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // long_context_input_multiplier
 			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // true_cost
+			sql.NullFloat64{}, // true_cost_rate
 			now,
 		}})
 		require.NoError(t, err)
@@ -782,6 +790,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // long_context_input_multiplier
 			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
+			sql.NullFloat64{}, // true_cost
+			sql.NullFloat64{}, // true_cost_rate
 			now,
 		}})
 		require.NoError(t, err)

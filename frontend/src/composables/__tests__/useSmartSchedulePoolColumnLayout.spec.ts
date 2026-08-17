@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import {
   SMART_SCHEDULE_POOL_HIDDEN_KEY,
+  readSmartSchedulePoolFetchNeeds,
   useSmartSchedulePoolColumnLayout
 } from '../useSmartSchedulePoolColumnLayout'
 
@@ -40,5 +41,12 @@ describe('useSmartSchedulePoolColumnLayout', () => {
     expect(JSON.parse(localStorage.getItem(SMART_SCHEDULE_POOL_HIDDEN_KEY) || '[]')).toContain('quality_ttft')
     layout.toggleColumn('name')
     expect(layout.isColumnVisible('name')).toBe(true)
+  })
+
+  it('remaps leftover usage hidden key to schedule_pnl', () => {
+    localStorage.setItem(SMART_SCHEDULE_POOL_HIDDEN_KEY, JSON.stringify(['usage']))
+    const needs = readSmartSchedulePoolFetchNeeds()
+    expect(needs.pnl).toBe(false)
+    expect(needs.today).toBe(true)
   })
 })

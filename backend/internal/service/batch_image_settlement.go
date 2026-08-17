@@ -61,6 +61,8 @@ type BatchImageSettlementService struct {
 	Pricing      BatchImagePricingResolver
 	AuthCache    APIKeyAuthCacheInvalidator
 	Config       *config.Config
+	AccountRepo  AccountRepository
+	Resolver     *ModelPricingResolver
 }
 
 type BatchImageSettlementResult struct {
@@ -279,6 +281,13 @@ func (s *BatchImageSettlementService) recordUsageLog(ctx context.Context, job *B
 		ImageSize:             &imageSize,
 		CreatedAt:             createdAt,
 	}
+	rate := defaultUpstreamRateStandard
+	if s.AccountRepo != nil && job.AccountID != nil {
+		if acc, err := s.AccountRepo.GetByID(ctx, *job.AccountID); err == nil && acc != nil {
+			rate = acc.EffectiveUpstreamRate()
+		}
+	}
+	applyTrueCost(ctx, usageLog, rate, s.Resolver)
 	writeUsageLogBestEffort(ctx, s.UsageLogRepo, usageLog, "service.batch_image_settlement")
 }
 

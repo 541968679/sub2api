@@ -32,6 +32,11 @@
           :burn-rate-stats="userBurnRateStats"
           :smart-schedule="userSmartScheduleSummary"
           :smart-schedule-loading="false"
+          :schedule-pnl="userSchedulePnl"
+          :schedule-pnl-loading="userSchedulePnlLoading"
+          @updated="loadUser({ silent: true })"
+          @deleted="goBack"
+          @open-schedule-pnl="openUserSchedulePnl"
         />
       </div>
         <div
@@ -586,18 +591,18 @@
               <template #cell-groups="{ row }">
                 <AccountGroupsCell :groups="row.groups" :max-display="4" />
               </template>
-              <template #header-usage="{ column }">
+              <template #header-schedule_pnl="{ column }">
                 <div class="flex items-center">
                   <span>{{ column.label }}</span>
-                  <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
+                  <HelpTooltip :content="t('admin.users.smartSchedule.poolPnlHint')" width-class="w-72" />
                 </div>
               </template>
-              <template #cell-usage="{ row }">
-                <AccountUsageCell
+              <template #cell-schedule_pnl="{ row }">
+                <SmartSchedulePnlCell
                   :account="row"
-                  :today-stats="todayStatsById[String(row.id)] ?? null"
-                  :today-stats-loading="statsLoading"
-                  @account-updated="handleAccountUpdated"
+                  :summary="pairPnlById[String(row.id)] ?? null"
+                  :loading="statsLoading"
+                  @click="openPairSchedulePnl(row)"
                 />
               </template>
               <template #header-sort_order="{ column }">
@@ -656,6 +661,7 @@
                   <button
                     type="button"
                     class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                    data-testid="account-edit"
                     @click="handleEdit(row)"
                   >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -787,6 +793,13 @@
       @close="showStability = false"
       @recovered="handleStabilityRecovered"
     />
+    <SchedulePnlTrendDialog
+      :show="schedulePnlDialog != null"
+      :user-id="userId"
+      :account-id="schedulePnlDialog?.accountId ?? null"
+      :title="schedulePnlDialog?.title"
+      @close="schedulePnlDialog = null"
+    />
     <TempUnschedStatusModal
       :show="showTempUnsched"
       :account="tempUnschedAcc"
@@ -830,6 +843,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { Account, AdminUser } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
+import type { SchedulePnlSummary } from '@/api/admin/users'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
@@ -869,7 +883,8 @@ import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
-import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import SmartSchedulePnlCell from '@/components/admin/user/SmartSchedulePnlCell.vue'
+import SchedulePnlTrendDialog from '@/components/admin/user/SchedulePnlTrendDialog.vue'
 import AccountInlineNumberCell from '@/components/account/AccountInlineNumberCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import CapacityBadge from '@/components/account/CapacityBadge.vue'
@@ -900,6 +915,9 @@ const userQualityLoading = ref(false)
 const userQualityError = ref<string | null>(null)
 const userUsageStats = ref<BatchUserUsageStats | null>(null)
 const userBurnRateStats = ref<BatchUserBurnRateStats | null>(null)
+const userSchedulePnl = ref<SchedulePnlSummary | null>(null)
+const userSchedulePnlLoading = ref(false)
+const schedulePnlDialog = ref<{ accountId?: number; title: string } | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
 const showAddDialog = ref(false)
@@ -953,6 +971,7 @@ const {
   poolAccounts,
   qualityStatsById,
   todayStatsById,
+  pairPnlById,
   currentDraft,
   currentSavedDraft,
   otherPlatforms,
@@ -1070,7 +1089,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false, minWidth: 88 },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, minWidth: 88 },
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, minWidth: 88 },
-  { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, minWidth: 88 },
+  { key: 'schedule_pnl', label: t('admin.accounts.columns.schedulePnl'), sortable: false, minWidth: 88 },
   { key: 'sort_order', label: t('admin.users.smartSchedule.poolSortOrder'), sortable: true, minWidth: 72 },
   { key: 'priority', label: t('admin.users.smartSchedule.accountPriority'), sortable: true, minWidth: 72 },
   { key: 'upstream_rate_multiplier', label: t('admin.accounts.columns.upstreamRateMultiplier'), sortable: true, minWidth: 88 },
@@ -1092,10 +1111,11 @@ const {
 } = useSmartSchedulePoolColumnLayout(allPoolColumns)
 
 watch(
-  () => [isColumnVisible('quality_ttft'), isColumnVisible('today_stats'), isColumnVisible('usage')] as const,
-  ([quality, today, usage]) => {
+  () => [isColumnVisible('quality_ttft'), isColumnVisible('today_stats'), isColumnVisible('schedule_pnl')] as const,
+  ([quality, today, pnl]) => {
     poolFetchNeeds.quality = quality
-    poolFetchNeeds.today = today || usage
+    poolFetchNeeds.today = today
+    poolFetchNeeds.pnl = pnl
   },
   { immediate: true }
 )
@@ -1271,8 +1291,8 @@ watch(accountSearchOpen, (open) => {
   if (open) void ensureCandidates()
 })
 
-function onFilteredAdd(accountIds: number[]) {
-  const added = addAccountsByIds(accountIds)
+async function onFilteredAdd(accountIds: number[]) {
+  const added = await addAccountsByIds(accountIds)
   showAddDialog.value = false
   if (added > 0) {
     appStore.showSuccess(t('admin.users.smartSchedule.addFilteredSuccess', { count: String(added) }))
@@ -1368,6 +1388,17 @@ function goBack() {
   void router.push({ name: 'AdminUsers' })
 }
 
+function openUserSchedulePnl() {
+  schedulePnlDialog.value = { title: t('admin.users.schedulePnl.dialogTitle') }
+}
+
+function openPairSchedulePnl(account: Account) {
+  schedulePnlDialog.value = {
+    accountId: account.id,
+    title: t('admin.users.schedulePnl.dialogTitlePair', { account: account.name || String(account.id) })
+  }
+}
+
 async function loadUserListRowExtras(detail: AdminUser) {
   const id = detail.id
   userQualityLoading.value = true
@@ -1396,6 +1427,19 @@ async function loadUserListRowExtras(detail: AdminUser) {
       } catch {
         if (user.value?.id !== id) return
         userUsageStats.value = null
+      }
+    })(),
+    (async () => {
+      userSchedulePnlLoading.value = true
+      try {
+        const pnlResponse = await adminAPI.users.getBatchSmartSchedulePnlSummaries([id])
+        if (user.value?.id !== id) return
+        userSchedulePnl.value = pickBatchUserStat(pnlResponse.summaries, id)
+      } catch {
+        if (user.value?.id !== id) return
+        userSchedulePnl.value = null
+      } finally {
+        if (user.value?.id === id) userSchedulePnlLoading.value = false
       }
     })(),
     (async () => {

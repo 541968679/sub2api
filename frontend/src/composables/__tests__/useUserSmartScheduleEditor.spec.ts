@@ -7,17 +7,21 @@ import { resolvePairCap } from '../smartSchedulePoolAdmission'
 
 const apiMocks = vi.hoisted(() => ({
   getSmartSchedule: vi.fn(),
+  updateSmartSchedule: vi.fn(),
   updateSmartScheduleSortOrder: vi.fn(),
   listAccounts: vi.fn(),
   getBatchQualityStats: vi.fn(),
-  getBatchTodayStats: vi.fn()
+  getBatchTodayStats: vi.fn(),
+  getSmartSchedulePnlPairs: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     users: {
       getSmartSchedule: apiMocks.getSmartSchedule,
-      updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder
+      updateSmartSchedule: apiMocks.updateSmartSchedule,
+      updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
+      getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs
     },
     accounts: {
       list: apiMocks.listAccounts,
@@ -132,6 +136,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     apiMocks.getBatchQualityStats.mockResolvedValue({ stats: {} })
     apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
+    apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
   })
 
   it('does not wait for candidates and skips the default-platform watch reload', async () => {
@@ -245,5 +250,59 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     expect(w.vm.memberSortOrder(22)).toBe(1)
     expect(w.vm.memberSortOrder(21)).toBe(2)
+  })
+
+  it('persists pool membership immediately when adding an account', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: { accounts?: Array<{ account_id: number; max_concurrency?: number | null }> }) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: body.accounts ?? []
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    await w.vm.addAccountById(31)
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        accounts: expect.arrayContaining([
+          expect.objectContaining({ account_id: 21 }),
+          expect.objectContaining({ account_id: 31 })
+        ])
+      })
+    )
+    expect(w.vm.isDirty).toBe(false)
+  })
+
+  it('keeps pair-cap edits dirty until save', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.setMemberCap(21, 4)
+    expect(w.vm.isDirty).toBe(true)
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
+  })
+
+  it('still loads pool accounts when schedule pnl request fails', async () => {
+    apiMocks.getSmartSchedulePnlPairs.mockRejectedValueOnce(new Error('pnl down'))
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.poolAccounts).toEqual([
+      expect.objectContaining({ id: 21, name: 'oa-1' })
+    ])
+    expect(w.vm.pairPnlById).toEqual({})
   })
 })

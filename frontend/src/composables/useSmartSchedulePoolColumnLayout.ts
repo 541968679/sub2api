@@ -25,7 +25,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   quality_ttft: 110,
   today_stats: 120,
   groups: 140,
-  usage: 140,
+  schedule_pnl: 140,
   sort_order: 88,
   priority: 100,
   upstream_rate_multiplier: 110,
@@ -33,11 +33,16 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   actions: 280
 }
 
-export function readSmartSchedulePoolFetchNeeds(): { quality: boolean; today: boolean } {
+function remapLegacyPoolColumnKey(key: string): string {
+  return key === 'usage' ? 'schedule_pnl' : key
+}
+
+export function readSmartSchedulePoolFetchNeeds(): { quality: boolean; today: boolean; pnl: boolean } {
   const hidden = readHiddenColumns()
   return {
     quality: !hidden.has('quality_ttft'),
-    today: !hidden.has('today_stats') || !hidden.has('usage')
+    today: !hidden.has('today_stats'),
+    pnl: !hidden.has('schedule_pnl')
   }
 }
 
@@ -50,7 +55,7 @@ function readHiddenColumns(): Set<string> {
     const parsed = JSON.parse(saved) as unknown
     if (!Array.isArray(parsed)) return hidden
     for (const key of parsed) {
-      if (typeof key === 'string' && !PINNED_VISIBLE.has(key)) hidden.add(key)
+      if (typeof key === 'string' && !PINNED_VISIBLE.has(key)) hidden.add(remapLegacyPoolColumnKey(key))
     }
   } catch {
     return hidden
@@ -98,7 +103,20 @@ export function useSmartSchedulePoolColumnLayout(allColumns: ComputedRef<Column[
     const keys = getAllColumnKeys()
     if (keys.length === 0) return
     try {
-      const layout = parseAccountColumnLayout(localStorage.getItem(SMART_SCHEDULE_POOL_LAYOUT_KEY), keys)
+      const raw = localStorage.getItem(SMART_SCHEDULE_POOL_LAYOUT_KEY)
+      const parsed = raw ? (JSON.parse(raw) as { order?: string[]; widths?: Record<string, number> }) : null
+      const remapped = parsed
+        ? JSON.stringify({
+            ...parsed,
+            order: parsed.order?.map(remapLegacyPoolColumnKey),
+            widths: parsed.widths
+              ? Object.fromEntries(
+                  Object.entries(parsed.widths).map(([key, width]) => [remapLegacyPoolColumnKey(key), width])
+                )
+              : parsed.widths
+          })
+        : raw
+      const layout = parseAccountColumnLayout(remapped, keys)
       columnOrder.value = layout.order
       columnWidths.value = layout.widths
     } catch {

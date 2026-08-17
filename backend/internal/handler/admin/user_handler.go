@@ -33,6 +33,7 @@ type UserHandler struct {
 	billingCache          service.BillingCache
 	accountUsageService   *service.AccountUsageService
 	smartSchedule         *service.UserSmartScheduleService
+	schedulePnl           *service.SchedulePnlService
 }
 
 // NewUserHandler creates a new admin user handler.
@@ -42,6 +43,7 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 	var billingCache service.BillingCache
 	var accountUsageService *service.AccountUsageService
 	var smartSchedule *service.UserSmartScheduleService
+	var schedulePnl *service.SchedulePnlService
 	for _, dep := range quotaDeps {
 		switch v := dep.(type) {
 		case service.UserPlatformQuotaRepository:
@@ -52,6 +54,8 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 			accountUsageService = v
 		case *service.UserSmartScheduleService:
 			smartSchedule = v
+		case *service.SchedulePnlService:
+			schedulePnl = v
 		}
 	}
 	return &UserHandler{
@@ -61,6 +65,7 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 		billingCache:          billingCache,
 		accountUsageService:   accountUsageService,
 		smartSchedule:         smartSchedule,
+		schedulePnl:           schedulePnl,
 	}
 }
 

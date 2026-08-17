@@ -5,8 +5,9 @@
       :data="rows"
       :loading="loading"
       :sticky-first-column="true"
-      :sticky-actions-column="false"
-      :expandable-actions="false"
+      :sticky-actions-column="true"
+      :expandable-actions="true"
+      :actions-count="5"
       :virtual-scroll="false"
     >
       <template #cell-email="{ value }">
@@ -167,6 +168,20 @@
         </span>
       </template>
 
+      <template #header-schedule_pnl="{ column }">
+        <div class="flex items-center">
+          <span>{{ column.label }}</span>
+          <HelpTooltip :content="t('admin.users.schedulePnl.columnHint')" width-class="w-72" />
+        </div>
+      </template>
+      <template #cell-schedule_pnl>
+        <UserSchedulePnlCell
+          :summary="schedulePnl"
+          :loading="schedulePnlLoading"
+          @click="emit('open-schedule-pnl')"
+        />
+      </template>
+
       <template #header-quality_ttft="{ column }">
         <div class="flex items-center">
           <span>{{ column.label }}</span>
@@ -220,6 +235,9 @@
           {{ value ? formatDateTime(value) : '-' }}
         </span>
       </template>
+      <template #cell-actions="{ row }">
+        <AdminUserListRowActions :user="row" @updated="emit('updated')" @deleted="emit('deleted')" />
+      </template>
     </DataTable>
   </div>
 </template>
@@ -229,7 +247,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
-import type { SmartScheduleSummary } from '@/api/admin/users'
+import type { SchedulePnlSummary, SmartScheduleSummary } from '@/api/admin/users'
 import type { AdminGroup, AdminUser } from '@/types'
 import { formatDateTime } from '@/utils/format'
 import {
@@ -247,6 +265,8 @@ import Icon from '@/components/icons/Icon.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
+import AdminUserListRowActions from '@/components/admin/user/AdminUserListRowActions.vue'
+import UserSchedulePnlCell from '@/components/admin/user/UserSchedulePnlCell.vue'
 
 const props = defineProps<{
   user: AdminUser
@@ -259,6 +279,14 @@ const props = defineProps<{
   burnRateStats?: BatchUserBurnRateStats | null
   smartSchedule?: SmartScheduleSummary | null
   smartScheduleLoading?: boolean
+  schedulePnl?: SchedulePnlSummary | null
+  schedulePnlLoading?: boolean
+}>()
+
+const emit = defineEmits<{
+  updated: []
+  deleted: []
+  'open-schedule-pnl': []
 }>()
 
 const { t } = useI18n()

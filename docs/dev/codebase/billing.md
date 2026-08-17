@@ -85,6 +85,19 @@ User-visible prices still come from the configured display chain
 not rewrite stored billing, quota deduction, `actual_cost`, or real
 `cache_read_tokens`.
 
+## true_cost (admin schedule PnL)
+
+New `usage_logs` columns `true_cost` / `true_cost_rate` (migration 205 add columns, 206 concurrent index; no
+historical backfill). After `ActualCost` is set, `applyTrueCost` writes
+real upstream tokens × (user `display_*` → global `display_*` →
+`PricingService.GetModelPricing`, including LiteLLM fuzzy/family match) ×
+`EffectiveUpstreamRate()`. A LiteLLM miss makes that component 0. It must
+not call `BillingService.GetModelPricing` (hardcoded billing fallbacks), and
+must not use billing `InputPrice`, `total_cost`, `account_stats_cost`, or
+`account_rate_multiplier`. It never mutates `actual_cost` / quota /
+display-token transforms. Failure leaves both columns NULL. Admin schedule
+PnL aggregates only `true_cost IS NOT NULL` rows.
+
 ## 数据模型
 
 | 实体/类型 | 位置 | 说明 |

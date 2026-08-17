@@ -603,6 +603,20 @@
             </button>
           </template>
 
+          <template #header-schedule_pnl="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.users.schedulePnl.columnHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-schedule_pnl="{ row }">
+            <UserSchedulePnlCell
+              :summary="schedulePnlSummaries[String(row.id)] ?? null"
+              :loading="schedulePnlLoading"
+              @click="openSchedulePnl(row)"
+            />
+          </template>
+
           <template #header-quality_ttft="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -869,6 +883,12 @@
       :initial-tab="inspectTab"
       @close="inspectOpen = false"
     />
+    <SchedulePnlTrendDialog
+      :show="schedulePnlDialog != null"
+      :user-id="schedulePnlDialog?.userId ?? null"
+      :title="schedulePnlDialog?.title"
+      @close="schedulePnlDialog = null"
+    />
   </AppLayout>
 </template>
 
@@ -887,7 +907,7 @@ import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { AccountQualityStats } from '@/api/admin/accounts'
-import type { SmartScheduleSummary } from '@/api/admin/users'
+import type { SchedulePnlSummary, SmartScheduleSummary } from '@/api/admin/users'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -913,6 +933,8 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import UserBalanceHistoryManageModal from '@/components/admin/user/UserBalanceHistoryManageModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
+import UserSchedulePnlCell from '@/components/admin/user/UserSchedulePnlCell.vue'
+import SchedulePnlTrendDialog from '@/components/admin/user/SchedulePnlTrendDialog.vue'
 
 const appStore = useAppStore()
 const router = useRouter()
@@ -1040,6 +1062,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
+  { key: 'schedule_pnl', label: t('admin.users.columns.schedulePnl'), sortable: false },
   { key: 'quality_ttft', label: t('admin.users.columns.qualityTtft'), sortable: false },
   {
     key: 'quality_success_rate',
@@ -1113,7 +1136,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key === 'smart_schedule' || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key === 'smart_schedule' || key === 'schedule_pnl' || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -1131,6 +1154,7 @@ const hasVisibleQualityColumns = computed(
   () => !hiddenColumns.has('quality_ttft') || !hiddenColumns.has('quality_success_rate')
 )
 const hasVisibleSmartScheduleColumn = computed(() => !hiddenColumns.has('smart_schedule'))
+const hasVisibleSchedulePnlColumn = computed(() => !hiddenColumns.has('schedule_pnl'))
 const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
 const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
 const hasVisibleAttributeColumns = computed(() =>
@@ -1456,6 +1480,16 @@ const qualityStatsLoading = ref(false)
 const qualityStatsError = ref<string | null>(null)
 const smartScheduleSummaries = ref<Record<string, SmartScheduleSummary>>({})
 const smartScheduleLoading = ref(false)
+const schedulePnlSummaries = ref<Record<string, SchedulePnlSummary>>({})
+const schedulePnlLoading = ref(false)
+const schedulePnlDialog = ref<{ userId: number; title: string } | null>(null)
+
+function openSchedulePnl(row: AdminUser) {
+  schedulePnlDialog.value = {
+    userId: row.id,
+    title: t('admin.users.schedulePnl.dialogTitle')
+  }
+}
 // User attribute definitions and values
 const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
@@ -1517,6 +1551,27 @@ const loadUsersSecondaryData = async (
         } finally {
           if (typeof expectedSeq !== 'number' || expectedSeq === secondaryDataSeq) {
             smartScheduleLoading.value = false
+          }
+        }
+      })()
+    )
+  }
+
+  if (hasVisibleSchedulePnlColumn.value) {
+    tasks.push(
+      (async () => {
+        schedulePnlLoading.value = true
+        try {
+          const response = await adminAPI.users.getBatchSmartSchedulePnlSummaries(userIds)
+          if (signal?.aborted) return
+          if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+          schedulePnlSummaries.value = response.summaries ?? {}
+        } catch (e) {
+          if (signal?.aborted) return
+          console.error('Failed to load schedule pnl summaries:', e)
+        } finally {
+          if (typeof expectedSeq !== 'number' || expectedSeq === secondaryDataSeq) {
+            schedulePnlLoading.value = false
           }
         }
       })()
@@ -1853,6 +1908,7 @@ const loadUsers = async () => {
     qualityStatsByUserId.value = {}
     qualityStatsError.value = null
     smartScheduleSummaries.value = {}
+    schedulePnlSummaries.value = {}
     burnRateStats.value = {}
     userAttributeValues.value = {}
 
@@ -1906,6 +1962,7 @@ const refreshUsersIncrementally = async () => {
         qualityStatsByUserId.value = {}
         qualityStatsError.value = null
         smartScheduleSummaries.value = {}
+        schedulePnlSummaries.value = {}
         burnRateStats.value = {}
         userAttributeValues.value = {}
       }
