@@ -462,7 +462,10 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.get('[data-testid="smart-schedule-success"]').exists()).toBe(true)
     expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown"]').exists()).toBe(true)
 
-    expect(w.get('[data-testid="smart-schedule-pool-table-region"]').get('[data-testid="smart-schedule-pool-table"]').exists()).toBe(true)
+    const tableRegion = w.get('[data-testid="smart-schedule-pool-table-region"]')
+    expect(tableRegion.get('[data-testid="smart-schedule-pool-table"]').exists()).toBe(true)
+    expect(tableRegion.get('[data-testid="smart-schedule-column-settings"]').exists()).toBe(true)
+    expect(layout.find('[data-testid="smart-schedule-column-settings"]').exists()).toBe(false)
   })
 
   it('renders all platform tabs', async () => {

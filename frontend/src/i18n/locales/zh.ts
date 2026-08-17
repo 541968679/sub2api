@@ -2131,7 +2131,11 @@ const zhBase = {
         range7d: '近 7 天',
         noData: '暂无新入账数据',
         noDataHint: '只统计写入 true_cost 的新请求，历史记录不回填。',
-        balance: '余额'
+        balance: '余额',
+        burnMatch: '对齐 · {rate}/时',
+        burnMismatch: '偏离 · 余额{balance}/时 ≠ 计费{cost}/时',
+        burnMatchHint: '上游余额消耗速度与今日账号计费消耗（actual_cost）大致一致。仅展示，不改扣费。',
+        burnMismatchHint: '上游余额消耗速度与今日账号计费消耗不一致。仅展示，不改扣费。'
       },
       burnRateOff: '消耗速度',
       burnRateOn: '消耗速度 · 开',
@@ -2401,7 +2405,7 @@ const zhBase = {
         poolHint: '池内账号按当前平台过滤。开启后只从这里选号。列表复用账号管理的容量、质量、操作和排序；配对并发改完后需点保存。',
         off: '未开启',
         columnHint: '展示各平台智能调度是否开启及池内账号数。点击进入该用户的调度详情。',
-        poolPnlHint: '本用户 × 本账号的收入 / 成本 / 利润。收入只计已写入 true_cost 的新请求，历史记录不回填。',
+        poolPnlHint: '本用户 × 本账号的今日收入 / 成本 / 利润，以及可读到的上游账户余额。能读到余额时会对比余额消耗速度与今日计费消耗（actual_cost），仅展示、不改扣费。收入只计已写入 true_cost 的新请求。',
         openDetail: '打开智能调度详情',
         subtitle: '为用户 {email} 按平台配置账号池、质量门槛和配对冷却。开启后该平台只使用池内账号，并忽略账号侧旧允许/拒绝/门槛/并发。',
         enabled: '启用该平台智能调度',

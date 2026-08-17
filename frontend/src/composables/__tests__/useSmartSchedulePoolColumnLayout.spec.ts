@@ -49,4 +49,11 @@ describe('useSmartSchedulePoolColumnLayout', () => {
     expect(needs.pnl).toBe(false)
     expect(needs.today).toBe(true)
   })
+
+  it('still fetches today stats when only the schedule pnl column is visible', () => {
+    localStorage.setItem(SMART_SCHEDULE_POOL_HIDDEN_KEY, JSON.stringify(['today_stats']))
+    expect(readSmartSchedulePoolFetchNeeds()).toEqual({ quality: true, today: true, pnl: true })
+    localStorage.setItem(SMART_SCHEDULE_POOL_HIDDEN_KEY, JSON.stringify(['today_stats', 'schedule_pnl']))
+    expect(readSmartSchedulePoolFetchNeeds()).toEqual({ quality: true, today: false, pnl: false })
+  })
 })

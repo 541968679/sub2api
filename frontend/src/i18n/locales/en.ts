@@ -2281,7 +2281,11 @@ const enBase = {
         range7d: 'Last 7 days',
         noData: 'No new billed rows yet',
         noDataHint: 'Only requests that wrote true_cost are counted. Historical rows are not backfilled.',
-        balance: 'Balance'
+        balance: 'Balance',
+        burnMatch: 'Aligned · {rate}/h',
+        burnMismatch: 'Drift · bal {balance}/h ≠ billed {cost}/h',
+        burnMatchHint: 'Upstream balance burn roughly matches today account billed cost (actual_cost). Display only; billing is unchanged.',
+        burnMismatchHint: 'Upstream balance burn does not match today account billed cost. Display only; billing is unchanged.'
       },
       burnRateOff: 'Burn rate',
       burnRateOn: 'Burn rate · On',
@@ -2533,7 +2537,7 @@ const enBase = {
         poolHint: 'Pool accounts are filtered to the current platform. When enabled, only these accounts are selected. The table reuses account-list capacity, quality, actions, and sorting. Pair-cap edits need Save.',
         off: 'Off',
         columnHint: 'Shows whether smart schedule is on for each platform and how many accounts are in the pool. Click to open the detail page.',
-        poolPnlHint: 'This user × this account revenue / cost / profit. Revenue only counts new rows with true_cost. Historical rows are not backfilled.',
+        poolPnlHint: 'This user × this account today revenue / cost / profit, plus readable upstream balance. When balance is available, the cell also compares balance burn speed with today billed cost (actual_cost). Display only; billing is unchanged. Revenue only counts new rows with true_cost.',
         openDetail: 'Open smart schedule details',
         subtitle: 'Configure a per-platform account pool, quality thresholds, and pair cooldown for {email}. When enabled, that platform uses only the pool and ignores the account-side allow/deny/gate/cap.',
         enabled: 'Enable smart schedule for this platform',

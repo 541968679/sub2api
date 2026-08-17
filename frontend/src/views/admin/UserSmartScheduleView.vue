@@ -248,7 +248,66 @@
             >
               {{ t('admin.users.smartSchedule.poolTitle', { platform: platformLabel(activePlatform) }) }}
             </h2>
-            <div class="relative" ref="columnDropdownRef">
+          </div>
+
+          <SmartSchedulePoolAddBar
+            class="min-w-0"
+            v-model:search-query="accountSearchQuery"
+            v-model:search-open="accountSearchOpen"
+            :filtered-accounts="filteredAddableAccounts"
+            :api-count="addableSchedulingApi.length"
+            :oauth-count="addableSchedulingOauth.length"
+            :all-count="addableSchedulingAll.length"
+            :candidates-ready="candidatesReady"
+            :pool-empty="poolTableRows.length === 0"
+            :auto-sorting="autoSorting"
+            :auto-sort-done="autoSortDone"
+            :auto-sort-total="autoSortTotal"
+            :refreshing="refreshing"
+            :refresh-disabled="refreshing"
+            :auto-refresh-enabled="autoRefreshEnabled"
+            :auto-refresh-countdown="autoRefreshCountdown"
+            :auto-refresh-interval-seconds="autoRefreshIntervalSeconds"
+            :auto-refresh-intervals="autoRefreshIntervals"
+            @search-blur="onAccountSearchBlur"
+            @choose="chooseAddableAccount"
+            @open-filtered-add="openFilteredAdd"
+            @add-scheduling="addSchedulingAccounts"
+            @auto-sort="handlePoolAutoSort"
+            @refresh="handleManualRefresh"
+            @set-auto-refresh-enabled="setAutoRefreshEnabled"
+            @set-auto-refresh-interval="setAutoRefreshInterval"
+          />
+
+          <SmartSchedulePoolFilters class="min-w-0" v-model:filters="poolFilters" />
+        </section>
+        </div>
+
+        <div class="space-y-2 overflow-visible" data-testid="smart-schedule-pool-table-region">
+          <p
+            v-if="isDirty"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            data-testid="smart-schedule-dirty-banner"
+          >
+            {{ t('admin.users.smartSchedule.dirtyBanner') }}
+          </p>
+
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <SmartSchedulePoolBulkBar
+              v-if="poolTableRows.length > 0"
+              class="min-w-0 flex-1"
+              :selected-ids="filteredSelectedIds"
+              :filtered-count="filteredPoolRows.length"
+              :bulk-cap="bulkCap"
+              @update:bulk-cap="bulkCap = $event"
+              @select-page="selectMatching(filteredPoolRows.map((row) => row.id))"
+              @select-matching="selectMatching(filteredPoolRows.map((row) => row.id))"
+              @clear="clearSelection"
+              @apply-cap="applyCapToAccounts(filteredSelectedIds)"
+              @apply-cap-all="applyCapToAll"
+              @remove="removeAccounts(filteredSelectedIds)"
+            />
+            <div class="relative ml-auto shrink-0" ref="columnDropdownRef">
               <button
                 type="button"
                 class="btn btn-secondary px-2 py-1 md:px-3"
@@ -263,7 +322,7 @@
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute left-0 z-50 mt-2 w-72 origin-top-left rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                class="absolute right-0 z-50 mt-2 w-72 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                 data-testid="smart-schedule-column-settings-menu"
               >
                 <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-700">
@@ -330,62 +389,6 @@
             </div>
           </div>
 
-          <SmartSchedulePoolAddBar
-            class="min-w-0"
-            v-model:search-query="accountSearchQuery"
-            v-model:search-open="accountSearchOpen"
-            :filtered-accounts="filteredAddableAccounts"
-            :api-count="addableSchedulingApi.length"
-            :oauth-count="addableSchedulingOauth.length"
-            :all-count="addableSchedulingAll.length"
-            :candidates-ready="candidatesReady"
-            :pool-empty="poolTableRows.length === 0"
-            :auto-sorting="autoSorting"
-            :auto-sort-done="autoSortDone"
-            :auto-sort-total="autoSortTotal"
-            :refreshing="refreshing"
-            :refresh-disabled="refreshing"
-            :auto-refresh-enabled="autoRefreshEnabled"
-            :auto-refresh-countdown="autoRefreshCountdown"
-            :auto-refresh-interval-seconds="autoRefreshIntervalSeconds"
-            :auto-refresh-intervals="autoRefreshIntervals"
-            @search-blur="onAccountSearchBlur"
-            @choose="chooseAddableAccount"
-            @open-filtered-add="openFilteredAdd"
-            @add-scheduling="addSchedulingAccounts"
-            @auto-sort="handlePoolAutoSort"
-            @refresh="handleManualRefresh"
-            @set-auto-refresh-enabled="setAutoRefreshEnabled"
-            @set-auto-refresh-interval="setAutoRefreshInterval"
-          />
-
-          <SmartSchedulePoolFilters class="min-w-0" v-model:filters="poolFilters" />
-        </section>
-        </div>
-
-        <div class="space-y-2" data-testid="smart-schedule-pool-table-region">
-          <p
-            v-if="isDirty"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-            data-testid="smart-schedule-dirty-banner"
-          >
-            {{ t('admin.users.smartSchedule.dirtyBanner') }}
-          </p>
-
-          <SmartSchedulePoolBulkBar
-            v-if="poolTableRows.length > 0"
-            :selected-ids="filteredSelectedIds"
-            :filtered-count="filteredPoolRows.length"
-            :bulk-cap="bulkCap"
-            @update:bulk-cap="bulkCap = $event"
-            @select-page="selectMatching(filteredPoolRows.map((row) => row.id))"
-            @select-matching="selectMatching(filteredPoolRows.map((row) => row.id))"
-            @clear="clearSelection"
-            @apply-cap="applyCapToAccounts(filteredSelectedIds)"
-            @apply-cap-all="applyCapToAll"
-            @remove="removeAccounts(filteredSelectedIds)"
-          />
-
           <div class="smart-schedule-pool-table-scroll overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
             <DataTable
               ref="poolTableRef"
@@ -394,7 +397,7 @@
               :loading="false"
               row-key="id"
               :virtual-scroll="true"
-              :estimate-row-height="88"
+              :estimate-row-height="104"
               :resizable-columns="true"
               default-sort-key="sort_order"
               default-sort-order="asc"
@@ -601,6 +604,7 @@
                 <SmartSchedulePnlCell
                   :account="row"
                   :summary="pairPnlById[String(row.id)] ?? null"
+                  :today-stats="todayStatsById[String(row.id)] ?? null"
                   :loading="statsLoading"
                   @click="openPairSchedulePnl(row)"
                 />
@@ -1089,7 +1093,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false, minWidth: 88 },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, minWidth: 88 },
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, minWidth: 88 },
-  { key: 'schedule_pnl', label: t('admin.accounts.columns.schedulePnl'), sortable: false, minWidth: 88 },
+  { key: 'schedule_pnl', label: t('admin.accounts.columns.schedulePnl'), sortable: false, minWidth: 160 },
   { key: 'sort_order', label: t('admin.users.smartSchedule.poolSortOrder'), sortable: true, minWidth: 72 },
   { key: 'priority', label: t('admin.users.smartSchedule.accountPriority'), sortable: true, minWidth: 72 },
   { key: 'upstream_rate_multiplier', label: t('admin.accounts.columns.upstreamRateMultiplier'), sortable: true, minWidth: 88 },
@@ -1114,7 +1118,7 @@ watch(
   () => [isColumnVisible('quality_ttft'), isColumnVisible('today_stats'), isColumnVisible('schedule_pnl')] as const,
   ([quality, today, pnl]) => {
     poolFetchNeeds.quality = quality
-    poolFetchNeeds.today = today
+    poolFetchNeeds.today = today || pnl
     poolFetchNeeds.pnl = pnl
   },
   { immediate: true }

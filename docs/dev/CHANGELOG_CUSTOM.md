@@ -1,3 +1,26 @@
+## 2026-08-17 - fix(smart-schedule): restore pool column settings and enlarge today PnL + balance
+
+### What
+- User smart-schedule pool `调度利润` cell no longer shows 7-day numbers. It shows readable upstream balance, larger today profit/margin type, and a compact 对齐/偏离 cue when cached balance burn can be compared with today billed `actual_cost`.
+- Column settings moved to the full-width pool table toolbar so the dropdown is usable again.
+
+### Why
+The pool page dropped the per-account balance view after PnL replaced usage windows, the 7-day block crowded the cell, profit % was unreadably small, and column settings in the right card were effectively unusable.
+
+### Verification
+- `pnpm --dir frontend exec vitest run` on `schedulePnl.spec.ts`, `useSmartSchedulePoolColumnLayout.spec.ts`, `SmartSchedulePnlCell.spec.ts`, and `UserSmartScheduleView.spec.ts`.
+
+### Affected files
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/composables/useSmartSchedulePoolColumnLayout.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+`.trellis/spec/frontend/schedule-pnl.md`,
+this changelog.
+
 ## 2026-08-17 - deploy: v0.1.235
 
 ### What

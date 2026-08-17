@@ -25,7 +25,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   quality_ttft: 110,
   today_stats: 120,
   groups: 140,
-  schedule_pnl: 140,
+  schedule_pnl: 200,
   sort_order: 88,
   priority: 100,
   upstream_rate_multiplier: 110,
@@ -41,7 +41,7 @@ export function readSmartSchedulePoolFetchNeeds(): { quality: boolean; today: bo
   const hidden = readHiddenColumns()
   return {
     quality: !hidden.has('quality_ttft'),
-    today: !hidden.has('today_stats'),
+    today: !hidden.has('today_stats') || !hidden.has('schedule_pnl'),
     pnl: !hidden.has('schedule_pnl')
   }
 }
