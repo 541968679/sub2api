@@ -1,3 +1,29 @@
+## 2026-08-17 - fix(smart-schedule): pool 调度优先级 reads live accounts.priority
+
+### What
+- Smart-schedule GET hydrates read-only member `priority` from live `accounts.priority`. Writes and auto-sort / 移到顶部 still ignore it.
+- Pool **调度优先级** binds the live account field (same as Account Management). **池内顺序** stays `sort_order` only.
+- zh/en labels now say 调度优先级 / Scheduling priority vs 池内顺序 / Pool order.
+
+### Why
+After v0.1.230 split `sort_order` from `accounts.priority`, the pool still looked like 1,2,3,4 next to Account Management weights. Production user 16 openai: `sort_order` is 1..8 while `accounts.priority` is 1,2,1,3,4,5,6,8. All 35 openai accounts already sit in {1,2,3,4,5,6,8} (likely an earlier auto-sort overwrite). This fix does not invent old weights.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestUserSmartScheduleService_HydratesLiveAccountPriorityNotSortOrder|TestUserSmartScheduleService_SortOrderPersistsOnMembership" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts -t "live account priority|renders refresh controls"`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_test.go`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-17 - feat(admin-usage): compact cost summary in inspect dialog
 
 ### What
@@ -13,6 +39,34 @@
 ### Affected files
 `frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
 `frontend/src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`,
+this changelog.
+
+## 2026-08-17 - fix(smart-schedule): write uncapped pair occupancy slots
+
+### What
+- Enabled smart-schedule closed-pool members now `ZADD`/`ZREM` `concurrency:account_user:{accountID}:{userID}` on every request that already acquired a pair slot when cap≥1, including uncapped (`max_concurrency` null/0).
+- Uncapped is count-only: never `pair_full`, never uses UI `999` or `account.concurrency` as a pair limit.
+- `isPairConcurrencyFull` still requires a real cap `>= 1` and `current >= max`.
+- Users not in a closed pool keep the old behavior (no global pair-slot writes).
+- Account-level `concurrency:account:{id}` is unchanged.
+
+### Why
+Admin hydrate already read pair keys for uncapped members (`n/999`), but the hot path skipped Redis writes when the cap was unset, so the badge stayed `0/999` while the user had inflight on that account.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestResolvePairSlotAcquire|TestIsPairConcurrencyFull_NeverUsesDisplay999|TestAcquireAccountAndPairSlot_|TestTryAcquireAccountAndPairSlot_UncappedClosedPool|TestPairConcurrencyAccountIDs_UncappedClosedPoolNotSelectedForFullCheck|TestAcquireAccountUserSlot_CountOnlyWritesAndReleases" -count=1`
+
+### Affected files
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/service/account_user_concurrency_test.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/concurrency_service.go`,
+`backend/internal/service/concurrency_service_test.go`,
+`backend/internal/repository/concurrency_cache.go`,
+`backend/internal/repository/concurrency_cache_integration_test.go`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+`docs/dev/codebase/README.md`,
 this changelog.
 
 ## 2026-08-17 - deploy: v0.1.230

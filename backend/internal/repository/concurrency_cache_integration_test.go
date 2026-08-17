@@ -339,6 +339,49 @@ func (s *ConcurrencyCacheSuite) TestCleanupStaleProcessSlots() {
 	require.True(s.T(), errors.Is(err, redis.Nil))
 }
 
+func (s *ConcurrencyCacheSuite) TestAccountUserSlot_UncappedWritesAndReleases() {
+	accountID, userID := int64(21), int64(16)
+	req1, req2 := "pair-uncapped-1", "pair-uncapped-2"
+
+	ok, err := s.cache.AcquireAccountUserSlot(s.ctx, accountID, userID, 0, req1)
+	require.NoError(s.T(), err)
+	require.True(s.T(), ok, "uncapped pair acquire must write, not no-op")
+
+	ok, err = s.cache.AcquireAccountUserSlot(s.ctx, accountID, userID, 0, req2)
+	require.NoError(s.T(), err)
+	require.True(s.T(), ok, "uncapped must never reject because of a fake 999 cap")
+
+	counts, err := s.cache.GetAccountUserConcurrencyBatch(s.ctx, []int64{accountID}, userID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 2, counts[accountID])
+
+	require.NoError(s.T(), s.cache.ReleaseAccountUserSlot(s.ctx, accountID, userID, req1))
+	counts, err = s.cache.GetAccountUserConcurrencyBatch(s.ctx, []int64{accountID}, userID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 1, counts[accountID])
+
+	require.NoError(s.T(), s.cache.ReleaseAccountUserSlot(s.ctx, accountID, userID, req2))
+	counts, err = s.cache.GetAccountUserConcurrencyBatch(s.ctx, []int64{accountID}, userID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 0, counts[accountID])
+}
+
+func (s *ConcurrencyCacheSuite) TestAccountUserSlot_CappedStillRejectsAtMax() {
+	accountID, userID := int64(22), int64(16)
+
+	ok, err := s.cache.AcquireAccountUserSlot(s.ctx, accountID, userID, 1, "pair-cap-1")
+	require.NoError(s.T(), err)
+	require.True(s.T(), ok)
+
+	ok, err = s.cache.AcquireAccountUserSlot(s.ctx, accountID, userID, 1, "pair-cap-2")
+	require.NoError(s.T(), err)
+	require.False(s.T(), ok)
+
+	counts, err := s.cache.GetAccountUserConcurrencyBatch(s.ctx, []int64{accountID}, userID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 1, counts[accountID])
+}
+
 func (s *ConcurrencyCacheSuite) TestGetAccountConcurrency_Missing() {
 	// When no slots exist, GetAccountConcurrency should return 0
 	cur, err := s.cache.GetAccountConcurrency(s.ctx, 999)

@@ -607,7 +607,10 @@
                 </div>
               </template>
               <template #cell-sort_order="{ row }">
-                <span class="text-sm tabular-nums text-gray-700 dark:text-gray-200">
+                <span
+                  class="text-sm tabular-nums text-gray-700 dark:text-gray-200"
+                  :data-testid="`smart-schedule-pool-sort-order-${row.id}`"
+                >
                   {{ row.sort_order ?? '—' }}
                 </span>
               </template>
@@ -618,13 +621,15 @@
                 </div>
               </template>
               <template #cell-priority="{ row }">
-                <AccountInlineNumberCell
-                  :model-value="row.priority ?? 0"
-                  :min="0"
-                  :disabled="inlineSavingId === row.id"
-                  :hint="t('admin.users.smartSchedule.accountPriorityHint')"
-                  @save="(value) => handleInlinePriority(row, value)"
-                />
+                <div class="contents" :data-testid="`smart-schedule-pool-priority-${row.id}`">
+                  <AccountInlineNumberCell
+                    :model-value="liveAccountPriority(row)"
+                    :min="0"
+                    :disabled="inlineSavingId === row.id"
+                    :hint="t('admin.users.smartSchedule.accountPriorityHint')"
+                    @save="(value) => handleInlinePriority(row, value)"
+                  />
+                </div>
               </template>
               <template #header-upstream_rate_multiplier="{ column }">
                 <div class="flex items-center">
@@ -1066,7 +1071,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, minWidth: 88 },
   { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, minWidth: 88 },
   { key: 'sort_order', label: t('admin.users.smartSchedule.poolSortOrder'), sortable: true, minWidth: 72 },
-  { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true, minWidth: 72 },
+  { key: 'priority', label: t('admin.users.smartSchedule.accountPriority'), sortable: true, minWidth: 72 },
   { key: 'upstream_rate_multiplier', label: t('admin.accounts.columns.upstreamRateMultiplier'), sortable: true, minWidth: 88 },
   { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true, minWidth: 88 },
   { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false, minWidth: 280, resizable: false }
@@ -1116,6 +1121,7 @@ const poolTableRows = computed(() =>
       pair_current: memberCurrent(account.id),
       cooldown_until: memberCooldownUntil(account.id),
       sort_order: memberSortOrder(account.id),
+      priority: liveAccountPriority(account),
       admission: admission.state
     }
   })
@@ -1206,6 +1212,12 @@ function admissionResumeTestId(state: PoolAdmissionState) {
 function getAccountEmail(row: Account): string | undefined {
   const email = row.extra?.email_address || row.credentials?.email || row.parent_email
   return typeof email === 'string' ? email : undefined
+}
+
+function liveAccountPriority(account: { id: number; priority?: number }): number {
+  const live = poolAccounts.value.find((item) => item.id === account.id)
+  const value = live?.priority ?? account.priority
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 function pairBadgeMax(accountId: number) {

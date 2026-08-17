@@ -376,6 +376,15 @@ func (c *concurrencyCache) GetUserConcurrency(ctx context.Context, userID int64)
 
 func (c *concurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
 	key := accountUserSlotKey(accountID, userID)
+	if maxConcurrency <= 0 {
+		// Count-only occupancy: ZADD without a cap. Do not reuse acquireScript
+		// (max=0 would reject) and do not treat 999 as a backend limit.
+		_, err := trackSlotScript.Run(ctx, c.rdb, []string{key}, c.slotTTLSeconds, requestID).Result()
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
 	now := time.Now().Unix()
 	result, err := acquireScript.Run(ctx, c.rdb, []string{key}, maxConcurrency, c.slotTTLSeconds, requestID, now).Int()
 	if err != nil {

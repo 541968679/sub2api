@@ -2477,8 +2477,9 @@ const zhBase = {
         autoSortPartial: '已写入 {written} 个账号的池内顺序，{failed} 个失败',
         autoSortFailed: '自动排序写入池内顺序失败',
         poolSortOrder: '池内顺序',
-        poolSortOrderHint: '仅控制本用户×平台池表格顺序，1 在最上方。不会改账号调度优先级。',
-        accountPriorityHint: '账号调度权重，数值越小越优先。与池内显示顺序无关。',
+        poolSortOrderHint: '仅本用户×平台池的表格顺序，1 在最上方。自动排序/移到顶部只改这一列，不会改账号管理的调度优先级。',
+        accountPriority: '调度优先级',
+        accountPriorityHint: '与账号管理「优先级」相同，来自账号调度权重 accounts.priority，数值越小越优先。不是池内顺序。',
         refresh: '刷新',
         userCore: '用户核心参数',
         noExclusiveGroup: '无专属分组'

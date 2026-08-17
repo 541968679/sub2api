@@ -21,6 +21,7 @@ type SmartScheduleAccountMember struct {
 	Platform           string     `json:"platform"`
 	MaxConcurrency     *int       `json:"max_concurrency,omitempty"`
 	SortOrder          *int       `json:"sort_order"`
+	Priority           int        `json:"priority"` // read-only live accounts.priority; writes ignore
 	CurrentConcurrency int        `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
 }
@@ -193,12 +194,6 @@ func lookupEnabledSmartPolicy(ctx context.Context, lookup SmartScheduleLookup, u
 }
 
 func resolvePairMaxConcurrency(ctx context.Context, account *Account, lookup SmartScheduleLookup) int {
-	if account == nil {
-		return 0
-	}
-	userID := scheduleUserIDFromContext(ctx, 0)
-	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform); policy != nil {
-		return policy.PairCap(account.ID)
-	}
-	return account.PairMaxConcurrency(userID)
+	max, _ := resolvePairSlotAcquire(ctx, account, lookup)
+	return max
 }

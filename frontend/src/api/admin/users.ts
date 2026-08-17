@@ -384,6 +384,7 @@ export interface SmartScheduleAccountMember {
   platform?: string
   max_concurrency?: number | null
   sort_order?: number | null
+  priority?: number
   current_concurrency?: number
   cooldown_until?: string | null
 }

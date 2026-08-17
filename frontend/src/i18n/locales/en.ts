@@ -2609,8 +2609,9 @@ const enBase = {
         autoSortPartial: 'Wrote pool order for {written} accounts; {failed} failed',
         autoSortFailed: 'Failed to write auto-sort pool order',
         poolSortOrder: 'Pool order',
-        poolSortOrderHint: 'Display order for this user×platform pool only. 1 is at the top. Does not change account scheduling priority.',
-        accountPriorityHint: 'Account scheduling weight. Lower is preferred. This is not the pool display order.',
+        poolSortOrderHint: 'Display order for this user×platform pool only. 1 is at the top. Auto-sort and move-to-top change only this column, not Account Management priority.',
+        accountPriority: 'Scheduling priority',
+        accountPriorityHint: 'Same as Account Management priority (accounts.priority). Lower is preferred. This is not the pool display order.',
         refresh: 'Refresh',
         userCore: 'User core fields',
         noExclusiveGroup: 'No exclusive group'

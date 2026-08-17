@@ -75,6 +75,7 @@ func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*User
 		return nil, err
 	}
 	view := bundleToView(userID, bundle)
+	s.hydrateAccountPriority(ctx, view)
 	s.hydratePairCurrent(ctx, userID, view)
 	s.hydratePairCooldown(ctx, userID, view)
 	view.DefaultPlatform = pickDefaultSmartSchedulePlatform(view)
@@ -308,6 +309,7 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 		}
 		member.CurrentConcurrency = 0
 		member.CooldownUntil = nil
+		member.Priority = 0
 		outMembers = append(outMembers, member)
 	}
 	write.Accounts = outMembers
@@ -335,6 +337,49 @@ func normalizeSmartScheduleSortAssignments(orders []SmartScheduleSortAssignment)
 
 func emptySmartScheduleView(userID int64) *UserSmartScheduleView {
 	return bundleToView(userID, nil)
+}
+
+// hydrateAccountPriority fills read-only Priority from live accounts.priority.
+// Writes ignore this field. It is never copied from membership sort_order.
+func (s *UserSmartScheduleService) hydrateAccountPriority(ctx context.Context, view *UserSmartScheduleView) {
+	if s == nil || s.accountRepo == nil || view == nil || len(view.Platforms) == 0 {
+		return
+	}
+	ids := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, platform := range view.Platforms {
+		for _, member := range platform.Accounts {
+			if member.AccountID <= 0 {
+				continue
+			}
+			if _, ok := seen[member.AccountID]; ok {
+				continue
+			}
+			seen[member.AccountID] = struct{}{}
+			ids = append(ids, member.AccountID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
+	if err != nil || len(accounts) == 0 {
+		return
+	}
+	byID := make(map[int64]*Account, len(accounts))
+	for _, acc := range accounts {
+		if acc != nil {
+			byID[acc.ID] = acc
+		}
+	}
+	for platformKey, platform := range view.Platforms {
+		for i := range platform.Accounts {
+			if acc := byID[platform.Accounts[i].AccountID]; acc != nil {
+				platform.Accounts[i].Priority = acc.Priority
+			}
+		}
+		view.Platforms[platformKey] = platform
+	}
 }
 
 // hydratePairCurrent fills CurrentConcurrency for every pool member from

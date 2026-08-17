@@ -445,9 +445,10 @@ func (s *ConcurrencyService) GetAccountConcurrencyBatch(ctx context.Context, acc
 	return s.cache.GetAccountConcurrencyBatch(redisCtx, accountIDs)
 }
 
-// AcquireAccountUserSlot acquires a pair-level slot. maxConcurrency<=0 is unlimited.
+// AcquireAccountUserSlot acquires a pair-level slot.
+// maxConcurrency<=0 is count-only: still write Redis, never reject for a cap.
 func (s *ConcurrencyService) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int) (*AcquireResult, error) {
-	if maxConcurrency <= 0 || accountID <= 0 || userID <= 0 {
+	if accountID <= 0 || userID <= 0 {
 		return &AcquireResult{
 			Acquired:    true,
 			ReleaseFunc: func() {},

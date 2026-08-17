@@ -131,6 +131,8 @@ vi.mock('@/components/common/DataTable.vue', () => ({
         <div v-for="row in data" :key="row.id">
           <slot name="cell-select" :row="row" />
           <slot name="cell-name" :row="row" :value="row.name" />
+          <slot name="cell-sort_order" :row="row" :value="row.sort_order" />
+          <slot name="cell-priority" :row="row" :value="row.priority" />
           <slot name="cell-email" :row="row" :value="row.email" />
           <slot name="cell-username" :row="row" :value="row.username" />
           <slot name="cell-balance" :row="row" :value="row.balance" />
@@ -192,7 +194,12 @@ vi.mock('@/components/common/GroupBadge.vue', () => ({
 vi.mock('@/components/account/AccountTodayStatsCell.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/AccountGroupsCell.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/AccountUsageCell.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('@/components/account/AccountInlineNumberCell.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/components/account/AccountInlineNumberCell.vue', () => ({
+  default: {
+    props: ['modelValue'],
+    template: '<div>{{ modelValue }}</div>'
+  }
+}))
 vi.mock('@/components/account/AccountCapacityCell.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/CapacityBadge.vue', () => ({
   default: {
@@ -841,6 +848,45 @@ describe('UserSmartScheduleView', () => {
     expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="sort_order"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="priority"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="select"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="priority"]').text()).toBe(
+      'admin.users.smartSchedule.accountPriority'
+    )
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="sort_order"]').text()).toBe(
+      'admin.users.smartSchedule.poolSortOrder'
+    )
+  })
+
+  it('shows live account priority in the priority column, not pool sort_order', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        ...makeView().platforms,
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 21, platform: 'openai', max_concurrency: null, sort_order: 1, priority: 1 },
+            { account_id: 22, platform: 'openai', max_concurrency: null, sort_order: 2, priority: 2 }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        { id: 21, name: 'oa-1', platform: 'openai', type: 'oauth', status: 'active', priority: 80 },
+        { id: 22, name: 'oa-2', platform: 'openai', type: 'oauth', status: 'active', priority: 3 }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 2,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-pool-sort-order-21"]').text()).toBe('1')
+    expect(w.get('[data-testid="smart-schedule-pool-priority-21"]').text()).toBe('80')
+    expect(w.get('[data-testid="smart-schedule-pool-sort-order-22"]').text()).toBe('2')
+    expect(w.get('[data-testid="smart-schedule-pool-priority-22"]').text()).toBe('3')
   })
 
   it('keeps add, pool-filter, and bulk regions distinct', async () => {

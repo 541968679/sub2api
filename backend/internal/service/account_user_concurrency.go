@@ -26,6 +26,24 @@ func isPairConcurrencyFull(ctx context.Context, account *Account, current int, l
 	return max > 0 && current >= max
 }
 
+// resolvePairSlotAcquire returns the real pair cap and whether the hot path
+// should write concurrency:account_user:{accountID}:{userID}.
+// Closed-pool members always track occupancy (count-only when cap is 0/null).
+// 999 is UI-only (UNCAPPED_PAIR_DISPLAY_MAX) and must never be used as a cap.
+func resolvePairSlotAcquire(ctx context.Context, account *Account, lookup SmartScheduleLookup) (pairMax int, trackOccupancy bool) {
+	if account == nil {
+		return 0, false
+	}
+	userID := scheduleUserIDFromContext(ctx, 0)
+	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform); policy != nil {
+		if !policy.HasAccount(account.ID) {
+			return 0, false
+		}
+		return policy.PairCap(account.ID), true
+	}
+	return account.PairMaxConcurrency(userID), false
+}
+
 func pairConcurrencyAccountIDs(ctx context.Context, accounts []*Account, userID int64, lookup SmartScheduleLookup) []int64 {
 	if userID <= 0 {
 		return nil
@@ -61,10 +79,12 @@ func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, acc
 	return counts
 }
 
-// acquireAccountAndPairSlot acquires the account slot, then the pair slot when
-// PairMaxConcurrency>=1. pairFull is true only when the pair cap rejected the
-// acquire after the account slot succeeded (account slot is released).
-func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, account *Account, userID int64, pairMax int) (*AcquireResult, bool, error) {
+// acquireAccountAndPairSlot acquires the account slot, then the user×account
+// pair slot when pairMax>=1 or trackOccupancy is set (closed-pool count-only).
+// pairFull is true only when a real cap (pairMax>=1) rejected the pair acquire
+// after the account slot succeeded (account slot is released). Uncapped
+// occupancy tracking never returns pairFull and never uses 999 as a limit.
+func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, account *Account, userID int64, pairMax int, trackOccupancy bool) (*AcquireResult, bool, error) {
 	if account == nil {
 		return &AcquireResult{Acquired: false}, false, nil
 	}
@@ -84,7 +104,7 @@ func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, acc
 	if max < 0 {
 		max = account.PairMaxConcurrency(userID)
 	}
-	if max <= 0 {
+	if max <= 0 && !trackOccupancy {
 		return result, false, nil
 	}
 
@@ -96,6 +116,10 @@ func acquireAccountAndPairSlot(ctx context.Context, svc *ConcurrencyService, acc
 		return nil, false, err
 	}
 	if pair == nil || !pair.Acquired {
+		if max <= 0 {
+			// Count-only miss must not block the request or report pair_full.
+			return result, false, nil
+		}
 		if result.ReleaseFunc != nil {
 			result.ReleaseFunc()
 		}
@@ -110,14 +134,16 @@ func (s *GatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, accou
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), resolvePairMaxConcurrency(ctx, account, s.smartScheduleCache))
+	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
+	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
 
 func (s *OpenAIGatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, account *Account) (*AcquireResult, bool, error) {
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), resolvePairMaxConcurrency(ctx, account, s.smartScheduleCache))
+	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
+	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
 
 func (s *GatewayService) pairCountsForSelection(ctx context.Context, accounts []*Account) map[int64]int {

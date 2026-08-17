@@ -596,8 +596,10 @@ func TestUserSmartScheduleService_SortOrderPersistsOnMembership(t *testing.T) {
 		require.Len(t, members, 2)
 		require.Equal(t, int64(12), members[0].AccountID)
 		require.Equal(t, 2, *members[0].SortOrder)
+		require.Equal(t, 3, members[0].Priority)
 		require.Equal(t, int64(11), members[1].AccountID)
 		require.Nil(t, members[1].SortOrder)
+		require.Equal(t, 80, members[1].Priority)
 	})
 
 	t.Run("patch sort_order does not change pair caps", func(t *testing.T) {
@@ -641,6 +643,38 @@ func TestUserSmartScheduleService_SortOrderPersistsOnMembership(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "SMART_SCHEDULE_UNKNOWN_ACCOUNT", infraerrors.Reason(err))
 	})
+}
+
+func TestUserSmartScheduleService_HydratesLiveAccountPriorityNotSortOrder(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	first := 1
+	second := 2
+	repo := &stubSmartRepo{}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 11, Platform: PlatformAnthropic, Priority: 80},
+		{ID: 12, Platform: PlatformAnthropic, Priority: 3},
+	}}
+	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+	_, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:         true,
+		CooldownMinutes: 15,
+		Accounts: []SmartScheduleAccountMember{
+			{AccountID: 11, Platform: PlatformAnthropic, SortOrder: &first, Priority: 1},
+			{AccountID: 12, Platform: PlatformAnthropic, SortOrder: &second, Priority: 2},
+		},
+	})
+	require.NoError(t, err)
+	view, err := svc.Get(ctx, 16)
+	require.NoError(t, err)
+	byID := map[int64]SmartScheduleAccountMember{}
+	for _, member := range view.Platforms[PlatformAnthropic].Accounts {
+		byID[member.AccountID] = member
+	}
+	require.Equal(t, 1, *byID[11].SortOrder)
+	require.Equal(t, 80, byID[11].Priority, "GET must hydrate live accounts.priority, not sort_order or write payload")
+	require.Equal(t, 2, *byID[12].SortOrder)
+	require.Equal(t, 3, byID[12].Priority)
 }
 
 func TestCompareSmartScheduleMemberIDs(t *testing.T) {

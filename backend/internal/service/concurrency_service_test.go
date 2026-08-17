@@ -231,6 +231,31 @@ func TestAcquireUserSlot_UnlimitedConcurrency(t *testing.T) {
 	require.True(t, result.Acquired)
 }
 
+func TestAcquireAccountUserSlot_CountOnlyWritesAndReleases(t *testing.T) {
+	cache := &pairOccupancyCache{stubConcurrencyCacheForTest: stubConcurrencyCacheForTest{acquireResult: true}}
+	svc := NewConcurrencyService(cache)
+
+	result, err := svc.AcquireAccountUserSlot(context.Background(), 11, 16, 0)
+	require.NoError(t, err)
+	require.True(t, result.Acquired)
+	require.Equal(t, []int{0}, cache.maxes())
+	require.Equal(t, 1, cache.count(11))
+	require.NotEqual(t, 999, cache.maxes()[0])
+
+	result.ReleaseFunc()
+	require.Equal(t, 0, cache.count(11))
+}
+
+func TestAcquireAccountUserSlot_InvalidIDsSkipRedis(t *testing.T) {
+	cache := &pairOccupancyCache{}
+	svc := NewConcurrencyService(cache)
+
+	result, err := svc.AcquireAccountUserSlot(context.Background(), 0, 16, 0)
+	require.NoError(t, err)
+	require.True(t, result.Acquired)
+	require.Empty(t, cache.maxes())
+}
+
 func TestGenerateRequestID_UsesStablePrefixAndMonotonicCounter(t *testing.T) {
 	id1 := generateRequestID()
 	id2 := generateRequestID()
