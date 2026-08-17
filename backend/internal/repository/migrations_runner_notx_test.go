@@ -3,11 +3,15 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Wei-Shaw/sub2api/migrations"
 )
 
 func TestValidateMigrationExecutionMode(t *testing.T) {
@@ -49,6 +53,51 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_b;
 		require.True(t, nonTx)
 		require.NoError(t, err)
 	})
+
+	t.Run("事务迁移COMMENT中的CONCURRENTLY不触发拒绝", func(t *testing.T) {
+		sqlText := `
+-- Snapshot columns only. Index is built later with CONCURRENTLY in a _notx file.
+/* block comment may also mention CONCURRENTLY */
+ALTER TABLE usage_logs
+    ADD COLUMN IF NOT EXISTS true_cost NUMERIC(20, 10);
+`
+		nonTx, err := validateMigrationExecutionMode("205_usage_log_true_cost.sql", sqlText)
+		require.False(t, nonTx)
+		require.NoError(t, err)
+	})
+
+	t.Run("事务迁移可执行SQL含CONCURRENTLY仍拒绝", func(t *testing.T) {
+		nonTx, err := validateMigrationExecutionMode("205_usage_log_true_cost.sql", `
+-- comment
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_a ON t(a);
+`)
+		require.False(t, nonTx)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "CONCURRENTLY statements must be placed in *_notx.sql")
+	})
+}
+
+func TestEmbeddedMigrationsPassExecutionModeValidation(t *testing.T) {
+	files, err := fs.Glob(migrations.FS, "*.sql")
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+
+	for _, name := range files {
+		content, err := migrations.FS.ReadFile(name)
+		require.NoError(t, err)
+		_, err = validateMigrationExecutionMode(name, string(content))
+		require.NoErrorf(t, err, "embedded migration %s failed execution-mode validation", name)
+	}
+}
+
+func TestStripSQLCommentsIgnoresConcurrentlyInCommentsOnly(t *testing.T) {
+	stripped := stripSQLComments(`
+-- CONCURRENTLY in a line comment
+/* CONCURRENTLY in a block comment */
+ALTER TABLE t ADD COLUMN x TEXT;
+`)
+	require.NotContains(t, strings.ToUpper(stripped), "CONCURRENTLY")
+	require.Contains(t, strings.ToUpper(stripped), "ALTER TABLE")
 }
 
 func TestApplyMigrationsFS_NonTransactionalMigration(t *testing.T) {
@@ -223,6 +272,44 @@ func TestApplyMigrationsFS_SchedulerOutboxPendingDedupKeyMigration_DropsInvalidI
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduler_outbox_pending_dedup_key
     ON scheduler_outbox (dedup_key)
     WHERE dedup_key IS NOT NULL;
+`),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFS_UsageLogTrueCostIndexMigration_DropsInvalidIndexBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs("206_usage_log_true_cost_index_notx.sql").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs("idx_usage_logs_true_cost_user_account_created").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS idx_usage_logs_true_cost_user_account_created").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_true_cost_user_account_created").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs("206_usage_log_true_cost_index_notx.sql", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		"206_usage_log_true_cost_index_notx.sql": &fstest.MapFile{
+			Data: []byte(`
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_true_cost_user_account_created
+    ON usage_logs (user_id, account_id, created_at)
+    WHERE true_cost IS NOT NULL;
 `),
 		},
 	}

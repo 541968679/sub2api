@@ -12,6 +12,7 @@ func TestTrueCostMigrationsDoNotLockUsageLogsWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(addColumn), "ADD COLUMN IF NOT EXISTS true_cost")
 	require.Contains(t, string(addColumn), "ADD COLUMN IF NOT EXISTS true_cost_rate")
+	require.NotContains(t, strings.ToUpper(string(addColumn)), "CONCURRENTLY")
 	var statements []string
 	for _, line := range strings.Split(string(addColumn), "\n") {
 		trimmed := strings.TrimSpace(line)

@@ -55,6 +55,8 @@ const paymentOrdersOutTradeNoUniqueMigration = "120_enforce_payment_orders_out_t
 const paymentOrdersOutTradeNoUniqueIndex = "paymentorder_out_trade_no_unique"
 const schedulerOutboxPendingDedupKeyMigration = "187_scheduler_outbox_pending_dedup_key_index_notx.sql"
 const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
+const usageLogTrueCostIndexMigration = "206_usage_log_true_cost_index_notx.sql"
+const usageLogTrueCostIndex = "idx_usage_logs_true_cost_user_account_created"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -263,6 +265,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 		return preparePaymentOrdersOutTradeNoUniqueMigration(ctx, db)
 	case schedulerOutboxPendingDedupKeyMigration:
 		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
+	case usageLogTrueCostIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogTrueCostIndex)
 	default:
 		return nil
 	}
@@ -456,7 +460,9 @@ func validateMigrationExecutionMode(name, content string) (bool, error) {
 	nonTx := strings.HasSuffix(normalizedName, nonTransactionalMigrationSuffix)
 
 	if !nonTx {
-		if strings.Contains(upperContent, "CONCURRENTLY") {
+		// Comments are not executable. v0.1.232 crashed because 205's COMMENT
+		// mentioned CONCURRENTLY and this check scanned the raw file text.
+		if strings.Contains(strings.ToUpper(stripSQLComments(content)), "CONCURRENTLY") {
 			return false, errors.New("CONCURRENTLY statements must be placed in *_notx.sql migrations")
 		}
 		return false, nil
@@ -514,6 +520,58 @@ func stripSQLLineComment(s string) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// stripSQLComments removes -- line comments and /* */ block comments so
+// validators inspect executable SQL only. Single-quoted strings are preserved
+// so a '--' inside a literal is not treated as a comment. *_notx transaction
+// control checks still use the raw file text and must stay strict.
+func stripSQLComments(content string) string {
+	var b strings.Builder
+	b.Grow(len(content))
+	for i := 0; i < len(content); {
+		if i+1 < len(content) && content[i] == '-' && content[i+1] == '-' {
+			i += 2
+			for i < len(content) && content[i] != '\n' {
+				i++
+			}
+			continue
+		}
+		if i+1 < len(content) && content[i] == '/' && content[i+1] == '*' {
+			i += 2
+			for i+1 < len(content) && !(content[i] == '*' && content[i+1] == '/') {
+				i++
+			}
+			if i+1 < len(content) {
+				i += 2
+			} else {
+				i = len(content)
+			}
+			b.WriteByte(' ')
+			continue
+		}
+		if content[i] == '\'' {
+			b.WriteByte(content[i])
+			i++
+			for i < len(content) {
+				b.WriteByte(content[i])
+				if content[i] == '\'' {
+					if i+1 < len(content) && content[i+1] == '\'' {
+						b.WriteByte(content[i+1])
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+		b.WriteByte(content[i])
+		i++
+	}
+	return b.String()
 }
 
 // pgAdvisoryLock 获取 PostgreSQL Advisory Lock。

@@ -337,7 +337,8 @@ export default keysAPI
 1. 改 `backend/ent/schema/xxx.go`
 2. 跑 `go generate ./ent`（通常能过）
 3. **另外** 写一条 raw SQL 迁移到 `backend/migrations/NNN_*.sql`（Ent 自动迁移**没启用**）
-4. 所有 mock / stub / test 实现该 schema 的接口的地方都要加新字段处理
+4. `CREATE/DROP INDEX CONCURRENTLY` 必须单独放 `*_notx.sql`；事务迁移的可执行 SQL 不能出现该关键字（注释会被校验器忽略）
+5. 所有 mock / stub / test 实现该 schema 的接口的地方都要加新字段处理
 
 ### 5.5 新增前端页面
 
@@ -361,6 +362,7 @@ export default keysAPI
 |----|--------|
 | **`go generate ./cmd/server` 在主干上预先失败**（`PaymentConfigService` / `PaymentOrderExpiryService` 重复绑定） | 手工编辑 `backend/cmd/server/wire_gen.go` 按现有格式插入构造函数和参数。上游修复前都这么办。 |
 | Ent auto-migrate 没启用 | 所有 schema 变更必须写 `backend/migrations/NNN_*.sql` |
+| **`CREATE INDEX CONCURRENTLY` 必须放 `*_notx.sql`** | 事务迁移里出现可执行 `CONCURRENTLY` 会在启动时被 `validateMigrationExecutionMode` 拒绝。注释里的单词现在会被忽略，但不要依赖注释绕过规则。`v0.1.232` 因 205 注释含 `CONCURRENTLY` 启动失败，该 tag 禁止再部署。 |
 | 改接口后忘记 mock | 构建挂在 `mockXxxRepo does not implement ...Repository (missing method)`——搜所有 `mock*Repo struct` 把新方法补齐 |
 | `admin.NewUsageHandler` 类签名经常变 | Wire 手补时参数要对齐当前函数签名（注意相邻提交） |
 | `response.ErrorFrom` vs `response.Unauthorized` | 前者用于 `ApplicationError`；后者用于认证失败。常用：`response.ErrorFrom(c, infraerrors.BadRequest("CODE", "msg"))` |
@@ -384,6 +386,7 @@ export default keysAPI
 | **Git stash pop 会带出旧 WIP** | 本地 `git stash list` 里可能有以前的 "wip: all changes"；pop 前先看 |
 | `deploy/remote_exec.py` 已移除 | 部署改用直接 SSH；Sub2API 主服务后续必须拉取 GHCR 镜像，不能再在生产机本机构建 |
 | Sub2API 主服务部署必须走 GHCR | 先确认 GitHub Actions 已发布 `ghcr.io/541968679/sub2api:latest` 或批准的 tag，再用 Docker Compose `pull/up`；如果 `update.sh` 仍会构建 `sub2api-custom:*`，先改部署脚本再部署主服务 |
+| **`update.sh` 必须先预检再 recreate** | `docker compose up --force-recreate` 会先杀掉旧容器。新镜像必须先以 `sub2api-preflight` 侧车跑通 `/health`，失败则中止、旧容器继续服务。禁止再部署 `v0.1.232`。 |
 | **push main 不等于发布 latest** | 当前 Release workflow 只在 `v*` tag 或手动 `workflow_dispatch` 时发布 GHCR 镜像；生产 `pull/up` 前必须确认目标 tag/latest manifest 存在，并核对镜像 label 的 revision/version |
 | **push / deploy 需要显式同意** | commit 自动做，push 到 origin 与 SSH 部署必须每次当面获得「推」/「部署」类指令 |
 

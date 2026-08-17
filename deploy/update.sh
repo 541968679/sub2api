@@ -5,11 +5,18 @@
 # Features:
 #   - Pulls the GitHub Actions-built GHCR image for the main sub2api service
 #   - Never runs docker build on the production host
+#   - PrefLights the new image in a side container while the live sub2api
+#     container keeps serving. force-recreate happens only after /health passes.
+#   - If preflight fails, abort and leave the old container running
 #   - Records the previous GHCR image digest for rollback
-#   - Auto-rolls back if health check fails after deploy
+#   - Auto-rolls back if health check fails after the live cutover
 #   - Logs everything to /opt/sub2api/deploy.log
 #   - Safe against SSH disconnections (use with: nohup bash update.sh &)
 #   - Also updates sidecars by pulling their CI-built images
+#
+# Do not deploy v0.1.232. That tag crash-loops on boot (migration 205 comment
+# contained CONCURRENTLY and failed validateMigrationExecutionMode). Next
+# release must be a new version (0.1.233+).
 #
 # Usage:
 #   bash /opt/sub2api/update.sh              # normal deploy (sub2api plus sidecars if present)
@@ -27,8 +34,16 @@ COMPOSE_OVERRIDE_FILE="${COMPOSE_DIR}/docker-compose.override.yml"
 PREVIOUS_IMAGE_FILE="${COMPOSE_DIR}/.sub2api_previous_image"
 SUB2API_IMAGE_NAME="${SUB2API_IMAGE:-ghcr.io/541968679/sub2api:latest}"
 HEALTH_URL="http://localhost:8080/health"
-HEALTH_RETRIES=5
-HEALTH_INTERVAL=5
+# Live cutover only. Keep this short: preflight already proved the image boots.
+# Do not use a long HEALTH_RETRIES loop as the only safety net (that left the
+# site down for minutes when v0.1.232 crash-looped after force-recreate).
+HEALTH_RETRIES="${HEALTH_RETRIES:-5}"
+HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
+# Preflight runs beside the live container, so a longer wait does not take
+# the site down. Covers InitEnt / migration validate / CREATE INDEX CONCURRENTLY.
+PREFLIGHT_CONTAINER="${PREFLIGHT_CONTAINER:-sub2api-preflight}"
+PREFLIGHT_RETRIES="${PREFLIGHT_RETRIES:-36}"
+PREFLIGHT_INTERVAL="${PREFLIGHT_INTERVAL:-5}"
 LOG_FILE="/opt/sub2api/deploy.log"
 
 # AIClient2API sidecar image. Built by AIClient2API GitHub Actions and pulled here.
@@ -60,6 +75,13 @@ ensure_sub2api_image_is_ghcr() {
     if [[ "$image_ref" != ghcr.io/541968679/sub2api:* && "$image_ref" != ghcr.io/541968679/sub2api@sha256:* ]]; then
         log "ERROR: Refusing non-GHCR sub2api image: ${image_ref}"
         log "Set SUB2API_IMAGE to ghcr.io/541968679/sub2api:<tag> or a GHCR digest."
+        return 1
+    fi
+    # v0.1.232 crash-loops: 205's comment contained CONCURRENTLY and the
+    # boot validator rejected the file before listen. Never redeploy that tag.
+    if [[ "$image_ref" == *:0.1.232 || "$image_ref" == *:v0.1.232 || "$image_ref" == *:0.1.232-* ]]; then
+        log "ERROR: Refusing banned sub2api tag ${image_ref}"
+        log "v0.1.232 cannot boot. Deploy a new version (0.1.233+) instead."
         return 1
     fi
 }
@@ -102,6 +124,73 @@ EOF
 restart_sub2api() {
     cd "$COMPOSE_DIR"
     docker compose up -d --no-deps --force-recreate sub2api 2>&1 | tee -a "$LOG_FILE"
+}
+
+remove_preflight_container() {
+    docker rm -f "$PREFLIGHT_CONTAINER" >/dev/null 2>&1 || true
+}
+
+preflight_container_running() {
+    local running
+    running="$(docker inspect -f '{{.State.Running}}' "$PREFLIGHT_CONTAINER" 2>/dev/null || true)"
+    [[ "$running" == "true" ]]
+}
+
+preflight_container_health() {
+    # Probe inside the side container. Do not publish host ports: the live
+    # sub2api keeps 127.0.0.1:8080. compose run does not map service ports
+    # unless --service-ports is passed; never pass that flag here.
+    docker exec "$PREFLIGHT_CONTAINER" wget -q -T 5 -O /dev/null http://127.0.0.1:8080/health >/dev/null 2>&1
+}
+
+dump_preflight_logs() {
+    log "--- Preflight container logs (tail 80) ---"
+    docker logs --tail 80 "$PREFLIGHT_CONTAINER" 2>&1 | tee -a "$LOG_FILE" || \
+        log "WARN: could not read preflight logs"
+}
+
+# Start the pulled image as a one-off container on the compose network.
+# The live `sub2api` container is not replaced. InitEnt / migration
+# validation / listen must succeed before we force-recreate production.
+preflight_sub2api() {
+    local image_ref="$1"
+    cd "$COMPOSE_DIR"
+
+    log "--- Preflight ${image_ref} (live sub2api stays up) ---"
+    remove_preflight_container
+
+    if ! docker compose run -d --no-deps --name "$PREFLIGHT_CONTAINER" sub2api 2>&1 | tee -a "$LOG_FILE"; then
+        log "ERROR: Failed to start preflight container. Live sub2api was not recreated."
+        remove_preflight_container
+        return 1
+    fi
+
+    # compose run may inherit restart: unless-stopped. A crash-looping
+    # preflight must not keep respawning beside production.
+    docker update --restart=no "$PREFLIGHT_CONTAINER" >/dev/null 2>&1 || true
+
+    local i
+    for i in $(seq 1 "$PREFLIGHT_RETRIES"); do
+        if ! preflight_container_running; then
+            log "ERROR: Preflight container exited before becoming healthy (attempt $i/$PREFLIGHT_RETRIES)"
+            dump_preflight_logs
+            remove_preflight_container
+            log "ERROR: Preflight failed. Live sub2api was not recreated."
+            return 1
+        fi
+        if preflight_container_health; then
+            log "Preflight /health passed (attempt $i/$PREFLIGHT_RETRIES). Stopping preflight container."
+            remove_preflight_container
+            return 0
+        fi
+        log "Preflight health attempt $i/$PREFLIGHT_RETRIES not ready, waiting ${PREFLIGHT_INTERVAL}s..."
+        sleep "$PREFLIGHT_INTERVAL"
+    done
+
+    log "ERROR: Preflight timed out after ${PREFLIGHT_RETRIES}x${PREFLIGHT_INTERVAL}s. Live sub2api was not recreated."
+    dump_preflight_logs
+    remove_preflight_container
+    return 1
 }
 
 verify_running_image() {
@@ -160,6 +249,24 @@ record_previous_sub2api_image() {
     fi
 }
 
+# Pull/preflight write the new image into docker-compose.override.yml before
+# the live container is replaced. If we abort, put the old digest back so a
+# later `docker compose up` cannot recreate onto a known-bad image.
+restore_previous_compose_image() {
+    if [ ! -s "$PREVIOUS_IMAGE_FILE" ]; then
+        log "WARN: No previous GHCR digest to restore into compose override"
+        return 0
+    fi
+    local previous_ref
+    previous_ref="$(tr -d '\r\n' < "$PREVIOUS_IMAGE_FILE")"
+    if [ -z "$previous_ref" ]; then
+        log "WARN: Previous image file is empty; compose override left pointing at the new image"
+        return 0
+    fi
+    log "--- Restoring compose override to ${previous_ref} (live container unchanged) ---"
+    ensure_compose_uses_sub2api_image "$previous_ref"
+}
+
 do_rollback() {
     log "=== ROLLBACK: Restoring previous version ==="
     if [ ! -s "$PREVIOUS_IMAGE_FILE" ]; then
@@ -196,10 +303,16 @@ do_deploy() {
     log "--- Pulling sub2api image: $SUB2API_IMAGE_NAME ---"
     if ! docker compose pull sub2api 2>&1 | tee -a "$LOG_FILE"; then
         log "ERROR: Pull failed! Production is still running the old container."
+        restore_previous_compose_image
         return 1
     fi
 
-    log "--- Restarting sub2api ---"
+    if ! preflight_sub2api "$SUB2API_IMAGE_NAME"; then
+        restore_previous_compose_image
+        return 1
+    fi
+
+    log "--- Switching live sub2api (preflight passed) ---"
     restart_sub2api
 
     # Health/image check with auto-rollback.

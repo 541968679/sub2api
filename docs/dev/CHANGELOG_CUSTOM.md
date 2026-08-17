@@ -1,3 +1,29 @@
+## 2026-08-17 - fix(deploy): preflight new image before killing live sub2api
+
+### What
+- `deploy/update.sh` now starts the pulled GHCR image as `sub2api-preflight` (`docker compose run -d --no-deps`, no `--service-ports`) and waits for in-container `/health` **while the live `sub2api` container keeps serving `127.0.0.1:8080`**. `force-recreate` runs only after preflight passes. Failure/timeout aborts, leaves the old container up, and restores the compose override to the previous digest.
+- Live cutover health stays at 5×5s. Long wait is preflight-only (default 36×5s). Script refuses tag `0.1.232`.
+- Migration 205 comment no longer contains `CONCURRENTLY`. Transactional validator ignores `--` / `/* */` comments; `*_notx` rules are unchanged. 206 still `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, and now drops an INVALID leftover index before retry.
+- `backend/cmd/server/VERSION` is `0.1.233`. Do not reuse or deploy `v0.1.232`.
+
+### Why
+Production `v0.1.232` crash-looped: `validate migration 205_usage_log_true_cost.sql: CONCURRENTLY statements must be placed in *_notx.sql migrations` (comment-only token). The old script `force-recreate`d first, so the healthy process was already gone. A long `HEALTH_RETRIES` loop only extended downtime. 205/206 were never applied; DB stayed on `v0.1.231`.
+
+### Verification
+- `go test ./migrations -count=1 -run TrueCostMigrations`
+- `go test ./internal/repository -count=1 -run "ValidateMigrationExecutionMode|EmbeddedMigrationsPassExecutionMode|StripSQLComments|TrueCostIndexMigration|TransactionalMigration"`
+
+### Affected files
+`deploy/update.sh`,
+`backend/migrations/205_usage_log_true_cost.sql`,
+`backend/internal/repository/migrations_runner.go`,
+`backend/internal/repository/migrations_runner_notx_test.go`,
+`backend/migrations/true_cost_migrations_test.go`,
+`backend/cmd/server/VERSION`,
+`docs/dev/DEPLOYMENT.md`,
+`docs/dev/ARCHITECTURE.md`,
+this changelog.
+
 ## 2026-08-17 - fix(schedule-pnl): production crash and lock hazards
 
 ### What
