@@ -309,13 +309,14 @@ export function useUserSmartScheduleEditor(
     qualityStatsById.value = {
       ...qualityStatsById.value,
       [key]: {
-        window_seconds: stats?.window_seconds ?? ACCOUNT_QUALITY_WINDOW_SECONDS,
-        success_count: stats?.success_count ?? 0,
-        error_count: stats?.error_count ?? 0,
-        success_rate: stats?.success_rate ?? null,
-        avg_ttft_ms: stats?.avg_ttft_ms ?? null,
-        ttft_samples: stats?.ttft_samples ?? 0,
-        ...stats,
+        ...(stats ?? {
+          window_seconds: ACCOUNT_QUALITY_WINDOW_SECONDS,
+          success_count: 0,
+          error_count: 0,
+          success_rate: null,
+          avg_ttft_ms: null,
+          ttft_samples: 0
+        }),
         resume_users: resumeUsers,
         resume_watching_users: resumeWatching
       }

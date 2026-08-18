@@ -23,6 +23,21 @@ Paused → cooling could report success with neither lock. Stopped chips hid 已
 `docs/dev/codebase/account.md`,
 this changelog.
 
+## 2026-08-18 - fix(smart-schedule): vue-tsc duplicate quality fields
+
+### What
+- `patchLocalResume` now spreads existing `AccountQualityStats` first, then writes resume maps. Defaults apply only when the account has no live snapshot.
+
+### Why
+- `v0.1.237` Release failed `vue-tsc` TS2783: explicit `window_seconds` / `error_count` were overwritten by `...stats`.
+
+### Verification
+- `pnpm --dir frontend run typecheck` on the patched object literal.
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+this changelog.
+
 ## 2026-08-18 - feat(quality): dual account error rates + schedule toggle
 
 ### What
