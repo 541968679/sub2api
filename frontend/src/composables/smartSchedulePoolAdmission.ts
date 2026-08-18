@@ -13,6 +13,7 @@ const DEFAULT_PLATFORMS: SmartSchedulePlatform[] = [
 
 export type PoolAdmissionState =
   | 'stopped'
+  | 'paused'
   | 'cooling'
   | 'pair_full'
   | 'will_cool'
@@ -21,6 +22,22 @@ export type PoolAdmissionState =
   | 'selectable'
 
 export type PoolQualityHint = 'resumed' | 'will_cool' | 'unsaved_preview'
+
+export type PairAdmissionLiveState = 'paused' | 'cooling' | 'resumed' | 'selectable'
+
+export const PAIR_ADMISSION_LIVE_STATES = [
+  'paused',
+  'cooling',
+  'resumed',
+  'selectable'
+] as const satisfies readonly PairAdmissionLiveState[]
+
+export function pairAdmissionLiveState(admission: PoolAdmissionState): PairAdmissionLiveState {
+  if (admission === 'paused') return 'paused'
+  if (admission === 'cooling') return 'cooling'
+  if (admission === 'resumed') return 'resumed'
+  return 'selectable'
+}
 
 export type PoolAdmission = {
   state: PoolAdmissionState
@@ -46,6 +63,7 @@ export const POOL_ADMISSION_FILTER_STATES = [
   'resumed',
   'will_cool',
   'cooling',
+  'paused',
   'pair_full',
   'stopped',
   'unsaved_preview'
@@ -172,12 +190,16 @@ export function resolvePoolAdmission(input: {
   pairCap: number | null
   pairCurrent: number
   cooldownUntil?: string | null
+  paused?: boolean
   qualityHint?: PoolQualityHint | null
   now?: number
 }): PoolAdmission {
   const now = input.now ?? Date.now()
   if (!isCurrentlySchedulingAccount(input.account)) {
     return { state: 'stopped' }
+  }
+  if (input.paused) {
+    return { state: 'paused' }
   }
   if (isPairCooldownActive(input.cooldownUntil, now)) {
     return { state: 'cooling', cooldownUntil: input.cooldownUntil ?? undefined }

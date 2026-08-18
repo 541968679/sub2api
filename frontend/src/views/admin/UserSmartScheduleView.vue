@@ -708,24 +708,11 @@
                     </svg>
                     <span class="text-xs">{{ t('admin.accounts.viewErrorRequestsShort') }}</span>
                   </button>
-                  <button
-                    type="button"
-                    class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
-                    :class="
-                      admissionResumeUseful(row.admission)
-                        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300'
-                        : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700'
-                    "
+                  <SmartScheduleAdmissionSwitch
+                    :admission="row.admission"
                     :disabled="row.admission === 'unsaved_preview'"
-                    :title="admissionResumeTitle(row.admission)"
-                    :data-testid="admissionResumeTestId(row.admission)"
-                    @click="resumePair(row.id)"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                    </svg>
-                    <span class="text-xs">{{ t('admin.users.smartSchedule.resume') }}</span>
-                  </button>
+                    @select="setPairAdmission(row.id, $event)"
+                  />
                   <button
                     type="button"
                     data-testid="smart-schedule-remove"
@@ -872,6 +859,7 @@ import {
 import { pickBatchUserStat, smartScheduleSummaryFromDrafts } from '@/composables/adminUserListRow'
 import { useAppStore } from '@/stores/app'
 import { useUserSmartScheduleEditor } from '@/composables/useUserSmartScheduleEditor'
+import SmartScheduleAdmissionSwitch from '@/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue'
 import { useSmartSchedulePoolAccountOps } from '@/composables/useSmartSchedulePoolAccountOps'
 import {
   readSmartSchedulePoolFetchNeeds,
@@ -992,6 +980,7 @@ const {
   memberCapOrNull,
   memberCurrent,
   memberCooldownUntil,
+  memberPaused,
   memberSortOrder,
   persistSortOrders,
   memberResumeActive,
@@ -1012,7 +1001,7 @@ const {
   onToggleEnabled,
   onSave,
   onCopy,
-  resumePair,
+  setPairAdmission,
   refreshAll,
   ensureCandidates
 } = useUserSmartScheduleEditor(userId, { poolFetchNeeds })
@@ -1131,6 +1120,7 @@ const poolTableRows = computed(() =>
       pairCap: memberCapOrNull(account.id),
       pairCurrent: memberCurrent(account.id),
       cooldownUntil: memberCooldownUntil(account.id),
+      paused: memberPaused(account.id),
       qualityHint: resolveQualityAdmissionHint({
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
@@ -1167,6 +1157,8 @@ const userSmartScheduleSummary = computed(() =>
 
 function admissionLabel(state: PoolAdmissionState) {
   switch (state) {
+    case 'paused':
+      return t('admin.users.smartSchedule.admissionPaused')
     case 'cooling':
       return t('admin.users.smartSchedule.admissionCooling')
     case 'pair_full':
@@ -1192,6 +1184,8 @@ function admissionTitle(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreviewHint')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumedHint')
+    case 'paused':
+      return t('admin.users.smartSchedule.admissionPausedHint')
     default:
       return ''
   }
@@ -1199,6 +1193,8 @@ function admissionTitle(state: PoolAdmissionState) {
 
 function admissionChipClass(state: PoolAdmissionState) {
   switch (state) {
+    case 'paused':
+      return 'bg-slate-200 text-slate-800 dark:bg-slate-800/70 dark:text-slate-200'
     case 'cooling':
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
     case 'will_cool':
@@ -1214,24 +1210,6 @@ function admissionChipClass(state: PoolAdmissionState) {
     default:
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
   }
-}
-
-function admissionResumeUseful(state: PoolAdmissionState) {
-  return state === 'cooling' || state === 'will_cool'
-}
-
-function admissionResumeTitle(state: PoolAdmissionState) {
-  if (state === 'cooling') return t('admin.users.smartSchedule.resumeCooling')
-  if (state === 'will_cool') return t('admin.users.smartSchedule.resumeWillCool')
-  if (state === 'unsaved_preview') return t('admin.users.smartSchedule.resumeUnsavedPreview')
-  return t('admin.users.smartSchedule.resume')
-}
-
-function admissionResumeTestId(state: PoolAdmissionState) {
-  if (state === 'cooling') return 'smart-schedule-resume-cooling'
-  if (state === 'will_cool') return 'smart-schedule-resume-will-cool'
-  if (state === 'unsaved_preview') return 'smart-schedule-resume-preview'
-  return 'smart-schedule-resume'
 }
 
 function getAccountEmail(row: Account): string | undefined {

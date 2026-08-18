@@ -200,21 +200,113 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 	return s.PutPlatform(ctx, userID, toPlatform, write)
 }
 
+func ParsePairAdmissionState(raw string) (string, error) {
+	state := strings.ToLower(strings.TrimSpace(raw))
+	if state == "" {
+		return PairAdmissionResumed, nil
+	}
+	switch state {
+	case PairAdmissionPaused, PairAdmissionCooling, PairAdmissionResumed, PairAdmissionSelectable:
+		return state, nil
+	default:
+		return "", infraerrors.BadRequest("SMART_SCHEDULE_ADMISSION_INVALID", "state must be paused, cooling, resumed, or selectable")
+	}
+}
+
 func (s *UserSmartScheduleService) ResumePair(ctx context.Context, accountID, userID int64) error {
+	_, err := s.SetPairAdmission(ctx, accountID, userID, PairAdmissionResumed)
+	return err
+}
+
+func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, accountID, userID int64, state string) (*PairAdmissionResult, error) {
 	if accountID <= 0 || userID <= 0 {
-		return infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_id and user_id are required")
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_id and user_id are required")
 	}
-	if s != nil && s.cache != nil {
-		if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
-			return err
-		}
+	parsed, err := ParsePairAdmissionState(state)
+	if err != nil {
+		return nil, err
 	}
-	if s != nil && s.qualityLiveCache != nil {
-		if err := s.qualityLiveCache.MarkUserResume(ctx, accountID, userID); err != nil {
-			return err
+	now := time.Now().UTC()
+	if err := s.setMemberPaused(ctx, userID, accountID, parsed == PairAdmissionPaused); err != nil {
+		return nil, err
+	}
+	switch parsed {
+	case PairAdmissionPaused:
+		if s != nil && s.cache != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
 		}
+		if s != nil && s.qualityLiveCache != nil {
+			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}, nil
+	case PairAdmissionCooling:
+		until := s.forcePairCooldown(ctx, accountID, userID, now)
+		if s != nil && s.qualityLiveCache != nil {
+			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed, CooldownUntil: &until}, nil
+	case PairAdmissionSelectable:
+		if s != nil && s.cache != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		if s != nil && s.qualityLiveCache != nil {
+			if err := s.qualityLiveCache.MarkUserQualityWindow(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}, nil
+	default:
+		if s != nil && s.cache != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		if s != nil && s.qualityLiveCache != nil {
+			if err := s.qualityLiveCache.MarkUserResume(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: PairAdmissionResumed}, nil
+	}
+}
+
+func (s *UserSmartScheduleService) setMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+	if s == nil || s.repo == nil {
+		return nil
+	}
+	if err := s.repo.SetMemberPaused(ctx, userID, accountID, paused); err != nil {
+		return err
+	}
+	if s.cache != nil {
+		return s.cache.Invalidate(ctx, userID)
 	}
 	return nil
+}
+
+func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accountID, userID int64, now time.Time) time.Time {
+	minutes := DefaultSmartScheduleCooldownMinutes
+	if s != nil && s.accountRepo != nil {
+		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
+		if err == nil && len(accounts) > 0 && accounts[0] != nil && s.cache != nil {
+			if bundle := s.cache.Lookup(ctx, userID); bundle != nil {
+				if policy := bundle.Policy(accounts[0].Platform); policy != nil {
+					minutes = ClampSmartScheduleCooldownMinutes(policy.CooldownMinutes)
+				}
+			}
+		}
+	}
+	if s != nil && s.cache != nil {
+		return s.cache.SetCooldown(ctx, accountID, userID, minutes, now)
+	}
+	return now.Add(time.Duration(minutes) * time.Minute)
 }
 
 func (s *UserSmartScheduleService) validatePoolMembers(ctx context.Context, platform string, members []SmartScheduleAccountMember) error {
@@ -310,6 +402,7 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 		member.CurrentConcurrency = 0
 		member.CooldownUntil = nil
 		member.Priority = 0
+		member.Paused = false
 		outMembers = append(outMembers, member)
 	}
 	write.Accounts = outMembers
@@ -570,6 +663,7 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 			copied := n
 			member.SortOrder = &copied
 		}
+		member.Paused = policy.IsPaused(accountID)
 		view.Accounts = append(view.Accounts, member)
 	}
 	return view

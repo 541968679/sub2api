@@ -388,10 +388,13 @@ func (r *opsRepository) GetErrorLogStats(ctx context.Context, filter *service.Op
 		filter = &service.OpsErrorLogFilter{}
 	}
 
-	// Full filter = F_biz ∩ F_err (numerator + tops + raw rows)
-	fullWhere, fullArgs := buildOpsErrorLogsWhere(filter)
+	// List filter may include Recovered rows so raw_error_rows / tops match the table.
+	// Terminal error-rate / SLA counts stay client-visible status>=400 only.
+	listWhere, listArgs := buildOpsErrorLogsWhere(filter)
+	slaFilter := slaOpsErrorLogFilter(filter)
+	fullWhere, fullArgs := buildOpsErrorLogsWhere(&slaFilter)
 	// Biz-only filter strips error-specific dimensions for denominator errors.
-	bizFilter := *filter
+	bizFilter := slaFilter
 	bizFilter.StatusCodes = nil
 	bizFilter.StatusCodesOther = false
 	bizFilter.ErrorType = ""
@@ -407,12 +410,12 @@ func (r *opsRepository) GetErrorLogStats(ctx context.Context, filter *service.Op
 		TopUpstreamModels:  []service.OpsErrorStatBucket{},
 	}
 
-	// Raw rows under full filter.
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ops_error_logs e "+fullWhere, fullArgs...).Scan(&stats.RawErrorRows); err != nil {
+	// Raw rows under the list filter (may include Recovered when opted in).
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ops_error_logs e "+listWhere, listArgs...).Scan(&stats.RawErrorRows); err != nil {
 		return nil, err
 	}
 
-	// Distinct terminal errors under full filter (numerator).
+	// Distinct terminal errors under SLA filter (numerator; status>=400 only).
 	distinctSQL := "SELECT COUNT(*) FROM (SELECT 1 FROM ops_error_logs e " + fullWhere + " GROUP BY " + opsErrorRequestKeyExpr + ") t"
 	if err := r.db.QueryRowContext(ctx, distinctSQL, fullArgs...).Scan(&stats.TerminalErrorRequestsFiltered); err != nil {
 		return nil, err
@@ -434,20 +437,20 @@ func (r *opsRepository) GetErrorLogStats(ctx context.Context, filter *service.Op
 		stats.ErrorRate = float64(stats.TerminalErrorRequestsFiltered) / float64(stats.TotalRequests)
 	}
 
-	// Top breakdowns use full filter (what the list shows).
-	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+	// Top breakdowns use the list filter (what the table shows).
+	if buckets, err := r.queryErrorStatBuckets(ctx, listWhere, listArgs,
 		"COALESCE(NULLIF(COALESCE(e.upstream_status_code, e.status_code, 0)::text, '0'), 'unknown')", 8); err != nil {
 		return nil, err
 	} else {
 		stats.TopStatusCodes = buckets
 	}
-	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+	if buckets, err := r.queryErrorStatBuckets(ctx, listWhere, listArgs,
 		"COALESCE(NULLIF(TRIM(e.requested_model), ''), NULLIF(TRIM(e.model), ''), 'unknown')", 8); err != nil {
 		return nil, err
 	} else {
 		stats.TopRequestedModels = buckets
 	}
-	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+	if buckets, err := r.queryErrorStatBuckets(ctx, listWhere, listArgs,
 		"COALESCE(NULLIF(TRIM(e.upstream_model), ''), 'unknown')", 8); err != nil {
 		return nil, err
 	} else {
@@ -1075,6 +1078,25 @@ INSERT INTO ops_system_log_cleanup_audits (
 	return err
 }
 
+// Client-visible default list: status>=400, plus streaming cyber hits that land as 200.
+const opsClientVisibleErrorPredicate = "(COALESCE(e.status_code, 0) >= 400 OR e.error_type = 'cyber_policy')"
+
+// Recovered / 上游已救回: failover saved the client request (status 200) after an upstream failure.
+const opsRecoveredErrorPredicate = "(LOWER(COALESCE(e.error_phase,'')) = 'upstream' AND COALESCE(e.status_code, 0) < 400 AND e.error_message ILIKE 'Recovered%')"
+
+func slaOpsErrorLogFilter(filter *service.OpsErrorLogFilter) service.OpsErrorLogFilter {
+	if filter == nil {
+		return service.OpsErrorLogFilter{}
+	}
+	out := *filter
+	out.IncludeRecovered = false
+	// phase=upstream skips the status>=400 guard; SLA must never do that.
+	if strings.EqualFold(strings.TrimSpace(out.Phase), "upstream") {
+		out.Phase = ""
+	}
+	return out
+}
+
 func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	clauses := make([]string, 0, 12)
 	args := make([]any, 0, 12)
@@ -1090,13 +1112,18 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	// If Resolved is not specified, do not filter by resolved state (backward-compatible).
 	resolvedFilter := (*bool)(nil)
 	resolvedFilter = filter.Resolved
-	// Keep list endpoints scoped to client errors unless explicitly filtering upstream phase.
+	// Keep list endpoints scoped to client errors unless explicitly filtering upstream phase
+	// or opting into Recovered rows (failover saved the client request).
 	// cyber_policy is exempt from the status >= 400 guard: streaming cyber hits arrive with
 	// status 200 (the SSE stream opened successfully before upstream returned response.failed),
 	// but they are always client-visible blocked requests that belong in admin + user error
 	// lists.  Without the exemption the entire streaming-path cyber sink would be invisible.
 	if phaseFilter != "upstream" {
-		clauses = append(clauses, "(COALESCE(e.status_code, 0) >= 400 OR e.error_type = 'cyber_policy')")
+		if filter.IncludeRecovered {
+			clauses = append(clauses, "("+opsClientVisibleErrorPredicate+" OR "+opsRecoveredErrorPredicate+")")
+		} else {
+			clauses = append(clauses, opsClientVisibleErrorPredicate)
+		}
 	}
 
 	if filter.StartTime != nil && !filter.StartTime.IsZero() {

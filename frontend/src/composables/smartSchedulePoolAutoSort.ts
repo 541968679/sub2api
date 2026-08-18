@@ -8,6 +8,7 @@ export const POOL_ADMISSION_SORT_RANK: Record<PoolAdmissionState, number> = {
   unsaved_preview: 1,
   pair_full: 2,
   cooling: 3,
+  paused: 3,
   stopped: 4
 }
 

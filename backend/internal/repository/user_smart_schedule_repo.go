@@ -8,7 +8,9 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
 	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type userSmartScheduleRepository struct {
@@ -37,7 +39,13 @@ func (r *userSmartScheduleRepository) ListByUser(ctx context.Context, userID int
 	if err != nil {
 		return nil, fmt.Errorf("list smart schedule accounts: %w", err)
 	}
-	return assembleSmartScheduleBundle(policies, members), nil
+	bundle := assembleSmartScheduleBundle(policies, members)
+	if err := overlaySmartSchedulePaused(ctx, client, []int64{userID}, map[int64]*service.UserSmartScheduleBundle{
+		userID: bundle,
+	}); err != nil {
+		return nil, err
+	}
+	return bundle, nil
 }
 
 func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*service.UserSmartScheduleBundle, error) {
@@ -74,6 +82,9 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 	}
 	for _, userID := range userIDs {
 		out[userID] = assembleSmartScheduleBundle(policiesByUser[userID], membersByUser[userID])
+	}
+	if err := overlaySmartSchedulePaused(ctx, client, userIDs, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -121,6 +132,10 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 				return fmt.Errorf("update smart schedule policy: %w", err)
 			}
 		}
+		pausedIDs, err := listPausedSmartScheduleAccountIDs(txCtx, client, userID, platform)
+		if err != nil {
+			return err
+		}
 		if _, err := client.UserSmartScheduleAccount.Delete().
 			Where(
 				usersmartscheduleaccount.UserIDEQ(userID),
@@ -129,6 +144,7 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			Exec(txCtx); err != nil {
 			return fmt.Errorf("clear smart schedule accounts: %w", err)
 		}
+		keepPaused := remainingPausedSmartScheduleIDs(pausedIDs, policy.Accounts)
 		for _, member := range policy.Accounts {
 			create := client.UserSmartScheduleAccount.Create().
 				SetUserID(userID).
@@ -144,6 +160,9 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			if err := create.Exec(txCtx); err != nil {
 				return fmt.Errorf("insert smart schedule account %d: %w", member.AccountID, err)
 			}
+		}
+		if err := restoreSmartSchedulePaused(txCtx, client, userID, platform, keepPaused); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -175,6 +194,32 @@ func (r *userSmartScheduleRepository) UpdateSortOrders(ctx context.Context, user
 		}
 		return nil
 	})
+}
+
+func (r *userSmartScheduleRepository) SetMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("smart schedule repository unavailable")
+	}
+	if userID <= 0 || accountID <= 0 {
+		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	client := clientFromContext(ctx, r.client)
+	res, err := client.ExecContext(ctx, `
+		UPDATE user_smart_schedule_accounts
+		SET paused = $3
+		WHERE user_id = $1 AND account_id = $2
+	`, userID, accountID, paused)
+	if err != nil {
+		return fmt.Errorf("set smart schedule paused: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set smart schedule paused rows: %w", err)
+	}
+	if n == 0 {
+		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	return nil
 }
 
 func (r *userSmartScheduleRepository) withTx(ctx context.Context, fn func(txCtx context.Context, client *dbent.Client) error) error {
@@ -278,4 +323,109 @@ func applySmartSchedulePolicyQualityUpdate(update *dbent.UserSmartSchedulePolicy
 	} else {
 		update.ClearQualityCondition()
 	}
+}
+
+func remainingPausedSmartScheduleIDs(pausedIDs []int64, members []service.SmartScheduleAccountMember) []int64 {
+	if len(pausedIDs) == 0 {
+		return nil
+	}
+	keepSet := make(map[int64]struct{}, len(members))
+	for _, member := range members {
+		if member.AccountID > 0 {
+			keepSet[member.AccountID] = struct{}{}
+		}
+	}
+	out := make([]int64, 0, len(pausedIDs))
+	for _, accountID := range pausedIDs {
+		if _, ok := keepSet[accountID]; ok {
+			out = append(out, accountID)
+		}
+	}
+	return out
+}
+
+func listPausedSmartScheduleAccountIDs(ctx context.Context, client *dbent.Client, userID int64, platform string) ([]int64, error) {
+	if client == nil || userID <= 0 || platform == "" {
+		return nil, nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT account_id
+		FROM user_smart_schedule_accounts
+		WHERE user_id = $1 AND platform = $2 AND paused = true
+	`, userID, platform)
+	if err != nil {
+		return nil, fmt.Errorf("list paused smart schedule accounts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []int64
+	for rows.Next() {
+		var accountID int64
+		if err := rows.Scan(&accountID); err != nil {
+			return nil, fmt.Errorf("scan paused smart schedule account: %w", err)
+		}
+		if accountID > 0 {
+			out = append(out, accountID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list paused smart schedule accounts: %w", err)
+	}
+	return out, nil
+}
+
+func restoreSmartSchedulePaused(ctx context.Context, client *dbent.Client, userID int64, platform string, accountIDs []int64) error {
+	if client == nil || userID <= 0 || platform == "" || len(accountIDs) == 0 {
+		return nil
+	}
+	if _, err := client.ExecContext(ctx, `
+		UPDATE user_smart_schedule_accounts
+		SET paused = true
+		WHERE user_id = $1 AND platform = $2 AND account_id = ANY($3)
+	`, userID, platform, pq.Array(accountIDs)); err != nil {
+		return fmt.Errorf("restore smart schedule paused: %w", err)
+	}
+	return nil
+}
+
+func overlaySmartSchedulePaused(
+	ctx context.Context,
+	client *dbent.Client,
+	userIDs []int64,
+	bundles map[int64]*service.UserSmartScheduleBundle,
+) error {
+	if client == nil || len(userIDs) == 0 || len(bundles) == 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT user_id, account_id, platform
+		FROM user_smart_schedule_accounts
+		WHERE user_id = ANY($1) AND paused = true
+	`, pq.Array(userIDs))
+	if err != nil {
+		return fmt.Errorf("overlay smart schedule paused: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var userID, accountID int64
+		var platform string
+		if err := rows.Scan(&userID, &accountID, &platform); err != nil {
+			return fmt.Errorf("scan smart schedule paused: %w", err)
+		}
+		bundle := bundles[userID]
+		if bundle == nil || bundle.Policies == nil || accountID <= 0 {
+			continue
+		}
+		policy := bundle.Policies[platform]
+		if policy == nil || !policy.HasAccount(accountID) {
+			continue
+		}
+		if policy.Paused == nil {
+			policy.Paused = map[int64]struct{}{}
+		}
+		policy.Paused[accountID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("overlay smart schedule paused: %w", err)
+	}
+	return nil
 }

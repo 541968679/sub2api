@@ -160,6 +160,20 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 		require.Equal(t, 2, resolvePairMaxConcurrency(ctx, denied, lookup))
 	})
 
+	t.Run("paused in-pool member is skipped without starting cooldown", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, &SmartSchedulePlatformPolicy{
+			Enabled:         true,
+			CooldownMinutes: 15,
+			AccountIDs:      map[int64]struct{}{7: {}},
+			Paused:          map[int64]struct{}{7: {}},
+		})}
+		require.False(t, admitsScheduleUser(ctx, denied, &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{7: liveQualityStats(200, 12, 20, 0, 1)},
+		}, lookup))
+		require.Equal(t, 0, lookup.startCalls)
+	})
+
 	t.Run("enabled empty pool falls back to legacy", func(t *testing.T) {
 		t.Parallel()
 		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, &SmartSchedulePlatformPolicy{
@@ -224,8 +238,40 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 			next.SortOrders[member.AccountID] = *member.SortOrder
 		}
 	}
+	prev := s.bundle.Policies[platform]
+	if prev != nil {
+		next.Paused = map[int64]struct{}{}
+		for accountID := range next.AccountIDs {
+			if prev.IsPaused(accountID) {
+				next.Paused[accountID] = struct{}{}
+			}
+		}
+	}
 	s.bundle.Policies[platform] = next
 	return nil
+}
+
+func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID int64, paused bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bundle == nil || s.bundle.Policies == nil {
+		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	for _, policy := range s.bundle.Policies {
+		if policy == nil || !policy.HasAccount(accountID) {
+			continue
+		}
+		if policy.Paused == nil {
+			policy.Paused = map[int64]struct{}{}
+		}
+		if paused {
+			policy.Paused[accountID] = struct{}{}
+		} else {
+			delete(policy.Paused, accountID)
+		}
+		return nil
+	}
+	return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 }
 
 func (s *stubSmartRepo) UpdateSortOrders(_ context.Context, _ int64, platform string, orders []SmartScheduleSortAssignment) error {
@@ -271,6 +317,10 @@ func cloneSmartBundle(in *UserSmartScheduleBundle) *UserSmartScheduleBundle {
 		copied.SortOrders = map[int64]int{}
 		for id, n := range policy.SortOrders {
 			copied.SortOrders[id] = n
+		}
+		copied.Paused = map[int64]struct{}{}
+		for id := range policy.Paused {
+			copied.Paused[id] = struct{}{}
 		}
 		out.Policies[platform] = &copied
 	}
@@ -561,6 +611,108 @@ func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ ti
 func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ int, _ time.Time) {}
 func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error                           { return nil }
 func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64) error               { return nil }
+func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) time.Time {
+	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute)
+}
+
+type admissionCacheRecorder struct {
+	stubSmartCache
+	bundle  *UserSmartScheduleBundle
+	cleared int
+	setMins int
+}
+
+func (s *admissionCacheRecorder) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle {
+	return s.bundle
+}
+
+func (s *admissionCacheRecorder) ClearCooldown(_ context.Context, _ int64, _ int64) error {
+	s.cleared++
+	return nil
+}
+
+func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) time.Time {
+	s.setMins = minutes
+	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute)
+}
+
+func TestParsePairAdmissionState(t *testing.T) {
+	t.Parallel()
+	got, err := ParsePairAdmissionState("")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionResumed, got)
+	got, err = ParsePairAdmissionState(" selectable ")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionSelectable, got)
+	got, err = ParsePairAdmissionState("paused")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionPaused, got)
+	_, err = ParsePairAdmissionState("nope")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_ADMISSION_INVALID")
+}
+
+func TestUserSmartScheduleService_SetPairAdmission(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	quality := &liveQualityCacheStub{}
+	cache := &admissionCacheRecorder{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformAnthropic: {CooldownMinutes: 30},
+		}},
+	}
+	svc := NewUserSmartScheduleService(nil, cache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}, quality, nil)
+
+	resumed, err := svc.SetPairAdmission(ctx, 7, 16, "")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionResumed, resumed.State)
+	require.Equal(t, 1, cache.cleared)
+	require.True(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
+
+	selectable, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionSelectable, selectable.State)
+	require.False(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()))
+
+	cooling, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionCooling)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionCooling, cooling.State)
+	require.NotNil(t, cooling.CooldownUntil)
+	require.Equal(t, 30, cache.setMins)
+	require.Nil(t, quality.byID[7].ResumeUsers)
+	require.Nil(t, quality.byID[7].ResumeWatchingUsers)
+
+	_, err = svc.SetPairAdmission(ctx, 7, 16, "bogus")
+	require.Error(t, err)
+}
+
+func TestUserSmartScheduleService_SetPairAdmissionPaused(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	quality := &liveQualityCacheStub{}
+	cache := &admissionCacheRecorder{
+		bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil)),
+	}
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil))}
+	svc := NewUserSmartScheduleService(repo, cache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}, quality, nil)
+
+	paused, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionPaused)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionPaused, paused.State)
+	require.Nil(t, paused.CooldownUntil)
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
+	require.Equal(t, 1, cache.cleared)
+
+	selectable, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionSelectable, selectable.State)
+	require.False(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
+}
 func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ int64, _ time.Time) map[int64]time.Time {
 	if s.until == nil {
 		return map[int64]time.Time{}

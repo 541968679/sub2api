@@ -171,6 +171,16 @@ func (c *accountQualityLiveCache) MarkUserQualityWindow(ctx context.Context, acc
 	}, []string{accountQualityResumeUserField(userID)})
 }
 
+func (c *accountQualityLiveCache) ClearUserResume(ctx context.Context, accountID, userID int64) error {
+	if userID <= 0 {
+		return nil
+	}
+	return c.writeResumeFields(ctx, accountID, nil, []string{
+		accountQualityResumeUserField(userID),
+		accountQualityResumeWatchingField(userID),
+	})
+}
+
 func (c *accountQualityLiveCache) MarkAccountResume(ctx context.Context, accountID int64) error {
 	return c.writeResumeField(ctx, accountID, accountQualityResumeAccountField, time.Now().UTC().Add(service.AccountQualityWindow).Unix())
 }

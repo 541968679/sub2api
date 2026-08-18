@@ -621,14 +621,24 @@ export async function updateQualityHardClose(
   return data
 }
 
-/** Force-admit one user on this account for one 15-minute quality window. Does not change the gate. */
+export type SmartScheduleAdmissionState = 'paused' | 'cooling' | 'resumed' | 'selectable'
+
+export interface SmartScheduleAdmissionResult {
+  account_id: number
+  user_id: number
+  state: SmartScheduleAdmissionState
+  cooldown_until?: string | null
+}
+
+/** Switch one user×account pair among paused / cooling / resumed / selectable. Omitted state is resumed. */
 export async function resumeSmartSchedule(
   accountId: number,
-  userId: number
-): Promise<{ account_id: number; user_id: number }> {
-  const { data } = await apiClient.post<{ account_id: number; user_id: number }>(
+  userId: number,
+  state: SmartScheduleAdmissionState = 'resumed'
+): Promise<SmartScheduleAdmissionResult> {
+  const { data } = await apiClient.post<SmartScheduleAdmissionResult>(
     `/admin/accounts/${accountId}/smart-schedule-resume`,
-    { user_id: userId }
+    { user_id: userId, state }
   )
   return data
 }

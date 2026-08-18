@@ -67,6 +67,67 @@ func TestBuildOpsErrorLogsWhere_BridgeAndUpstreamModel(t *testing.T) {
 	}
 }
 
+func TestBuildOpsErrorLogsWhere_DefaultHidesRecovered(t *testing.T) {
+	where, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{})
+	if !strings.Contains(where, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("default list must keep status>=400: %s", where)
+	}
+	if strings.Contains(where, "Recovered%") {
+		t.Fatalf("default list must not include Recovered rows: %s", where)
+	}
+}
+
+func TestBuildOpsErrorLogsWhere_IncludeRecoveredAddsFailoverRows(t *testing.T) {
+	where, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{IncludeRecovered: true})
+	if !strings.Contains(where, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("include_recovered must still list client failures: %s", where)
+	}
+	if !strings.Contains(where, "e.error_message ILIKE 'Recovered%'") {
+		t.Fatalf("include_recovered must add Recovered predicate: %s", where)
+	}
+	if !strings.Contains(where, "error_phase") {
+		t.Fatalf("include_recovered Recovered rows are phase=upstream: %s", where)
+	}
+}
+
+func TestBuildOpsErrorLogsWhere_IncludeRecoveredWithUpstreamPhaseSkipsStatusGuard(t *testing.T) {
+	where, args := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{
+		IncludeRecovered: true,
+		Phase:            "upstream",
+	})
+	if strings.Contains(where, "status_code, 0) >= 400") {
+		t.Fatalf("phase=upstream + include_recovered should skip status>=400: %s", where)
+	}
+	if !strings.Contains(where, "e.error_phase = $") {
+		t.Fatalf("phase=upstream must still filter error_phase: %s", where)
+	}
+	if len(args) < 1 || args[0] != "upstream" {
+		t.Fatalf("expected upstream phase arg, got %#v", args)
+	}
+}
+
+func TestSLAOpsErrorLogFilter_DropsRecoveredAndUpstreamPhase(t *testing.T) {
+	phase := "upstream"
+	in := &service.OpsErrorLogFilter{IncludeRecovered: true, Phase: phase, View: "errors"}
+	out := slaOpsErrorLogFilter(in)
+	if out.IncludeRecovered {
+		t.Fatal("SLA filter must not include Recovered")
+	}
+	if out.Phase != "" {
+		t.Fatalf("SLA filter must clear phase=upstream, got %q", out.Phase)
+	}
+	if in.IncludeRecovered == false || in.Phase != phase {
+		t.Fatal("slaOpsErrorLogFilter must not mutate the input filter")
+	}
+	slaWhere, _ := buildOpsErrorLogsWhere(&out)
+	if strings.Contains(slaWhere, "Recovered%") {
+		t.Fatalf("SLA where must stay status>=400 only: %s", slaWhere)
+	}
+	if !strings.Contains(slaWhere, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("SLA where must keep client-visible status>=400: %s", slaWhere)
+	}
+}
+
 func TestIsClaudeGPTBridgeError(t *testing.T) {
 	if !service.IsClaudeGPTBridgeError("antigravity", "gpt-5.4") {
 		t.Fatal("expected bridge true")

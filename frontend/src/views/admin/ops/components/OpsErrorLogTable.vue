@@ -304,10 +304,18 @@ function formatRequestType(type: number | null | undefined): string {
   }
 }
 
+function isRecoveredRow(log: OpsErrorLog): boolean {
+  const msg = String(log.message || '')
+  return /^Recovered\b/i.test(msg) && Number(log.status_code || 0) < 400
+}
+
 function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {
   const phase = String(log.phase || '').toLowerCase()
   const owner = String(log.error_owner || '').toLowerCase()
 
+  if (isRecoveredRow(log)) {
+    return { label: t('admin.ops.errorLog.typeRecovered'), className: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-500/30' }
+  }
   if (isUpstreamRow(log)) {
     return { label: t('admin.ops.errorLog.typeUpstream'), className: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-500/30' }
   }

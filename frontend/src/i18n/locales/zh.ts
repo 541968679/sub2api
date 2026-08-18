@@ -1169,13 +1169,17 @@ const zhBase = {
         q: '关键字',
         qPlaceholder: '错误信息 / request_id',
         statusCodes: '错误码（可多选）',
-        statusCodesHint: '勾选后按所选错误码过滤列表与分子；分母仍为当前业务范围内全部请求（含成功）。'
+        statusCodesHint: '勾选后按所选错误码过滤列表与分子；分母仍为当前业务范围内全部请求（含成功）。',
+        includeRecovered: '包含 Recovered（上游已救回）',
+        includeRecoveredHint:
+          '以前默认只显示客户端最终失败（status≥400），failover 救回的 429/503 会被藏掉。Recovered = 上游失败但最终救回，客户端仍是 200，不计入错误率/SLA。默认打开。'
       },
       stats: {
         totalRequests: '总请求数',
         terminalErrors: '终局错误（去重）',
         bizTerminal: '业务范围终局错误 {count}',
         errorRate: '错误率',
+        errorRateHint: '仅客户端终局失败（status≥400）。Recovered 救回行不计入。',
         rawRows: '原始错误行',
         rawRowsHint: '未去重，含 failover 多次尝试',
         topStatusCodes: '错误码 Top',
@@ -2460,9 +2464,15 @@ const zhBase = {
         resume: '立即恢复',
         resumeCooling: '冷却中，立即恢复',
         resumeWillCool: '写入恢复宽限，避免下次请求开始冷却',
-        resumeUnsavedPreview: '这是未保存预览，立即恢复不会改变线上状态',
+        resumeUnsavedPreview: '这是未保存预览，切换状态不会改变线上状态',
         resumeSuccess: '已恢复该配对：冷却已清除，并写入宽限以免下次请求立刻冷却',
         resumeFailed: '恢复配对失败',
+        switchState: '切换状态',
+        switchStateHint: '手动切换该配对入池状态：暂停、配对冷却、已恢复或可调度',
+        switchSuccessPaused: '已暂停对该用户调度该账号，账号仍在池内',
+        switchSuccessCooling: '已写入配对冷却',
+        switchSuccessSelectable: '已开始窗口质量判断',
+        switchFailed: '切换入池状态失败',
         save: '保存',
         saving: '保存中...',
         cancel: '取消',
@@ -2472,8 +2482,10 @@ const zhBase = {
         dirtyBanner: '有未保存的配对并发 / 门槛修改。自动刷新不会覆盖这些草稿，需点保存后才会生效。',
         dirtySaveHint: '配对并发与门槛仍需保存',
         admission: '入池状态',
-        admissionHint: '这是该用户在本池里能不能被选中，不是账号 status。只有配对冷却是真锁；已保存门槛未达标但尚未写入冷却时显示「下次请求将冷却」；未保存或未启用的门槛只是预览。',
+        admissionHint: '这是该用户在本池里能不能被选中，不是账号 status。暂停和配对冷却是真锁；已保存门槛未达标但尚未写入冷却时显示「下次请求将冷却」；未保存或未启用的门槛只是预览。',
         admissionSelectable: '可调度',
+        admissionPaused: '已暂停',
+        admissionPausedHint: '已长期暂停对该用户调度该账号。账号仍留在池内，直到再切到其他入池状态。',
         admissionCooling: '配对冷却',
         admissionCoolingUntil: '冷却至 {time}',
         admissionCoolingRemaining: '剩余 {minutes} 分钟',
@@ -4099,13 +4111,13 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '最近 15 分钟账号质量：上行 p50 首字延迟，下行调度成功率（不含桥接失败）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度。点击打开稳定性曲线、桥接错误率与硬关闭。',
+          '最近 15 分钟账号质量：上行 p50 首字延迟，下行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度。点击打开稳定性曲线、桥接错误率与硬关闭。',
         successShort: '率',
         bridgeShort: '桥',
         ttftHint:
           '最近 15 分钟真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
-          '最近 15 分钟调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens 与 Claude→GPT 桥接失败）。无样本显示 —。',
+          '最近 15 分钟调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens、Claude→GPT 桥接失败，以及客户端/路由的模型不存在或不受支持）。上游 429/502/503 仍计入。无样本显示 —。',
         tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}',
         bridgeTooltip: '最近 {windowMinutes} 分钟 · 桥接成功 {success} · 桥接失败 {error}（不进调度）',
         ttftTooltip:
@@ -6133,6 +6145,7 @@ const zhBase = {
         phase: '阶段',
         id: 'ID：',
         typeUpstream: '上游',
+        typeRecovered: '已救回',
         typeRequest: '请求',
         typeAuth: '认证',
         typeRouting: '路由',
@@ -6147,6 +6160,9 @@ const zhBase = {
       errorDetails: {
         upstreamErrors: '上游错误',
         requestErrors: '请求错误',
+        includeRecovered: '包含 Recovered（上游已救回）',
+        includeRecoveredHint:
+          '以前默认只显示客户端最终失败，failover 救回行会被藏掉。Recovered = 上游失败但最终救回，客户端仍是 200，不计入 SLA。默认打开。',
         unresolved: '未解决',
         resolved: '已解决',
         viewErrors: '错误',

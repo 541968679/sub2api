@@ -85,6 +85,10 @@ func (s *perUserSmartRepo) UpdateSortOrders(context.Context, int64, string, []Sm
 	return nil
 }
 
+func (s *perUserSmartRepo) SetMemberPaused(context.Context, int64, int64, bool) error {
+	return nil
+}
+
 func TestSchedulePnlUserSummaries_OnlyEnabledPoolPairs(t *testing.T) {
 	smart := &perUserSmartRepo{bundles: map[int64]*UserSmartScheduleBundle{
 		10: {Policies: map[string]*SmartSchedulePlatformPolicy{

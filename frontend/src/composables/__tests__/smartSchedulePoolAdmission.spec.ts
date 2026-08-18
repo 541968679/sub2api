@@ -11,6 +11,7 @@ import {
   resolvePoolAdmission,
   UNCAPPED_PAIR_DISPLAY_MAX,
   resolveQualityAdmissionHint,
+  pairAdmissionLiveState,
   userQualityResumeActive,
   userQualityResumeChipActive
 } from '../smartSchedulePoolAdmission'
@@ -249,6 +250,18 @@ describe('userQualityResumeActive', () => {
       userQualityResumeActive({ resume_watching_users: { '99': now / 1000 + 60 } }, 99, now)
     ).toBe(true)
     expect(userQualityResumeActive({ resume_users: { '99': now / 1000 - 1 } }, 99, now)).toBe(false)
+  })
+})
+
+describe('pairAdmissionLiveState', () => {
+  it('maps display admission to the three writable live states', () => {
+    expect(pairAdmissionLiveState('cooling')).toBe('cooling')
+    expect(pairAdmissionLiveState('resumed')).toBe('resumed')
+    expect(pairAdmissionLiveState('selectable')).toBe('selectable')
+    expect(pairAdmissionLiveState('will_cool')).toBe('selectable')
+    expect(pairAdmissionLiveState('unsaved_preview')).toBe('selectable')
+    expect(pairAdmissionLiveState('pair_full')).toBe('selectable')
+    expect(pairAdmissionLiveState('stopped')).toBe('selectable')
   })
 })
 

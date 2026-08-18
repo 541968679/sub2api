@@ -92,12 +92,7 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	if minutes < service.MinSmartScheduleCooldownMinutes {
-		minutes = service.DefaultSmartScheduleCooldownMinutes
-	}
-	if minutes > service.MaxSmartScheduleCooldownMinutes {
-		minutes = service.MaxSmartScheduleCooldownMinutes
-	}
+	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
 	until := now.Add(time.Duration(minutes) * time.Minute).Unix()
 	key := smartScheduleCooldownKey(accountID)
 	field := smartScheduleCooldownField(userID)
@@ -107,6 +102,25 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 	}
 	ttl := time.Duration(minutes)*time.Minute + smartScheduleCooldownTTLBuffer
 	c.extendCooldownTTL(ctx, key, ttl)
+}
+
+// SetCooldown overwrites the pair cooldown (admin switcher). Hot path stays HSETNX.
+func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) time.Time {
+	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
+	until := now.Add(time.Duration(minutes) * time.Minute)
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return until
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+		until = now.Add(time.Duration(minutes) * time.Minute)
+	}
+	key := smartScheduleCooldownKey(accountID)
+	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), until.Unix()).Err(); err != nil {
+		return until
+	}
+	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
+	return until
 }
 
 // extendCooldownTTL only sets or lengthens the HASH TTL. A short cooldown
@@ -186,6 +200,7 @@ func (c *userSmartScheduleCache) storeUserBundle(ctx context.Context, userID int
 type cachedSmartScheduleMember struct {
 	AccountID int64 `json:"account_id"`
 	Cap       int   `json:"cap,omitempty"`
+	Paused    bool  `json:"paused,omitempty"`
 }
 
 type cachedSmartSchedulePolicy struct {
@@ -225,6 +240,7 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 			row.Members = append(row.Members, cachedSmartScheduleMember{
 				AccountID: accountID,
 				Cap:       policy.PairCap(accountID),
+				Paused:    policy.IsPaused(accountID),
 			})
 		}
 		out.Policies[platform] = row
@@ -245,6 +261,7 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 			CooldownMinutes:          row.CooldownMinutes,
 			AccountIDs:               map[int64]struct{}{},
 			Caps:                     map[int64]int{},
+			Paused:                   map[int64]struct{}{},
 		}
 		for _, member := range row.Members {
 			if member.AccountID <= 0 {
@@ -253,6 +270,9 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 			policy.AccountIDs[member.AccountID] = struct{}{}
 			if member.Cap >= 1 {
 				policy.Caps[member.AccountID] = member.Cap
+			}
+			if member.Paused {
+				policy.Paused[member.AccountID] = struct{}{}
 			}
 		}
 		out.Policies[platform] = policy

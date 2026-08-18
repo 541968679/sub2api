@@ -16,6 +16,7 @@ const (
 // SmartScheduleAccountMember is one pool member + optional pair cap.
 // CurrentConcurrency is read-only live occupancy for this user on this account.
 // CooldownUntil is read-only: when the pair cooldown HASH field is still in the future.
+// Paused is a durable user×account skip; the account stays in the pool. Writes ignore it.
 type SmartScheduleAccountMember struct {
 	AccountID          int64      `json:"account_id"`
 	Platform           string     `json:"platform"`
@@ -24,6 +25,7 @@ type SmartScheduleAccountMember struct {
 	Priority           int        `json:"priority"` // read-only live accounts.priority; writes ignore
 	CurrentConcurrency int        `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
+	Paused             bool       `json:"paused,omitempty"`
 }
 
 // SmartScheduleSortAssignment is one membership row's pool display order.
@@ -45,6 +47,7 @@ type SmartSchedulePlatformPolicy struct {
 	AccountIDs               map[int64]struct{}
 	Caps                     map[int64]int
 	SortOrders               map[int64]int
+	Paused                   map[int64]struct{}
 }
 
 func (p *SmartSchedulePlatformPolicy) HasAccount(accountID int64) bool {
@@ -64,6 +67,14 @@ func (p *SmartSchedulePlatformPolicy) PairCap(accountID int64) int {
 		return 0
 	}
 	return n
+}
+
+func (p *SmartSchedulePlatformPolicy) IsPaused(accountID int64) bool {
+	if p == nil || accountID <= 0 || len(p.Paused) == 0 {
+		return false
+	}
+	_, ok := p.Paused[accountID]
+	return ok
 }
 
 func (p *SmartSchedulePlatformPolicy) HasQualityMetrics() bool {
@@ -129,6 +140,7 @@ type UserSmartScheduleCache interface {
 	SmartScheduleLookup
 	Invalidate(ctx context.Context, userID int64) error
 	ClearCooldown(ctx context.Context, accountID, userID int64) error
+	SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) time.Time
 	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time
 }
 
@@ -138,6 +150,7 @@ type UserSmartScheduleRepository interface {
 	ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error)
 	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
 	UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) error
+	SetMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error
 }
 
 // UserSmartScheduleSummary is the compact list-column view of one user's smart schedule.
@@ -176,6 +189,31 @@ type UserSmartScheduleView struct {
 	UserID          int64                                `json:"user_id"`
 	DefaultPlatform string                               `json:"default_platform,omitempty"`
 	Platforms       map[string]SmartSchedulePlatformView `json:"platforms"`
+}
+
+const (
+	PairAdmissionPaused     = "paused"
+	PairAdmissionCooling    = "cooling"
+	PairAdmissionResumed    = "resumed"
+	PairAdmissionSelectable = "selectable"
+)
+
+// PairAdmissionResult is the admin response after switching a pair's live state.
+type PairAdmissionResult struct {
+	AccountID     int64      `json:"account_id"`
+	UserID        int64      `json:"user_id"`
+	State         string     `json:"state"`
+	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
+}
+
+func ClampSmartScheduleCooldownMinutes(minutes int) int {
+	if minutes < MinSmartScheduleCooldownMinutes {
+		return DefaultSmartScheduleCooldownMinutes
+	}
+	if minutes > MaxSmartScheduleCooldownMinutes {
+		return MaxSmartScheduleCooldownMinutes
+	}
+	return minutes
 }
 
 func normalizeSmartSchedulePlatform(platform string) string {

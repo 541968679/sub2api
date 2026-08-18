@@ -139,6 +139,12 @@ type OpsErrorLogFilter struct {
 	// - all: show everything
 	View string
 
+	// IncludeRecovered adds Recovered / 上游已救回 rows (client status < 400,
+	// error_phase=upstream, message prefix Recovered). API default is false so
+	// callers keep the historical client-failure list unless they opt in.
+	// SLA / error_sla must still use status_code >= 400 only.
+	IncludeRecovered bool
+
 	Page     int
 	PageSize int
 }

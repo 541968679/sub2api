@@ -27,6 +27,9 @@
         <p class="mt-1 text-2xl font-semibold" :class="rateClass">
           {{ loading ? '—' : formatRate(stats?.error_rate) }}
         </p>
+        <p class="mt-0.5 text-[11px] text-gray-400">
+          {{ t('usage.errors.stats.errorRateHint') }}
+        </p>
       </div>
       <div class="card p-4">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400">

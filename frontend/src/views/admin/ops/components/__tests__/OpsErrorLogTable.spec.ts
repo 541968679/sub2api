@@ -58,4 +58,33 @@ describe('OpsErrorLogTable', () => {
 
     expect(wrapper.text()).toContain('/v1/responses -> /v1/chat/completions')
   })
+
+  it('labels Recovered upstream-rescue rows', () => {
+    const recovered: OpsErrorLog = {
+      ...row,
+      id: 2,
+      status_code: 200,
+      phase: 'upstream',
+      error_owner: 'provider',
+      message: 'Recovered upstream error 429: too many requests'
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: {
+        rows: [recovered],
+        total: 1,
+        loading: false,
+        page: 1,
+        pageSize: 20
+      },
+      global: {
+        stubs: {
+          Pagination: true,
+          ElTooltip: TooltipStub
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('admin.ops.errorLog.typeRecovered')
+    expect(wrapper.text()).toContain('200')
+  })
 })

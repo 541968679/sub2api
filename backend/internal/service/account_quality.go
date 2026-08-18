@@ -48,6 +48,8 @@ type AccountQualityStats struct {
 	ErrorRate *float64 `json:"error_rate"`
 	// Bridge* is display-only Claude→GPT bridge traffic. It must not feed
 	// scheduling gates or hard-close. ErrorCount above excludes these rows.
+	// Account-dimension ErrorCount also excludes client/routing
+	// model-not-found misses; user-dimension ErrorCount still counts them.
 	BridgeSuccessCount int64    `json:"bridge_success_count"`
 	BridgeErrorCount   int64    `json:"bridge_error_count"`
 	BridgeErrorRate    *float64 `json:"bridge_error_rate"`
@@ -203,6 +205,26 @@ func ApplyUserQualityResume(stats *AccountQualityStats, userID int64, now time.T
 	}
 	SetUserQualityResume(stats, userID, now.Add(AccountQualityWindow))
 	SetUserQualityWatching(stats, userID, now.Add(2*AccountQualityWindow))
+}
+
+// ClearUserQualityResume drops 已恢复 and the fail-open watching window.
+func ClearUserQualityResume(stats *AccountQualityStats, userID int64) {
+	if stats == nil || userID <= 0 {
+		return
+	}
+	key := qualityResumeUserKey(userID)
+	if stats.ResumeUsers != nil {
+		delete(stats.ResumeUsers, key)
+		if len(stats.ResumeUsers) == 0 {
+			stats.ResumeUsers = nil
+		}
+	}
+	if stats.ResumeWatchingUsers != nil {
+		delete(stats.ResumeWatchingUsers, key)
+		if len(stats.ResumeWatchingUsers) == 0 {
+			stats.ResumeWatchingUsers = nil
+		}
+	}
 }
 
 // ApplyUserQualityWindowStart is 点已恢复: drop the 已恢复 chip and start a
@@ -465,4 +487,38 @@ func NormalizeAccountQualityHistoryRange(from, to, now time.Time) (time.Time, ti
 		return time.Time{}, time.Time{}, infraerrors.BadRequest("INVALID_TIME_RANGE", "range must not exceed 7 days")
 	}
 	return from, to, nil
+}
+
+// SQLAccountQualityRoutingModelMissPredicate matches ops_error_logs rows that
+// are client/routing "model does not exist / not supported" misses — including
+// gateway 404 model_not_found (stored as error_type=api_error, phase=internal
+// after normalize) and "no available accounts supporting model:" routing misses.
+//
+// Safety rails keep real upstream 429/502/503 in ErrorCount: status is only
+// 400/403/404/503, error_phase is not upstream, and error_type is not an
+// upstream/rate-limit class. Account-dimension scheduling ErrorCount uses the
+// complementary SQLExcludeAccountQualityRoutingModelMiss; user quality does not.
+func SQLAccountQualityRoutingModelMissPredicate() string {
+	return `COALESCE(status_code, 0) IN (400, 403, 404, 503)` +
+		` AND COALESCE(error_phase, '') <> 'upstream'` +
+		` AND LOWER(COALESCE(error_type, '')) NOT IN ('upstream_error','overloaded_error','rate_limit_error')` +
+		` AND (` +
+		`LOWER(COALESCE(error_type, '')) = 'model_not_found'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%model_not_found%'` +
+		` OR LOWER(COALESCE(error_body, '')) LIKE '%model_not_found%'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%unknown model%'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%model not found%'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%unsupported model%'` +
+		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%does not exist%')` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%not supported by any configured account%'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%supporting model:%'` +
+		` OR LOWER(COALESCE(error_message, '')) LIKE '%no account supports%'` +
+		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%not in whitelist%')` +
+		`)`
+}
+
+// SQLExcludeAccountQualityRoutingModelMiss is the scheduling ErrorCount filter
+// for the account quality window. Do not apply it to GetUserQualityStatsBatch.
+func SQLExcludeAccountQualityRoutingModelMiss() string {
+	return "NOT (" + SQLAccountQualityRoutingModelMissPredicate() + ")"
 }

@@ -95,6 +95,14 @@ func TestApplyUserQualityResumeTwoPhase(t *testing.T) {
 	require.False(t, UserQualityResumeActive(stats, 16, clickAt.Add(AccountQualityWindow+time.Minute)))
 }
 
+func TestClearUserQualityResume(t *testing.T) {
+	stats := &AccountQualityStats{}
+	ApplyUserQualityResume(stats, 16, time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC))
+	ClearUserQualityResume(stats, 16)
+	require.Nil(t, stats.ResumeUsers)
+	require.Nil(t, stats.ResumeWatchingUsers)
+}
+
 func TestHasAccountQualitySamples(t *testing.T) {
 	require.False(t, HasAccountQualitySamples(nil))
 	require.False(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{})))
@@ -127,6 +135,28 @@ func TestSQLClaudeGPTBridgePredicates(t *testing.T) {
 	usagePred := SQLClaudeGPTBridgeUsagePredicate("requested_model", "model", "upstream_model")
 	require.Contains(t, usagePred, "LIKE 'claude-%'")
 	require.Contains(t, usagePred, "LIKE 'gpt-%'")
+}
+
+func TestSQLAccountQualityRoutingModelMissPredicate(t *testing.T) {
+	pred := SQLAccountQualityRoutingModelMissPredicate()
+	require.Contains(t, pred, "COALESCE(status_code, 0) IN (400, 403, 404, 503)")
+	require.Contains(t, pred, "COALESCE(error_phase, '') <> 'upstream'")
+	require.Contains(t, pred, "'upstream_error','overloaded_error','rate_limit_error'")
+	require.Contains(t, pred, "LOWER(COALESCE(error_type, '')) = 'model_not_found'")
+	require.Contains(t, pred, "%model_not_found%")
+	require.Contains(t, pred, "%unknown model%")
+	require.Contains(t, pred, "%model not found%")
+	require.Contains(t, pred, "%unsupported model%")
+	require.Contains(t, pred, "%does not exist%")
+	require.Contains(t, pred, "%not supported by any configured account%")
+	require.Contains(t, pred, "%supporting model:%")
+	require.Contains(t, pred, "%no account supports%")
+	require.Contains(t, pred, "%not in whitelist%")
+	require.NotContains(t, pred, "429")
+	require.NotContains(t, pred, "502")
+	require.NotContains(t, pred, "upstream_status_code")
+	require.NotContains(t, pred, "COALESCE(upstream_status_code")
+	require.Equal(t, "NOT ("+pred+")", SQLExcludeAccountQualityRoutingModelMiss())
 }
 
 func TestTruncateToAccountQualitySnapshotTime(t *testing.T) {

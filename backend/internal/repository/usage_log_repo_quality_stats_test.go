@@ -29,8 +29,8 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 		AddRow(int64(10), int64(2), int64(4)).
 		AddRow(int64(20), int64(1), int64(0))
 	// Shared helper must keep account filters: account_id grouping, no user_id NULL guard.
-	// Scheduling error_count excludes Claude-GPT bridge; bridge_error_count is separate.
-	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*NOT \(LOWER\(COALESCE\(platform,''\)\) IN \('antigravity','anthropic'\)[\s\S]*bridge_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*AND COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE\s+GROUP BY account_id`).
+	// Scheduling error_count excludes Claude-GPT bridge and routing model-not-found misses.
+	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*NOT \(LOWER\(COALESCE\(platform,''\)\) IN \('antigravity','anthropic'\)[\s\S]*bridge_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*AND COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE[\s\S]*NOT \([\s\S]*IN \(400, 403, 404, 503\)[\s\S]*error_phase[\s\S]*<> 'upstream'[\s\S]*model_not_found[\s\S]*supporting model:[\s\S]*GROUP BY account_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
 
@@ -101,7 +101,9 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 	errorRows := sqlmock.NewRows([]string{"user_id", "error_count", "bridge_error_count"}).
 		AddRow(int64(10), int64(2), int64(5)).
 		AddRow(int64(20), int64(1), int64(0))
-	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*user_id IS NOT NULL[\s\S]*GROUP BY user_id`).
+	// User query must keep user_id IS NOT NULL and must NOT add the account
+	// routing-model-miss exclusion (those 4xx stay user-visible failures).
+	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*AND is_count_tokens = FALSE\s+AND user_id IS NOT NULL\s+GROUP BY user_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
 

@@ -34,6 +34,7 @@ const statusCode = ref<number | 'other' | null>(null)
 const phase = ref<string>('')
 const errorOwner = ref<string>('')
 const viewMode = ref<'errors' | 'excluded' | 'all'>('errors')
+const includeRecovered = ref(true)
 
 
 const modalTitle = computed(() => {
@@ -110,6 +111,9 @@ async function fetchErrorLogs() {
     const ownerVal = String(errorOwner.value || '').trim()
     if (ownerVal) params.error_owner = ownerVal
 
+    if (props.errorType === 'request') {
+      params.include_recovered = includeRecovered.value ? 'true' : 'false'
+    }
 
     const res = props.errorType === 'upstream'
       ? await opsAPI.listUpstreamErrors(params)
@@ -131,6 +135,7 @@ async function fetchErrorLogs() {
     phase.value = props.errorType === 'upstream' ? 'upstream' : ''
     errorOwner.value = ''
     viewMode.value = 'errors'
+    includeRecovered.value = true
     page.value = 1
     fetchErrorLogs()
   }
@@ -177,7 +182,7 @@ watch(
 )
 
 watch(
-  () => [statusCode.value, phase.value, errorOwner.value, viewMode.value] as const,
+  () => [statusCode.value, phase.value, errorOwner.value, viewMode.value, includeRecovered.value] as const,
   () => {
     if (!props.show) return
     page.value = 1
@@ -237,6 +242,24 @@ watch(
             </button>
           </div>
         </div>
+        <label
+          v-if="errorType === 'request'"
+          class="mt-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300"
+        >
+          <input
+            data-testid="include-recovered"
+            type="checkbox"
+            class="mt-0.5"
+            :checked="includeRecovered"
+            @change="includeRecovered = ($event.target as HTMLInputElement).checked"
+          />
+          <span>
+            <span class="font-medium">{{ t('admin.ops.errorDetails.includeRecovered') }}</span>
+            <span class="mt-0.5 block text-[11px] font-normal text-gray-400">
+              {{ t('admin.ops.errorDetails.includeRecoveredHint') }}
+            </span>
+          </span>
+        </label>
       </div>
 
       <!-- Body -->

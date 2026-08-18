@@ -51,6 +51,24 @@ const (
 	opsListViewAll      = "all"
 )
 
+// applyOpsIncludeRecoveredQuery parses include_recovered (API default false).
+// When off, phase=upstream is stripped so /errors and /request-errors stay
+// client-visible status>=400. When on, phase=upstream is kept so Recovered
+// rows (error_phase=upstream, status 200) are not hidden.
+func applyOpsIncludeRecoveredQuery(c *gin.Context, filter *service.OpsErrorLogFilter) {
+	if filter == nil {
+		return
+	}
+	raw := ""
+	if c != nil {
+		raw = c.Query("include_recovered")
+	}
+	filter.IncludeRecovered = parseBoolQueryWithDefault(raw, false)
+	if strings.EqualFold(strings.TrimSpace(filter.Phase), "upstream") && !filter.IncludeRecovered {
+		filter.Phase = ""
+	}
+}
+
 func parseOpsViewParam(c *gin.Context) string {
 	if c == nil {
 		return ""
@@ -169,10 +187,7 @@ func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) e
 	filter.ErrorType = strings.TrimSpace(c.Query("error_type"))
 	filter.Bridge = strings.TrimSpace(c.Query("bridge"))
 
-	// Force request errors: client-visible status >= 400.
-	if strings.EqualFold(strings.TrimSpace(filter.Phase), "upstream") {
-		filter.Phase = ""
-	}
+	applyOpsIncludeRecoveredQuery(c, filter)
 
 	if platform := strings.TrimSpace(c.Query("platform")); platform != "" {
 		filter.Platform = platform
@@ -282,11 +297,7 @@ func (h *OpsHandler) ListRequestErrors(c *gin.Context) {
 	filter.Query = strings.TrimSpace(c.Query("q"))
 	filter.UserQuery = strings.TrimSpace(c.Query("user_query"))
 
-	// Force request errors: client-visible status >= 400.
-	// buildOpsErrorLogsWhere already applies this for non-upstream phase.
-	if strings.EqualFold(strings.TrimSpace(filter.Phase), "upstream") {
-		filter.Phase = ""
-	}
+	applyOpsIncludeRecoveredQuery(c, filter)
 
 	if platform := strings.TrimSpace(c.Query("platform")); platform != "" {
 		filter.Platform = platform

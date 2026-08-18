@@ -171,6 +171,14 @@ func (s *liveQualityCacheStub) MarkUserResume(_ context.Context, accountID, user
 	return nil
 }
 
+func (s *liveQualityCacheStub) ClearUserResume(_ context.Context, accountID, userID int64) error {
+	if s == nil || s.byID == nil {
+		return nil
+	}
+	ClearUserQualityResume(s.byID[accountID], userID)
+	return nil
+}
+
 func (s *liveQualityCacheStub) MarkUserQualityWindow(_ context.Context, accountID, userID int64) error {
 	if s == nil {
 		return nil

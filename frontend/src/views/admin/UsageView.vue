@@ -215,9 +215,11 @@ import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawe
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
-import ErrorRequestFilters, {
+import ErrorRequestFilters from '@/components/admin/usage/ErrorRequestFilters.vue'
+import {
+  emptyErrorRequestFilters,
   type ErrorRequestFilterState
-} from '@/components/admin/usage/ErrorRequestFilters.vue'
+} from '@/components/admin/usage/errorRequestFilterState'
 import ErrorRequestStatsCards from '@/components/admin/usage/ErrorRequestStatsCards.vue'
 import { opsAPI, type OpsErrorLog, type OpsErrorLogStats } from '@/api/admin/ops'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
@@ -329,18 +331,7 @@ const errorPage = ref(1)
 const errorPageSize = ref(getPersistedPageSize())
 const showErrorDetailModal = ref(false)
 const selectedErrorId = ref<number | null>(null)
-const errorFilters = ref<ErrorRequestFilterState>({
-  user_id: undefined,
-  api_key_id: undefined,
-  model: null,
-  account_id: undefined,
-  group_id: null,
-  platform: '',
-  bridge: 'all',
-  upstream_model: '',
-  q: '',
-  status_codes: []
-})
+const errorFilters = ref<ErrorRequestFilterState>(emptyErrorRequestFilters())
 
 const toDayStartISO = (d: string) => new Date(`${d}T00:00:00`).toISOString()
 const toDayEndISO = (d: string) => new Date(`${d}T23:59:59.999`).toISOString()
@@ -366,6 +357,7 @@ function buildErrorQueryParams(includePagination: boolean): Record<string, any> 
   if (f.upstream_model.trim()) params.upstream_model = f.upstream_model.trim()
   if (f.q.trim()) params.q = f.q.trim()
   if (f.status_codes.length > 0) params.status_codes = f.status_codes.join(',')
+  params.include_recovered = f.include_recovered !== false ? 'true' : 'false'
   return params
 }
 
@@ -408,18 +400,7 @@ const onErrorFiltersChange = () => {
 }
 
 const resetErrorFilters = () => {
-  errorFilters.value = {
-    user_id: undefined,
-    api_key_id: undefined,
-    model: null,
-    account_id: undefined,
-    group_id: null,
-    platform: '',
-    bridge: 'all',
-    upstream_model: '',
-    q: '',
-    status_codes: []
-  }
+  errorFilters.value = emptyErrorRequestFilters()
   errorPage.value = 1
   reloadErrorTab()
 }

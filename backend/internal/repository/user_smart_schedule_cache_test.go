@@ -38,6 +38,23 @@ func TestUserSmartScheduleCache_CooldownSetNXDoesNotExtend(t *testing.T) {
 	require.False(t, cache.CooldownActive(ctx, 7, 16, now.Add(time.Minute)))
 }
 
+func TestUserSmartScheduleCache_SetCooldownOverwrites(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
+
+	cache.StartCooldown(ctx, 7, 16, 15, now)
+	until := cache.SetCooldown(ctx, 7, 16, 60, now.Add(2*time.Minute))
+	require.Equal(t, now.Add(62*time.Minute).Unix(), until.Unix())
+	raw, err := rdb.HGet(ctx, smartScheduleCooldownKey(7), smartScheduleCooldownField(16)).Result()
+	require.NoError(t, err)
+	require.Equal(t, now.Add(62*time.Minute).Unix(), mustParseUnix(t, raw))
+	require.True(t, cache.CooldownActive(ctx, 7, 16, now.Add(20*time.Minute)))
+}
+
 func TestUserSmartScheduleCache_CooldownTTLDoesNotShortenOtherPair(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
@@ -81,6 +98,21 @@ func TestUserSmartScheduleCache_GetCooldownUntilBatch(t *testing.T) {
 	require.Equal(t, now.Add(15*time.Minute).Unix(), got[7].Unix())
 	_, expired := got[8]
 	require.False(t, expired)
+}
+
+func TestCachedSmartScheduleBundle_PausedRoundTrip(t *testing.T) {
+	stored := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:         true,
+			CooldownMinutes: 15,
+			AccountIDs:      map[int64]struct{}{7: {}, 8: {}},
+			Paused:          map[int64]struct{}{7: {}},
+		},
+	}})
+	got := stored.toBundle()
+	require.True(t, got.Policies[service.PlatformAnthropic].IsPaused(7))
+	require.False(t, got.Policies[service.PlatformAnthropic].IsPaused(8))
+	require.True(t, got.Policies[service.PlatformAnthropic].HasAccount(8))
 }
 
 func mustParseUnix(t *testing.T, raw string) int64 {

@@ -1093,6 +1093,7 @@ export type OpsErrorListQueryParams = {
   q?: string
   status_codes?: string
   status_codes_other?: string
+  include_recovered?: boolean | string
 }
 
 export interface OpsErrorStatBucket {

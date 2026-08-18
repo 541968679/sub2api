@@ -29,7 +29,8 @@ type copySmartScheduleRequest struct {
 }
 
 type resumeSmartScheduleRequest struct {
-	UserID int64 `json:"user_id"`
+	UserID int64  `json:"user_id"`
+	State  string `json:"state"`
 }
 
 func (h *UserHandler) smartScheduleService() *service.UserSmartScheduleService {
@@ -218,9 +219,10 @@ func (h *AccountHandler) ResumeSmartSchedule(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	if err := h.smartSchedule.ResumePair(c.Request.Context(), accountID, req.UserID); err != nil {
+	result, err := h.smartSchedule.SetPairAdmission(c.Request.Context(), accountID, req.UserID, req.State)
+	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"account_id": accountID, "user_id": req.UserID})
+	response.Success(c, result)
 }

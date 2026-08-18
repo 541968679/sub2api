@@ -340,6 +340,21 @@
       <p class="mt-1 text-[11px] text-gray-400">
         {{ t('usage.errors.filters.statusCodesHint') }}
       </p>
+      <label class="mt-3 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <input
+          data-testid="include-recovered"
+          type="checkbox"
+          class="mt-0.5"
+          :checked="local.include_recovered !== false"
+          @change="toggleIncludeRecovered(($event.target as HTMLInputElement).checked)"
+        />
+        <span>
+          <span class="font-medium">{{ t('usage.errors.filters.includeRecovered') }}</span>
+          <span class="mt-0.5 block text-[11px] font-normal text-gray-400">
+            {{ t('usage.errors.filters.includeRecoveredHint') }}
+          </span>
+        </span>
+      </label>
     </div>
   </div>
 </template>
@@ -361,19 +376,12 @@ import { adminAPI } from '@/api/admin'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { loadRecentPicks, pushRecentPick } from '@/composables/useRecentPicks'
+import {
+  emptyErrorRequestFilters,
+  type ErrorRequestFilterState
+} from '@/components/admin/usage/errorRequestFilterState'
 
-export type ErrorRequestFilterState = {
-  user_id?: number
-  api_key_id?: number
-  model: string | null
-  account_id?: number
-  group_id: number | null
-  platform: string
-  bridge: string
-  upstream_model: string
-  q: string
-  status_codes: number[]
-}
+export type { ErrorRequestFilterState }
 
 const props = withDefaults(defineProps<{
   modelValue: ErrorRequestFilterState
@@ -412,18 +420,7 @@ const RECENT_USERS_KEY = 'admin-usage-recent-users'
 const RECENT_ACCOUNTS_KEY = 'admin-usage-recent-accounts'
 const BROWSE_LIMIT = 20
 
-const local = reactive<ErrorRequestFilterState>({
-  user_id: undefined,
-  api_key_id: undefined,
-  model: null,
-  account_id: undefined,
-  group_id: null,
-  platform: '',
-  bridge: 'all',
-  upstream_model: '',
-  q: '',
-  status_codes: []
-})
+const local = reactive<ErrorRequestFilterState>(emptyErrorRequestFilters())
 
 watch(
   () => props.modelValue,
@@ -438,7 +435,8 @@ watch(
       bridge: v.bridge || 'all',
       upstream_model: v.upstream_model || '',
       q: v.q || '',
-      status_codes: [...(v.status_codes || [])]
+      status_codes: [...(v.status_codes || [])],
+      include_recovered: v.include_recovered !== false
     })
   },
   { immediate: true, deep: true }
@@ -536,7 +534,8 @@ function snapshot(): ErrorRequestFilterState {
     bridge: local.bridge,
     upstream_model: local.upstream_model,
     q: local.q,
-    status_codes: [...local.status_codes]
+    status_codes: [...local.status_codes],
+    include_recovered: local.include_recovered !== false
   }
 }
 
@@ -837,6 +836,11 @@ const clearAccount = () => {
   accountResults.value = []
   showAccountDropdown.value = false
   local.account_id = undefined
+  emitChange()
+}
+
+function toggleIncludeRecovered(on: boolean) {
+  local.include_recovered = on
   emitChange()
 }
 

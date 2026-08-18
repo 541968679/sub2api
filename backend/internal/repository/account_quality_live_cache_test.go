@@ -173,6 +173,20 @@ func TestAccountQualityLiveCache_MarkUserQualityWindowDropsResumedChip(t *testin
 	require.True(t, service.UserQualityResumeActive(after, 16, now))
 }
 
+func TestAccountQualityLiveCache_ClearUserResume(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewAccountQualityLiveCache(rdb)
+	ctx := context.Background()
+	require.NoError(t, cache.MarkUserResume(ctx, 9, 16))
+	require.NoError(t, cache.ClearUserResume(ctx, 9, 16))
+	got, err := cache.Get(ctx, 9)
+	require.NoError(t, err)
+	require.False(t, service.UserQualityResumeActive(got, 16, time.Now().UTC()))
+	require.False(t, service.UserQualityResumedChipActive(got, 16, time.Now().UTC()))
+}
+
 func TestAccountQualityLiveCache_ReplaceMergesResumeIntoCallerMap(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})

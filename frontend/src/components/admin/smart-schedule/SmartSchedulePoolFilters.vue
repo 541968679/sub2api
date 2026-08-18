@@ -78,6 +78,7 @@ const admissionLabelKey: Record<(typeof POOL_ADMISSION_FILTER_STATES)[number], s
   resumed: 'admin.users.smartSchedule.admissionResumed',
   will_cool: 'admin.users.smartSchedule.admissionWillCool',
   cooling: 'admin.users.smartSchedule.admissionCooling',
+  paused: 'admin.users.smartSchedule.admissionPaused',
   pair_full: 'admin.users.smartSchedule.admissionPairFull',
   stopped: 'admin.users.smartSchedule.admissionStopped',
   unsaved_preview: 'admin.users.smartSchedule.admissionUnsavedPreview'

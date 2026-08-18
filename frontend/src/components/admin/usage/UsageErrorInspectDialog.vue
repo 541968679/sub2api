@@ -199,9 +199,11 @@ import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
-import ErrorRequestFilters, {
+import ErrorRequestFilters from '@/components/admin/usage/ErrorRequestFilters.vue'
+import {
+  emptyErrorRequestFilters,
   type ErrorRequestFilterState
-} from '@/components/admin/usage/ErrorRequestFilters.vue'
+} from '@/components/admin/usage/errorRequestFilterState'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
 import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawer.vue'
@@ -264,18 +266,7 @@ const getLast24HoursRangeDates = (): { start: string; end: string } => {
   return { start: formatLD(start), end: formatLD(end) }
 }
 
-const emptyErrorFilters = (): ErrorRequestFilterState => ({
-  user_id: undefined,
-  api_key_id: undefined,
-  model: null,
-  account_id: undefined,
-  group_id: null,
-  platform: '',
-  bridge: 'all',
-  upstream_model: '',
-  q: '',
-  status_codes: []
-})
+const emptyErrorFilters = (): ErrorRequestFilterState => emptyErrorRequestFilters()
 
 const applyLockedIds = <T extends { user_id?: number; account_id?: number }>(base: T): T => {
   if (props.scope === 'user' && props.subjectId) {
@@ -448,6 +439,7 @@ const buildErrorQueryParams = (includePagination: boolean): Record<string, any> 
   if (f.upstream_model.trim()) params.upstream_model = f.upstream_model.trim()
   if (f.q.trim()) params.q = f.q.trim()
   if (f.status_codes.length > 0) params.status_codes = f.status_codes.join(',')
+  params.include_recovered = f.include_recovered !== false ? 'true' : 'false'
   return params
 }
 

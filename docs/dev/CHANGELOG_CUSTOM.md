@@ -1,3 +1,95 @@
+## 2026-08-18 - feat(smart-schedule): pool admission state switcher
+
+### What
+- User smart-schedule pool actions replace one-shot「立即恢复」with「切换状态」dropdown: 配对冷却 / 已恢复 / 可调度.
+- `POST /admin/accounts/:id/smart-schedule-resume` accepts `state=cooling|resumed|selectable` (omitted = resumed). Cooling overwrites the pair cooldown HASH; selectable starts a new quality window; resumed keeps the old grace write.
+- Hot-path quality breach still `HSETNX`s cooldown and does not extend an active window.
+
+### Why
+After resume the pair stuck on 已恢复. Operators could not start a new quality window or manually enter cooldown from the pool page.
+
+### Verification
+- Go unit tests for parse/set admission, cooldown overwrite vs NX, clear resume, invalid state.
+- Vitest for live-state mapping, switcher menu, and pool page transitions.
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
+## 2026-08-18 - feat(ops): show Recovered failover on default error lists
+
+### What
+- Usage「错误请求」(`GET /admin/ops/errors`) and Ops「请求错误」(`GET /admin/ops/request-errors`) accept `include_recovered=true`.
+- When the flag is on, Recovered / 上游已救回 rows (`status_code=200`, `error_phase=upstream`, message prefix `Recovered`) appear next to client `status>=400` failures, and the handler no longer strips `phase=upstream`.
+- Admin UI toggle defaults **ON**. Turning it off restores the old client-failure-only list.
+- Usage error-rate / SLA counts stay `status_code >= 400` only. Recovered is list observability, not a client outage.
+
+### Why
+Default `/errors` and `/request-errors` hid failover (200/429 Recovered). Operators comparing those lists to concurrent transfers only saw terminal 502s.
+
+### Verification
+- Go unit tests for the list WHERE clause, SLA filter strip, and handler `include_recovered` / `phase=upstream` behavior.
+- Frontend vitest for the default-on toggle, Usage / inspect query params, and Recovered badge.
+
+### Affected files
+`backend/internal/service/ops_models.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/repository/ops_repo_error_where_test.go`,
+`backend/internal/handler/admin/ops_handler.go`,
+`backend/internal/handler/admin/admin_helpers_test.go`,
+`frontend/src/api/admin/ops.ts`,
+`frontend/src/components/admin/usage/errorRequestFilterState.ts`,
+`frontend/src/components/admin/usage/ErrorRequestFilters.vue`,
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/components/admin/usage/ErrorRequestStatsCards.vue`,
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailsModal.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/ops.md`,
+this changelog.
+
+## 2026-08-18 - fix(quality): exclude routing model-not-found from account ErrorCount
+
+### What
+- Account 15-minute scheduling `ErrorCount` no longer counts client/routing "model does not exist / not supported" ops rows (`model_not_found`, unknown model, `supporting model:` routing misses).
+- User quality stats still count those rows as user-visible 4xx.
+- List batch (`POST /admin/accounts/quality-stats/batch`) uses the new SQL immediately. Smart-schedule / hard-close read live Redis and pick up on the next 5-minute maintenance tick. No snapshot backfill or rebuild script.
+- Recovered `COALESCE(upstream_status_code)` is unchanged (D14 still deferred). Billing and user SLA copy are unchanged.
+
+### Why
+Clients spamming a non-existent model were attributed to an account (or the last selected account after default-model fallback) and crashed the 15-minute success rate, which then poisoned smart-schedule gates and the account-list quality cell.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "TestUsageLogRepository_Get(Account|User)QualityStatsBatch" -count=1`
+- `go test -tags=unit ./internal/service -run "TestSQLAccountQualityRoutingModelMissPredicate|TestSQLClaudeGPTBridgePredicates" -count=1`
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_test.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/usage_log_repo_quality_stats_test.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-17 - deploy: v0.1.236
 
 ### What

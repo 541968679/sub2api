@@ -372,6 +372,18 @@ async function mountPage() {
   return w
 }
 
+async function pickAdmissionState(
+  w: Awaited<ReturnType<typeof mountPage>>,
+  state: 'cooling' | 'resumed' | 'selectable'
+) {
+  await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+  await flushPromises()
+  const item = document.querySelector(`[data-testid="smart-schedule-admission-${state}"]`) as HTMLButtonElement | null
+  expect(item).not.toBeNull()
+  item!.click()
+  await flushPromises()
+}
+
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
@@ -418,7 +430,15 @@ beforeEach(() => {
   apiMocks.updateAccount.mockResolvedValue({})
   apiMocks.moveAccountToTop.mockReset()
   apiMocks.resumeSmartSchedule.mockReset()
-  apiMocks.resumeSmartSchedule.mockResolvedValue({ account_id: 11, user_id: 99 })
+  apiMocks.resumeSmartSchedule.mockImplementation(
+    (accountId: number, userId: number, state: 'cooling' | 'resumed' | 'selectable' = 'resumed') =>
+      Promise.resolve({
+        account_id: accountId,
+        user_id: userId,
+        state,
+        cooldown_until: state === 'cooling' ? new Date(Date.now() + 15 * 60_000).toISOString() : null
+      })
+  )
   tableMocks.setSort.mockReset()
 })
 
@@ -1283,7 +1303,7 @@ describe('UserSmartScheduleView', () => {
     expect(cell.attributes('data-admission')).toBe('will_cool')
     expect(cell.text()).toContain('admin.users.smartSchedule.admissionWillCool')
     expect(cell.text()).not.toContain('admin.users.smartSchedule.admissionQualityBlocked')
-    expect(w.get('[data-testid="smart-schedule-resume-will-cool"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-admission-switch"]').exists()).toBe(true)
   })
 
   it('after resume, shows resumed instead of will-cool', async () => {
@@ -1323,13 +1343,20 @@ describe('UserSmartScheduleView', () => {
       }
     })
     const w = await mountPage()
-    await w.get('[data-testid="smart-schedule-resume-will-cool"]').trigger('click')
-    await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99)
+    await pickAdmissionState(w, 'resumed')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'resumed')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('resumed')
     expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
       'admin.users.smartSchedule.admissionResumed'
     )
+
+    await pickAdmissionState(w, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
+
+    await pickAdmissionState(w, 'cooling')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('cooling')
   })
 
   it('labels a tighter unsaved draft as preview when the saved gate still passes', async () => {
@@ -1377,7 +1404,7 @@ describe('UserSmartScheduleView', () => {
     expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
       'admin.users.smartSchedule.admissionUnsavedPreview'
     )
-    expect(w.get('[data-testid="smart-schedule-resume-preview"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-testid="smart-schedule-admission-switch"]').attributes('disabled')).toBeDefined()
   })
 
   it('does not fetch candidates on first paint', async () => {

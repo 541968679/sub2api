@@ -59,22 +59,13 @@ vi.mock('@/components/common/Select.vue', () => ({
   }
 }))
 
-import ErrorRequestFilters, {
+import ErrorRequestFilters from '../ErrorRequestFilters.vue'
+import {
+  emptyErrorRequestFilters,
   type ErrorRequestFilterState
-} from '../ErrorRequestFilters.vue'
+} from '../errorRequestFilterState'
 
-const emptyFilters = (): ErrorRequestFilterState => ({
-  user_id: undefined,
-  api_key_id: undefined,
-  model: null,
-  account_id: undefined,
-  group_id: null,
-  platform: '',
-  bridge: 'all',
-  upstream_model: '',
-  q: '',
-  status_codes: []
-})
+const emptyFilters = (): ErrorRequestFilterState => emptyErrorRequestFilters()
 
 describe('ErrorRequestFilters', () => {
   beforeEach(() => {
@@ -229,6 +220,29 @@ describe('ErrorRequestFilters', () => {
       .findAll('input')
       .find((i) => i.attributes('placeholder') === 'admin.usage.searchAccountPlaceholder')
     expect(accountInput).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('defaults include_recovered on and can turn it off', async () => {
+    const wrapper = mount(ErrorRequestFilters, {
+      props: {
+        modelValue: emptyFilters(),
+        startDate: '2026-08-01',
+        endDate: '2026-08-07'
+      }
+    })
+    await flushPromises()
+
+    const checkbox = wrapper.get('[data-testid="include-recovered"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+
+    await checkbox.setValue(false)
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:modelValue')
+    expect(emitted).toBeTruthy()
+    const last = emitted![emitted!.length - 1][0] as ErrorRequestFilterState
+    expect(last.include_recovered).toBe(false)
     wrapper.unmount()
   })
 })

@@ -25,7 +25,8 @@ import {
   pickDefaultSmartSchedulePlatform,
   resolvePairCap,
   userQualityResumeActive,
-  userQualityResumeChipActive
+  userQualityResumeChipActive,
+  type PairAdmissionLiveState
 } from '@/composables/smartSchedulePoolAdmission'
 
 export { isCurrentlySchedulingAccount }
@@ -44,6 +45,7 @@ export type SmartSchedulePoolMemberDraft = {
   sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
+  paused?: boolean
 }
 
 export type SmartSchedulePlatformDraft = {
@@ -193,7 +195,8 @@ export function useUserSmartScheduleEditor(
       max_concurrency: item.max_concurrency ?? null,
       sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
-      cooldown_until: item.cooldown_until ?? null
+      cooldown_until: item.cooldown_until ?? null,
+      paused: Boolean(item.paused)
     }))
     return draft
   }
@@ -234,6 +237,7 @@ export function useUserSmartScheduleEditor(
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
       member.sort_order = live.sort_order ?? null
+      member.paused = Boolean(live.paused)
     }
   }
 
@@ -258,6 +262,10 @@ export function useUserSmartScheduleEditor(
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
   }
 
+  function memberPaused(accountId: number): boolean {
+    return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.paused)
+  }
+
   function memberSortOrder(accountId: number): number | null {
     const value = currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.sort_order
     return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -272,25 +280,78 @@ export function useUserSmartScheduleEditor(
     }
   }
 
-  function applyLocalResumeGrace(accountId: number) {
-    const nowSec = Math.floor(Date.now() / 1000)
-    const chipUntil = nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
-    const watchUntil = nowSec + 2 * ACCOUNT_QUALITY_WINDOW_SECONDS
-    localResumeGraceByAccount.value = {
-      ...localResumeGraceByAccount.value,
-      [accountId]: { chipUntil, watchUntil }
-    }
-    const uid = userId.value
-    const stats = qualityStatsById.value[String(accountId)]
-    if (!uid || !stats) return
-    qualityStatsById.value = {
-      ...qualityStatsById.value,
-      [String(accountId)]: {
-        ...stats,
-        resume_users: { ...stats.resume_users, [String(uid)]: chipUntil },
-        resume_watching_users: { ...stats.resume_watching_users, [String(uid)]: watchUntil }
+  function patchLocalResume(accountId: number, next: LocalPairResumeGrace | null) {
+    if (!next) {
+      const copy = { ...localResumeGraceByAccount.value }
+      delete copy[accountId]
+      localResumeGraceByAccount.value = copy
+    } else {
+      localResumeGraceByAccount.value = {
+        ...localResumeGraceByAccount.value,
+        [accountId]: next
       }
     }
+    const uid = userId.value
+    if (!uid) return
+    const key = String(accountId)
+    const stats = qualityStatsById.value[key]
+    const resumeUsers = { ...(stats?.resume_users ?? {}) }
+    const resumeWatching = { ...(stats?.resume_watching_users ?? {}) }
+    if (next && next.chipUntil > 0) resumeUsers[String(uid)] = next.chipUntil
+    else delete resumeUsers[String(uid)]
+    if (next && next.watchUntil > 0) resumeWatching[String(uid)] = next.watchUntil
+    else delete resumeWatching[String(uid)]
+    if (!stats && !next) return
+    qualityStatsById.value = {
+      ...qualityStatsById.value,
+      [key]: {
+        window_seconds: stats?.window_seconds ?? ACCOUNT_QUALITY_WINDOW_SECONDS,
+        success_count: stats?.success_count ?? 0,
+        error_count: stats?.error_count ?? 0,
+        success_rate: stats?.success_rate ?? null,
+        avg_ttft_ms: stats?.avg_ttft_ms ?? null,
+        ttft_samples: stats?.ttft_samples ?? 0,
+        ...stats,
+        resume_users: resumeUsers,
+        resume_watching_users: resumeWatching
+      }
+    }
+  }
+
+  function applyLocalAdmission(
+    accountId: number,
+    state: PairAdmissionLiveState,
+    cooldownUntil?: string | null
+  ) {
+    const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+    const nowSec = Math.floor(Date.now() / 1000)
+    if (member) member.paused = state === 'paused'
+    if (state === 'paused') {
+      if (member) member.cooldown_until = null
+      patchLocalResume(accountId, null)
+      return
+    }
+    if (state === 'cooling') {
+      if (member) {
+        member.cooldown_until =
+          cooldownUntil
+          ?? new Date(Date.now() + (currentDraft.value?.cooldownMinutes || 15) * 60_000).toISOString()
+      }
+      patchLocalResume(accountId, null)
+      return
+    }
+    if (member) member.cooldown_until = null
+    if (state === 'selectable') {
+      patchLocalResume(accountId, {
+        chipUntil: 0,
+        watchUntil: nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
+      })
+      return
+    }
+    patchLocalResume(accountId, {
+      chipUntil: nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS,
+      watchUntil: nowSec + 2 * ACCOUNT_QUALITY_WINDOW_SECONDS
+    })
   }
 
   function memberResumeChipActive(accountId: number, now = Date.now()): boolean {
@@ -746,16 +807,25 @@ export function useUserSmartScheduleEditor(
     }
   }
 
-  async function resumePair(accountId: number) {
+  async function setPairAdmission(accountId: number, state: PairAdmissionLiveState) {
     if (!userId.value) return
     try {
-      await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value)
-      const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
-      if (member) member.cooldown_until = null
-      applyLocalResumeGrace(accountId)
-      appStore.showSuccess(t('admin.users.smartSchedule.resumeSuccess'))
+      const result = await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value, state)
+      const nextState = result.state === 'cooling' || result.state === 'selectable' || result.state === 'resumed' || result.state === 'paused'
+        ? result.state
+        : state
+      applyLocalAdmission(accountId, nextState, result.cooldown_until)
+      const toast =
+        nextState === 'paused'
+          ? 'admin.users.smartSchedule.switchSuccessPaused'
+          : nextState === 'cooling'
+            ? 'admin.users.smartSchedule.switchSuccessCooling'
+            : nextState === 'selectable'
+              ? 'admin.users.smartSchedule.switchSuccessSelectable'
+              : 'admin.users.smartSchedule.resumeSuccess'
+      appStore.showSuccess(t(toast))
     } catch (error: unknown) {
-      appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.resumeFailed')))
+      appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.switchFailed')))
     }
   }
 
@@ -826,6 +896,7 @@ export function useUserSmartScheduleEditor(
     memberCapOrNull,
     memberCurrent,
     memberCooldownUntil,
+    memberPaused,
     memberSortOrder,
     persistSortOrders,
     memberResumeActive,
@@ -848,7 +919,7 @@ export function useUserSmartScheduleEditor(
     onToggleEnabled,
     onSave,
     onCopy,
-    resumePair,
+    setPairAdmission,
     refreshAll,
     ensureCandidates,
     loadPoolDetails

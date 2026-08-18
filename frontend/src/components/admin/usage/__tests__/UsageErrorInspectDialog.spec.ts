@@ -131,7 +131,10 @@ describe('UsageErrorInspectDialog', () => {
     await tabs[1].trigger('click')
     await flushPromises()
 
-    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({ account_id: 7 }))
+    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({
+      account_id: 7,
+      include_recovered: 'true'
+    }))
     wrapper.unmount()
   })
 

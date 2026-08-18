@@ -387,6 +387,7 @@ export interface SmartScheduleAccountMember {
   priority?: number
   current_concurrency?: number
   cooldown_until?: string | null
+  paused?: boolean
 }
 
 export interface SmartScheduleSortAssignment {

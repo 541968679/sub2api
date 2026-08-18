@@ -253,6 +253,14 @@ func (s *liveQualityCacheCapture) MarkUserResume(_ context.Context, accountID, u
 	return nil
 }
 
+func (s *liveQualityCacheCapture) ClearUserResume(_ context.Context, accountID, userID int64) error {
+	if s.last == nil {
+		return nil
+	}
+	ClearUserQualityResume(s.last[accountID], userID)
+	return nil
+}
+
 func (s *liveQualityCacheCapture) MarkUserQualityWindow(_ context.Context, accountID, userID int64) error {
 	if s.last == nil {
 		s.last = map[int64]*AccountQualityStats{}

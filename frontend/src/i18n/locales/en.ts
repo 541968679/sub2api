@@ -1215,13 +1215,17 @@ const enBase = {
         qPlaceholder: 'Message / request_id',
         statusCodes: 'Status codes (multi-select)',
         statusCodesHint:
-          'When selected, filters the list and numerator; the denominator stays all requests in the business scope (including successes).'
+          'When selected, filters the list and numerator; the denominator stays all requests in the business scope (including successes).',
+        includeRecovered: 'Include Recovered (upstream rescued)',
+        includeRecoveredHint:
+          'This list used to show only client-facing failures (status ≥ 400), which hid failover. Recovered = upstream failed but the request was rescued; the client still got 200, so it is not counted in error rate / SLA. On by default.'
       },
       stats: {
         totalRequests: 'Total requests',
         terminalErrors: 'Terminal errors (deduped)',
         bizTerminal: 'Business-scope terminal errors {count}',
         errorRate: 'Error rate',
+        errorRateHint: 'Client-facing failures only (status ≥ 400). Recovered rescue rows are excluded.',
         rawRows: 'Raw error rows',
         rawRowsHint: 'Not deduped; includes failover attempts',
         topStatusCodes: 'Top status codes',
@@ -2592,9 +2596,15 @@ const enBase = {
         resume: 'Resume now',
         resumeCooling: 'Cooling — resume now',
         resumeWillCool: 'Write resume grace so the next request does not start cooldown',
-        resumeUnsavedPreview: 'Unsaved preview — resume will not change the live pair',
+        resumeUnsavedPreview: 'Unsaved preview — switching state will not change the live pair',
         resumeSuccess: 'Pair resumed: cooldown cleared and a grace window written so the next request will not start cooldown',
         resumeFailed: 'Failed to resume this pair',
+        switchState: 'Switch state',
+        switchStateHint: 'Manually switch this pair among paused, cooldown, resumed, and selectable',
+        switchSuccessPaused: 'Paused scheduling this account for this user; the account stays in the pool',
+        switchSuccessCooling: 'Pair cooldown written',
+        switchSuccessSelectable: 'Started a new quality window',
+        switchFailed: 'Failed to switch pair admission',
         save: 'Save',
         saving: 'Saving...',
         cancel: 'Cancel',
@@ -2604,8 +2614,10 @@ const enBase = {
         dirtyBanner: 'Unsaved pair-cap or threshold edits. Auto-refresh will not overwrite this draft; click Save to apply.',
         dirtySaveHint: 'Pair-cap and threshold edits still need Save',
         admission: 'Pool admission',
-        admissionHint: 'Whether this user can be picked from this pool — not the account status. Only pair cooldown is a live lock. A saved-gate miss without a cooldown is “will cool on next request”; an unsaved or disabled gate is a preview, not a lock.',
+        admissionHint: 'Whether this user can be picked from this pool — not the account status. Pause and pair cooldown are live locks. A saved-gate miss without a cooldown is “will cool on next request”; an unsaved or disabled gate is a preview, not a lock.',
         admissionSelectable: 'Selectable',
+        admissionPaused: 'Paused',
+        admissionPausedHint: 'Scheduling this account for this user is paused long-term. The account stays in the pool until you switch to another admission state.',
         admissionCooling: 'Pair cooldown',
         admissionCoolingUntil: 'Until {time}',
         admissionCoolingRemaining: '{minutes} min left',
@@ -4513,13 +4525,13 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Live 15-minute account quality: p50 first-token latency, then scheduling success rate (bridge failures excluded). The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling. Click to open the stability curve, bridge error rate, and hard-close settings.',
+          'Live 15-minute account quality: p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded). The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling. Click to open the stability curve, bridge error rate, and hard-close settings.',
         successShort: 'ok',
         bridgeShort: 'br',
         ttftHint:
           'True first-token latency over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
-          'Scheduling success rate over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens and Claude→GPT bridge failures). Shows — when empty.',
+          'Scheduling success rate over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens, Claude→GPT bridge failures, and client/routing model-not-found or unsupported-model misses). Real upstream 429/502/503 still count. Shows — when empty.',
         tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}',
         bridgeTooltip: 'Last {windowMinutes} min · bridge success {success} · bridge fail {error} (not used for scheduling)',
         ttftTooltip:
@@ -6487,6 +6499,7 @@ const enBase = {
         phase: 'Phase',
         id: 'ID:',
         typeUpstream: 'Upstream',
+        typeRecovered: 'Recovered',
         typeRequest: 'Request',
         typeAuth: 'Auth',
         typeRouting: 'Routing',
@@ -6501,6 +6514,9 @@ const enBase = {
       errorDetails: {
         upstreamErrors: 'Upstream Errors',
         requestErrors: 'Request Errors',
+        includeRecovered: 'Include Recovered (upstream rescued)',
+        includeRecoveredHint:
+          'This list used to show only client-facing failures, which hid failover. Recovered = upstream failed but the request was rescued; the client still got 200, so it is not counted in SLA. On by default.',
         unresolved: 'Unresolved',
         resolved: 'Resolved',
         viewErrors: 'Errors',

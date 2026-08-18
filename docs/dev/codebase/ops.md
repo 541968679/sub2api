@@ -14,6 +14,15 @@ In-product error APIs under `/api/v1/admin/ops`:
 - `GET /api/v1/admin/ops/request-errors`
 - `GET /api/v1/admin/ops/upstream-errors`
 - `GET /api/v1/admin/ops/errors`
+- `GET /api/v1/admin/ops/errors/stats`
+
+List contract (`/errors` and `/request-errors`):
+
+- API default is client-visible failures only: `status_code >= 400` (plus `cyber_policy`). The handler **strips** `phase=upstream` unless `include_recovered=true`.
+- `include_recovered=true` also returns Recovered / 上游已救回 rows (`status_code=200`, `error_phase=upstream`, `error_message` like `Recovered upstream error 429`). Admin Usage「错误请求」and Ops「请求错误」default this toggle **ON**.
+- When the flag is on, `phase=upstream` is **not** stripped, so an explicit upstream-phase filter can still see Recovered.
+- `/upstream-errors` already hardcodes `phase=upstream` and does not apply `status>=400`.
+- SLA / `error_sla` / usage error-rate numerator stay `status_code >= 400` only. Recovered is list observability, not a client outage.
 
 Do not repeat the SSH playbook here.
 
@@ -92,6 +101,9 @@ group capacity refresh
   schedulable Spark shadow as its own capacity row.
 - Slot cleanup scans only existing `concurrency:account:*` sets and never
   touches user slots or wait counters.
+- Recovered failover rows keep client `status_code=200`. Do not rewrite them
+  to upstream 429/503 or `/errors` SLA and `error_sla` will inflate. Use
+  `include_recovered` (or `/upstream-errors`) to see them on the list.
 
 ## Known Pitfalls
 

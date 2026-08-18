@@ -2377,15 +2377,16 @@ func allowlistedQualityStatsIDColumn(column string) (string, error) {
 
 // GetAccountQualityStatsBatch aggregates recent success counts, error counts, and average TTFT
 // for account list quality columns. Success comes from usage_logs; scheduling errors from
-// ops_error_logs (status_code >= 400, excluding count_tokens and Claude-GPT bridge rows).
-// Bridge successes/errors are returned separately and must not feed gates. Missing accounts
-// get zero-sample stats.
+// ops_error_logs (status_code >= 400, excluding count_tokens, Claude-GPT bridge rows, and
+// client/routing model-not-found / unsupported-model misses). Bridge successes/errors are
+// returned separately and must not feed gates. Missing accounts get zero-sample stats.
 func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
 	return r.getQualityStatsBatch(ctx, accountIDs, startTime, qualityStatsIDColumnAccount)
 }
 
 // GetUserQualityStatsBatch is the user-dimension counterpart of GetAccountQualityStatsBatch.
 // Error rows with NULL user_id are excluded (cannot attribute them to a user).
+// User ErrorCount still includes client/routing model-not-found 4xx (user-visible failures).
 func (r *usageLogRepository) GetUserQualityStatsBatch(ctx context.Context, userIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
 	return r.getQualityStatsBatch(ctx, userIDs, startTime, qualityStatsIDColumnUser)
 }
@@ -2468,6 +2469,10 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 	if idColumn == qualityStatsIDColumnUser {
 		errorNullGuard = fmt.Sprintf("\n\t\t  AND %s IS NOT NULL", idColumn)
 	}
+	routingModelMissGuard := ""
+	if idColumn == qualityStatsIDColumnAccount {
+		routingModelMissGuard = "\n\t\t  AND " + service.SQLExcludeAccountQualityRoutingModelMiss()
+	}
 	bridgeErrorPred := service.SQLClaudeGPTBridgeErrorPredicate("platform", "upstream_model")
 	errorQuery := fmt.Sprintf(`
 		SELECT
@@ -2478,9 +2483,9 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 		WHERE %s = ANY($1)
 		  AND created_at >= $2
 		  AND COALESCE(status_code, 0) >= 400
-		  AND is_count_tokens = FALSE%s
+		  AND is_count_tokens = FALSE%s%s
 		GROUP BY %s
-	`, idColumn, service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model"), bridgeErrorPred, idColumn, errorNullGuard, idColumn)
+	`, idColumn, service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model"), bridgeErrorPred, idColumn, errorNullGuard, routingModelMissGuard, idColumn)
 	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err

@@ -32,6 +32,56 @@ func TestParseTimeRange(t *testing.T) {
 	require.False(t, end.IsZero())
 }
 
+func TestApplyOpsIncludeRecoveredQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+
+	t.Run("default strips phase=upstream", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/?phase=upstream", nil)
+		filter := &service.OpsErrorLogFilter{Phase: "upstream"}
+		applyOpsIncludeRecoveredQuery(c, filter)
+		require.False(t, filter.IncludeRecovered)
+		require.Equal(t, "", filter.Phase)
+	})
+
+	t.Run("include_recovered keeps phase=upstream", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/?phase=upstream&include_recovered=true", nil)
+		filter := &service.OpsErrorLogFilter{Phase: "upstream"}
+		applyOpsIncludeRecoveredQuery(c, filter)
+		require.True(t, filter.IncludeRecovered)
+		require.Equal(t, "upstream", filter.Phase)
+	})
+
+	t.Run("include_recovered=false still strips", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/?phase=upstream&include_recovered=0", nil)
+		filter := &service.OpsErrorLogFilter{Phase: "upstream"}
+		applyOpsIncludeRecoveredQuery(c, filter)
+		require.False(t, filter.IncludeRecovered)
+		require.Equal(t, "", filter.Phase)
+	})
+}
+
+func TestApplyOpsErrorListQuery_IncludeRecovered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?phase=upstream&include_recovered=true", nil)
+	filter := &service.OpsErrorLogFilter{}
+	require.NoError(t, applyOpsErrorListQuery(c, filter))
+	require.True(t, filter.IncludeRecovered)
+	require.Equal(t, "upstream", filter.Phase)
+
+	c2, _ := gin.CreateTestContext(w)
+	c2.Request = httptest.NewRequest(http.MethodGet, "/?phase=upstream", nil)
+	filter2 := &service.OpsErrorLogFilter{}
+	require.NoError(t, applyOpsErrorListQuery(c2, filter2))
+	require.False(t, filter2.IncludeRecovered)
+	require.Equal(t, "", filter2.Phase)
+}
+
 func TestParseOpsViewParam(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

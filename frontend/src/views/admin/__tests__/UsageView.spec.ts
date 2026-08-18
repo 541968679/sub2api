@@ -312,8 +312,15 @@ describe('admin UsageView ranking drilldown', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).activeTab).toBe('errors')
-    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({ view: 'errors', page: 1 }))
-    expect(getErrorLogStats).toHaveBeenCalled()
+    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({
+      view: 'errors',
+      page: 1,
+      include_recovered: 'true'
+    }))
+    expect(getErrorLogStats).toHaveBeenCalledWith(expect.objectContaining({
+      view: 'errors',
+      include_recovered: 'true'
+    }))
     expect((wrapper.vm as any).errorLogs).toEqual([{ id: 42 }])
     expect((wrapper.vm as any).errorTotal).toBe(1)
   })

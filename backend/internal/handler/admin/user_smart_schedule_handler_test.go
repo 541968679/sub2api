@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -135,6 +136,39 @@ func TestResumeSmartSchedule_RequiresUserID(t *testing.T) {
 	}
 }
 
+func TestResumeSmartSchedule_Paused(t *testing.T) {
+	repo := &serviceSmartRepoStub{bundle: &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:    true,
+			AccountIDs: map[int64]struct{}{7: {}},
+		},
+	}}}
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(repo, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"user_id":16,"state":"paused"}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.ResumeSmartSchedule(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("paused should be 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"state":"paused"`) {
+		t.Fatalf("expected paused state, got %s", w.Body.String())
+	}
+	if !repo.bundle.Policies[service.PlatformAnthropic].IsPaused(7) {
+		t.Fatal("expected member 7 to be paused")
+	}
+}
+
+func TestResumeSmartSchedule_InvalidState(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"user_id":16,"state":"nope"}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.ResumeSmartSchedule(c)
+	if w.Code < 400 || w.Code >= 500 {
+		t.Fatalf("invalid state should be 4xx, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "SMART_SCHEDULE_ADMISSION_INVALID") {
+		t.Fatalf("expected admission invalid reason, got %s", w.Body.String())
+	}
+}
+
 type serviceSmartRepoStub struct {
 	bundle *service.UserSmartScheduleBundle
 }
@@ -161,4 +195,25 @@ func (s *serviceSmartRepoStub) ReplacePlatform(_ context.Context, _ int64, _ str
 
 func (s *serviceSmartRepoStub) UpdateSortOrders(_ context.Context, _ int64, _ string, _ []service.SmartScheduleSortAssignment) error {
 	return nil
+}
+
+func (s *serviceSmartRepoStub) SetMemberPaused(_ context.Context, _ int64, accountID int64, paused bool) error {
+	if s == nil || s.bundle == nil || s.bundle.Policies == nil {
+		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	for _, policy := range s.bundle.Policies {
+		if policy == nil || !policy.HasAccount(accountID) {
+			continue
+		}
+		if policy.Paused == nil {
+			policy.Paused = map[int64]struct{}{}
+		}
+		if paused {
+			policy.Paused[accountID] = struct{}{}
+		} else {
+			delete(policy.Paused, accountID)
+		}
+		return nil
+	}
+	return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 }

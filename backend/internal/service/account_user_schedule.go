@@ -209,6 +209,7 @@ type AccountQualityLiveCache interface {
 	Replace(ctx context.Context, stats map[int64]*AccountQualityStats) error
 	MarkUserResume(ctx context.Context, accountID, userID int64) error
 	MarkUserQualityWindow(ctx context.Context, accountID, userID int64) error
+	ClearUserResume(ctx context.Context, accountID, userID int64) error
 	MarkAccountResume(ctx context.Context, accountID int64) error
 }
 
@@ -236,6 +237,9 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 		return account.AdmitsScheduleUser(userID, loadLiveQualityForAdmission(ctx, cache, account, false))
 	}
 	if !policy.HasAccount(account.ID) {
+		return false
+	}
+	if policy.IsPaused(account.ID) {
 		return false
 	}
 	now := time.Now().UTC()
