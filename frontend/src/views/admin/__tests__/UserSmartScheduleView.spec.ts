@@ -374,7 +374,7 @@ async function mountPage() {
 
 async function pickAdmissionState(
   w: Awaited<ReturnType<typeof mountPage>>,
-  state: 'cooling' | 'resumed' | 'selectable'
+  state: 'paused' | 'cooling' | 'resumed' | 'selectable'
 ) {
   await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
   await flushPromises()
@@ -431,7 +431,7 @@ beforeEach(() => {
   apiMocks.moveAccountToTop.mockReset()
   apiMocks.resumeSmartSchedule.mockReset()
   apiMocks.resumeSmartSchedule.mockImplementation(
-    (accountId: number, userId: number, state: 'cooling' | 'resumed' | 'selectable' = 'resumed') =>
+    (accountId: number, userId: number, state: 'paused' | 'cooling' | 'resumed' | 'selectable' = 'resumed') =>
       Promise.resolve({
         account_id: accountId,
         user_id: userId,
@@ -1357,6 +1357,10 @@ describe('UserSmartScheduleView', () => {
     await pickAdmissionState(w, 'cooling')
     expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('cooling')
+
+    await pickAdmissionState(w, 'paused')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
   })
 
   it('labels a tighter unsaved draft as preview when the saved gate still passes', async () => {

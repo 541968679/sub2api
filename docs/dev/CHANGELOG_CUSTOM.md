@@ -1,3 +1,34 @@
+## 2026-08-18 - feat(smart-schedule): durable pair pause
+
+### What
+- Fourth writable pool admission: **已暂停**. The account stays in the user pool; hot-path scheduling skips this user×account until switched away.
+- Stored on `user_smart_schedule_accounts.paused` (migration 207). PUT pool save restores the flag for members that remain. Pause clears pair cooldown and resume grace so the chip is not「配对冷却」.
+- Dropdown / filter / auto-sort (same rank as cooling) include the new state.
+
+### Why
+Operators needed a long-term skip for one user×account without removing the account from the pool or using a fake cooldown timer.
+
+### Verification
+- Go: parse `paused`, `SetPairAdmission` persist/clear, `admitsScheduleUser` skip without `StartCooldown`, cache JSON round-trip, handler 200.
+- Vitest: resolve/filter/live-state map, auto-sort rank, switcher menu item, pool page `paused` chip.
+
+### Affected files
+`backend/migrations/207_user_smart_schedule_account_paused.sql`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
 ## 2026-08-18 - feat(smart-schedule): pool admission state switcher
 
 ### What

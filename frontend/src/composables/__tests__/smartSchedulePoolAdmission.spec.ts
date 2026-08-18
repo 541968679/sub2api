@@ -100,6 +100,27 @@ describe('resolvePoolAdmission', () => {
     ).toBe('stopped')
   })
 
+  it('marks a durable pair pause after account-level stopped', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: 1,
+        pairCurrent: 1,
+        paused: true,
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+        qualityHint: 'resumed'
+      }).state
+    ).toBe('paused')
+    expect(
+      resolvePoolAdmission({
+        account: { status: 'active', schedulable: false },
+        pairCap: null,
+        pairCurrent: 0,
+        paused: true
+      }).state
+    ).toBe('stopped')
+  })
+
   it('marks pair cooldown as the only quality lock', () => {
     expect(
       resolvePoolAdmission({
@@ -254,7 +275,8 @@ describe('userQualityResumeActive', () => {
 })
 
 describe('pairAdmissionLiveState', () => {
-  it('maps display admission to the three writable live states', () => {
+  it('maps display admission to the four writable live states', () => {
+    expect(pairAdmissionLiveState('paused')).toBe('paused')
     expect(pairAdmissionLiveState('cooling')).toBe('cooling')
     expect(pairAdmissionLiveState('resumed')).toBe('resumed')
     expect(pairAdmissionLiveState('selectable')).toBe('selectable')
@@ -270,6 +292,7 @@ describe('POOL_ADMISSION_FILTER_STATES', () => {
     expect(POOL_ADMISSION_FILTER_STATES).toContain('will_cool')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('unsaved_preview')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('resumed')
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('paused')
     expect(POOL_ADMISSION_FILTER_STATES as readonly string[]).not.toContain('quality_blocked')
   })
 })

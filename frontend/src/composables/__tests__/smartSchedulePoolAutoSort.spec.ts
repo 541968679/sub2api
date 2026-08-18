@@ -70,6 +70,19 @@ describe('comparePoolAutoSort', () => {
     ])
   })
 
+  it('ranks paused with cooling, above stopped', () => {
+    const rows = [
+      item({ id: 1, admission: 'paused' }),
+      item({ id: 2, admission: 'stopped' }),
+      item({ id: 3, admission: 'pair_full' })
+    ]
+    expect(sortSmartSchedulePoolMembers(rows).map((row) => row.admission)).toEqual([
+      'pair_full',
+      'paused',
+      'stopped'
+    ])
+  })
+
   it('reads account priority only as a later tie-break', () => {
     const preferred = item({ id: 2, priority: 1, concurrency: 4 })
     const other = item({ id: 9, priority: 80, concurrency: 4 })

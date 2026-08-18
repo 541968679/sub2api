@@ -14,6 +14,7 @@ describe('SmartScheduleAdmissionSwitch', () => {
     })
     await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
     await flushPromises()
+    expect(document.querySelector('[data-testid="smart-schedule-admission-paused"]')).toBeTruthy()
     const resumed = document.querySelector('[data-testid="smart-schedule-admission-resumed"]') as HTMLButtonElement
     expect(resumed).toBeTruthy()
     resumed.click()
