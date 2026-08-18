@@ -227,9 +227,7 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 		return nil, err
 	}
 	now := time.Now().UTC()
-	if err := s.setMemberPaused(ctx, userID, accountID, parsed == PairAdmissionPaused); err != nil {
-		return nil, err
-	}
+	result := &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}
 	switch parsed {
 	case PairAdmissionPaused:
 		if s != nil && s.cache != nil {
@@ -242,15 +240,17 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 				return nil, err
 			}
 		}
-		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}, nil
 	case PairAdmissionCooling:
-		until := s.forcePairCooldown(ctx, accountID, userID, now)
+		until, err := s.forcePairCooldown(ctx, accountID, userID, now)
+		if err != nil {
+			return nil, err
+		}
+		result.CooldownUntil = &until
 		if s != nil && s.qualityLiveCache != nil {
 			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
 				return nil, err
 			}
 		}
-		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed, CooldownUntil: &until}, nil
 	case PairAdmissionSelectable:
 		if s != nil && s.cache != nil {
 			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
@@ -262,8 +262,8 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 				return nil, err
 			}
 		}
-		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}, nil
 	default:
+		result.State = PairAdmissionResumed
 		if s != nil && s.cache != nil {
 			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
 				return nil, err
@@ -274,8 +274,11 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 				return nil, err
 			}
 		}
-		return &PairAdmissionResult{AccountID: accountID, UserID: userID, State: PairAdmissionResumed}, nil
 	}
+	if err := s.setMemberPaused(ctx, userID, accountID, parsed == PairAdmissionPaused); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *UserSmartScheduleService) setMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
@@ -286,12 +289,12 @@ func (s *UserSmartScheduleService) setMemberPaused(ctx context.Context, userID, 
 		return err
 	}
 	if s.cache != nil {
-		return s.cache.Invalidate(ctx, userID)
+		return s.cache.ApplyMemberPaused(ctx, userID, accountID, paused)
 	}
 	return nil
 }
 
-func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accountID, userID int64, now time.Time) time.Time {
+func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accountID, userID int64, now time.Time) (time.Time, error) {
 	minutes := DefaultSmartScheduleCooldownMinutes
 	if s != nil && s.accountRepo != nil {
 		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
@@ -306,7 +309,7 @@ func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accoun
 	if s != nil && s.cache != nil {
 		return s.cache.SetCooldown(ctx, accountID, userID, minutes, now)
 	}
-	return now.Add(time.Duration(minutes) * time.Minute)
+	return now.Add(time.Duration(minutes) * time.Minute), nil
 }
 
 func (s *UserSmartScheduleService) validatePoolMembers(ctx context.Context, platform string, members []SmartScheduleAccountMember) error {

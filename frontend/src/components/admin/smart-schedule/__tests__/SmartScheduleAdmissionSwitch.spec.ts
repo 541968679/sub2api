@@ -23,6 +23,18 @@ describe('SmartScheduleAdmissionSwitch', () => {
     w.unmount()
   })
 
+  it('keeps the paused checkmark when the chip is account-level stopped', async () => {
+    const w = mount(SmartScheduleAdmissionSwitch, {
+      props: { admission: 'stopped', paused: true },
+      attachTo: document.body
+    })
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    const paused = document.querySelector('[data-testid="smart-schedule-admission-paused"]') as HTMLButtonElement
+    expect(paused?.textContent).toContain('✓')
+    w.unmount()
+  })
+
   it('disables the trigger for unsaved preview', () => {
     const w = mount(SmartScheduleAdmissionSwitch, {
       props: { admission: 'unsaved_preview', disabled: true }

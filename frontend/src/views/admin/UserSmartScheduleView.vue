@@ -710,6 +710,7 @@
                   </button>
                   <SmartScheduleAdmissionSwitch
                     :admission="row.admission"
+                    :paused="row.paused"
                     :disabled="row.admission === 'unsaved_preview'"
                     @select="setPairAdmission(row.id, $event)"
                   />
@@ -1137,6 +1138,7 @@ const poolTableRows = computed(() =>
       cooldown_until: memberCooldownUntil(account.id),
       sort_order: memberSortOrder(account.id),
       priority: liveAccountPriority(account),
+      paused: memberPaused(account.id),
       admission: admission.state
     }
   })

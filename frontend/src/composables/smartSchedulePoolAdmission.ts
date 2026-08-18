@@ -32,8 +32,11 @@ export const PAIR_ADMISSION_LIVE_STATES = [
   'selectable'
 ] as const satisfies readonly PairAdmissionLiveState[]
 
-export function pairAdmissionLiveState(admission: PoolAdmissionState): PairAdmissionLiveState {
-  if (admission === 'paused') return 'paused'
+export function pairAdmissionLiveState(
+  admission: PoolAdmissionState,
+  paused = false
+): PairAdmissionLiveState {
+  if (paused || admission === 'paused') return 'paused'
   if (admission === 'cooling') return 'cooling'
   if (admission === 'resumed') return 'resumed'
   return 'selectable'

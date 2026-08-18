@@ -284,6 +284,8 @@ describe('pairAdmissionLiveState', () => {
     expect(pairAdmissionLiveState('unsaved_preview')).toBe('selectable')
     expect(pairAdmissionLiveState('pair_full')).toBe('selectable')
     expect(pairAdmissionLiveState('stopped')).toBe('selectable')
+    expect(pairAdmissionLiveState('stopped', true)).toBe('paused')
+    expect(pairAdmissionLiveState('selectable', true)).toBe('paused')
   })
 })
 

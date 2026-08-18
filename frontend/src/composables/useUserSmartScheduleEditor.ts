@@ -160,6 +160,7 @@ export function useUserSmartScheduleEditor(
   const selectedAccountIds = ref<number[]>([])
   const refreshing = ref(false)
   const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
+  const localPausedByAccount = ref<Record<number, boolean>>({})
 
   const currentDraft = computed(() => drafts[activePlatform.value])
   const currentSavedDraft = computed(() => draftFromSavedSnapshot(savedSnapshots[activePlatform.value]))
@@ -263,6 +264,9 @@ export function useUserSmartScheduleEditor(
   }
 
   function memberPaused(accountId: number): boolean {
+    if (Object.prototype.hasOwnProperty.call(localPausedByAccount.value, accountId)) {
+      return localPausedByAccount.value[accountId]
+    }
     return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.paused)
   }
 
@@ -325,6 +329,7 @@ export function useUserSmartScheduleEditor(
   ) {
     const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
     const nowSec = Math.floor(Date.now() / 1000)
+    localPausedByAccount.value = { ...localPausedByAccount.value, [accountId]: state === 'paused' }
     if (member) member.paused = state === 'paused'
     if (state === 'paused') {
       if (member) member.cooldown_until = null
@@ -835,6 +840,7 @@ export function useUserSmartScheduleEditor(
     userId,
     (id) => {
       localResumeGraceByAccount.value = {}
+      localPausedByAccount.value = {}
       if (id) {
         void loadAll({ pickPlatform: true })
       }

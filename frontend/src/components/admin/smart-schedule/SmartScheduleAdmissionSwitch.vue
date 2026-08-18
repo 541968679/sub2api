@@ -58,8 +58,10 @@ import {
 
 const props = withDefaults(defineProps<{
   admission: PoolAdmissionState
+  paused?: boolean
   disabled?: boolean
 }>(), {
+  paused: false,
   disabled: false
 })
 
@@ -72,11 +74,11 @@ const open = ref(false)
 const triggerX = ref(0)
 const triggerY = ref(0)
 
-const current = computed(() => pairAdmissionLiveState(props.admission))
+const current = computed(() => pairAdmissionLiveState(props.admission, props.paused))
 
 const triggerClass = computed(() => {
   if (props.disabled) return 'cursor-not-allowed text-gray-300 dark:text-gray-600'
-  if (props.admission === 'paused') {
+  if (current.value === 'paused') {
     return 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:text-slate-200'
   }
   if (props.admission === 'cooling' || props.admission === 'will_cool') {

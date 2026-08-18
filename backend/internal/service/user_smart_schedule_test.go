@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -611,15 +612,18 @@ func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ ti
 func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ int, _ time.Time) {}
 func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error                           { return nil }
 func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64) error               { return nil }
-func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) time.Time {
-	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute)
+func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) (time.Time, error) {
+	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
+
+func (s stubSmartCache) ApplyMemberPaused(context.Context, int64, int64, bool) error { return nil }
 
 type admissionCacheRecorder struct {
 	stubSmartCache
 	bundle  *UserSmartScheduleBundle
 	cleared int
 	setMins int
+	setErr  error
 }
 
 func (s *admissionCacheRecorder) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle {
@@ -631,9 +635,12 @@ func (s *admissionCacheRecorder) ClearCooldown(_ context.Context, _ int64, _ int
 	return nil
 }
 
-func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) time.Time {
+func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) (time.Time, error) {
 	s.setMins = minutes
-	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute)
+	if s.setErr != nil {
+		return time.Time{}, s.setErr
+	}
+	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
 
 func TestParsePairAdmissionState(t *testing.T) {
@@ -713,6 +720,27 @@ func TestUserSmartScheduleService_SetPairAdmissionPaused(t *testing.T) {
 	require.Equal(t, PairAdmissionSelectable, selectable.State)
 	require.False(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
 }
+
+func TestUserSmartScheduleService_SetPairAdmissionCoolingFailsKeepsPaused(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := &admissionCacheRecorder{
+		bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil)),
+		setErr: errors.New("cooldown write failed"),
+	}
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil))}
+	svc := NewUserSmartScheduleService(repo, cache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}, &liveQualityCacheStub{}, nil)
+	_, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionPaused)
+	require.NoError(t, err)
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
+
+	_, err = svc.SetPairAdmission(ctx, 7, 16, PairAdmissionCooling)
+	require.Error(t, err)
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7), "failed cooling write must not unpause")
+}
+
 func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ int64, _ time.Time) map[int64]time.Time {
 	if s.until == nil {
 		return map[int64]time.Time{}

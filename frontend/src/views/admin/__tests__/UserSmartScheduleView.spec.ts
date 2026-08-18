@@ -1361,6 +1361,53 @@ describe('UserSmartScheduleView', () => {
     await pickAdmissionState(w, 'paused')
     expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
+
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_max_p50_ttft_ms: 200,
+          quality_min_success_rate: 0.9,
+          quality_min_success_samples: 1,
+          quality_min_ttft_samples: 1,
+          quality_condition: 'or',
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    await w.get('[data-testid="smart-schedule-refresh"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
+  })
+
+  it('keeps 已暂停 selected when the chip is account-level stopped', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null, paused: true }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: false }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('stopped')
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    const paused = document.querySelector('[data-testid="smart-schedule-admission-paused"]') as HTMLButtonElement
+    expect(paused?.textContent).toContain('✓')
   })
 
   it('labels a tighter unsaved draft as preview when the saved gate still passes', async () => {

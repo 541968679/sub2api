@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -47,7 +48,8 @@ func TestUserSmartScheduleCache_SetCooldownOverwrites(t *testing.T) {
 	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
 
 	cache.StartCooldown(ctx, 7, 16, 15, now)
-	until := cache.SetCooldown(ctx, 7, 16, 60, now.Add(2*time.Minute))
+	until, err := cache.SetCooldown(ctx, 7, 16, 60, now.Add(2*time.Minute))
+	require.NoError(t, err)
 	require.Equal(t, now.Add(62*time.Minute).Unix(), until.Unix())
 	raw, err := rdb.HGet(ctx, smartScheduleCooldownKey(7), smartScheduleCooldownField(16)).Result()
 	require.NoError(t, err)
@@ -98,6 +100,30 @@ func TestUserSmartScheduleCache_GetCooldownUntilBatch(t *testing.T) {
 	require.Equal(t, now.Add(15*time.Minute).Unix(), got[7].Unix())
 	_, expired := got[8]
 	require.False(t, expired)
+}
+
+func TestUserSmartScheduleCache_ApplyMemberPausedWriteThrough(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil)
+	ctx := context.Background()
+	bundle := &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:         true,
+			CooldownMinutes: 15,
+			AccountIDs:      map[int64]struct{}{7: {}},
+		},
+	}}
+	payload, err := json.Marshal(cachedSmartScheduleBundleFrom(bundle))
+	require.NoError(t, err)
+	require.NoError(t, rdb.Set(ctx, smartScheduleUserKey(16), payload, 0).Err())
+	require.False(t, cache.Lookup(ctx, 16).Policies[service.PlatformAnthropic].IsPaused(7))
+
+	require.NoError(t, cache.ApplyMemberPaused(ctx, 16, 7, true))
+	require.True(t, cache.Lookup(ctx, 16).Policies[service.PlatformAnthropic].IsPaused(7))
+	require.NoError(t, cache.ApplyMemberPaused(ctx, 16, 7, false))
+	require.False(t, cache.Lookup(ctx, 16).Policies[service.PlatformAnthropic].IsPaused(7))
 }
 
 func TestCachedSmartScheduleBundle_PausedRoundTrip(t *testing.T) {

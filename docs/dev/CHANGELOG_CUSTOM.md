@@ -1,3 +1,28 @@
+## 2026-08-18 - fix(smart-schedule): pause switch races and silent cooldown write
+
+### What
+- Leaving 已暂停 writes Redis cooldown/resume first; `SetCooldown` now returns HSET errors instead of a fake until. A failed cooling write keeps the DB pause flag.
+- Pause updates the user Redis bundle in place (`ApplyMemberPaused`) instead of only `DEL`, so the next lookup does not fail-open past the pause.
+- Admission switch treats `member.paused` as the live state even when the chip is 已停止调度. Local pause overlay survives a stale auto-refresh.
+
+### Why
+Paused → cooling could report success with neither lock. Stopped chips hid 已暂停 so a 可调度 click cleared the flag. Auto-refresh could flash the chip back.
+
+### Verification
+- Go: cooling write error keeps paused; ApplyMemberPaused write-through; SetCooldown error return.
+- Vitest: `pairAdmissionLiveState(stopped, true)` and switch checkmark.
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-18 - feat(smart-schedule): durable pair pause
 
 ### What

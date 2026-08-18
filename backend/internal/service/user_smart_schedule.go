@@ -140,7 +140,8 @@ type UserSmartScheduleCache interface {
 	SmartScheduleLookup
 	Invalidate(ctx context.Context, userID int64) error
 	ClearCooldown(ctx context.Context, accountID, userID int64) error
-	SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) time.Time
+	SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) (time.Time, error)
+	ApplyMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error
 	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time
 }
 

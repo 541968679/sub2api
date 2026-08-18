@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -105,11 +106,11 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 }
 
 // SetCooldown overwrites the pair cooldown (admin switcher). Hot path stays HSETNX.
-func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) time.Time {
+func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) (time.Time, error) {
 	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
 	until := now.Add(time.Duration(minutes) * time.Minute)
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
-		return until
+		return until, nil
 	}
 	if now.IsZero() {
 		now = time.Now().UTC()
@@ -117,10 +118,61 @@ func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, use
 	}
 	key := smartScheduleCooldownKey(accountID)
 	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), until.Unix()).Err(); err != nil {
-		return until
+		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
-	return until
+	return until, nil
+}
+
+// ApplyMemberPaused write-through updates the user bundle so pause does not depend on a cache miss.
+func (c *userSmartScheduleCache) ApplyMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+	if c == nil || userID <= 0 || accountID <= 0 {
+		return nil
+	}
+	if c.rdb != nil {
+		raw, err := c.rdb.Get(ctx, smartScheduleUserKey(userID)).Bytes()
+		if err == nil && len(raw) > 0 {
+			var stored cachedSmartScheduleBundle
+			if json.Unmarshal(raw, &stored) == nil {
+				bundle := stored.toBundle()
+				applyPausedToCachedBundle(bundle, accountID, paused)
+				c.storeUserBundle(ctx, userID, bundle)
+				return nil
+			}
+		}
+	}
+	if c.repo == nil {
+		return nil
+	}
+	bundle, err := c.repo.ListByUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if bundle == nil {
+		return nil
+	}
+	applyPausedToCachedBundle(bundle, accountID, paused)
+	c.storeUserBundle(ctx, userID, bundle)
+	return nil
+}
+
+func applyPausedToCachedBundle(bundle *service.UserSmartScheduleBundle, accountID int64, paused bool) {
+	if bundle == nil || accountID <= 0 {
+		return
+	}
+	for _, policy := range bundle.Policies {
+		if policy == nil || !policy.HasAccount(accountID) {
+			continue
+		}
+		if policy.Paused == nil {
+			policy.Paused = map[int64]struct{}{}
+		}
+		if paused {
+			policy.Paused[accountID] = struct{}{}
+		} else {
+			delete(policy.Paused, accountID)
+		}
+	}
 }
 
 // extendCooldownTTL only sets or lengthens the HASH TTL. A short cooldown
