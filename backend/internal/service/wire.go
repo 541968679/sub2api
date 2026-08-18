@@ -215,6 +215,7 @@ func ProvideAccountQualityMaintenanceService(
 	svc.SetLeaderLock(lockCache, db)
 	svc.SetHardCloseEvaluator(NewAccountQualityHardCloseEvaluator(accountRepo, settings))
 	svc.SetLiveQualityCache(liveCache)
+	svc.SetQualitySettings(settings)
 	svc.Start()
 	return svc
 }

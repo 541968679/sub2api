@@ -345,8 +345,41 @@ func (s *OpsService) GetErrorLogs(ctx context.Context, filter *OpsErrorLogFilter
 		log.Printf("[Ops] GetErrorLogs failed: %v", err)
 		return nil, err
 	}
+	s.applyErrorLogCalibers(ctx, result)
 
 	return result, nil
+}
+
+func (s *OpsService) scheduleUseFailoverErrorRate(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyQualityHardCloseSettings)
+	if err != nil || strings.TrimSpace(value) == "" {
+		return false
+	}
+	var settings QualityHardCloseSettings
+	if json.Unmarshal([]byte(value), &settings) != nil {
+		return false
+	}
+	return settings.ScheduleUseFailoverErrorRate
+}
+
+func (s *OpsService) applyErrorLogCalibers(ctx context.Context, result *OpsErrorLogList) {
+	if result == nil {
+		return
+	}
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	for _, item := range result.Errors {
+		if item == nil {
+			continue
+		}
+		clientStatus := item.ClientStatusCode
+		if clientStatus == 0 && item.StatusCode > 0 && !item.IsRecovered {
+			clientStatus = item.StatusCode
+		}
+		ApplyOpsErrorRateCalibers(item, clientStatus, "", useFailover)
+	}
 }
 
 func (s *OpsService) GetErrorLogStats(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogStats, error) {
@@ -382,6 +415,11 @@ func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLo
 		}
 		return nil, infraerrors.InternalServer("OPS_ERROR_LOAD_FAILED", "Failed to load ops error log").WithCause(err)
 	}
+	clientStatus := detail.ClientStatusCode
+	if clientStatus == 0 && detail.StatusCode > 0 && !detail.IsRecovered {
+		clientStatus = detail.StatusCode
+	}
+	ApplyOpsErrorRateCalibers(&detail.OpsErrorLog, clientStatus, detail.ErrorBody, s.scheduleUseFailoverErrorRate(ctx))
 	return detail, nil
 }
 

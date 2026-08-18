@@ -2377,9 +2377,12 @@ func allowlistedQualityStatsIDColumn(column string) (string, error) {
 
 // GetAccountQualityStatsBatch aggregates recent success counts, error counts, and average TTFT
 // for account list quality columns. Success comes from usage_logs; scheduling errors from
-// ops_error_logs (status_code >= 400, excluding count_tokens, Claude-GPT bridge rows, and
-// client/routing model-not-found / unsupported-model misses). Bridge successes/errors are
-// returned separately and must not feed gates. Missing accounts get zero-sample stats.
+// ops_error_logs. Terminal ErrorCount is client status>=400 (excluding count_tokens,
+// Claude-GPT bridge rows, and client/routing model-not-found misses). FailoverErrorCount
+// also counts Recovered upstream hops via COALESCE(upstream_status_code, status_code).
+// ApplyAccountQualityScheduleCaliber selects which count gates consume. Bridge
+// successes/errors are returned separately and must not feed gates. Missing
+// accounts get zero-sample stats.
 func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
 	return r.getQualityStatsBatch(ctx, accountIDs, startTime, qualityStatsIDColumnAccount)
 }
@@ -2406,6 +2409,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 		successCount       int64
 		bridgeSuccessCount int64
 		errorCount         int64
+		failoverErrorCount int64
 		bridgeErrorCount   int64
 		ttftSamples        int64
 		avgTTFT            sql.NullFloat64
@@ -2470,22 +2474,30 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 		errorNullGuard = fmt.Sprintf("\n\t\t  AND %s IS NOT NULL", idColumn)
 	}
 	routingModelMissGuard := ""
+	statusPredicate := "COALESCE(status_code, 0) >= 400"
+	errorCountExpr := service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model")
+	failoverCountExpr := "0"
 	if idColumn == qualityStatsIDColumnAccount {
 		routingModelMissGuard = "\n\t\t  AND " + service.SQLExcludeAccountQualityRoutingModelMiss()
+		statusPredicate = "(" + statusPredicate + " OR " + service.SQLAccountQualityFailoverErrorPredicate() + ")"
+		nativePred := service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model")
+		errorCountExpr = nativePred + " AND COALESCE(status_code, 0) >= 400"
+		failoverCountExpr = nativePred + " AND " + service.SQLAccountQualityFailoverErrorPredicate()
 	}
 	bridgeErrorPred := service.SQLClaudeGPTBridgeErrorPredicate("platform", "upstream_model")
 	errorQuery := fmt.Sprintf(`
 		SELECT
 			%s,
 			COUNT(*) FILTER (WHERE %s) AS error_count,
+			COUNT(*) FILTER (WHERE %s) AS failover_error_count,
 			COUNT(*) FILTER (WHERE %s) AS bridge_error_count
 		FROM ops_error_logs
 		WHERE %s = ANY($1)
 		  AND created_at >= $2
-		  AND COALESCE(status_code, 0) >= 400
+		  AND %s
 		  AND is_count_tokens = FALSE%s%s
 		GROUP BY %s
-	`, idColumn, service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model"), bridgeErrorPred, idColumn, errorNullGuard, routingModelMissGuard, idColumn)
+	`, idColumn, errorCountExpr, failoverCountExpr, bridgeErrorPred, idColumn, statusPredicate, errorNullGuard, routingModelMissGuard, idColumn)
 	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err
@@ -2494,8 +2506,8 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 
 	for errorRows.Next() {
 		var id int64
-		var errorCount, bridgeErrorCount int64
-		if err := errorRows.Scan(&id, &errorCount, &bridgeErrorCount); err != nil {
+		var errorCount, failoverErrorCount, bridgeErrorCount int64
+		if err := errorRows.Scan(&id, &errorCount, &failoverErrorCount, &bridgeErrorCount); err != nil {
 			return nil, err
 		}
 		agg := aggs[id]
@@ -2504,6 +2516,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 			aggs[id] = agg
 		}
 		agg.errorCount = errorCount
+		agg.failoverErrorCount = failoverErrorCount
 		agg.bridgeErrorCount = bridgeErrorCount
 	}
 	if err := errorRows.Err(); err != nil {
@@ -2531,6 +2544,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 			P95:     nullF(agg.p95TTFT),
 			Max:     nullF(agg.maxTTFT),
 		})
+		service.AttachAccountQualityErrorCalibers(stats, agg.errorCount, agg.failoverErrorCount)
 		service.AttachBridgeQualityCounts(stats, agg.bridgeSuccessCount, agg.bridgeErrorCount)
 		result[id] = stats
 	}

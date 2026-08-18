@@ -25,12 +25,13 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(usageRows)
 
-	errorRows := sqlmock.NewRows([]string{"account_id", "error_count", "bridge_error_count"}).
-		AddRow(int64(10), int64(2), int64(4)).
-		AddRow(int64(20), int64(1), int64(0))
+	errorRows := sqlmock.NewRows([]string{"account_id", "error_count", "failover_error_count", "bridge_error_count"}).
+		AddRow(int64(10), int64(2), int64(5), int64(4)).
+		AddRow(int64(20), int64(1), int64(1), int64(0))
 	// Shared helper must keep account filters: account_id grouping, no user_id NULL guard.
-	// Scheduling error_count excludes Claude-GPT bridge and routing model-not-found misses.
-	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*NOT \(LOWER\(COALESCE\(platform,''\)\) IN \('antigravity','anthropic'\)[\s\S]*bridge_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*AND COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE[\s\S]*NOT \([\s\S]*IN \(400, 403, 404, 503\)[\s\S]*error_phase[\s\S]*<> 'upstream'[\s\S]*model_not_found[\s\S]*supporting model:[\s\S]*GROUP BY account_id`).
+	// Terminal error_count excludes Claude-GPT bridge and routing model-not-found misses.
+	// Failover count uses COALESCE(upstream_status_code, status_code) so Recovered is visible.
+	mock.ExpectQuery(`SELECT\s+account_id[\s\S]*NOT \(LOWER\(COALESCE\(platform,''\)\) IN \('antigravity','anthropic'\)[\s\S]*failover_error_count[\s\S]*bridge_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE account_id = ANY[\s\S]*COALESCE\(upstream_status_code, status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE[\s\S]*NOT \([\s\S]*IN \(400, 403, 404, 503\)[\s\S]*error_phase[\s\S]*<> 'upstream'[\s\S]*model_not_found[\s\S]*supporting model:[\s\S]*GROUP BY account_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
 
@@ -42,6 +43,9 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	require.NotNil(t, acc10)
 	require.Equal(t, int64(8), acc10.SuccessCount)
 	require.Equal(t, int64(2), acc10.ErrorCount)
+	require.Equal(t, int64(2), acc10.TerminalErrorCount)
+	require.Equal(t, int64(5), acc10.FailoverErrorCount)
+	require.False(t, acc10.ScheduleUseFailoverErrorRate)
 	require.Equal(t, int64(3), acc10.BridgeSuccessCount)
 	require.Equal(t, int64(4), acc10.BridgeErrorCount)
 	require.NotNil(t, acc10.SuccessRate)
@@ -98,9 +102,9 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(usageRows)
 
-	errorRows := sqlmock.NewRows([]string{"user_id", "error_count", "bridge_error_count"}).
-		AddRow(int64(10), int64(2), int64(5)).
-		AddRow(int64(20), int64(1), int64(0))
+	errorRows := sqlmock.NewRows([]string{"user_id", "error_count", "failover_error_count", "bridge_error_count"}).
+		AddRow(int64(10), int64(2), int64(0), int64(5)).
+		AddRow(int64(20), int64(1), int64(0), int64(0))
 	// User query must keep user_id IS NOT NULL and must NOT add the account
 	// routing-model-miss exclusion (those 4xx stay user-visible failures).
 	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*AND is_count_tokens = FALSE\s+AND user_id IS NOT NULL\s+GROUP BY user_id`).

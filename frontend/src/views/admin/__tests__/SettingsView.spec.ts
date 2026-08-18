@@ -1450,6 +1450,7 @@ describe("admin SettingsView quality hard-close card", () => {
       min_success_samples: 20,
       min_ttft_samples: 10,
       condition: "or",
+      schedule_use_failover_error_rate: false,
     });
     expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty(
       "account_ids",

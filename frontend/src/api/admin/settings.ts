@@ -1130,6 +1130,8 @@ export interface QualityHardCloseSettings {
   min_success_samples: number;
   min_ttft_samples: number;
   condition: QualityHardCloseCondition;
+  /** When true, smart-schedule / hard-close ErrorCount includes Recovered failover. Default false. */
+  schedule_use_failover_error_rate?: boolean;
 }
 
 export async function getQualityHardCloseSettings(): Promise<QualityHardCloseSettings> {

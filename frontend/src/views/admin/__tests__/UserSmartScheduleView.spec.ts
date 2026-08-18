@@ -428,6 +428,26 @@ beforeEach(() => {
   apiMocks.getSmartSchedulePnlTrend.mockResolvedValue({ range: '24h', granularity: 'hour', points: [] })
   apiMocks.updateAccount.mockReset()
   apiMocks.updateAccount.mockResolvedValue({})
+  apiMocks.getQualityHardCloseSettings.mockResolvedValue({
+    enabled: false,
+    max_p50_ttft_ms: 15000,
+    min_success_rate: 0.9,
+    min_success_samples: 20,
+    min_ttft_samples: 10,
+    condition: 'or',
+    duration_minutes: 15,
+    schedule_use_failover_error_rate: false
+  })
+  apiMocks.updateQualityHardCloseSettings.mockResolvedValue({
+    enabled: false,
+    max_p50_ttft_ms: 15000,
+    min_success_rate: 0.9,
+    min_success_samples: 20,
+    min_ttft_samples: 10,
+    condition: 'or',
+    duration_minutes: 15,
+    schedule_use_failover_error_rate: true
+  })
   apiMocks.moveAccountToTop.mockReset()
   apiMocks.resumeSmartSchedule.mockReset()
   apiMocks.resumeSmartSchedule.mockImplementation(
@@ -486,6 +506,17 @@ describe('UserSmartScheduleView', () => {
     expect(tableRegion.get('[data-testid="smart-schedule-pool-table"]').exists()).toBe(true)
     expect(tableRegion.get('[data-testid="smart-schedule-column-settings"]').exists()).toBe(true)
     expect(layout.find('[data-testid="smart-schedule-column-settings"]').exists()).toBe(false)
+  })
+
+  it('persists the site-wide failover schedule toggle from the threshold card', async () => {
+    const w = await mountPage()
+    const card = w.get('[data-testid="smart-schedule-failover-toggle"]')
+    expect(card.text()).toContain('admin.accounts.stability.failoverToggle')
+    await card.get('button').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateQualityHardCloseSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ schedule_use_failover_error_rate: true })
+    )
   })
 
   it('renders all platform tabs', async () => {

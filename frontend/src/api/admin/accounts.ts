@@ -514,6 +514,14 @@ export interface AccountQualityStats {
   bridge_success_count?: number
   bridge_error_count?: number
   bridge_error_rate?: number | null
+  /** Account errors without Recovered (client status>=400). */
+  terminal_error_count?: number
+  terminal_error_rate?: number | null
+  /** Account errors including Recovered upstream hops. */
+  failover_error_count?: number
+  failover_error_rate?: number | null
+  /** Echo of the site-wide toggle that selected error_count. */
+  schedule_use_failover_error_rate?: boolean
   /** Mean TTFT — skewed by outliers; prefer p50 for list display */
   avg_ttft_ms: number | null
   /** Median TTFT — primary, outlier-resistant */

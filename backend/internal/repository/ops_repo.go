@@ -243,7 +243,9 @@ SELECT
   e.request_type,
   COALESCE(ak.name, ''),
   ak.deleted_at,
-  COALESCE(e.deleted_key_name, '')
+  COALESCE(e.deleted_key_name, ''),
+  COALESCE(e.status_code, 0),
+  COALESCE(e.error_body, '')
 FROM ops_error_logs e
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
@@ -279,6 +281,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		var apiKeyName string
 		var apiKeyDeletedAt sql.NullTime
 		var deletedKeyName string
+		var clientStatus sql.NullInt64
+		var errorBody string
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
@@ -315,6 +319,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&apiKeyName,
 			&apiKeyDeletedAt,
 			&deletedKeyName,
+			&clientStatus,
+			&errorBody,
 		); err != nil {
 			return nil, err
 		}
@@ -362,6 +368,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		}
 		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
 		item.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(item.Platform, item.UpstreamModel)
+		item.ClientStatusCode = int(clientStatus.Int64)
+		service.ApplyOpsErrorRateCalibers(&item, item.ClientStatusCode, errorBody, false)
 		out = append(out, &item)
 	}
 	if err := rows.Err(); err != nil {
@@ -618,7 +626,8 @@ SELECT
   COALESCE(e.deleted_key_name, ''),
   COALESCE(e.api_key_prefix, ''),
   COALESCE(ak.name, ''),
-  ak.deleted_at
+  ak.deleted_at,
+  COALESCE(e.status_code, 0)
 FROM ops_error_logs e
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN accounts a ON e.account_id = a.id
@@ -647,6 +656,7 @@ LIMIT 1`
 	var deletedKeyOwnerUserID sql.NullInt64
 	var detailAPIKeyName string
 	var detailAPIKeyDeletedAt sql.NullTime
+	var clientStatus sql.NullInt64
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&out.ID,
@@ -699,13 +709,16 @@ LIMIT 1`
 		&out.APIKeyPrefix,
 		&detailAPIKeyName,
 		&detailAPIKeyDeletedAt,
+		&clientStatus,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	out.StatusCode = int(statusCode.Int64)
+	out.ClientStatusCode = int(clientStatus.Int64)
 	out.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(out.Platform, out.UpstreamModel)
+	service.ApplyOpsErrorRateCalibers(&out.OpsErrorLog, out.ClientStatusCode, out.ErrorBody, false)
 	if resolvedAt.Valid {
 		t := resolvedAt.Time
 		out.ResolvedAt = &t

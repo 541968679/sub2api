@@ -69,15 +69,27 @@
               </td>
 
               <!-- Type -->
-              <td class="whitespace-nowrap px-4 py-2">
-                <span
-                  :class="[
-                    'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
-                    getTypeBadge(log).className
-                  ]"
-                >
-                  {{ getTypeBadge(log).label }}
-                </span>
+              <td class="px-4 py-2">
+                <div class="flex max-w-[220px] flex-col items-start gap-0.5">
+                  <span
+                    :class="[
+                      'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+                      getTypeBadge(log).className
+                    ]"
+                  >
+                    {{ getTypeBadge(log).label }}
+                  </span>
+                  <span
+                    v-for="badge in errorLogCaliberBadges(log)"
+                    :key="badge.key"
+                    :class="[
+                      'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset',
+                      badge.className
+                    ]"
+                  >
+                    {{ t(badge.labelKey) }}
+                  </span>
+                </div>
               </td>
 
               <!-- Endpoint -->
@@ -238,6 +250,7 @@
 import { useI18n } from 'vue-i18n'
 import Pagination from '@/components/common/Pagination.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
+import { errorLogCaliberBadges, isRecoveredErrorLog } from './errorLogCaliberBadges'
 import { getSeverityClass, formatDateTime } from '../utils/opsFormatters'
 
 const { t } = useI18n()
@@ -305,8 +318,7 @@ function formatRequestType(type: number | null | undefined): string {
 }
 
 function isRecoveredRow(log: OpsErrorLog): boolean {
-  const msg = String(log.message || '')
-  return /^Recovered\b/i.test(msg) && Number(log.status_code || 0) < 400
+  return isRecoveredErrorLog(log)
 }
 
 function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {

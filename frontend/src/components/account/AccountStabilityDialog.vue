@@ -41,6 +41,60 @@
       </p>
 
       <section
+        data-test="stability-error-calibers"
+        class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+      >
+        <h4 class="text-sm font-medium text-gray-900 dark:text-white">
+          {{ t('admin.accounts.stability.failoverTitle') }}
+        </h4>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stability.failoverTerminal') }}
+            </p>
+            <p class="font-mono text-sm font-medium text-gray-900 dark:text-white" data-test="stability-terminal-rate">
+              {{ terminalRateDisplay }}
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stability.failoverInclusive') }}
+            </p>
+            <p class="font-mono text-sm font-medium text-gray-900 dark:text-white" data-test="stability-failover-rate">
+              {{ failoverRateDisplay }}
+            </p>
+          </div>
+        </div>
+        <p class="mt-1 text-xs text-gray-600 dark:text-gray-300" data-test="stability-caliber-samples">
+          {{
+            t('admin.accounts.stability.failoverSamples', {
+              terminal: liveQualityStats?.terminal_error_count ?? liveQualityStats?.error_count ?? 0,
+              failover: liveQualityStats?.failover_error_count ?? 0
+            })
+          }}
+        </p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.failoverSchedule') }}:
+          {{ scheduleUseFailover ? t('admin.accounts.stability.failoverInclusive') : t('admin.accounts.stability.failoverTerminal') }}
+        </p>
+        <div class="mt-3 flex items-start justify-between gap-3 border-t border-gray-200 pt-3 dark:border-dark-600">
+          <div>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('admin.accounts.stability.failoverToggle') }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stability.failoverToggleHint') }}
+            </p>
+          </div>
+          <Toggle
+            :model-value="scheduleUseFailover"
+            data-test="stability-failover-toggle"
+            @update:model-value="saveFailoverToggle"
+          />
+        </div>
+      </section>
+
+      <section
         data-test="stability-bridge-rate"
         class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
       >
@@ -164,7 +218,7 @@
               {{ t('admin.accounts.stability.enabledHint') }}
             </p>
           </div>
-          <Toggle v-model="form.enabled" />
+          <Toggle v-model="form.enabled" data-test="stability-hard-close-enabled" />
         </div>
 
         <div
@@ -307,6 +361,8 @@ import {
 } from '@/utils/accountQualityHardClose'
 import {
   formatQualityBridgeErrorRate,
+  formatQualityFailoverErrorRate,
+  formatQualityTerminalErrorRate,
   hasDisplayableBridgeErrorRate
 } from '@/utils/accountQualityStats'
 import {
@@ -338,6 +394,8 @@ const templateBusy = ref(false)
 const resumeBusy = ref(false)
 const historyItems = ref<AccountQualityHistoryItem[]>([])
 const liveQualityStats = ref<AccountQualityStats | null>(null)
+const scheduleUseFailover = ref(false)
+const failoverToggleBusy = ref(false)
 const globalEnabled = ref<boolean | null>(null)
 const resolved = ref<AccountQualityHardCloseResolved | null>(null)
 const showP95 = ref(readShowP95Preference())
@@ -518,6 +576,8 @@ const samplesSummary = computed(() => {
 const hasBridgeErrorRate = computed(() => hasDisplayableBridgeErrorRate(liveQualityStats.value))
 
 const bridgeRateDisplay = computed(() => formatQualityBridgeErrorRate(liveQualityStats.value) ?? '—')
+const terminalRateDisplay = computed(() => formatQualityTerminalErrorRate(liveQualityStats.value) ?? '—')
+const failoverRateDisplay = computed(() => formatQualityFailoverErrorRate(liveQualityStats.value) ?? '—')
 
 const bridgeToneClass = computed(() => {
   if (!hasBridgeErrorRate.value) return 'text-gray-500 dark:text-gray-400'
@@ -619,7 +679,8 @@ function buildTemplatePayload(current: QualityHardCloseSettings): QualityHardClo
     pause_minutes: optionalNumber(form.pause_minutes) ?? current.pause_minutes,
     min_success_samples: optionalNumber(form.min_success_samples) ?? current.min_success_samples,
     min_ttft_samples: optionalNumber(form.min_ttft_samples) ?? current.min_ttft_samples,
-    condition: form.condition === 'and' ? 'and' : 'or'
+    condition: form.condition === 'and' ? 'and' : 'or',
+    schedule_use_failover_error_rate: scheduleUseFailover.value
   }
 }
 
@@ -632,13 +693,15 @@ async function load() {
   resolved.value = null
   resetForm()
   try {
-    const [history, hardClose, qualityBatch] = await Promise.all([
+    const [history, hardClose, qualityBatch, template] = await Promise.all([
       adminAPI.accounts.getQualityHistory(props.account.id),
       adminAPI.accounts.getQualityHardClose(props.account.id),
-      adminAPI.accounts.getBatchQualityStats([props.account.id])
+      adminAPI.accounts.getBatchQualityStats([props.account.id]),
+      adminAPI.settings.getQualityHardCloseSettings()
     ])
     historyItems.value = history.items ?? []
     liveQualityStats.value = qualityBatch.stats?.[String(props.account.id)] ?? null
+    scheduleUseFailover.value = template.schedule_use_failover_error_rate === true
     globalEnabled.value = hardClose.global_enabled
     resolved.value = hardClose.resolved
     applyOverlay(hardClose.overlay, hardClose.resolved)
@@ -662,6 +725,28 @@ async function save() {
     appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.saveFailed')))
   } finally {
     saving.value = false
+  }
+}
+
+async function saveFailoverToggle(on: boolean) {
+  if (failoverToggleBusy.value) return
+  failoverToggleBusy.value = true
+  try {
+    const current = await adminAPI.settings.getQualityHardCloseSettings()
+    const updated = await adminAPI.settings.updateQualityHardCloseSettings({
+      ...current,
+      schedule_use_failover_error_rate: on
+    })
+    scheduleUseFailover.value = updated.schedule_use_failover_error_rate === true
+    if (props.account) {
+      const qualityBatch = await adminAPI.accounts.getBatchQualityStats([props.account.id])
+      liveQualityStats.value = qualityBatch.stats?.[String(props.account.id)] ?? null
+    }
+    appStore.showSuccess(t('admin.settings.qualityHardClose.saved'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.settings.qualityHardClose.saveFailed')))
+  } finally {
+    failoverToggleBusy.value = false
   }
 }
 

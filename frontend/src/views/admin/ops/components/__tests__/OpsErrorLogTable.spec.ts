@@ -87,4 +87,48 @@ describe('OpsErrorLogTable', () => {
     expect(wrapper.text()).toContain('admin.ops.errorLog.typeRecovered')
     expect(wrapper.text()).toContain('200')
   })
+
+  it('marks Recovered as user-excluded and schedule-excluded when the toggle is off', () => {
+    const recovered: OpsErrorLog = {
+      ...row,
+      id: 2,
+      status_code: 200,
+      phase: 'upstream',
+      message: 'Recovered upstream error 429: too many requests',
+      is_recovered: true,
+      counted_in_user_error_rate: false,
+      counted_in_account_compare_rate: true,
+      counted_in_account_schedule_rate: false
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [recovered], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+    })
+    expect(wrapper.text()).toContain('admin.ops.errorLog.typeRecovered')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberUserExcluded')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberCompareIncluded')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberScheduleExcluded')
+  })
+
+  it('marks model-not-found as user-included and excluded from both account calibers', () => {
+    const miss: OpsErrorLog = {
+      ...row,
+      id: 3,
+      status_code: 404,
+      phase: 'internal',
+      type: 'api_error',
+      error_owner: 'platform',
+      message: 'model_not_found: claude-bad',
+      counted_in_user_error_rate: true,
+      counted_in_account_compare_rate: false,
+      counted_in_account_schedule_rate: false
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [miss], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+    })
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberUserIncluded')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberCompareExcluded')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberScheduleExcluded')
+  })
 })

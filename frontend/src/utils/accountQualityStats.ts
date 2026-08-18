@@ -9,6 +9,10 @@ export type QualityRateStats = Pick<
   | 'bridge_success_count'
   | 'bridge_error_count'
   | 'bridge_error_rate'
+  | 'terminal_error_count'
+  | 'terminal_error_rate'
+  | 'failover_error_count'
+  | 'failover_error_rate'
 >
 
 /** success + error rows in the 15-minute window. */
@@ -72,6 +76,45 @@ export function hasDisplayableBridgeErrorRate(
 ): boolean {
   const needed = minSamples > 1 ? minSamples : 1
   return qualityBridgeSampleCount(stats) >= needed
+}
+
+function formatNamedErrorRate(
+  stats: QualityRateStats | null | undefined,
+  errorCount: number,
+  explicit: number | null | undefined,
+  minSamples = 1
+): string | null {
+  if (!stats) return null
+  const samples = Math.max(0, (stats.success_count ?? 0) + errorCount)
+  if (samples < (minSamples > 1 ? minSamples : 1)) return null
+  const value = ratioOrNull(explicit, errorCount, samples)
+  if (value == null) return null
+  return `${(value * 100).toFixed(1)}%`
+}
+
+export function formatQualityTerminalErrorRate(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): string | null {
+  return formatNamedErrorRate(
+    stats,
+    stats?.terminal_error_count ?? stats?.error_count ?? 0,
+    stats?.terminal_error_rate,
+    minSamples
+  )
+}
+
+export function formatQualityFailoverErrorRate(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): string | null {
+  if (stats?.failover_error_count == null) return null
+  return formatNamedErrorRate(
+    stats,
+    stats.failover_error_count,
+    stats.failover_error_rate,
+    minSamples
+  )
 }
 
 export function formatQualityBridgeErrorRate(

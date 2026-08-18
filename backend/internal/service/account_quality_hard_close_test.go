@@ -241,6 +241,7 @@ func TestGetQualityHardCloseSettings_DefaultsWhenNotSet(t *testing.T) {
 	require.Equal(t, 20, settings.MinSuccessSamples)
 	require.Equal(t, 10, settings.MinTTFTSamples)
 	require.Equal(t, QualityHardCloseConditionOr, settings.Condition)
+	require.False(t, settings.ScheduleUseFailoverErrorRate)
 }
 
 func TestSetQualityHardCloseSettings_RoundTripAndValidation(t *testing.T) {

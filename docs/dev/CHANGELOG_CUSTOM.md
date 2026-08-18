@@ -23,6 +23,41 @@ Paused → cooling could report success with neither lock. Stopped chips hid 已
 `docs/dev/codebase/account.md`,
 this changelog.
 
+## 2026-08-18 - feat(quality): dual account error rates + schedule toggle
+
+### What
+- Account quality SQL always computes two calibers: **terminal** (client `status>=400`, no Recovered) and **failover** (`COALESCE(upstream_status_code, status_code)>=400`, includes Recovered 429/503). Both still exclude `count_tokens`, Claude→GPT bridge, and routing model-not-found.
+- Site-wide switch `quality_hard_close_settings.schedule_use_failover_error_rate` (**default off**). Off: smart-schedule / live quality / hard-close keep reading terminal `ErrorCount`. On: `ApplyAccountQualityScheduleCaliber` copies the failover count into `ErrorCount`.
+- Quality popup (`AccountStabilityDialog`) shows both rates plus the toggle. The same KV switch is on the user smart-schedule threshold card and the Settings quality-hard-close card. Saving a quality template keeps the toggle.
+- Ops / Usage error rows expose `counted_in_user_error_rate` / `counted_in_account_compare_rate` / `counted_in_account_schedule_rate` so Recovered is always「未计入用户错误率」, and operators can see whether the row entered the **current** schedule rate.
+
+### Why
+Hard-cutting Recovered into the only schedule `ErrorCount` would flip selection on deploy. Dual numbers plus a default-off switch let operators compare first and opt in.
+
+### Verification
+- Go: default toggle false; `ApplyAccountQualityScheduleCaliber` on/off; ops caliber flags; quality-hard-close DTO round-trip; account/user quality sqlmock.
+- Vitest: stability dialog dual rates + persist toggle; Settings / smart-schedule same KV; ops table badges.
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/handler/dto/settings.go`,
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/ops/components/errorLogCaliberBadges.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/ops.md`,
+this changelog.
+
 ## 2026-08-18 - feat(smart-schedule): durable pair pause
 
 ### What

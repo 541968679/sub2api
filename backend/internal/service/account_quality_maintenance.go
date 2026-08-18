@@ -35,6 +35,7 @@ type AccountQualityMaintenanceService struct {
 	instanceID  string
 	hardClose   AccountQualityHardCloseEvaluator
 	liveCache   AccountQualityLiveCache
+	settings    *SettingService
 	running     int32
 	stopped     int32
 }
@@ -75,6 +76,23 @@ func (s *AccountQualityMaintenanceService) SetLiveQualityCache(cache AccountQual
 		return
 	}
 	s.liveCache = cache
+}
+
+// SetQualitySettings lets the tick apply the failover-as-schedule toggle
+// (default off) before writing live Redis / snapshots / hard-close.
+func (s *AccountQualityMaintenanceService) SetQualitySettings(settings *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settings = settings
+}
+
+func (s *AccountQualityMaintenanceService) scheduleUseFailoverErrorRate(ctx context.Context) bool {
+	if s == nil || s.settings == nil {
+		return false
+	}
+	cfg, err := s.settings.GetQualityHardCloseSettings(ctx)
+	return err == nil && cfg != nil && cfg.ScheduleUseFailoverErrorRate
 }
 
 // ResumeUserQuality force-admits one pair for one quality window without changing the gate.
@@ -175,6 +193,7 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 	}
 
 	reader, _ := s.usageLogs.(AccountQualityStatsBatchReader)
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	allStats := make(map[int64]*AccountQualityStats, len(ids))
 	for _, chunk := range chunkInt64IDs(ids, AccountQualityMaxBatchSize) {
 		var stats map[int64]*AccountQualityStats
@@ -189,6 +208,7 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 			if st == nil {
 				st = BuildAccountQualityStats(0, 0, TTFTAggregate{})
 			}
+			ApplyAccountQualityScheduleCaliber(st, useFailover)
 			allStats[id] = st
 			if !HasAccountQualitySamples(st) {
 				continue

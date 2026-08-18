@@ -37,8 +37,11 @@ type OpsErrorLog struct {
 	Severity string `json:"severity"`
 
 	StatusCode int    `json:"status_code"`
-	Platform   string `json:"platform"`
-	Model      string `json:"model"`
+	// ClientStatusCode is the wire status (200 on Recovered). List StatusCode
+	// may still be COALESCE(upstream, status) for display.
+	ClientStatusCode int    `json:"-"`
+	Platform         string `json:"platform"`
+	Model            string `json:"model"`
 
 	Resolved           bool       `json:"resolved"`
 	ResolvedAt         *time.Time `json:"resolved_at"`
@@ -72,6 +75,13 @@ type OpsErrorLog struct {
 
 	// Computed for admin error-request UX (Claude-GPT bridge heuristic).
 	IsClaudeGPTBridge bool `json:"is_claude_gpt_bridge"`
+
+	// Three-layer list marks. Compare = failover-inclusive account caliber.
+	// Schedule follows quality_hard_close_settings.schedule_use_failover_error_rate.
+	IsRecovered                  bool `json:"is_recovered"`
+	CountedInUserErrorRate       bool `json:"counted_in_user_error_rate"`
+	CountedInAccountCompareRate  bool `json:"counted_in_account_compare_rate"`
+	CountedInAccountScheduleRate bool `json:"counted_in_account_schedule_rate"`
 }
 
 type OpsErrorLogDetail struct {

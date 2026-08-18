@@ -41,6 +41,10 @@ type QualityHardCloseSettings struct {
 	MinSuccessSamples int      `json:"min_success_samples"`
 	MinTTFTSamples    int      `json:"min_ttft_samples"`
 	Condition         string   `json:"condition"`
+	// ScheduleUseFailoverErrorRate, when true, uses the Recovered-inclusive
+	// account error caliber as ErrorCount for hard-close and smart-schedule.
+	// Default false: keep the current client status>=400 caliber.
+	ScheduleUseFailoverErrorRate bool `json:"schedule_use_failover_error_rate"`
 }
 
 // AccountQualityHardCloseOverlay is stored in extra.quality_hard_close.

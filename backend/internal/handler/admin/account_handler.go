@@ -2474,7 +2474,13 @@ func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
 		return
 	}
 
-	cacheKey := buildAccountQualityStatsBatchCacheKey(accountIDs)
+	useFailover := false
+	if h.settingService != nil {
+		if cfg, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context()); err == nil && cfg != nil {
+			useFailover = cfg.ScheduleUseFailoverErrorRate
+		}
+	}
+	cacheKey := buildAccountQualityStatsBatchCacheKey(accountIDs, useFailover)
 	if cached, ok := accountQualityStatsBatchCache.Get(cacheKey); ok {
 		if cached.ETag != "" {
 			c.Header("ETag", cached.ETag)
@@ -2498,6 +2504,9 @@ func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	for _, st := range stats {
+		service.ApplyAccountQualityScheduleCaliber(st, useFailover)
 	}
 
 	payload := gin.H{"stats": stats}

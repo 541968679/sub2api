@@ -188,6 +188,21 @@
               </label>
             </div>
 
+            <div
+              class="flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-2 py-1.5 dark:border-dark-600"
+              data-testid="smart-schedule-failover-toggle"
+            >
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-gray-800 dark:text-gray-100">
+                  {{ t('admin.accounts.stability.failoverToggle') }}
+                </p>
+                <p class="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.qualityHardClose.scheduleUseFailoverHint') }}
+                </p>
+              </div>
+              <Toggle :model-value="scheduleUseFailover" @update:model-value="saveFailoverToggle" />
+            </div>
+
             <div class="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
@@ -895,6 +910,7 @@ import SmartSchedulePoolBulkBar from '@/components/admin/smart-schedule/SmartSch
 import SmartSchedulePoolAddBar from '@/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue'
 import SmartScheduleAddAccountDialog from '@/components/admin/smart-schedule/SmartScheduleAddAccountDialog.vue'
 import AdminUserListRowTable from '@/components/admin/user/AdminUserListRowTable.vue'
+import Toggle from '@/components/common/Toggle.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -902,6 +918,7 @@ const router = useRouter()
 const appStore = useAppStore()
 
 const user = ref<AdminUser | null>(null)
+const scheduleUseFailover = ref(false)
 const userLoading = ref(false)
 const userQualityStats = ref<AccountQualityStats | null>(null)
 const userQualityLoading = ref(false)
@@ -1555,10 +1572,27 @@ async function handleAutoRefresh() {
   await Promise.all([loadUser({ silent: true }), refreshAll({ silent: true })])
 }
 
+async function saveFailoverToggle(on: boolean) {
+  try {
+    const current = await adminAPI.settings.getQualityHardCloseSettings()
+    const updated = await adminAPI.settings.updateQualityHardCloseSettings({
+      ...current,
+      schedule_use_failover_error_rate: on
+    })
+    scheduleUseFailover.value = updated.schedule_use_failover_error_rate === true
+    appStore.showSuccess(t('admin.settings.qualityHardClose.saved'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.settings.qualityHardClose.saveFailed')))
+  }
+}
+
 onMounted(() => {
   loadSavedAutoRefresh()
   if (autoRefreshEnabled.value) startAutoRefreshTimer()
   void loadUser()
+  void adminAPI.settings.getQualityHardCloseSettings().then((settings) => {
+    scheduleUseFailover.value = settings.schedule_use_failover_error_rate === true
+  }).catch(() => undefined)
 })
 
 onUnmounted(() => {

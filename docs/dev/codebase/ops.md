@@ -23,6 +23,11 @@ List contract (`/errors` and `/request-errors`):
 - When the flag is on, `phase=upstream` is **not** stripped, so an explicit upstream-phase filter can still see Recovered.
 - `/upstream-errors` already hardcodes `phase=upstream` and does not apply `status>=400`.
 - SLA / `error_sla` / usage error-rate numerator stay `status_code >= 400` only. Recovered is list observability, not a client outage.
+- List rows carry three caliber flags from the same predicates as quality SQL (do not guess from copy):
+  - `counted_in_user_error_rate`: client `status>=400` (Recovered = false).
+  - `counted_in_account_compare_rate`: `COALESCE(upstream, status)>=400` and not routing-miss / bridge (Recovered = true).
+  - `counted_in_account_schedule_rate`: follows `quality_hard_close_settings.schedule_use_failover_error_rate` (default false → Recovered stays out of the schedule rate).
+- `is_recovered` plus those flags drive Usage / Ops badges: Recovered always「未计入用户错误率」; schedule chip says whether the row entered **current** `ErrorCount`.
 
 Do not repeat the SSH playbook here.
 
@@ -104,6 +109,10 @@ group capacity refresh
 - Recovered failover rows keep client `status_code=200`. Do not rewrite them
   to upstream 429/503 or `/errors` SLA and `error_sla` will inflate. Use
   `include_recovered` (or `/upstream-errors`) to see them on the list.
+  Display `StatusCode` may still be `COALESCE(upstream, status)`; caliber
+  flags must use the real client status (`ClientStatusCode`).
+- Account schedule `ErrorCount` is a separate switch (`schedule_use_failover_error_rate`).
+  Turning it on does not change SLA or the user-quality numerator.
 
 ## Known Pitfalls
 

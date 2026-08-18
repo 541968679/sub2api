@@ -42,7 +42,8 @@ describe('accountQualityHardClose template helpers', () => {
       pause_minutes: 15,
       min_success_samples: 8,
       min_ttft_samples: 9,
-      condition: 'or'
+      condition: 'or',
+      schedule_use_failover_error_rate: false
     })
   })
 

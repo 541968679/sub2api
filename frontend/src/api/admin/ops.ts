@@ -923,6 +923,10 @@ export interface OpsErrorLog {
   upstream_model?: string
   request_type?: number | null
   is_claude_gpt_bridge?: boolean
+  is_recovered?: boolean
+  counted_in_user_error_rate?: boolean
+  counted_in_account_compare_rate?: boolean
+  counted_in_account_schedule_rate?: boolean
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {

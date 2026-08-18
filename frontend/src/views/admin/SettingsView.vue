@@ -327,6 +327,21 @@
                   <Toggle v-model="qualityHardCloseForm.enabled" />
                 </div>
 
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.qualityHardClose.scheduleUseFailover")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.qualityHardClose.scheduleUseFailoverHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="qualityHardCloseForm.schedule_use_failover_error_rate"
+                    data-test="quality-hard-close-failover-toggle"
+                  />
+                </div>
+
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                   {{ t("admin.settings.qualityHardClose.templateHint") }}
                 </p>
@@ -6476,6 +6491,7 @@ const qualityHardCloseForm = reactive({
   min_success_samples: 20,
   min_ttft_samples: 10,
   condition: "or" as "or" | "and",
+  schedule_use_failover_error_rate: false,
 });
 
 // Stream Timeout 状态
@@ -8225,6 +8241,8 @@ async function loadQualityHardCloseSettings() {
     qualityHardCloseForm.min_ttft_samples = settings.min_ttft_samples;
     qualityHardCloseForm.condition =
       settings.condition === "and" ? "and" : "or";
+    qualityHardCloseForm.schedule_use_failover_error_rate =
+      settings.schedule_use_failover_error_rate === true;
   } catch (_error: unknown) {
     // Silent fail - settings will use defaults
   } finally {
@@ -8245,6 +8263,8 @@ async function saveQualityHardCloseSettings() {
       min_success_samples: qualityHardCloseForm.min_success_samples,
       min_ttft_samples: qualityHardCloseForm.min_ttft_samples,
       condition: qualityHardCloseForm.condition,
+      schedule_use_failover_error_rate:
+        qualityHardCloseForm.schedule_use_failover_error_rate,
     });
     qualityHardCloseForm.enabled = updated.enabled;
     qualityHardCloseForm.max_p50_ttft_ms = updated.max_p50_ttft_ms ?? "";
@@ -8255,6 +8275,8 @@ async function saveQualityHardCloseSettings() {
     qualityHardCloseForm.min_ttft_samples = updated.min_ttft_samples;
     qualityHardCloseForm.condition =
       updated.condition === "and" ? "and" : "or";
+    qualityHardCloseForm.schedule_use_failover_error_rate =
+      updated.schedule_use_failover_error_rate === true;
     appStore.showSuccess(t("admin.settings.qualityHardClose.saved"));
   } catch (error: unknown) {
     appStore.showError(

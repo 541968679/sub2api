@@ -84,6 +84,9 @@ vi.mock('vue-i18n', async () => {
         if (key === 'admin.accounts.stability.bridgeSamples') {
           return `bridgeSamples:${params?.success ?? ''}/${params?.error ?? ''}`
         }
+        if (key === 'admin.accounts.stability.failoverSamples') {
+          return `failoverSamples:${params?.terminal ?? ''}/${params?.failover ?? ''}`
+        }
         return key
       }
     })
@@ -253,7 +256,8 @@ describe('AccountStabilityDialog', () => {
       pause_minutes: 30,
       min_success_samples: 20,
       min_ttft_samples: 10,
-      condition: 'or'
+      condition: 'or',
+      schedule_use_failover_error_rate: false
     })
     updateQualityHardCloseSettings.mockResolvedValue({
       enabled: false,
@@ -353,9 +357,8 @@ describe('AccountStabilityDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const toggles = wrapper.findAll('.toggle-stub')
-    expect(toggles.length).toBe(1)
-    await toggles[0].setValue(true)
+    expect(wrapper.findAll('.toggle-stub').length).toBe(2)
+    await wrapper.get('[data-test="stability-hard-close-enabled"]').setValue(true)
 
     const percentInput = wrapper.find('input[type="number"][step="0.1"]')
     await percentInput.setValue('85')
@@ -476,7 +479,8 @@ describe('AccountStabilityDialog', () => {
       pause_minutes: 40,
       min_success_samples: 12,
       min_ttft_samples: 9,
-      condition: 'or'
+      condition: 'or',
+      schedule_use_failover_error_rate: false
     })
     expect(updateQualityHardClose).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
@@ -539,5 +543,51 @@ describe('AccountStabilityDialog', () => {
     expect(wrapper.get('[data-test="stability-bridge-empty"]').text()).toContain('admin.accounts.stability.bridgeEmpty')
     expect(wrapper.text()).not.toContain('0.0%')
     expect(wrapper.find('[data-test="stability-bridge-samples"]').exists()).toBe(false)
+  })
+
+  it('shows both account error rates and persists the failover scheduling toggle', async () => {
+    getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '12': {
+          window_seconds: 900,
+          success_count: 90,
+          error_count: 5,
+          success_rate: 90 / 95,
+          terminal_error_count: 5,
+          terminal_error_rate: 5 / 95,
+          failover_error_count: 20,
+          failover_error_rate: 20 / 110,
+          avg_ttft_ms: 400,
+          p50_ttft_ms: 300,
+          ttft_samples: 10
+        }
+      }
+    })
+    updateQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or',
+      schedule_use_failover_error_rate: true
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="stability-error-calibers"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="stability-terminal-rate"]').text()).toBe('5.3%')
+    expect(wrapper.get('[data-test="stability-failover-rate"]').text()).toBe('18.2%')
+    expect(wrapper.get('[data-test="stability-caliber-samples"]').text()).toContain('5')
+    expect(wrapper.get('[data-test="stability-caliber-samples"]').text()).toContain('20')
+
+    await wrapper.get('[data-test="stability-failover-toggle"]').setValue(true)
+    await flushPromises()
+
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ schedule_use_failover_error_rate: true })
+    )
   })
 })

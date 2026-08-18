@@ -137,6 +137,80 @@ func TestSQLClaudeGPTBridgePredicates(t *testing.T) {
 	require.Contains(t, usagePred, "LIKE 'gpt-%'")
 }
 
+func TestApplyAccountQualityScheduleCaliber_DefaultKeepsTerminal(t *testing.T) {
+	stats := BuildAccountQualityStats(90, 0, TTFTAggregate{})
+	AttachAccountQualityErrorCalibers(stats, 5, 20)
+	require.Equal(t, int64(5), stats.ErrorCount)
+	require.Equal(t, int64(5), stats.TerminalErrorCount)
+	require.Equal(t, int64(20), stats.FailoverErrorCount)
+	require.False(t, stats.ScheduleUseFailoverErrorRate)
+	require.NotNil(t, stats.SuccessRate)
+	require.InDelta(t, 90.0/95.0, *stats.SuccessRate, 1e-9)
+
+	ApplyAccountQualityScheduleCaliber(stats, false)
+	require.Equal(t, int64(5), stats.ErrorCount)
+	require.False(t, stats.ScheduleUseFailoverErrorRate)
+	require.InDelta(t, 90.0/95.0, *stats.SuccessRate, 1e-9)
+}
+
+func TestApplyAccountQualityScheduleCaliber_OnUsesFailover(t *testing.T) {
+	stats := BuildAccountQualityStats(90, 0, TTFTAggregate{})
+	AttachAccountQualityErrorCalibers(stats, 5, 20)
+	ApplyAccountQualityScheduleCaliber(stats, true)
+	require.True(t, stats.ScheduleUseFailoverErrorRate)
+	require.Equal(t, int64(20), stats.ErrorCount)
+	require.Equal(t, int64(5), stats.TerminalErrorCount)
+	require.Equal(t, int64(20), stats.FailoverErrorCount)
+	require.NotNil(t, stats.SuccessRate)
+	require.InDelta(t, 90.0/110.0, *stats.SuccessRate, 1e-9)
+	require.NotNil(t, stats.ErrorRate)
+	require.InDelta(t, 20.0/110.0, *stats.ErrorRate, 1e-9)
+}
+
+func TestClassifyOpsErrorRateCalibers(t *testing.T) {
+	recovered := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 200,
+		Phase:        "upstream",
+		Type:         "rate_limit_error",
+		Message:      "Recovered upstream error 429: too many requests",
+	})
+	require.True(t, recovered.IsRecovered)
+	require.False(t, recovered.CountedInUserErrorRate)
+	require.True(t, recovered.CountedInAccountCompareRate)
+	require.False(t, recovered.CountedInAccountScheduleRate)
+
+	recoveredOn := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 200,
+		Phase:        "upstream",
+		Type:         "rate_limit_error",
+		Message:      "Recovered upstream error 429: too many requests",
+		UseFailover:  true,
+	})
+	require.True(t, recoveredOn.CountedInAccountScheduleRate)
+	require.False(t, recoveredOn.CountedInUserErrorRate)
+
+	modelMiss := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 404,
+		Phase:        "internal",
+		Type:         "api_error",
+		Message:      "model_not_found: claude-bad",
+	})
+	require.False(t, modelMiss.IsRecovered)
+	require.True(t, modelMiss.CountedInUserErrorRate)
+	require.False(t, modelMiss.CountedInAccountCompareRate)
+	require.False(t, modelMiss.CountedInAccountScheduleRate)
+
+	terminal := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 502,
+		Phase:        "upstream",
+		Type:         "upstream_error",
+		Message:      "bad gateway",
+	})
+	require.True(t, terminal.CountedInUserErrorRate)
+	require.True(t, terminal.CountedInAccountCompareRate)
+	require.True(t, terminal.CountedInAccountScheduleRate)
+}
+
 func TestSQLAccountQualityRoutingModelMissPredicate(t *testing.T) {
 	pred := SQLAccountQualityRoutingModelMissPredicate()
 	require.Contains(t, pred, "COALESCE(status_code, 0) IN (400, 403, 404, 503)")

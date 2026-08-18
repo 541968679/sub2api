@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   formatQualityBridgeErrorRate,
   formatQualityErrorRate,
+  formatQualityFailoverErrorRate,
   formatQualitySuccessRate,
+  formatQualityTerminalErrorRate,
   hasDisplayableBridgeErrorRate,
   hasDisplayableQualityRate,
   qualityBridgeSampleCount,
@@ -71,5 +73,20 @@ describe('accountQualityStats rate display', () => {
     expect(qualityBridgeSampleCount(bridge)).toBe(10)
     expect(hasDisplayableBridgeErrorRate(bridge)).toBe(true)
     expect(formatQualityBridgeErrorRate(bridge)).toBe('60.0%')
+  })
+
+  it('formats terminal vs failover account error rates without inventing a missing failover window', () => {
+    expect(formatQualityTerminalErrorRate(mixed)).toBe('9.1%')
+    expect(formatQualityFailoverErrorRate(mixed)).toBeNull()
+
+    const dual = {
+      ...mixed,
+      terminal_error_count: 5,
+      terminal_error_rate: 5 / 15,
+      failover_error_count: 20,
+      failover_error_rate: 20 / 30
+    }
+    expect(formatQualityTerminalErrorRate(dual)).toBe('33.3%')
+    expect(formatQualityFailoverErrorRate(dual)).toBe('66.7%')
   })
 })

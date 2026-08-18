@@ -2995,13 +2995,14 @@ func qualityHardCloseSettingsDTO(settings *service.QualityHardCloseSettings) dto
 		settings = service.DefaultQualityHardCloseSettings()
 	}
 	return dto.QualityHardCloseSettings{
-		Enabled:           settings.Enabled,
-		MaxP50TTFTMs:      settings.MaxP50TTFTMs,
-		MinSuccessRate:    settings.MinSuccessRate,
-		PauseMinutes:      settings.PauseMinutes,
-		MinSuccessSamples: settings.MinSuccessSamples,
-		MinTTFTSamples:    settings.MinTTFTSamples,
-		Condition:         settings.Condition,
+		Enabled:                      settings.Enabled,
+		MaxP50TTFTMs:                 settings.MaxP50TTFTMs,
+		MinSuccessRate:               settings.MinSuccessRate,
+		PauseMinutes:                 settings.PauseMinutes,
+		MinSuccessSamples:            settings.MinSuccessSamples,
+		MinTTFTSamples:               settings.MinTTFTSamples,
+		Condition:                    settings.Condition,
+		ScheduleUseFailoverErrorRate: settings.ScheduleUseFailoverErrorRate,
 	}
 }
 
@@ -3018,13 +3019,14 @@ func (h *SettingHandler) GetQualityHardCloseSettings(c *gin.Context) {
 
 // UpdateQualityHardCloseSettingsRequest 更新账号质量硬关闭全局配置
 type UpdateQualityHardCloseSettingsRequest struct {
-	Enabled           bool     `json:"enabled"`
-	MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
-	MinSuccessRate    *float64 `json:"min_success_rate"`
-	PauseMinutes      int      `json:"pause_minutes"`
-	MinSuccessSamples int      `json:"min_success_samples"`
-	MinTTFTSamples    int      `json:"min_ttft_samples"`
-	Condition         string   `json:"condition"`
+	Enabled                      bool     `json:"enabled"`
+	MaxP50TTFTMs                 *int     `json:"max_p50_ttft_ms"`
+	MinSuccessRate               *float64 `json:"min_success_rate"`
+	PauseMinutes                 int      `json:"pause_minutes"`
+	MinSuccessSamples            int      `json:"min_success_samples"`
+	MinTTFTSamples               int      `json:"min_ttft_samples"`
+	Condition                    string   `json:"condition"`
+	ScheduleUseFailoverErrorRate bool     `json:"schedule_use_failover_error_rate"`
 }
 
 // UpdateQualityHardCloseSettings 更新账号质量硬关闭全局配置
@@ -3037,13 +3039,14 @@ func (h *SettingHandler) UpdateQualityHardCloseSettings(c *gin.Context) {
 	}
 
 	settings := &service.QualityHardCloseSettings{
-		Enabled:           req.Enabled,
-		MaxP50TTFTMs:      req.MaxP50TTFTMs,
-		MinSuccessRate:    req.MinSuccessRate,
-		PauseMinutes:      req.PauseMinutes,
-		MinSuccessSamples: req.MinSuccessSamples,
-		MinTTFTSamples:    req.MinTTFTSamples,
-		Condition:         req.Condition,
+		Enabled:                      req.Enabled,
+		MaxP50TTFTMs:                 req.MaxP50TTFTMs,
+		MinSuccessRate:               req.MinSuccessRate,
+		PauseMinutes:                 req.PauseMinutes,
+		MinSuccessSamples:            req.MinSuccessSamples,
+		MinTTFTSamples:               req.MinTTFTSamples,
+		Condition:                    req.Condition,
+		ScheduleUseFailoverErrorRate: req.ScheduleUseFailoverErrorRate,
 	}
 	if err := h.settingService.SetQualityHardCloseSettings(c.Request.Context(), settings); err != nil {
 		response.BadRequest(c, err.Error())

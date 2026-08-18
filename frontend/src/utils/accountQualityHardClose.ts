@@ -137,6 +137,7 @@ export type QualityThresholdTemplate = {
   min_ttft_samples: number
   condition: 'or' | 'and'
   enabled: boolean
+  schedule_use_failover_error_rate?: boolean
 }
 
 export function qualityGateFormFromTemplate(template: QualityThresholdTemplate): QualityGateFormFields {
@@ -161,7 +162,8 @@ export function mergeQualityTemplateFromGate(
     pause_minutes: current.pause_minutes,
     min_success_samples: gate.quality_min_success_samples ?? current.min_success_samples,
     min_ttft_samples: gate.quality_min_ttft_samples ?? current.min_ttft_samples,
-    condition: gate.quality_condition === 'and' ? 'and' : 'or'
+    condition: gate.quality_condition === 'and' ? 'and' : 'or',
+    schedule_use_failover_error_rate: current.schedule_use_failover_error_rate === true
   }
 }
 

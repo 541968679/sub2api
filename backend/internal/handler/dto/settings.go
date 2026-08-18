@@ -369,9 +369,10 @@ type QualityHardCloseSettings struct {
 	MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
 	MinSuccessRate    *float64 `json:"min_success_rate"`
 	PauseMinutes      int      `json:"pause_minutes"`
-	MinSuccessSamples int      `json:"min_success_samples"`
-	MinTTFTSamples    int      `json:"min_ttft_samples"`
-	Condition         string   `json:"condition"`
+	MinSuccessSamples            int      `json:"min_success_samples"`
+	MinTTFTSamples               int      `json:"min_ttft_samples"`
+	Condition                    string   `json:"condition"`
+	ScheduleUseFailoverErrorRate bool     `json:"schedule_use_failover_error_rate"`
 }
 
 // StreamTimeoutSettings 婵犵數鍋熺换婵喢归崶鈺冪煋闁圭虎鍠栫猾宥夋偣鏉炴媽顒熸俊鏌ヤ憾閺岋綁鎮欓崣澶樻＆闂佸憡菧閸婃妲?DTO

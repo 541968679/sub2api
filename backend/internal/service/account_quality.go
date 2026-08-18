@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -53,6 +54,17 @@ type AccountQualityStats struct {
 	BridgeSuccessCount int64    `json:"bridge_success_count"`
 	BridgeErrorCount   int64    `json:"bridge_error_count"`
 	BridgeErrorRate    *float64 `json:"bridge_error_rate"`
+	// Terminal* is the account caliber without Recovered/failover
+	// (client status>=400, model-not-found already excluded).
+	TerminalErrorCount int64    `json:"terminal_error_count"`
+	TerminalErrorRate  *float64 `json:"terminal_error_rate"`
+	// Failover* includes this account's upstream hop failures, including
+	// Recovered 429/503 even when the client saw 200.
+	FailoverErrorCount int64    `json:"failover_error_count"`
+	FailoverErrorRate  *float64 `json:"failover_error_rate"`
+	// ScheduleUseFailoverErrorRate echoes the site-wide toggle that selected
+	// ErrorCount / SuccessRate for gates. Default false.
+	ScheduleUseFailoverErrorRate bool `json:"schedule_use_failover_error_rate"`
 	// AvgTTFTMs kept for backward compatibility; prefer P50 for display.
 	AvgTTFTMs   *int  `json:"avg_ttft_ms"`
 	P50TTFTMs   *int  `json:"p50_ttft_ms"`
@@ -109,6 +121,42 @@ func BuildAccountQualityStats(successCount, errorCount int64, ttft TTFTAggregate
 	return stats
 }
 
+// AttachAccountQualityErrorCalibers stores both account error calibers.
+// ErrorCount stays the terminal (no-failover) count until
+// ApplyAccountQualityScheduleCaliber runs.
+func AttachAccountQualityErrorCalibers(stats *AccountQualityStats, terminalCount, failoverCount int64) {
+	if stats == nil {
+		return
+	}
+	stats.TerminalErrorCount = terminalCount
+	stats.FailoverErrorCount = failoverCount
+	stats.ErrorCount = terminalCount
+	stats.SuccessRate = nil
+	stats.ErrorRate = nil
+	stats.TerminalErrorRate = nil
+	stats.FailoverErrorRate = nil
+	NormalizeAccountQualityRates(stats)
+}
+
+// ApplyAccountQualityScheduleCaliber copies the selected caliber into
+// ErrorCount / SuccessRate so hard-close and smart-schedule keep reading
+// the existing fields. Default (useFailover=false) is the current
+// terminal caliber — Recovered rows do not enter gates.
+func ApplyAccountQualityScheduleCaliber(stats *AccountQualityStats, useFailover bool) {
+	if stats == nil {
+		return
+	}
+	stats.ScheduleUseFailoverErrorRate = useFailover
+	if useFailover {
+		stats.ErrorCount = stats.FailoverErrorCount
+	} else {
+		stats.ErrorCount = stats.TerminalErrorCount
+	}
+	stats.SuccessRate = nil
+	stats.ErrorRate = nil
+	NormalizeAccountQualityRates(stats)
+}
+
 // AttachBridgeQualityCounts sets the display-only bridge window and recomputes
 // BridgeErrorRate. Scheduling ErrorCount / SuccessRate are left untouched.
 func AttachBridgeQualityCounts(stats *AccountQualityStats, successCount, errorCount int64) {
@@ -149,6 +197,12 @@ func NormalizeAccountQualityRates(stats *AccountQualityStats) {
 			stats.ErrorRate = &rate
 		}
 	}
+	if stats.TerminalErrorRate == nil {
+		stats.TerminalErrorRate = qualityErrorRate(stats.SuccessCount, stats.TerminalErrorCount)
+	}
+	if stats.FailoverErrorRate == nil {
+		stats.FailoverErrorRate = qualityErrorRate(stats.SuccessCount, stats.FailoverErrorCount)
+	}
 	bridgeTotal := stats.BridgeSuccessCount + stats.BridgeErrorCount
 	if bridgeTotal <= 0 {
 		stats.BridgeErrorRate = nil
@@ -158,6 +212,15 @@ func NormalizeAccountQualityRates(stats *AccountQualityStats) {
 		rate := float64(stats.BridgeErrorCount) / float64(bridgeTotal)
 		stats.BridgeErrorRate = &rate
 	}
+}
+
+func qualityErrorRate(successCount, errorCount int64) *float64 {
+	total := successCount + errorCount
+	if total <= 0 {
+		return nil
+	}
+	rate := float64(errorCount) / float64(total)
+	return &rate
 }
 
 func roundNonNegMs(v *float64) *int {
@@ -374,7 +437,8 @@ func HasAccountQualitySamples(stats *AccountQualityStats) bool {
 		return false
 	}
 	return stats.SuccessCount > 0 || stats.ErrorCount > 0 || stats.TTFTSamples > 0 ||
-		stats.BridgeSuccessCount > 0 || stats.BridgeErrorCount > 0
+		stats.BridgeSuccessCount > 0 || stats.BridgeErrorCount > 0 ||
+		stats.TerminalErrorCount > 0 || stats.FailoverErrorCount > 0
 }
 
 // TruncateToAccountQualitySnapshotTime truncates t to a 5-minute UTC boundary.
@@ -521,4 +585,121 @@ func SQLAccountQualityRoutingModelMissPredicate() string {
 // for the account quality window. Do not apply it to GetUserQualityStatsBatch.
 func SQLExcludeAccountQualityRoutingModelMiss() string {
 	return "NOT (" + SQLAccountQualityRoutingModelMissPredicate() + ")"
+}
+
+// SQLAccountQualityFailoverErrorPredicate matches this account's upstream hop
+// failures, including Recovered rows (client 200 + upstream >=400).
+func SQLAccountQualityFailoverErrorPredicate() string {
+	return "COALESCE(upstream_status_code, status_code, 0) >= 400"
+}
+
+// IsAccountQualityRoutingModelMiss is the Go twin of
+// SQLAccountQualityRoutingModelMissPredicate. Keep them in lockstep.
+func IsAccountQualityRoutingModelMiss(status int, phase, errorType, message, body string) bool {
+	switch status {
+	case 400, 403, 404, 503:
+	default:
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(phase), "upstream") {
+		return false
+	}
+	typ := strings.ToLower(strings.TrimSpace(errorType))
+	switch typ {
+	case "upstream_error", "overloaded_error", "rate_limit_error":
+		return false
+	}
+	msg := strings.ToLower(message)
+	bod := strings.ToLower(body)
+	if typ == "model_not_found" {
+		return true
+	}
+	if strings.Contains(msg, "model_not_found") || strings.Contains(bod, "model_not_found") {
+		return true
+	}
+	if strings.Contains(msg, "unknown model") || strings.Contains(msg, "model not found") ||
+		strings.Contains(msg, "unsupported model") || strings.Contains(msg, "not supported by any configured account") ||
+		strings.Contains(msg, "supporting model:") || strings.Contains(msg, "no account supports") {
+		return true
+	}
+	if strings.Contains(msg, "model") && (strings.Contains(msg, "does not exist") || strings.Contains(msg, "not in whitelist")) {
+		return true
+	}
+	return false
+}
+
+// IsRecoveredOpsError matches ops_error_logs Recovered / 上游已救回 rows:
+// error_phase=upstream, client status<400, message prefix Recovered.
+func IsRecoveredOpsError(phase string, clientStatus int, message string) bool {
+	if clientStatus >= 400 {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(phase), "upstream") {
+		return false
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(message)), "recovered")
+}
+
+// OpsErrorCaliberInput is one ops_error_logs row for list-flag classification.
+type OpsErrorCaliberInput struct {
+	ClientStatus  int
+	Phase         string
+	Type          string
+	Message       string
+	ErrorBody     string
+	Platform      string
+	UpstreamModel string
+	UseFailover   bool
+}
+
+// OpsErrorRateCalibers is the three-layer list marking for one error row.
+type OpsErrorRateCalibers struct {
+	IsRecovered                  bool
+	CountedInUserErrorRate       bool
+	CountedInAccountCompareRate  bool
+	CountedInAccountScheduleRate bool
+}
+
+// ClassifyOpsErrorRateCalibers uses the same predicates as quality SQL / SLA.
+// User rate = client status>=400. Compare account rate = this hop failed
+// (terminal >=400 or Recovered), excluding model-not-found and bridge.
+// Schedule account rate follows the site-wide failover toggle.
+func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers {
+	recovered := IsRecoveredOpsError(in.Phase, in.ClientStatus, in.Message)
+	user := in.ClientStatus >= 400
+	routingMiss := IsAccountQualityRoutingModelMiss(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
+	bridge := IsClaudeGPTBridgeError(in.Platform, in.UpstreamModel)
+	terminalAccount := user && !routingMiss && !bridge
+	compareAccount := !routingMiss && !bridge && (user || recovered)
+	schedule := terminalAccount
+	if in.UseFailover {
+		schedule = compareAccount
+	}
+	return OpsErrorRateCalibers{
+		IsRecovered:                  recovered,
+		CountedInUserErrorRate:       user,
+		CountedInAccountCompareRate:  compareAccount,
+		CountedInAccountScheduleRate: schedule,
+	}
+}
+
+// ApplyOpsErrorRateCalibers writes list DTO flags from ClassifyOpsErrorRateCalibers.
+func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody string, useFailover bool) {
+	if item == nil {
+		return
+	}
+	cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus:  clientStatus,
+		Phase:         item.Phase,
+		Type:          item.Type,
+		Message:       item.Message,
+		ErrorBody:     errorBody,
+		Platform:      item.Platform,
+		UpstreamModel: item.UpstreamModel,
+		UseFailover:   useFailover,
+	})
+	item.IsRecovered = cals.IsRecovered
+	item.CountedInUserErrorRate = cals.CountedInUserErrorRate
+	item.CountedInAccountCompareRate = cals.CountedInAccountCompareRate
+	item.CountedInAccountScheduleRate = cals.CountedInAccountScheduleRate
 }
