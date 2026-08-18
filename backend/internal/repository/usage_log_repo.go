@@ -2476,7 +2476,12 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 	routingModelMissGuard := ""
 	statusPredicate := "COALESCE(status_code, 0) >= 400"
 	errorCountExpr := service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model")
-	failoverCountExpr := "0"
+	// User-dimension quality does not compute failover hops. FILTER still
+	// needs a boolean: PostgreSQL rejects FILTER (WHERE 0) with
+	// "argument of FILTER must be type boolean, not type integer", which
+	// 500s POST /admin/users/quality-stats/batch and blanks both the user
+	// list and smart-schedule header TTFT/success cells.
+	failoverCountExpr := "FALSE"
 	if idColumn == qualityStatsIDColumnAccount {
 		routingModelMissGuard = "\n\t\t  AND " + service.SQLExcludeAccountQualityRoutingModelMiss()
 		statusPredicate = "(" + statusPredicate + " OR " + service.SQLAccountQualityFailoverErrorPredicate() + ")"

@@ -75,6 +75,13 @@ describe('accountQualityStats rate display', () => {
     expect(formatQualityBridgeErrorRate(bridge)).toBe('60.0%')
   })
 
+  it('keeps success-rate display when failover_error_count is omitted', () => {
+    expect(hasDisplayableQualityRate(mixed)).toBe(true)
+    expect(formatQualitySuccessRate(mixed)).toBe('90.9%')
+    expect(formatQualityErrorRate(mixed)).toBe('9.1%')
+    expect(formatQualityFailoverErrorRate(mixed)).toBeNull()
+  })
+
   it('formats terminal vs failover account error rates without inventing a missing failover window', () => {
     expect(formatQualityTerminalErrorRate(mixed)).toBe('9.1%')
     expect(formatQualityFailoverErrorRate(mixed)).toBeNull()

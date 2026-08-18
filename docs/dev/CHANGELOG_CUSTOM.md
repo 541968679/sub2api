@@ -1,3 +1,27 @@
+## 2026-08-18 - hotfix(quality): user TTFT/success 500 after dual-caliber
+
+### What
+- User-dimension quality SQL now uses `FILTER (WHERE FALSE)` for the unused failover count. `FILTER (WHERE 0)` is invalid in PostgreSQL.
+- User list and smart-schedule header still show 首字 / 成功率 from the user-final-outcome caliber (`status>=400`). Missing failover samples do not blank the cell.
+- Account dual-caliber popup / schedule toggle is unchanged.
+
+### Why
+v0.1.238 shipped `failover_error_count` on the shared quality batch query. User batch forced that column to `0`, which 500s `POST /admin/users/quality-stats/batch` (`argument of FILTER must be type boolean, not type integer`). Both user surfaces share that API, so every TTFT/success chip went empty. Account batch stayed 200.
+
+### Verification
+- Production logs: user batch 500, account batch 200.
+- Go: user sqlmock requires `FILTER (WHERE FALSE)`; zero failover still keeps SuccessRate/P50.
+- Vitest: omitted `failover_error_count` still formats success rate.
+
+### Affected files
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/usage_log_repo_quality_stats_test.go`,
+`backend/internal/service/account_quality_test.go`,
+`backend/internal/service/account_usage_quality_stats_test.go`,
+`frontend/src/utils/__tests__/accountQualityStats.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-18 - fix(smart-schedule): pause switch races and silent cooldown write
 
 ### What

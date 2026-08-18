@@ -153,6 +153,19 @@ func TestApplyAccountQualityScheduleCaliber_DefaultKeepsTerminal(t *testing.T) {
 	require.InDelta(t, 90.0/95.0, *stats.SuccessRate, 1e-9)
 }
 
+func TestAttachAccountQualityErrorCalibers_ZeroFailoverKeepsUserRates(t *testing.T) {
+	p50 := 280.0
+	stats := BuildAccountQualityStats(8, 2, TTFTAggregate{Samples: 7, P50: &p50})
+	AttachAccountQualityErrorCalibers(stats, 2, 0)
+	require.Equal(t, int64(2), stats.ErrorCount)
+	require.Equal(t, int64(2), stats.TerminalErrorCount)
+	require.Equal(t, int64(0), stats.FailoverErrorCount)
+	require.NotNil(t, stats.SuccessRate)
+	require.InDelta(t, 0.8, *stats.SuccessRate, 1e-9)
+	require.NotNil(t, stats.P50TTFTMs)
+	require.Equal(t, 280, *stats.P50TTFTMs)
+}
+
 func TestApplyAccountQualityScheduleCaliber_OnUsesFailover(t *testing.T) {
 	stats := BuildAccountQualityStats(90, 0, TTFTAggregate{})
 	AttachAccountQualityErrorCalibers(stats, 5, 20)

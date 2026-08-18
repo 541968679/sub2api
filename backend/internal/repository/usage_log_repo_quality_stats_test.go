@@ -107,7 +107,8 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 		AddRow(int64(20), int64(1), int64(0), int64(0))
 	// User query must keep user_id IS NOT NULL and must NOT add the account
 	// routing-model-miss exclusion (those 4xx stay user-visible failures).
-	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*AND is_count_tokens = FALSE\s+AND user_id IS NOT NULL\s+GROUP BY user_id`).
+	// Failover count is a boolean no-op (FALSE), never FILTER (WHERE 0).
+	mock.ExpectQuery(`SELECT\s+user_id[\s\S]*FILTER \(WHERE FALSE\) AS failover_error_count[\s\S]*FROM ops_error_logs[\s\S]*WHERE user_id = ANY[\s\S]*COALESCE\(status_code, 0\) >= 400[\s\S]*AND is_count_tokens = FALSE\s+AND user_id IS NOT NULL\s+GROUP BY user_id`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(errorRows)
 
@@ -119,6 +120,9 @@ func TestUsageLogRepository_GetUserQualityStatsBatch(t *testing.T) {
 	require.NotNil(t, user10)
 	require.Equal(t, int64(8), user10.SuccessCount)
 	require.Equal(t, int64(2), user10.ErrorCount)
+	require.Equal(t, int64(2), user10.TerminalErrorCount)
+	require.Equal(t, int64(0), user10.FailoverErrorCount)
+	require.False(t, user10.ScheduleUseFailoverErrorRate)
 	require.Equal(t, int64(1), user10.BridgeSuccessCount)
 	require.Equal(t, int64(5), user10.BridgeErrorCount)
 	require.NotNil(t, user10.SuccessRate)

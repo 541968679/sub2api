@@ -114,6 +114,36 @@ func TestAccountUsageService_GetUserQualityStatsBatch_DedupCapAndFill(t *testing
 	require.Nil(t, got[2].AvgTTFTMs)
 }
 
+func TestAccountUsageService_GetUserQualityStatsBatch_KeepsRatesWhenFailoverZero(t *testing.T) {
+	rate := 0.8
+	ttft := 280
+	repo := &qualityStatsBatchRepoStub{
+		result: map[int64]*AccountQualityStats{
+			7: {
+				WindowSeconds:      AccountQualityWindowSeconds,
+				SuccessCount:       8,
+				ErrorCount:         2,
+				TerminalErrorCount: 2,
+				FailoverErrorCount: 0,
+				SuccessRate:        &rate,
+				P50TTFTMs:          &ttft,
+				TTFTSamples:        8,
+			},
+		},
+	}
+	svc := &AccountUsageService{usageLogRepo: repo}
+
+	got, err := svc.GetUserQualityStatsBatch(context.Background(), []int64{7})
+	require.NoError(t, err)
+	require.NotNil(t, got[7])
+	require.Equal(t, int64(0), got[7].FailoverErrorCount)
+	require.Equal(t, int64(2), got[7].ErrorCount)
+	require.NotNil(t, got[7].SuccessRate)
+	require.InDelta(t, 0.8, *got[7].SuccessRate, 1e-9)
+	require.NotNil(t, got[7].P50TTFTMs)
+	require.Equal(t, 280, *got[7].P50TTFTMs)
+}
+
 func TestAccountUsageService_GetUserQualityStatsBatch_MaxBatchSize(t *testing.T) {
 	repo := &qualityStatsBatchRepoStub{result: map[int64]*AccountQualityStats{}}
 	svc := &AccountUsageService{usageLogRepo: repo}
