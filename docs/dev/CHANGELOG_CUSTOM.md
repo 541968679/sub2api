@@ -23,6 +23,22 @@ Paused → cooling could report success with neither lock. Stopped chips hid 已
 `docs/dev/codebase/account.md`,
 this changelog.
 
+## 2026-08-18 - deploy: v0.1.238
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:latest` (`0.1.238`, revision `bbb3c159d`, digest `sha256:886d1444c76c186c215dc8434408a3cc60e151b293c46f8bb431c500c300a1c1`). Healthy, `/health` ok.
+- `v0.1.237` was tagged but never published to GHCR (`vue-tsc` TS2783). Do not deploy that tag.
+
+### Why
+- Ship Recovered list visibility, routing model-miss exclusion, and the default-off failover schedule toggle.
+
+### Verification
+- Release [32123363296](https://github.com/541968679/sub2api/actions/runs/32123363296) succeeded; `update.sh --skip-a2 --skip-invokeai` preflight `/health` then live cutover.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-18 - fix(smart-schedule): vue-tsc duplicate quality fields
 
 ### What
