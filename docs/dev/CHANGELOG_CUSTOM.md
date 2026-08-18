@@ -1,3 +1,20 @@
+## 2026-08-18 - deploy: v0.1.239
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:latest` (`0.1.239`, revision `4394f74b1`, digest `sha256:fb45fbf77ad49595f956c852d4fe8a5bba37a68f558f86587ccef2b7140ae362`). Healthy, `/health` ok.
+- Restores user TTFT/success chips after the v0.1.238 dual-caliber SQL 500.
+
+### Why
+- Ship the user-batch `FILTER (WHERE FALSE)` hotfix so both user surfaces keep 首字 / 成功率.
+
+### Verification
+- Release [32126149584](https://github.com/541968679/sub2api/actions/runs/32126149584) succeeded; GHCR `0.1.239` and `latest` share the digest above; image revision `4394f74b1b94af78796eec93466f9b8d18a4efe6`.
+- `update.sh --skip-a2 --skip-invokeai` preflight `/health` then live cutover.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-18 - hotfix(quality): user TTFT/success 500 after dual-caliber
 
 ### What
