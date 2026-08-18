@@ -239,7 +239,7 @@ func TestChatCompletionsToResponses_ReasoningEffort(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Reasoning)
 	assert.Equal(t, "high", resp.Reasoning.Effort)
-	assert.Equal(t, "auto", resp.Reasoning.Summary)
+	assert.Empty(t, resp.Reasoning.Summary)
 }
 
 func TestChatCompletionsToResponses_ImageURL(t *testing.T) {

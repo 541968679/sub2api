@@ -4874,12 +4874,12 @@ const enBase = {
         capabilityEmbeddings: 'Embeddings',
         responsesRouteMode: 'HTTP Responses upstream route',
         responsesRouteModeDesc:
-          'Controls the upstream endpoint used for downstream /v1/responses requests. Auto follows the account capability probe.',
+          'Controls the upstream endpoint for downstream /v1/responses and inbound /v1/chat/completions. Auto follows the account capability probe.',
         responsesRouteAuto: 'Auto probe',
         responsesRouteForceResponses: 'Force /v1/responses',
         responsesRouteForceChatCompletions: 'Force /v1/chat/completions',
         responsesRouteOverrideHint:
-          'The manual override takes precedence over probing. Later probes will not change this selection.',
+          'The manual override takes precedence over probing. Later probes will not change this selection. On Responses-capable midstream accounts, force /v1/chat/completions to compare the raw Chat path.',
         responsesProbeSupported: 'Probe result: native /v1/responses is supported',
         responsesProbeUnsupported: 'Probe result: native /v1/responses is unsupported',
         responsesProbeUnknown: 'Probe result: not probed yet',

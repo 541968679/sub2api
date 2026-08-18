@@ -12,9 +12,10 @@ type chatMessageContent struct {
 }
 
 // ChatCompletionsToResponses converts a Chat Completions request into a
-// Responses API request. The upstream always streams, so Stream is forced to
-// true. store is always false and reasoning.encrypted_content is always
-// included so that the response translator has full context.
+// Responses API request. Stream is set true here; the gateway may flip it
+// false for API Key sync after OAuth transform. store is always false and
+// reasoning.encrypted_content is always included so that the response
+// translator has full context.
 func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest, error) {
 	input, err := convertChatMessagesToResponsesInput(req.Messages)
 	if err != nil {
@@ -30,7 +31,7 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		Model:             req.Model,
 		Instructions:      req.Instructions,
 		Input:             inputJSON,
-		Stream:            true, // upstream always streams
+		Stream:            true, // default; gateway may set false for API Key sync
 		Include:           []string{"reasoning.encrypted_content"},
 		ServiceTier:       req.ServiceTier,
 		ParallelToolCalls: req.ParallelToolCalls,
@@ -62,11 +63,12 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		out.MaxOutputTokens = &v
 	}
 
-	// reasoning_effort → reasoning.effort + reasoning.summary="auto"
+	// reasoning_effort → reasoning.effort only. Do not auto-add
+	// summary="auto"; Chat Completions clients did not ask for a summary
+	// and it makes the upstream generate extra tokens.
 	if req.ReasoningEffort != "" {
 		out.Reasoning = &ResponsesReasoning{
-			Effort:  req.ReasoningEffort,
-			Summary: "auto",
+			Effort: req.ReasoningEffort,
 		}
 	}
 

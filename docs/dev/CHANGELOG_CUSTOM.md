@@ -1,3 +1,29 @@
+## 2026-08-18 - perf(gateway): speed up Chat Completions → Responses conversion path
+
+### What
+- API Key sync inbound `/v1/chat/completions` now asks Responses for a JSON body (`stream=false`) instead of always buffering SSE. OAuth still forces upstream SSE.
+- Buffered SSE fail-fast: `stream_data_interval_timeout` plus HTTP/2 peer reset become `UpstreamFailoverError` without writing 502. Warn logs always carry `request_id`. A completed terminal already received is returned as JSON if the connection later hangs, instead of failing over.
+- Non-stream JSON uses `ReadUpstreamResponseBody` (default 128 MiB), not a silent 2 MiB `LimitReader` truncate.
+- GPT-5/Codex `compat_cc_` prompt cache keys inject for API Key as well as OAuth. Converter no longer adds `reasoning.summary=auto`. Client `session_id` / `conversation_id` / `prompt_cache_key` are not overwritten even when the service argument is empty.
+- `force_chat_completions` remains the per-account escape hatch for inbound Chat Completions; production extras are unchanged.
+
+### Why
+Production `gpt-5.6-sol` inbound CC→Responses sync sat at p50 ~76s (native Responses stream ~9.6s). Most clients send `stream:false`; midstream HTTP/2 `INTERNAL_ERROR` then waited until the connection died.
+
+### Verification
+- `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai_compat ./internal/service -count=1` (targeted Chat Completions / buffered / routing cases).
+
+### Affected files
+`backend/internal/pkg/apicompat/chatcompletions_to_responses.go`,
+`backend/internal/pkg/apicompat/chatcompletions_responses_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-18 - deploy: v0.1.239
 
 ### What

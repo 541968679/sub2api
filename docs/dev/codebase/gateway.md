@@ -189,6 +189,42 @@ GatewayHandler.ChatCompletions
   -> RecordUsage
 ```
 
+### `/v1/chat/completions` OpenAI conversion path
+
+Inbound OpenAI `/v1/chat/completions` still converts to `/v1/responses` when
+`ShouldUseResponsesAPI` is true (unknown / supported / `force_responses`).
+Only `force_chat_completions` or a probe that confirmed no Responses uses raw
+`/v1/chat/completions`. Production account extras are not changed by this path.
+
+```
+ForwardAsChatCompletions
+  -> Grok / force_chat_completions / probe=unsupported
+       -> forwardAsRawChatCompletions
+  -> else convert Chat Completions -> Responses
+       -> inject compat_cc_<hash> prompt_cache_key for GPT-5/Codex when the
+          client omitted cache/session (same hash as OAuth; do not overwrite)
+       -> do not auto-add reasoning.summary=auto
+       -> OAuth or client stream=true
+            -> upstream stream=true + Accept text/event-stream
+            -> SSE: stream back CC SSE, or buffer to one CC JSON
+            -> buffer fail-fast: StreamDataIntervalTimeout + HTTP/2 peer reset
+               become UpstreamFailoverError without writing 502
+            -> timeout=0 keeps the synchronous scanner (tests)
+            -> a completed terminal already in hand is returned as JSON even if
+               the connection later hangs
+       -> API Key + client stream=false
+            -> after OAuth transform (skipped): stream=false + Accept JSON
+            -> handleChatNonStreamResponsesJSON via ReadUpstreamResponseBody
+               (same 128 MiB default as native Responses)
+            -> shared finishChatCompletionsFromResponsesResponse (usage /
+               display rewrite / cyber-policy / failed status)
+            -> upstream still SSE -> fall back to the buffered path
+```
+
+Client contract is unchanged: `stream=true` returns SSE, `stream=false`
+returns one JSON object. Billing, display transforms, and scheduler selection
+are not part of this conversion-path change.
+
 ### Antigravity Native Entry
 
 ```
@@ -660,6 +696,31 @@ own cached manifest fallback.
 
 ## Important Mechanisms
 
+### Chat Completions → Responses conversion path
+
+Inbound `/v1/chat/completions` on OpenAI OAuth, or on API-key accounts that
+probe as Responses-capable (or are still unprobed), converts to
+`POST /v1/responses` and translates the reply back to Chat Completions.
+
+- **API Key + client `stream=false`**: the gateway asks the upstream Responses
+  API for a single JSON body (`stream=false`, `Accept: application/json`) and
+  converts that object. If the upstream still returns SSE, the buffered path
+  is used. OAuth / ChatGPT internal still forces `stream=true`.
+- **Buffered SSE fail-fast**: client-sync buffering honors
+  `gateway.stream_data_interval_timeout` (default 180s). HTTP/2
+  `INTERNAL_ERROR` / peer stream reset returns `UpstreamFailoverError` without
+  writing a 502. Continuous SSE inside the interval is not killed. Warn logs
+  always include `request_id` (upstream header, else `ctxkey.RequestID` /
+  `ClientRequestID`).
+- **Prompt cache key**: GPT-5 / Codex conversions auto-inject
+  `compat_cc_…` when the client did not send a key or session, for both OAuth
+  and API Key. Existing client keys are not overwritten. The hash seed is
+  unchanged.
+- **Reasoning**: `reasoning_effort` maps to `reasoning.effort` only. The
+  converter does not add `reasoning.summary=auto`.
+
+Grok's Chat→Responses bridge shares the buffered fail-fast helper.
+
 ### HTTP 200 `response.failed` handling
 
 OpenAI Responses, Responses passthrough, Chat Completions conversion, and
@@ -754,7 +815,7 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |
 | OpenAI Images account opt-out | `extra.openai_images_endpoint_enabled=false` excludes an OpenAI OAuth/API-key account from independent `/v1/images/*` scheduling only. It must not disable OpenAI chat/responses/embeddings, Claude-GPT bridge, or Codex `/v1/responses` image tool injection. |
 | OpenAI endpoint capabilities | `credentials.openai_capabilities` restricts OpenAI API-key endpoint scheduling for chat completions and embeddings. Missing config means default capabilities are allowed. This is independent from Images endpoint opt-out and Codex image-generation bridge settings. |
-| OpenAI API-key Responses route | `extra.openai_responses_mode` provides an admin override for downstream `/v1/responses`: `auto` follows `extra.openai_responses_supported`, `force_responses` uses the native upstream `/v1/responses`, and `force_chat_completions` uses the Responses-to-Chat compatibility bridge. Manual mode takes precedence over later probe results. The account create/edit UI exposes the three modes and the edit UI shows the current probe result. This does not change WebSocket mode, endpoint scheduling eligibility, model mapping, billing, or usage accounting. |
+| OpenAI API-key Responses route | `extra.openai_responses_mode` is the admin override for both downstream `/v1/responses` and inbound `/v1/chat/completions`. `auto` follows `extra.openai_responses_supported`; `force_responses` uses native `/v1/responses` (and still converts inbound Chat Completions); `force_chat_completions` uses the raw `/v1/chat/completions` path (and the Responses-to-Chat bridge for inbound `/v1/responses`). Manual mode takes precedence over later probe results. Production midstream accounts that already probe as Responses-capable stay on the conversion path until an operator flips this switch. This does not change WebSocket mode, endpoint scheduling eligibility, model mapping, billing, or usage accounting. |
 | OpenAI Ops endpoint attribution | `inbound_endpoint` records the normalized downstream route. `upstream_endpoint` prefers the normalized runtime endpoint recorded immediately before OpenAI/Grok transport, then falls back to platform derivation when no upstream transport was selected. Responses-to-Chat and raw Chat errors therefore record `/v1/chat/completions`, while native HTTP/passthrough/WS paths record `/v1/responses` (including supported HTTP subpaths). Each upstream error event snapshots its attempt endpoint, so recovered failover rows use the last failed attempt rather than a later successful account's route. Every account-switch attempt overwrites the runtime value so a previous Chat route cannot leak into a later native route. The admin error list renders differing values as `inbound -> upstream`; the detail modal keeps them in separate fields. |
 | Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. For OpenAI and Antigravity it can only narrow the curated discovery lists, except stale full-default OpenAI lists are expanded to include newly curated GPT-5.6 models. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
 | Codex model discovery metadata | OpenAI `/v1/models` response objects include optional Codex client capability fields so custom-provider model pickers can recognize Responses and Chat Completions support. These fields are not authoritative for backend scheduling or billing. |

@@ -4624,11 +4624,12 @@ const zhBase = {
         capabilityEmbeddings: 'Embeddings',
         responsesRouteMode: 'HTTP Responses 上游路由',
         responsesRouteModeDesc:
-          '控制下游 /v1/responses 请求实际使用的上游端点。自动模式跟随账号能力探测结果。',
+          '控制下游 /v1/responses 与入站 /v1/chat/completions 实际使用的上游端点。自动模式跟随账号能力探测结果。',
         responsesRouteAuto: '自动探测',
         responsesRouteForceResponses: '强制 /v1/responses',
         responsesRouteForceChatCompletions: '强制 /v1/chat/completions',
-        responsesRouteOverrideHint: '人工覆盖优先于自动探测，后续探测不会改变当前选择。',
+        responsesRouteOverrideHint:
+          '人工覆盖优先于自动探测，后续探测不会改变当前选择。对已支持 Responses 的中转账号，可强制 /v1/chat/completions 做直转对比。',
         responsesProbeSupported: '自动探测结果：支持原生 /v1/responses',
         responsesProbeUnsupported: '自动探测结果：不支持原生 /v1/responses',
         responsesProbeUnknown: '自动探测结果：尚未探测',
