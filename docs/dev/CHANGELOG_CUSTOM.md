@@ -1,3 +1,20 @@
+## 2026-08-18 - deploy: v0.1.240
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:latest` (`0.1.240`, revision `e5608cdbe`, digest `sha256:ba60309580077e97fcd3e14313e57f2c2d5018d0662ad41ba1421148a9389221`). Healthy, `/health` ok.
+- Ships inbound `/v1/chat/completions` → Responses fail-fast and API Key non-stream JSON.
+
+### Why
+- Cut production CC→Responses sync hang (HTTP/2 reset / buffered SSE) without changing native `/v1/responses` routing.
+
+### Verification
+- Release [32152848736](https://github.com/541968679/sub2api/actions/runs/32152848736) succeeded; GHCR `0.1.240` and `latest` share the digest above; image revision `e5608cdbefed0568a45fcb07a219bb99c05a799e`.
+- First `update.sh` aborted on leftover `sub2api-preflight` name conflict (live container unchanged). Retry preflight `/health` then live cutover.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-18 - perf(gateway): speed up Chat Completions → Responses conversion path
 
 ### What
