@@ -248,6 +248,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           settings.OpenAIResponsesFlushPreamble,
 		OpenAIResponsesFlushPreambleUserIDs:                    settings.OpenAIResponsesFlushPreambleUserIDs,
+		OpenAINewAPISlimCompleted:                              settings.OpenAINewAPISlimCompleted,
+		OpenAINewAPISlimCompletedUserIDs:                       settings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          settings.CodexCompactV2FallbackEnabled,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
@@ -581,6 +583,8 @@ type UpdateSettingsRequest struct {
 	EnableClientDatelineNormalization   *bool    `json:"enable_client_dateline_normalization"`
 	OpenAIResponsesFlushPreamble        *bool    `json:"openai_responses_flush_preamble"`
 	OpenAIResponsesFlushPreambleUserIDs *[]int64 `json:"openai_responses_flush_preamble_user_ids"`
+	OpenAINewAPISlimCompleted           *bool    `json:"openai_newapi_slim_completed"`
+	OpenAINewAPISlimCompletedUserIDs    *[]int64 `json:"openai_newapi_slim_completed_user_ids"`
 	CodexCompactV2FallbackEnabled       *bool    `json:"codex_compact_v2_fallback_enabled"`
 	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
 
@@ -1531,6 +1535,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIResponsesFlushPreambleUserIDs
 		}(),
+		OpenAINewAPISlimCompleted: func() bool {
+			if req.OpenAINewAPISlimCompleted != nil {
+				return *req.OpenAINewAPISlimCompleted
+			}
+			return previousSettings.OpenAINewAPISlimCompleted
+		}(),
+		OpenAINewAPISlimCompletedUserIDs: func() []int64 {
+			if req.OpenAINewAPISlimCompletedUserIDs != nil {
+				return *req.OpenAINewAPISlimCompletedUserIDs
+			}
+			return previousSettings.OpenAINewAPISlimCompletedUserIDs
+		}(),
 		CodexCompactV2FallbackEnabled: func() bool {
 			if req.CodexCompactV2FallbackEnabled != nil {
 				return *req.CodexCompactV2FallbackEnabled
@@ -1919,6 +1935,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           updatedSettings.OpenAIResponsesFlushPreamble,
 		OpenAIResponsesFlushPreambleUserIDs:                    updatedSettings.OpenAIResponsesFlushPreambleUserIDs,
+		OpenAINewAPISlimCompleted:                              updatedSettings.OpenAINewAPISlimCompleted,
+		OpenAINewAPISlimCompletedUserIDs:                       updatedSettings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          updatedSettings.CodexCompactV2FallbackEnabled,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
@@ -2364,6 +2382,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if !equalInt64Slice(before.OpenAIResponsesFlushPreambleUserIDs, after.OpenAIResponsesFlushPreambleUserIDs) {
 		changed = append(changed, "openai_responses_flush_preamble_user_ids")
+	}
+	if before.OpenAINewAPISlimCompleted != after.OpenAINewAPISlimCompleted {
+		changed = append(changed, "openai_newapi_slim_completed")
+	}
+	if !equalInt64Slice(before.OpenAINewAPISlimCompletedUserIDs, after.OpenAINewAPISlimCompletedUserIDs) {
+		changed = append(changed, "openai_newapi_slim_completed_user_ids")
 	}
 	if before.CodexCompactV2FallbackEnabled != after.CodexCompactV2FallbackEnabled {
 		changed = append(changed, "codex_compact_v2_fallback_enabled")

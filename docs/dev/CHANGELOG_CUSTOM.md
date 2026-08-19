@@ -1,3 +1,35 @@
+## 2026-08-19 - feat: optional NewAPI slim completed on Responses SSE
+
+### What
+- Added Settings KV `openai_newapi_slim_completed` (default false) and `openai_newapi_slim_completed_user_ids` (default `[]`), copied from the flush-preamble cache/UI pattern. Not a public setting.
+- When the gate hits, native `/v1/responses` HTTP SSE slims `response.completed` in-place to `{type, response.id, response.usage}` after billing parse and display rewrite. Soft-terminal streams with no completed and `output_tokens != 0` get one synthesized slim completed before `[DONE]`.
+- Both `handleStreamingResponsePassthrough` and `processSSELine` apply the same order and rules. Failed events, `output_tokens==0`, and `clientDisconnected` are left alone. Account 1685 is unchanged.
+
+### Why
+- Customer NewAPI treats empty `output[]` or fat completed snapshots as no output. Ops cannot derank account 1685; this is a default-off canary (user 220 after deploy) on Sub2API only.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAINewAPISlimCompleted|TestOpenAIResponsesFlushPreambleSettingDefaultOff"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts`
+
+### Affected files
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/settings_view.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/openai_newapi_slim_completed.go`,
+`backend/internal/service/openai_newapi_slim_completed_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/gateway_dateline_normalization_test.go`,
+`backend/internal/handler/dto/settings.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-19 - deploy: v0.1.241
 
 ### What

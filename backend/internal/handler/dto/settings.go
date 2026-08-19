@@ -160,6 +160,8 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization   bool    `json:"enable_client_dateline_normalization"`
 	OpenAIResponsesFlushPreamble        bool    `json:"openai_responses_flush_preamble"`
 	OpenAIResponsesFlushPreambleUserIDs []int64 `json:"openai_responses_flush_preamble_user_ids"`
+	OpenAINewAPISlimCompleted           bool    `json:"openai_newapi_slim_completed"`
+	OpenAINewAPISlimCompletedUserIDs    []int64 `json:"openai_newapi_slim_completed_user_ids"`
 	CodexCompactV2FallbackEnabled       bool    `json:"codex_compact_v2_fallback_enabled"`
 	GatewayNetworkRetryMax              int     `json:"gateway_network_retry_max"`
 
@@ -365,10 +367,10 @@ type OverloadCooldownSettings struct {
 
 // QualityHardCloseSettings is the admin DTO for the global quality hard-close template.
 type QualityHardCloseSettings struct {
-	Enabled           bool     `json:"enabled"`
-	MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
-	MinSuccessRate    *float64 `json:"min_success_rate"`
-	PauseMinutes      int      `json:"pause_minutes"`
+	Enabled                      bool     `json:"enabled"`
+	MaxP50TTFTMs                 *int     `json:"max_p50_ttft_ms"`
+	MinSuccessRate               *float64 `json:"min_success_rate"`
+	PauseMinutes                 int      `json:"pause_minutes"`
 	MinSuccessSamples            int      `json:"min_success_samples"`
 	MinTTFTSamples               int      `json:"min_ttft_samples"`
 	Condition                    string   `json:"condition"`

@@ -180,8 +180,11 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiExperimentalScheduler.sessionStickyWeight": "session_hash 粘性",
     "admin.settings.gatewayForwarding.flushPreamble": "立即下发 Responses 开场事件",
     "admin.settings.gatewayForwarding.flushPreambleUserIds": "仅这些用户开启",
+    "admin.settings.gatewayForwarding.slimCompleted": "精简 Responses completed 事件",
+    "admin.settings.gatewayForwarding.slimCompletedUserIds": "仅这些用户开启",
     "admin.settings.gatewayForwarding.codexCompactV2Fallback": "Codex 远程压缩兜底",
     "admin.settings.gatewayForwarding.codexCompactV2FallbackHint": "默认开启。",
+    "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
     "admin.settings.platformQuota.daily": "日限额 (USD)",
@@ -410,6 +413,8 @@ const baseSettingsResponse = {
   enable_client_dateline_normalization: true,
   openai_responses_flush_preamble: false,
   openai_responses_flush_preamble_user_ids: [],
+  openai_newapi_slim_completed: false,
+  openai_newapi_slim_completed_user_ids: [],
   codex_compact_v2_fallback_enabled: true,
   payment_enabled: true,
   payment_min_amount: 1,
@@ -747,6 +752,41 @@ describe("admin SettingsView payment visible method controls", () => {
       expect.objectContaining({
         openai_responses_flush_preamble: true,
         openai_responses_flush_preamble_user_ids: [42],
+      }),
+    );
+  });
+
+  it("defaults NewAPI slim completed off with empty allowlist", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.text()).toContain("精简 Responses completed 事件");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_newapi_slim_completed: false,
+        openai_newapi_slim_completed_user_ids: [],
+      }),
+    );
+  });
+
+  it("submits OpenAI NewAPI slim completed setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_newapi_slim_completed: false,
+      openai_newapi_slim_completed_user_ids: [220],
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_newapi_slim_completed: false,
+        openai_newapi_slim_completed_user_ids: [220],
       }),
     );
   });

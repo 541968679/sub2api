@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking triggers before adding a Settings KV + SSE hot-path change"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Gate spans domain_constants, setting cache, admin DTO/UI/i18n, and two gateway SSE writers"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Must copy flush-preamble whitelist/cache, not invent a second settings style"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend guideline index for service-layer work"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Slim integers must follow display rewrite; billing-real usage must stay untouched"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Admin SettingsView + zh/en i18n must stay in sync"}
+{"file": ".trellis/tasks/08-19-newapi-slim-completed/research/sse-hotpath-and-flush-preamble.md", "reason": "File:line anchors for parse/rewrite order, 72-byte parse guard, and flush-preamble copy list"}

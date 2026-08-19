@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Quality-check thinking guides for a cross-layer settings + gateway change"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify KV, cache, admin DTO/UI/i18n, and both SSE paths stayed aligned"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Reject slim-before-rewrite or billing-real mutation"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality bar for service tests and forbidden patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality bar for SettingsView and i18n"}
+{"file": ".trellis/tasks/08-19-newapi-slim-completed/research/sse-hotpath-and-flush-preamble.md", "reason": "Check implementer did not slim compact-v2/WS/failed or parse after slim"}

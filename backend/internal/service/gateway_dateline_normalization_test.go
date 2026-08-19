@@ -104,6 +104,46 @@ func TestOpenAIResponsesFlushPreambleSettingDefaultOff(t *testing.T) {
 	require.False(t, openAIResponsesFlushPreambleUserMatches(nil, 1))
 }
 
+func TestOpenAINewAPISlimCompletedSettingDefaultOff(t *testing.T) {
+	prev := gatewayForwardingCache.Load()
+	t.Cleanup(func() {
+		if prev != nil {
+			gatewayForwardingCache.Store(prev)
+			return
+		}
+		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	})
+
+	repo := &gatewayTTLSettingRepo{data: map[string]string{}}
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc := NewSettingService(repo, &config.Config{})
+	ctx := context.Background()
+
+	require.False(t, svc.IsOpenAINewAPISlimCompletedEnabled(ctx))
+	settings, err := svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, settings.OpenAINewAPISlimCompleted)
+	require.Empty(t, settings.OpenAINewAPISlimCompletedUserIDs)
+	require.False(t, (*SettingService)(nil).IsOpenAINewAPISlimCompletedEnabled(ctx))
+
+	repo.data[SettingKeyOpenAINewAPISlimCompleted] = "true"
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	require.True(t, svc.IsOpenAINewAPISlimCompletedEnabled(ctx))
+	require.True(t, svc.IsOpenAINewAPISlimCompletedEnabled(context.WithValue(ctx, ctxkey.UserID, int64(99))))
+
+	repo.data[SettingKeyOpenAINewAPISlimCompleted] = "false"
+	repo.data[SettingKeyOpenAINewAPISlimCompletedUserIDs] = "[220,220,-1,0]"
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	require.True(t, svc.IsOpenAINewAPISlimCompletedEnabled(context.WithValue(ctx, ctxkey.UserID, int64(220))))
+	require.False(t, svc.IsOpenAINewAPISlimCompletedEnabled(context.WithValue(ctx, ctxkey.UserID, int64(221))))
+	require.False(t, svc.IsOpenAINewAPISlimCompletedEnabled(ctx))
+
+	settings, err = svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, settings.OpenAINewAPISlimCompleted)
+	require.Equal(t, []int64{220}, settings.OpenAINewAPISlimCompletedUserIDs)
+}
+
 func TestCodexCompactV2FallbackSettingDefaultOn(t *testing.T) {
 	prev := gatewayForwardingCache.Load()
 	t.Cleanup(func() {

@@ -460,6 +460,13 @@ const (
 	// SettingKeyOpenAIResponsesFlushPreambleUserIDs is a JSON int64 array.
 	// When the global switch is off, only these users get preamble flush.
 	SettingKeyOpenAIResponsesFlushPreambleUserIDs = "openai_responses_flush_preamble_user_ids"
+	// SettingKeyOpenAINewAPISlimCompleted, when true, slims native Responses
+	// SSE response.completed to {type, response.id, response.usage} for all users.
+	// Default false. Not a public setting.
+	SettingKeyOpenAINewAPISlimCompleted = "openai_newapi_slim_completed"
+	// SettingKeyOpenAINewAPISlimCompletedUserIDs is a JSON int64 array.
+	// When the global switch is off, only these users get slim completed events.
+	SettingKeyOpenAINewAPISlimCompletedUserIDs = "openai_newapi_slim_completed_user_ids"
 	// SettingKeyCodexCompactV2FallbackEnabled is the admin runtime switch for
 	// synthesizing Codex remote compaction v2 items on API-key upstreams.
 	// Default true. Stored in Settings KV; not a public setting.

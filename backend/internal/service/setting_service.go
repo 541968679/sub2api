@@ -129,6 +129,8 @@ type cachedGatewayForwardingSettings struct {
 	clientDatelineNormalization  bool
 	flushPreamble                bool
 	flushPreambleUserIDs         []int64
+	slimCompleted                bool
+	slimCompletedUserIDs         []int64
 	codexCompactV2Fallback       bool
 	networkRetryMax              int
 	expiresAt                    int64 // unix nano
@@ -1548,6 +1550,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	updates[SettingKeyOpenAIResponsesFlushPreamble] = strconv.FormatBool(settings.OpenAIResponsesFlushPreamble)
+	updates[SettingKeyOpenAINewAPISlimCompleted] = strconv.FormatBool(settings.OpenAINewAPISlimCompleted)
 	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
@@ -1555,6 +1558,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		return nil, fmt.Errorf("marshal openai responses flush preamble user ids: %w", err)
 	}
 	updates[SettingKeyOpenAIResponsesFlushPreambleUserIDs] = string(userIDsJSON)
+	settings.OpenAINewAPISlimCompletedUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAINewAPISlimCompletedUserIDs)
+	slimUserIDsJSON, err := json.Marshal(settings.OpenAINewAPISlimCompletedUserIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal openai newapi slim completed user ids: %w", err)
+	}
+	updates[SettingKeyOpenAINewAPISlimCompletedUserIDs] = string(slimUserIDsJSON)
 	settings.GatewayNetworkRetryMax = ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax)
 	updates[SettingKeyGatewayNetworkRetryMax] = strconv.Itoa(settings.GatewayNetworkRetryMax)
 	settings.DisplayCacheTokenMaxMult = ResolveDisplayCacheTokenMaxMult(nil, settings.DisplayCacheTokenMaxMult)
@@ -1689,6 +1698,8 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		clientDatelineNormalization:  settings.EnableClientDatelineNormalization,
 		flushPreamble:                settings.OpenAIResponsesFlushPreamble,
 		flushPreambleUserIDs:         append([]int64(nil), settings.OpenAIResponsesFlushPreambleUserIDs...),
+		slimCompleted:                settings.OpenAINewAPISlimCompleted,
+		slimCompletedUserIDs:         append([]int64(nil), settings.OpenAINewAPISlimCompletedUserIDs...),
 		codexCompactV2Fallback:       settings.CodexCompactV2FallbackEnabled,
 		networkRetryMax:              ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax),
 		expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
@@ -1822,9 +1833,9 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 }
 
 type gatewayForwardingSettingsResult struct {
-	fp, mp, cch, cacheTTL1h, normalizeDateline, flushPreamble, compactV2Fallback bool
-	flushPreambleUserIDs                                                         []int64
-	networkRetryMax                                                              int
+	fp, mp, cch, cacheTTL1h, normalizeDateline, flushPreamble, slimCompleted, compactV2Fallback bool
+	flushPreambleUserIDs, slimCompletedUserIDs                                                  []int64
+	networkRetryMax                                                                             int
 }
 
 func gatewayForwardingSettingsFromCache(cached *cachedGatewayForwardingSettings) gatewayForwardingSettingsResult {
@@ -1838,8 +1849,10 @@ func gatewayForwardingSettingsFromCache(cached *cachedGatewayForwardingSettings)
 		cacheTTL1h:           cached.anthropicCacheTTL1hInjection,
 		normalizeDateline:    cached.clientDatelineNormalization,
 		flushPreamble:        cached.flushPreamble,
+		slimCompleted:        cached.slimCompleted,
 		compactV2Fallback:    cached.codexCompactV2Fallback,
 		flushPreambleUserIDs: append([]int64(nil), cached.flushPreambleUserIDs...),
+		slimCompletedUserIDs: append([]int64(nil), cached.slimCompletedUserIDs...),
 		networkRetryMax:      cached.networkRetryMax,
 	}
 }
@@ -1866,6 +1879,8 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			SettingKeyEnableClientDatelineNormalization,
 			SettingKeyOpenAIResponsesFlushPreamble,
 			SettingKeyOpenAIResponsesFlushPreambleUserIDs,
+			SettingKeyOpenAINewAPISlimCompleted,
+			SettingKeyOpenAINewAPISlimCompletedUserIDs,
 			SettingKeyCodexCompactV2FallbackEnabled,
 			SettingKeyGatewayNetworkRetryMax,
 		})
@@ -1894,6 +1909,8 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		normalizeDateline := values[SettingKeyEnableClientDatelineNormalization] != "false"
 		flushPreamble := values[SettingKeyOpenAIResponsesFlushPreamble] == "true"
 		flushPreambleUserIDs := parseOpenAIResponsesFlushPreambleUserIDs(values[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
+		slimCompleted := values[SettingKeyOpenAINewAPISlimCompleted] == "true"
+		slimCompletedUserIDs := parseOpenAIResponsesFlushPreambleUserIDs(values[SettingKeyOpenAINewAPISlimCompletedUserIDs])
 		compactV2Fallback := values[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 		networkRetryMax := ParseGatewayNetworkRetryMax(values[SettingKeyGatewayNetworkRetryMax])
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
@@ -1904,11 +1921,13 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			clientDatelineNormalization:  normalizeDateline,
 			flushPreamble:                flushPreamble,
 			flushPreambleUserIDs:         flushPreambleUserIDs,
+			slimCompleted:                slimCompleted,
+			slimCompletedUserIDs:         slimCompletedUserIDs,
 			codexCompactV2Fallback:       compactV2Fallback,
 			networkRetryMax:              networkRetryMax,
 			expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 		})
-		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, compactV2Fallback: compactV2Fallback, flushPreambleUserIDs: append([]int64(nil), flushPreambleUserIDs...), networkRetryMax: networkRetryMax}, nil
+		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, slimCompleted: slimCompleted, compactV2Fallback: compactV2Fallback, flushPreambleUserIDs: append([]int64(nil), flushPreambleUserIDs...), slimCompletedUserIDs: append([]int64(nil), slimCompletedUserIDs...), networkRetryMax: networkRetryMax}, nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
@@ -1950,6 +1969,21 @@ func (s *SettingService) IsOpenAIResponsesFlushPreambleEnabled(ctx context.Conte
 	}
 	userID, _ := ctx.Value(ctxkey.UserID).(int64)
 	return openAIResponsesFlushPreambleUserMatches(cached.flushPreambleUserIDs, userID)
+}
+
+// IsOpenAINewAPISlimCompletedEnabled reports whether native Responses SSE
+// response.completed should be slimmed for NewAPI. Default false.
+// Global true enables everyone; otherwise only openai_newapi_slim_completed_user_ids.
+func (s *SettingService) IsOpenAINewAPISlimCompletedEnabled(ctx context.Context) bool {
+	if s == nil {
+		return false
+	}
+	cached := s.getGatewayForwardingSettingsCached(ctx)
+	if cached.slimCompleted {
+		return true
+	}
+	userID, _ := ctx.Value(ctxkey.UserID).(int64)
+	return openAIResponsesFlushPreambleUserMatches(cached.slimCompletedUserIDs, userID)
 }
 
 // IsCodexCompactV2FallbackEnabled reports whether API-key Codex remote
@@ -2454,6 +2488,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEnableClientDatelineNormalization:         "true",
 		SettingKeyOpenAIResponsesFlushPreamble:              "false",
 		SettingKeyOpenAIResponsesFlushPreambleUserIDs:       "[]",
+		SettingKeyOpenAINewAPISlimCompleted:                 "false",
+		SettingKeyOpenAINewAPISlimCompletedUserIDs:          "[]",
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
@@ -2828,6 +2864,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableClientDatelineNormalization = settings[SettingKeyEnableClientDatelineNormalization] != "false"
 	result.OpenAIResponsesFlushPreamble = settings[SettingKeyOpenAIResponsesFlushPreamble] == "true"
 	result.OpenAIResponsesFlushPreambleUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
+	result.OpenAINewAPISlimCompleted = settings[SettingKeyOpenAINewAPISlimCompleted] == "true"
+	result.OpenAINewAPISlimCompletedUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAINewAPISlimCompletedUserIDs])
 	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])

@@ -3978,6 +3978,13 @@ func (s *OpenAIGatewayService) isOpenAIResponsesFlushPreambleEnabled(ctx context
 	return s.settingService.IsOpenAIResponsesFlushPreambleEnabled(ctx)
 }
 
+func (s *OpenAIGatewayService) isOpenAINewAPISlimCompletedEnabled(ctx context.Context) bool {
+	if s == nil || s.settingService == nil {
+		return false
+	}
+	return s.settingService.IsOpenAINewAPISlimCompletedEnabled(ctx)
+}
+
 func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
 	if code == "" {
@@ -4292,6 +4299,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	}
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
+	slimState := newAPISlimStreamState{enabled: s.isOpenAINewAPISlimCompletedEnabled(ctx)}
 
 	// SSE headers
 	c.Header("Content-Type", "text/event-stream")
@@ -4431,9 +4439,38 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if mult := getDisplayTokenMultipliers(c); mult != nil {
 				line = rewriteOpenAIResponsesSSEUsageTokens(line, mult)
 			}
+			if slimState.enabled {
+				rewritten := dataBytes
+				if rewrittenData, ok := extractOpenAISSEDataLine(line); ok {
+					rewritten = []byte(rewrittenData)
+				}
+				slimState.noteRewrittenData(eventType, rewritten)
+				if slimmed, ok := slimState.slimCompletedLine(line, responseID, usage.OutputTokens); ok {
+					line = slimmed
+				}
+			}
 		}
 
 		if !clientDisconnected {
+			if doneData, isDone := extractOpenAISSEDataLine(line); slimState.enabled && isDone && strings.TrimSpace(doneData) == "[DONE]" && slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
+				if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
+					if !clientOutputStarted && len(pendingLines) > 0 {
+						if !writePendingLines() {
+							continue
+						}
+					}
+					if _, err := fmt.Fprintln(w, synth); err != nil {
+						clientDisconnected = true
+						logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+					} else {
+						clientOutputStarted = true
+						flusher.Flush()
+					}
+				}
+			}
+			if clientDisconnected {
+				continue
+			}
 			if !clientOutputStarted && !commitDownstream {
 				pendingLines = append(pendingLines, line)
 				continue
@@ -4451,6 +4488,21 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				flusher.Flush()
 				if commitDownstream {
 					stageClk.MarkFirstClientFlush()
+				}
+			}
+		}
+	}
+	if slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
+		if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" && !clientDisconnected {
+			if !clientOutputStarted && len(pendingLines) > 0 && !writePendingLines() {
+				// clientDisconnected already set
+			} else if !clientDisconnected {
+				if _, err := fmt.Fprintln(w, synth); err != nil {
+					clientDisconnected = true
+					logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+				} else {
+					clientOutputStarted = true
+					flusher.Flush()
 				}
 			}
 		}
@@ -5187,6 +5239,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		c.Header("x-request-id", v)
 	}
 	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
+	slimState := newAPISlimStreamState{enabled: s.isOpenAINewAPISlimCompletedEnabled(ctx)}
 
 	w := c.Writer
 	flusher, ok := w.(http.Flusher)
@@ -5309,6 +5362,20 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		}
 		if sawFailedEvent {
 			return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)
+		}
+		if slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
+			if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" && !clientDisconnected {
+				if _, err := bufferedWriter.WriteString(synth + "\n"); err != nil {
+					clientDisconnected = true
+					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
+				} else if err := flushBuffered(); err != nil {
+					clientDisconnected = true
+					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming flush, continuing to drain upstream for billing")
+				} else {
+					clientOutputStarted = true
+					lastDownstreamWriteAt = time.Now()
+				}
+			}
 		}
 		if !clientDisconnected {
 			hadBufferedData := bufferedWriter.Buffered() > 0
@@ -5474,9 +5541,20 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if startsClientOutput {
 				stageClk.MarkFirstUsefulUpstream()
 			}
+			s.parseSSEUsageBytes(dataBytes, usage)
 			lineForDownstream := line
 			if mult := getDisplayTokenMultipliers(c); mult != nil {
 				lineForDownstream = rewriteOpenAIResponsesSSEUsageTokens(lineForDownstream, mult)
+			}
+			if slimState.enabled {
+				rewritten := dataBytes
+				if rewrittenData, ok := extractOpenAISSEDataLine(lineForDownstream); ok {
+					rewritten = []byte(rewrittenData)
+				}
+				slimState.noteRewrittenData(eventType, rewritten)
+				if slimmed, ok := slimState.slimCompletedLine(lineForDownstream, responseID, usage.OutputTokens); ok {
+					lineForDownstream = slimmed
+				}
 			}
 
 			// 写入客户端（客户端断开后继续 drain 上游）
@@ -5495,7 +5573,17 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					}
 				}
 				if clientDisconnected {
-					// The terminal event is still parsed below so usage accounting remains intact.
+					// Usage was parsed from original dataBytes before rewrite/slim.
+				} else if strings.TrimSpace(data) == "[DONE]" && slimState.shouldSynthesize(false, usage.OutputTokens) {
+					if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
+						if _, err := bufferedWriter.WriteString(synth + "\n"); err != nil {
+							clientDisconnected = true
+							logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
+						}
+					}
+				}
+				if clientDisconnected {
+					// Keep draining upstream after a failed downstream write.
 				} else if _, err := bufferedWriter.WriteString(lineForDownstream); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
@@ -5523,7 +5611,6 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					account.ID, int(time.Since(startTime).Milliseconds()), eventType,
 				)
 			}
-			s.parseSSEUsageBytes(dataBytes, usage)
 			return
 		}
 

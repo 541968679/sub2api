@@ -533,6 +533,8 @@ export interface SystemSettings {
   enable_client_dateline_normalization: boolean;
   openai_responses_flush_preamble: boolean;
   openai_responses_flush_preamble_user_ids: number[];
+  openai_newapi_slim_completed: boolean;
+  openai_newapi_slim_completed_user_ids: number[];
   codex_compact_v2_fallback_enabled: boolean;
   gateway_network_retry_max: number;
   web_search_emulation_enabled?: boolean;
@@ -763,6 +765,8 @@ export interface UpdateSettingsRequest {
   enable_client_dateline_normalization?: boolean;
   openai_responses_flush_preamble?: boolean;
   openai_responses_flush_preamble_user_ids?: number[];
+  openai_newapi_slim_completed?: boolean;
+  openai_newapi_slim_completed_user_ids?: number[];
   codex_compact_v2_fallback_enabled?: boolean;
   gateway_network_retry_max?: number;
   // Payment configuration
@@ -962,6 +966,9 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     openai_responses_flush_preamble: s.openai_responses_flush_preamble,
     openai_responses_flush_preamble_user_ids:
       s.openai_responses_flush_preamble_user_ids || [],
+    openai_newapi_slim_completed: s.openai_newapi_slim_completed,
+    openai_newapi_slim_completed_user_ids:
+      s.openai_newapi_slim_completed_user_ids || [],
     codex_compact_v2_fallback_enabled: s.codex_compact_v2_fallback_enabled !== false,
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:
