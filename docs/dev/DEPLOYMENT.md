@@ -79,8 +79,12 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 ### 1.2 Sub2API 主服务 release / deploy 流程
 
 本仓库当前的 `.github/workflows/release.yml` 只监听 `v*` tag 和手动
-`workflow_dispatch`。`.goreleaser.simple.yaml` 会发布
-`ghcr.io/541968679/sub2api:<version>`、`:<version>-amd64` 和 `:latest`。
+`workflow_dispatch`。fork `541968679/sub2api` 的仓库变量 `SIMPLE_RELEASE=true`
+（也可在 `workflow_dispatch` 勾选 `simple_release`）。simple 配置
+`.goreleaser.simple.yaml` 只编 linux/amd64，发布
+`ghcr.io/541968679/sub2api:<version>`、`:<version>-amd64` 和 `:latest`
+（三个标签指向同一张 amd64 镜像，不是 multi-arch manifest）。
+关掉该变量才会走完整 `.goreleaser.yaml`（Windows / Darwin / linux-arm64 + QEMU）。
 
 主服务生产部署按这个顺序执行：
 
@@ -138,7 +142,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-19 | `v0.1.241` | `c8d497732` | `ghcr.io/541968679/sub2api:0.1.241` | `0.1.241` | **current**; digest `sha256:8fc8335b63490ceedf07991bd47004014812a8e8a54159636d8b482acd1bd90b`, `/health` ok, healthy; OpenAI update-RT session JSON + smart-schedule interval auto-sort + OAuth 7-day quota PnL; rollback digest `sha256:ba60309580077e97fcd3e14313e57f2c2d5018d0662ad41ba1421148a9389221` (`v0.1.240`) |
+| 2026-08-19 | `v0.1.242` | `a9761738a` | `ghcr.io/541968679/sub2api:0.1.242` | `0.1.242` | **current**; digest `sha256:785c5295521823154e7aa8e147fe8e4d57c36d320f23ccbb849013544b8841fb`, `/health` ok, healthy; NewAPI slim completed default-off + user 220 whitelist (`openai_newapi_slim_completed=false`, `user_ids=[220]`); rollback digest `sha256:8fc8335b63490ceedf07991bd47004014812a8e8a54159636d8b482acd1bd90b` (`v0.1.241`) |
+| 2026-08-19 | `v0.1.241` | `c8d497732` | `ghcr.io/541968679/sub2api:0.1.241` | `0.1.241` | superseded by `v0.1.242`; digest `sha256:8fc8335b63490ceedf07991bd47004014812a8e8a54159636d8b482acd1bd90b`, `/health` ok, healthy; OpenAI update-RT session JSON + smart-schedule interval auto-sort + OAuth 7-day quota PnL; rollback digest `sha256:ba60309580077e97fcd3e14313e57f2c2d5018d0662ad41ba1421148a9389221` (`v0.1.240`) |
 | 2026-08-18 | `v0.1.240` | `e5608cdbe` | `ghcr.io/541968679/sub2api:latest` (`0.1.240`) | `0.1.240` | superseded by `v0.1.241`; digest `sha256:ba60309580077e97fcd3e14313e57f2c2d5018d0662ad41ba1421148a9389221`, `/health` ok, healthy; CC→Responses fail-fast + API Key non-stream JSON; rollback digest `sha256:fb45fbf77ad49595f956c852d4fe8a5bba37a68f558f86587ccef2b7140ae362` (`v0.1.239`) |
 | 2026-08-18 | `v0.1.239` | `4394f74b1` | `ghcr.io/541968679/sub2api:latest` (`0.1.239`) | `0.1.239` | superseded by `v0.1.240`; digest `sha256:fb45fbf77ad49595f956c852d4fe8a5bba37a68f558f86587ccef2b7140ae362`, `/health` ok, healthy; restore user TTFT/success after dual-caliber SQL 500 (`FILTER (WHERE FALSE)`); rollback digest `sha256:886d1444c76c186c215dc8434408a3cc60e151b293c46f8bb431c500c300a1c1` (`v0.1.238`) |
 | 2026-08-18 | `v0.1.238` | `bbb3c159d` | `ghcr.io/541968679/sub2api:latest` (`0.1.238`) | `0.1.238` | superseded by `v0.1.239`; digest `sha256:886d1444c76c186c215dc8434408a3cc60e151b293c46f8bb431c500c300a1c1`, `/health` ok, healthy; dual account error-rate calibers + default-off failover schedule toggle + Recovered list badges; `v0.1.237` tag exists but GHCR image was never published (vue-tsc TS2783); rollback digest `sha256:926dd9aee523a4c9ba3abc681caa4b29871f1f9da870db5ddde72347aea9da71` (`v0.1.236`) |

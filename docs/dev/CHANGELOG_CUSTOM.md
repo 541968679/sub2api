@@ -1,3 +1,21 @@
+## 2026-08-19 - deploy: v0.1.242
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:0.1.242` (revision `a9761738a`, digest `sha256:785c5295521823154e7aa8e147fe8e4d57c36d320f23ccbb849013544b8841fb`). Healthy, `/health` ok.
+- Ships default-off NewAPI slim `response.completed`. After cutover, KV `openai_newapi_slim_completed` stays `false` and `openai_newapi_slim_completed_user_ids` is `[220]`.
+
+### Why
+- Customer NewAPI treats empty/fat completed as no output; canary user 220 only, account 1685 unchanged.
+
+### Verification
+- Release [32249686431](https://github.com/541968679/sub2api/actions/runs/32249686431) succeeded; GHCR `0.1.242` / `latest` digest above; image revision `a9761738a90d09be3cb9b2047c340ac501b61634`.
+- Preflight `/health` passed (attempt 2/36), then live cutover. Rollback digest `sha256:8fc8335b63490ceedf07991bd47004014812a8e8a54159636d8b482acd1bd90b` (`v0.1.241`).
+- Postgres settings: gate `false`, user_ids `[220]`. In-process cache TTL 60s.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-19 - feat: optional NewAPI slim completed on Responses SSE
 
 ### What
