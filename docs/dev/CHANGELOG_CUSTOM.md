@@ -48,6 +48,29 @@ this changelog.
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-08-19 - ci: speed up GitHub Actions Release and CI
+
+### What
+- Repo variable `SIMPLE_RELEASE=true` is set on `541968679/sub2api` so tag releases use `.goreleaser.simple.yaml` (linux/amd64 GHCR only).
+- Simple GoReleaser no longer runs `go mod tidy`. Release skips QEMU when simple, and checkout uses `fetch-depth: 1`.
+- CI / Security Scan ignore `v*` tags and docs-only / `.trellis` changes, cancel superseded CI runs, split Go unit vs integration, and skip the unused frontend or backend jobs via path filters.
+- Release still runs `pnpm run build` with `vue-tsc` (fork CI is red and has been the typecheck gate).
+
+### Why
+- `v0.1.240` spent ~8 of ~12 minutes compiling Windows / Darwin / linux-arm64 plus a QEMU arm64 image the production host never pulls.
+
+### Verification
+- `gh api repos/541968679/sub2api/actions/variables` shows `SIMPLE_RELEASE=true`.
+- `Select-String` on the three workflows + `.goreleaser.simple.yaml` for `SIMPLE_RELEASE`, `tags-ignore`, `cancel-in-progress`, `paths-filter`, `test-unit`, `fetch-depth`, and zero `go mod tidy` in the simple config.
+
+### Affected files
+`.github/workflows/release.yml`,
+`.github/workflows/backend-ci.yml`,
+`.github/workflows/security-scan.yml`,
+`.goreleaser.simple.yaml`,
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-19 - deploy: v0.1.241
 
 ### What

@@ -91,7 +91,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Download VERSION artifact
@@ -117,8 +117,9 @@ jobs:
         run: |
           go version | grep -q 'go1.26.5'
 
-      # Docker setup for GoReleaser
+      # Multi-arch only. SIMPLE_RELEASE publishes linux/amd64 and does not need QEMU.
       - name: Set up QEMU
+        if: ${{ env.SIMPLE_RELEASE != 'true' }}
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
