@@ -1,3 +1,20 @@
+## 2026-08-19 - deploy: v0.1.241
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:0.1.241` (revision `c8d497732`, digest `sha256:8fc8335b63490ceedf07991bd47004014812a8e8a54159636d8b482acd1bd90b`). Healthy, `/health` ok.
+- Ships OpenAI「更新 RT」session JSON, smart-schedule interval auto-sort, and OAuth 7-day quota in schedule PnL.
+
+### Why
+- Operators update OpenAI OAuth with ChatGPT session JSON and need the pool sort / quota display on the same cutover.
+
+### Verification
+- Release [32231642736](https://github.com/541968679/sub2api/actions/runs/32231642736) succeeded; GHCR `0.1.241` / `latest` digest above; image revision `c8d497732d1fc3089312bbd10f787c41c7e0032f`.
+- Preflight `/health` passed (attempt 2/36), then live cutover. Rollback digest `sha256:ba60309580077e97fcd3e14313e57f2c2d5018d0662ad41ba1421148a9389221` (`v0.1.240`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-19 - feat(accounts): OpenAI 更新 RT 支持 ChatGPT session JSON
 
 ### What
