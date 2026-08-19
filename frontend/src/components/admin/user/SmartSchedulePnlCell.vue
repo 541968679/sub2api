@@ -16,6 +16,21 @@
     </div>
     <div v-else class="flex flex-col gap-1">
       <div
+        v-if="isOauth"
+        data-testid="smart-schedule-pnl-oauth-7d"
+        :title="t('admin.users.schedulePnl.oauthQuotaHint')"
+      >
+        <UsageProgressBar
+          v-if="oauthQuota"
+          label="7d"
+          :utilization="oauthQuota.utilization"
+          :resets-at="oauthQuota.resetsAt"
+          color="emerald"
+        />
+        <span v-else class="text-sm text-gray-400 dark:text-dark-500">—</span>
+      </div>
+      <div
+        v-else
         class="text-sm font-semibold leading-5 text-gray-900 dark:text-white"
         data-testid="smart-schedule-pnl-balance"
       >
@@ -59,11 +74,14 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account, WindowStats } from '@/types'
 import type { SchedulePnlSummary } from '@/api/admin/users'
+import UsageProgressBar from '@/components/account/UsageProgressBar.vue'
 import {
   compareBalanceBurnToCost,
   formatSchedulePnlUsdPlain,
   formatSchedulePnlWindow,
   hasSchedulePnlWindow,
+  isOauthAccountType,
+  oauthSevenDayQuota,
   pairAccountBalanceUsd
 } from '@/composables/schedulePnl'
 
@@ -80,9 +98,11 @@ const props = withDefaults(
 const emit = defineEmits<{ click: [] }>()
 const { t } = useI18n()
 
+const isOauth = computed(() => isOauthAccountType(props.account))
+const oauthQuota = computed(() => oauthSevenDayQuota(props.account))
 const hasToday = computed(() => hasSchedulePnlWindow(props.summary?.today))
-const balanceUsd = computed(() => pairAccountBalanceUsd(props.account))
-const showBody = computed(() => hasToday.value || balanceUsd.value != null)
+const balanceUsd = computed(() => (isOauth.value ? null : pairAccountBalanceUsd(props.account)))
+const showBody = computed(() => hasToday.value || isOauth.value || balanceUsd.value != null)
 const balanceText = computed(() => formatSchedulePnlUsdPlain(balanceUsd.value))
 const today = computed(() => formatSchedulePnlWindow(props.summary?.today))
 const marginClass = computed(() => {
@@ -95,7 +115,7 @@ const marginClass = computed(() => {
     : 'text-red-600 dark:text-red-400'
 })
 const burnCompare = computed(() =>
-  compareBalanceBurnToCost(props.account, props.todayStats?.cost)
+  isOauth.value ? null : compareBalanceBurnToCost(props.account, props.todayStats?.cost)
 )
 const burnLine = computed(() => {
   const cmp = burnCompare.value

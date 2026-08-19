@@ -35,13 +35,77 @@ export function hasSchedulePnlSummary(summary: SchedulePnlSummary | null | undef
   return hasSchedulePnlWindow(summary?.today) || hasSchedulePnlWindow(summary?.seven_day)
 }
 
-function readFiniteUsd(value: unknown): number | null {
+function readFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value)
     if (Number.isFinite(parsed)) return parsed
   }
   return null
+}
+
+function accountExtra(account: unknown): Record<string, unknown> | null {
+  if (!account || typeof account !== 'object') return null
+  const extra = (account as { extra?: Record<string, unknown> | null }).extra
+  return extra && typeof extra === 'object' ? extra : null
+}
+
+function parseIsoTime(value: unknown): Date | null {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const parsed = new Date(value)
+  return Number.isFinite(parsed.getTime()) ? parsed : null
+}
+
+export function isOauthAccountType(account: unknown): boolean {
+  return !!account && typeof account === 'object' && (account as { type?: unknown }).type === 'oauth'
+}
+
+export type OauthSevenDayQuota = {
+  utilization: number
+  resetsAt: string | null
+}
+
+function openaiSevenDayQuota(extra: Record<string, unknown>, now: Date): OauthSevenDayQuota | null {
+  const used = readFiniteNumber(extra.codex_7d_used_percent)
+  if (used == null) return null
+  const resetAt = parseIsoTime(extra.codex_7d_reset_at)
+  let resetsAt = resetAt
+  if (!resetsAt) {
+    const resetAfter = readFiniteNumber(extra.codex_7d_reset_after_seconds)
+    if (resetAfter != null && resetAfter > 0) {
+      const base = parseIsoTime(extra.codex_usage_updated_at) ?? now
+      resetsAt = new Date(base.getTime() + resetAfter * 1000)
+    }
+  }
+  let utilization = used
+  if (resetsAt && resetsAt.getTime() <= now.getTime()) {
+    utilization = 0
+  }
+  return { utilization, resetsAt: resetsAt ? resetsAt.toISOString() : null }
+}
+
+function passiveSevenDayQuota(extra: Record<string, unknown>): OauthSevenDayQuota | null {
+  const utilFrac = readFiniteNumber(extra.passive_usage_7d_utilization)
+  const resetUnix = readFiniteNumber(extra.passive_usage_7d_reset)
+  if ((utilFrac == null || utilFrac <= 0) && (resetUnix == null || resetUnix <= 0)) {
+    return null
+  }
+  return {
+    utilization: (utilFrac ?? 0) * 100,
+    resetsAt: resetUnix != null && resetUnix > 0 ? new Date(resetUnix * 1000).toISOString() : null
+  }
+}
+
+/** Cached 7-day quota snapshot already on the account extra. No /usage fetch. */
+export function oauthSevenDayQuota(account: unknown, now = new Date()): OauthSevenDayQuota | null {
+  if (!isOauthAccountType(account)) return null
+  const extra = accountExtra(account)
+  if (!extra) return null
+  const platform = (account as { platform?: unknown }).platform
+  if (platform === 'openai') {
+    return openaiSevenDayQuota(extra, now)
+  }
+  return passiveSevenDayQuota(extra)
 }
 
 export function pairAccountBalanceUsd(account: unknown): number | null {
@@ -52,10 +116,10 @@ export function pairAccountBalanceUsd(account: unknown): number | null {
     balance_usd?: unknown
   }
   return (
-    readFiniteUsd(rec.usage?.balance_usd) ??
-    readFiniteUsd(rec.balance_usd) ??
-    readFiniteUsd(rec.extra?.balance_usd) ??
-    readFiniteUsd(rec.extra?.upstream_balance_usd)
+    readFiniteNumber(rec.usage?.balance_usd) ??
+    readFiniteNumber(rec.balance_usd) ??
+    readFiniteNumber(rec.extra?.balance_usd) ??
+    readFiniteNumber(rec.extra?.upstream_balance_usd)
   )
 }
 
@@ -92,7 +156,7 @@ export function parseBalanceBurnSamples(extra: unknown): BalanceBurnSample[] {
     if (typeof rec.kind === 'string' && rec.kind !== '' && rec.kind !== BURN_KIND_BALANCE_USD) {
       continue
     }
-    const value = readFiniteUsd(rec.v)
+    const value = readFiniteNumber(rec.v)
     const at = parseSampleTime(rec.t)
     if (value == null || !at) continue
     out.push({

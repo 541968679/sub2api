@@ -486,7 +486,10 @@ func flattenCodexImportValues(values []any) []any {
 }
 
 func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, error) {
-	now := time.Now().UTC()
+	return normalizeCodexImportEntryAt(entry, time.Now().UTC(), true)
+}
+
+func normalizeCodexImportEntryAt(entry codexImportEntry, now time.Time, validateExpiry bool) (*codexImportAccount, error) {
 	item := &codexImportAccount{
 		Credentials: map[string]any{},
 		Extra: map[string]any{
@@ -499,19 +502,8 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 	case string:
 		item.AccessToken = strings.TrimSpace(raw)
 	case map[string]any:
-		item.AccessToken = firstCodexString(raw,
-			[]string{"tokens", "access_token"},
-			[]string{"tokens", "accessToken"},
-			[]string{"access_token"},
-			[]string{"accessToken"},
-			[]string{"token"},
-		)
-		item.RefreshToken = firstCodexString(raw,
-			[]string{"tokens", "refresh_token"},
-			[]string{"tokens", "refreshToken"},
-			[]string{"refresh_token"},
-			[]string{"refreshToken"},
-		)
+		item.AccessToken = firstCodexString(raw, codexAccessTokenPaths...)
+		item.RefreshToken = firstCodexString(raw, codexRefreshTokenPaths...)
 		item.IDToken = firstCodexString(raw,
 			[]string{"tokens", "id_token"},
 			[]string{"tokens", "idToken"},
@@ -565,7 +557,7 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 			[]string{"expires_at"},
 			[]string{"expiresAt"},
 		); ok {
-			if tokenExpiresAt.Unix() <= now.Unix()-codexImportClockSkewSeconds {
+			if validateExpiry && tokenExpiresAt.Unix() <= now.Unix()-codexImportClockSkewSeconds {
 				return nil, fmt.Errorf("access_token 已过期: %s", tokenExpiresAt.Format(time.RFC3339))
 			}
 			item.TokenExpiresAt = &tokenExpiresAt
@@ -590,9 +582,9 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 	}
 	if item.IDToken != "" {
 		item.Credentials["id_token"] = item.IDToken
-		_ = enrichCodexImportAccountFromJWT(item, item.IDToken, false, now)
+		_ = enrichCodexImportAccountFromJWT(item, item.IDToken, false, false, now)
 	}
-	if err := enrichCodexImportAccountFromJWT(item, item.AccessToken, true, now); err != nil {
+	if err := enrichCodexImportAccountFromJWT(item, item.AccessToken, true, validateExpiry, now); err != nil {
 		return nil, err
 	}
 	if _, ok := item.Credentials["expires_at"]; !ok {
@@ -616,19 +608,19 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 	return item, nil
 }
 
-func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, validateExpiry bool, now time.Time) error {
+func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, applyExpiry, rejectExpired bool, now time.Time) error {
 	claims, err := decodeCodexJWTClaims(token)
 	if err != nil {
-		if validateExpiry {
+		if applyExpiry {
 			item.WarningTexts = append(item.WarningTexts, "accessToken 不是可解析 JWT，无法校验过期时间和账号身份")
 		}
 		return nil
 	}
-	if validateExpiry && claims.Exp > 0 {
-		if now.Unix() > claims.Exp+codexImportClockSkewSeconds {
-			return fmt.Errorf("access_token 已过期: %s", time.Unix(claims.Exp, 0).UTC().Format(time.RFC3339))
-		}
+	if applyExpiry && claims.Exp > 0 {
 		expiresAt := time.Unix(claims.Exp, 0).UTC()
+		if rejectExpired && now.Unix() > claims.Exp+codexImportClockSkewSeconds {
+			return fmt.Errorf("access_token 已过期: %s", expiresAt.Format(time.RFC3339))
+		}
 		item.TokenExpiresAt = &expiresAt
 		item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
 	}
@@ -1022,6 +1014,22 @@ func codexTokenFingerprint(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
 }
+
+var (
+	codexAccessTokenPaths = [][]string{
+		{"tokens", "access_token"},
+		{"tokens", "accessToken"},
+		{"access_token"},
+		{"accessToken"},
+		{"token"},
+	}
+	codexRefreshTokenPaths = [][]string{
+		{"tokens", "refresh_token"},
+		{"tokens", "refreshToken"},
+		{"refresh_token"},
+		{"refreshToken"},
+	}
+)
 
 func looksLikeJSON(content string) bool {
 	if content == "" {

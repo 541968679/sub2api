@@ -1,3 +1,52 @@
+## 2026-08-19 - feat(accounts): OpenAI 更新 RT 支持 ChatGPT session JSON
+
+### What
+- Admin「更新 RT」对 OpenAI OAuth 账号接受 ChatGPT `/api/auth/session` / Codex 会话 JSON：写入 JWT `accessToken`，**不把 `sessionToken` 当 refresh_token**。
+- 已有真 RT 时只换 AT；两边 `chatgpt_account_id` 都有且不同则拒绝；缺字段则回填。PAT（`at-*`）账号拒绝会话 JSON。
+- 纯 RT 字符串与 `{ "refresh_token": "..." }` 仍走原换票/跳过校验路径。含 RT 的 session/`auth.json` 先做身份校验再交出现有 RT 路径，过期 JWT 不拦截换票。OpenAI 弹窗中英提示同步。
+
+### Why
+- 日常凭证是 session JSON，不是 Codex PAT；旧「更新 RT」会把整段当 RT 去 OAuth 换票。
+
+### Verification
+- `go test -tags=unit ./backend/internal/handler/admin -run "UpdateRefreshToken|NormalizeCodexSessionJSON|MergeCodexImportCredentials|ClassifyOpenAIRefreshTokenInput" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/account/__tests__/UpdateRefreshTokenModal.spec.ts`
+
+### Affected files
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/admin/account_handler_refresh_token.go`,
+`backend/internal/handler/admin/account_handler_refresh_token_test.go`,
+`backend/internal/handler/admin/account_codex_import.go`,
+`frontend/src/components/admin/account/UpdateRefreshTokenModal.vue`,
+`frontend/src/components/admin/account/__tests__/UpdateRefreshTokenModal.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-19 - feat(smart-schedule): interval auto-sort next to manual sort
+
+### What
+- Smart-schedule pool add-bar now has **排序（手动）** (one-shot write) and **自动排序（隔几秒自动）** (toggle that follows auto-refresh).
+- Interval auto-sort uses the existing ranking, writes `sort_order` only after each auto-refresh finishes, stays silent on success/unchanged, persists enable in `smart-schedule-auto-sort`, and does not start a second timer.
+
+### Why
+- Operators wanted the current one-shot auto-sort plus a timed repeat, without renaming the ranking rules or touching hot-path selection.
+
+### Verification
+- Targeted Vitest: `SmartSchedulePoolAddBar.spec.ts`, `UserSmartScheduleView.spec.ts`, `smartSchedulePoolAutoSort.spec.ts`.
+
+### Affected files
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue`,
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePoolAddBar.spec.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-18 - deploy: v0.1.240
 
 ### What
@@ -39,6 +88,30 @@ Production `gpt-5.6-sol` inbound CC→Responses sync sat at p50 ~76s (native Res
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
 `docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-18 - feat(smart-schedule): oauth 7-day quota in schedule PnL
+
+### What
+- User smart-schedule pool `SmartSchedulePnlCell` keeps today revenue / cost / profit.
+- OAuth rows replace the upstream-balance line with the cached 7-day quota bar (`passive_usage_7d_*` or OpenAI `codex_7d_*`). Missing snapshot shows `—`.
+- API-key rows still show balance and the optional burn cue. No `AccountUsageCell` and no `/usage` fetch.
+
+### Why
+OAuth accounts have no readable USD balance, so the pool PnL cell previously hid usage.
+
+### Verification
+- Vitest: `schedulePnl.spec.ts` extra readers; `SmartSchedulePnlCell.spec.ts` oauth bar vs API-key balance.
+
+### Affected files
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/composables/__tests__/schedulePnl.spec.ts`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/components/admin/user/__tests__/SmartSchedulePnlCell.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/frontend/schedule-pnl.md`,
+`docs/dev/codebase/account.md`,
 this changelog.
 
 ## 2026-08-18 - deploy: v0.1.239

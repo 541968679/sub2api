@@ -149,15 +149,37 @@
           type="button"
           class="btn btn-secondary btn-sm"
           :disabled="poolEmpty || autoSorting"
-          :title="t('admin.users.smartSchedule.autoSortHint')"
+          :title="t('admin.users.smartSchedule.manualSortHint')"
           data-testid="smart-schedule-auto-sort"
           @click="$emit('auto-sort')"
         >
           {{
             autoSorting
               ? t('admin.users.smartSchedule.autoSortProgress', { done: autoSortDone, total: autoSortTotal })
-              : t('admin.users.smartSchedule.autoSort')
+              : t('admin.users.smartSchedule.manualSort')
           }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary px-2 md:px-3"
+          :title="t('admin.users.smartSchedule.autoSortIntervalHint')"
+          data-testid="smart-schedule-interval-auto-sort"
+          @click="$emit('set-auto-sort-enabled', !autoSortEnabled)"
+        >
+          <span
+            class="inline-flex"
+            :class="autoSortEnabled ? 'animate-spin' : ''"
+            data-testid="smart-schedule-interval-auto-sort-icon"
+          >
+            <Icon name="sort" size="sm" />
+          </span>
+          <span class="hidden md:inline">
+            {{
+              autoSortEnabled && autoRefreshEnabled
+                ? t('admin.users.smartSchedule.autoSortCountdown', { seconds: autoRefreshCountdown })
+                : t('admin.users.smartSchedule.autoSort')
+            }}
+          </span>
         </button>
         <HelpTooltip :content="t('admin.users.smartSchedule.autoSortHint')" width-class="w-80" />
       </div>
@@ -173,7 +195,7 @@ import Icon from '@/components/icons/Icon.vue'
 import type { Account } from '@/types'
 import type { SmartScheduleAddScope } from '@/composables/useUserSmartScheduleEditor'
 
-type SmartScheduleAutoRefreshInterval = 5 | 10 | 15 | 30
+type SmartSchedulePollInterval = 5 | 10 | 15 | 30
 
 defineProps<{
   searchQuery: string
@@ -191,8 +213,9 @@ defineProps<{
   refreshDisabled: boolean
   autoRefreshEnabled: boolean
   autoRefreshCountdown: number
-  autoRefreshIntervalSeconds: SmartScheduleAutoRefreshInterval
-  autoRefreshIntervals: readonly SmartScheduleAutoRefreshInterval[]
+  autoRefreshIntervalSeconds: SmartSchedulePollInterval
+  autoRefreshIntervals: readonly SmartSchedulePollInterval[]
+  autoSortEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -205,7 +228,8 @@ const emit = defineEmits<{
   'auto-sort': []
   refresh: []
   'set-auto-refresh-enabled': [enabled: boolean]
-  'set-auto-refresh-interval': [seconds: SmartScheduleAutoRefreshInterval]
+  'set-auto-refresh-interval': [seconds: SmartSchedulePollInterval]
+  'set-auto-sort-enabled': [enabled: boolean]
 }>()
 
 const { t } = useI18n()
@@ -224,7 +248,7 @@ function onSearchInput(event: Event) {
   emit('update:searchOpen', true)
 }
 
-function handleAutoRefreshClickOutside(event: MouseEvent) {
+function handleOpsDropdownClickOutside(event: MouseEvent) {
   const target = event.target as Node | null
   if (autoRefreshDropdownRef.value && target && !autoRefreshDropdownRef.value.contains(target)) {
     showAutoRefreshDropdown.value = false
@@ -232,10 +256,10 @@ function handleAutoRefreshClickOutside(event: MouseEvent) {
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleAutoRefreshClickOutside)
+  document.addEventListener('click', handleOpsDropdownClickOutside)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleAutoRefreshClickOutside)
+  document.removeEventListener('click', handleOpsDropdownClickOutside)
 })
 </script>

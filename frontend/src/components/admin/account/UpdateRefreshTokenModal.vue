@@ -35,7 +35,7 @@
       </div>
 
       <p class="text-sm text-gray-600 dark:text-gray-400">
-        {{ t('admin.accounts.updateRefreshTokenDesc') }}
+        {{ t(descKey) }}
       </p>
 
       <!-- Refresh token input -->
@@ -45,7 +45,7 @@
           v-model="refreshToken"
           rows="4"
           class="input font-mono text-xs"
-          :placeholder="t('admin.accounts.updateRefreshTokenPlaceholder')"
+          :placeholder="t(placeholderKey)"
         ></textarea>
       </div>
 
@@ -70,7 +70,7 @@
         <span class="text-sm text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.validateBeforeSave') }}
           <span class="block text-xs text-gray-500 dark:text-gray-400">{{
-            t('admin.accounts.validateBeforeSaveHint')
+            t(validateHintKey)
           }}</span>
         </span>
       </label>
@@ -145,6 +145,20 @@ const loading = ref(false)
 const isOpenAI = computed(() => props.account?.platform === 'openai')
 const isGemini = computed(() => props.account?.platform === 'gemini')
 const isAntigravity = computed(() => props.account?.platform === 'antigravity')
+
+const descKey = computed(() =>
+  isOpenAI.value ? 'admin.accounts.updateRefreshTokenDescOpenAI' : 'admin.accounts.updateRefreshTokenDesc'
+)
+const placeholderKey = computed(() =>
+  isOpenAI.value
+    ? 'admin.accounts.updateRefreshTokenPlaceholderOpenAI'
+    : 'admin.accounts.updateRefreshTokenPlaceholder'
+)
+const validateHintKey = computed(() =>
+  isOpenAI.value
+    ? 'admin.accounts.validateBeforeSaveHintOpenAI'
+    : 'admin.accounts.validateBeforeSaveHint'
+)
 
 const platformLabel = computed(() => {
   if (isOpenAI.value) return t('admin.accounts.openaiAccount')

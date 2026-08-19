@@ -725,7 +725,8 @@ export function useUserSmartScheduleEditor(
 
   async function persistSortOrders(
     assignments: Array<{ account_id: number; sort_order: number }>,
-    errorKey?: string
+    errorKey?: string,
+    options?: { silent?: boolean }
   ) {
     if (!userId.value || assignments.length === 0) return false
     const previous = (currentDraft.value?.accounts ?? []).map((item) => ({ ...item }))
@@ -738,9 +739,11 @@ export function useUserSmartScheduleEditor(
       return true
     } catch (error: unknown) {
       if (currentDraft.value) currentDraft.value.accounts = previous
-      appStore.showError(
-        extractApiErrorMessage(error, t(errorKey || 'admin.users.smartSchedule.autoSortFailed'))
-      )
+      if (!options?.silent) {
+        appStore.showError(
+          extractApiErrorMessage(error, t(errorKey || 'admin.users.smartSchedule.autoSortFailed'))
+        )
+      }
       return false
     }
   }

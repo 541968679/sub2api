@@ -284,6 +284,7 @@
             :auto-refresh-countdown="autoRefreshCountdown"
             :auto-refresh-interval-seconds="autoRefreshIntervalSeconds"
             :auto-refresh-intervals="autoRefreshIntervals"
+            :auto-sort-enabled="autoSortEnabled"
             @search-blur="onAccountSearchBlur"
             @choose="chooseAddableAccount"
             @open-filtered-add="openFilteredAdd"
@@ -292,6 +293,7 @@
             @refresh="handleManualRefresh"
             @set-auto-refresh-enabled="setAutoRefreshEnabled"
             @set-auto-refresh-interval="setAutoRefreshInterval"
+            @set-auto-sort-enabled="setAutoSortEnabled"
           />
 
           <SmartSchedulePoolFilters class="min-w-0" v-model:filters="poolFilters" />
@@ -945,10 +947,12 @@ try {
 }
 
 const AUTO_REFRESH_STORAGE_KEY = 'smart-schedule-auto-refresh'
+const AUTO_SORT_STORAGE_KEY = 'smart-schedule-auto-sort'
 const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(5)
 const autoRefreshCountdown = ref(0)
+const autoSortEnabled = ref(false)
 const poolTableRef = ref<{ setSort?: (key: string, order: 'asc' | 'desc') => void } | null>(null)
 const autoSorting = ref(false)
 const autoSortDone = ref(0)
@@ -1323,11 +1327,13 @@ function currentPoolSortStates() {
 
 async function persistAssignedPoolOrder(
   assigned: Array<{ id: number; sortOrder: number }>,
-  errorKey?: string
+  errorKey?: string,
+  options?: { silent?: boolean }
 ) {
   return persistSortOrders(
     assigned.map((row) => ({ account_id: row.id, sort_order: row.sortOrder })),
-    errorKey
+    errorKey,
+    options
   )
 }
 
@@ -1353,8 +1359,9 @@ async function handleMoveToTop(account: Account) {
   }
 }
 
-async function handlePoolAutoSort() {
+async function handlePoolAutoSort(options?: { silent?: boolean }) {
   if (autoSorting.value || poolTableRows.value.length === 0) return
+  if (options?.silent && (refreshing.value || loading.value)) return
   const sorted = sortSmartSchedulePoolMembers(
     poolTableRows.value.map((row) => ({
       id: row.id,
@@ -1369,17 +1376,21 @@ async function handlePoolAutoSort() {
   const assigned = assignPoolAutoSortOrders(sorted)
   if (poolSortOrdersUnchanged(currentPoolSortStates(), assigned)) {
     showPoolSortOrderSort()
-    appStore.showInfo(t('admin.users.smartSchedule.autoSortUnchanged'))
+    if (!options?.silent) {
+      appStore.showInfo(t('admin.users.smartSchedule.autoSortUnchanged'))
+    }
     return
   }
   autoSorting.value = true
   autoSortDone.value = 0
   autoSortTotal.value = 1
   try {
-    const ok = await persistAssignedPoolOrder(assigned)
+    const ok = await persistAssignedPoolOrder(assigned, undefined, { silent: options?.silent })
     if (!ok) return
     showPoolSortOrderSort()
-    appStore.showSuccess(t('admin.users.smartSchedule.autoSortSuccess', { count: assigned.length }))
+    if (!options?.silent) {
+      appStore.showSuccess(t('admin.users.smartSchedule.autoSortSuccess', { count: assigned.length }))
+    }
   } finally {
     autoSorting.value = false
   }
@@ -1533,7 +1544,7 @@ function startAutoRefreshTimer() {
   autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
   autoRefreshTimer = window.setInterval(() => {
     if (!autoRefreshEnabled.value) return
-    if (loading.value || refreshing.value) return
+    if (loading.value || refreshing.value || autoSorting.value) return
     if (autoRefreshCountdown.value <= 1) {
       autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
       void handleAutoRefresh()
@@ -1562,14 +1573,41 @@ function setAutoRefreshInterval(seconds: (typeof autoRefreshIntervals)[number]) 
   }
 }
 
+function loadSavedAutoSort() {
+  try {
+    const saved = localStorage.getItem(AUTO_SORT_STORAGE_KEY)
+    if (!saved) return
+    const parsed = JSON.parse(saved) as { enabled?: boolean }
+    autoSortEnabled.value = parsed.enabled === true
+  } catch {
+    // ignore
+  }
+}
+
+function saveAutoSortToStorage() {
+  try {
+    localStorage.setItem(AUTO_SORT_STORAGE_KEY, JSON.stringify({ enabled: autoSortEnabled.value }))
+  } catch {
+    // ignore
+  }
+}
+
+function setAutoSortEnabled(enabled: boolean) {
+  autoSortEnabled.value = enabled
+  saveAutoSortToStorage()
+}
+
 async function handleManualRefresh() {
   if (refreshing.value) return
   await Promise.all([loadUser({ silent: true }), refreshAll({ silent: true })])
 }
 
 async function handleAutoRefresh() {
-  if (refreshing.value || loading.value) return
+  if (refreshing.value || loading.value || autoSorting.value) return
   await Promise.all([loadUser({ silent: true }), refreshAll({ silent: true })])
+  if (autoSortEnabled.value) {
+    await handlePoolAutoSort({ silent: true })
+  }
 }
 
 async function saveFailoverToggle(on: boolean) {
@@ -1588,6 +1626,7 @@ async function saveFailoverToggle(on: boolean) {
 
 onMounted(() => {
   loadSavedAutoRefresh()
+  loadSavedAutoSort()
   if (autoRefreshEnabled.value) startAutoRefreshTimer()
   void loadUser()
   void adminAPI.settings.getQualityHardCloseSettings().then((settings) => {

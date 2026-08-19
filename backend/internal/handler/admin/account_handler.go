@@ -1414,6 +1414,33 @@ func (h *AccountHandler) UpdateRefreshToken(c *gin.Context) {
 		return
 	}
 
+	validate := req.Validate == nil || *req.Validate
+
+	if account.IsOpenAI() {
+		classified := classifyOpenAIRefreshTokenInput(refreshToken)
+		switch classified.Kind {
+		case openAIRefreshTokenKindInvalidJSON:
+			response.ErrorFrom(c, infraerrors.BadRequest(
+				"OPENAI_SESSION_JSON_INVALID",
+				"refresh_token JSON is not a ChatGPT session object or refresh_token object",
+			))
+			return
+		case openAIRefreshTokenKindSessionJSON:
+			extractedRT, done := h.tryOpenAISessionJSONUpdate(c, account, classified.Object, validate)
+			if done {
+				return
+			}
+			refreshToken = extractedRT
+		case openAIRefreshTokenKindEmbeddedRT:
+			refreshToken = classified.RefreshToken
+		}
+	}
+
+	if strings.TrimSpace(refreshToken) == "" {
+		response.BadRequest(c, "refresh_token is required")
+		return
+	}
+
 	// 在已存凭证基础上合并新的 refresh token（深拷贝，避免覆盖 access_token/project_id/oauth_type 等平台字段）。
 	mergedCredentials := make(map[string]any, len(account.Credentials)+1)
 	for k, v := range account.Credentials {
@@ -1425,8 +1452,6 @@ func (h *AccountHandler) UpdateRefreshToken(c *gin.Context) {
 			mergedCredentials["client_id"] = clientID
 		}
 	}
-
-	validate := req.Validate == nil || *req.Validate
 
 	if validate {
 		// 克隆账号并注入新 refresh token，复用 refreshSingleAccount 向上游换取 access_token 做校验与落库。

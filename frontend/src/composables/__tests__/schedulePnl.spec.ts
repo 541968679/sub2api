@@ -8,6 +8,8 @@ import {
   formatSchedulePnlWindow,
   hasSchedulePnlSummary,
   impliedCostBurnPerHour,
+  isOauthAccountType,
+  oauthSevenDayQuota,
   pairAccountBalanceUsd
 } from '../schedulePnl'
 
@@ -64,5 +66,54 @@ describe('schedulePnl formatters', () => {
     expect(compareBalanceBurnToCost(account, 12, now)?.status).toBe('mismatch')
     expect(compareBalanceBurnToCost({ extra: { burn_samples: samples } }, 120, now)).toBeNull()
     expect(compareBalanceBurnToCost(account, null, now)).toBeNull()
+  })
+
+  it('reads oauth 7-day quota from cached extra only', () => {
+    const now = new Date('2026-08-18T12:00:00.000Z')
+    expect(isOauthAccountType({ type: 'apikey' })).toBe(false)
+    expect(oauthSevenDayQuota({ type: 'apikey', extra: { passive_usage_7d_utilization: 0.4 } })).toBeNull()
+    expect(
+      oauthSevenDayQuota({
+        type: 'oauth',
+        platform: 'anthropic',
+        extra: { passive_usage_7d_utilization: 0.42, passive_usage_7d_reset: 1787040000 }
+      })
+    ).toEqual({
+      utilization: 42,
+      resetsAt: new Date(1787040000 * 1000).toISOString()
+    })
+    expect(
+      oauthSevenDayQuota(
+        {
+          type: 'oauth',
+          platform: 'openai',
+          extra: {
+            codex_7d_used_percent: 67,
+            codex_7d_reset_at: '2026-08-19T12:00:00.000Z'
+          }
+        },
+        now
+      )
+    ).toEqual({
+      utilization: 67,
+      resetsAt: '2026-08-19T12:00:00.000Z'
+    })
+    expect(
+      oauthSevenDayQuota(
+        {
+          type: 'oauth',
+          platform: 'openai',
+          extra: {
+            codex_7d_used_percent: 80,
+            codex_7d_reset_at: '2026-08-17T12:00:00.000Z'
+          }
+        },
+        now
+      )
+    ).toEqual({
+      utilization: 0,
+      resetsAt: '2026-08-17T12:00:00.000Z'
+    })
+    expect(oauthSevenDayQuota({ type: 'oauth', platform: 'anthropic', extra: {} })).toBeNull()
   })
 })

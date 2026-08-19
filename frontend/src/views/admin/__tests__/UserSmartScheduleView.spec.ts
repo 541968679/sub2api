@@ -82,13 +82,15 @@ vi.mock('@/api/admin', () => ({
   }
 }))
 
+const appStoreMocks = vi.hoisted(() => ({
+  showError: vi.fn(),
+  showSuccess: vi.fn(),
+  showWarning: vi.fn(),
+  showInfo: vi.fn()
+}))
+
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
-    showWarning: vi.fn(),
-    showInfo: vi.fn()
-  })
+  useAppStore: () => appStoreMocks
 }))
 
 vi.mock('vue-router', () => ({
@@ -390,6 +392,7 @@ beforeEach(() => {
   localStorage.removeItem('smart-schedule-pool-hidden-columns')
   localStorage.removeItem('smart-schedule-pool-column-layout')
   localStorage.removeItem('smart-schedule-auto-refresh')
+  localStorage.removeItem('smart-schedule-auto-sort')
   localStorage.removeItem('smart-schedule-pool-sort')
   apiMocks.getById.mockResolvedValue({
     id: 99,
@@ -1037,6 +1040,7 @@ describe('UserSmartScheduleView', () => {
     expect(addRegion.get('[data-testid="smart-schedule-refresh"]').exists()).toBe(true)
     expect(addRegion.get('[data-testid="smart-schedule-auto-refresh"]').exists()).toBe(true)
     expect(addRegion.get('[data-testid="smart-schedule-auto-sort"]').exists()).toBe(true)
+    expect(addRegion.get('[data-testid="smart-schedule-interval-auto-sort"]').exists()).toBe(true)
     expect(addRegion.get('[data-testid="smart-schedule-add-ops"]').exists()).toBe(true)
     expect(w.findAll('[data-testid="smart-schedule-refresh"]')).toHaveLength(1)
     expect(w.get('[data-testid="smart-schedule-enable-card"]').find('[data-testid="smart-schedule-refresh"]').exists()).toBe(false)
@@ -1215,6 +1219,99 @@ describe('UserSmartScheduleView', () => {
     expect(payload.accounts.every((row) => Object.keys(row).sort().join() === 'account_id,sort_order')).toBe(true)
     expect(apiMocks.updateAccount).not.toHaveBeenCalled()
     expect(tableMocks.setSort).toHaveBeenCalledWith('sort_order', 'asc')
+  })
+
+  it('interval auto-sort writes pool order silently after each auto-refresh', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 11, platform: 'anthropic', max_concurrency: null },
+            { account_id: 12, platform: 'anthropic', max_concurrency: 1 }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        { id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true, concurrency: 2, priority: 8 },
+        { id: 12, name: 'stopped-acc', platform: 'anthropic', type: 'oauth', status: 'active', schedulable: false, concurrency: 9, priority: 1 }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 2,
+      pages: 1
+    })
+    vi.useFakeTimers()
+    const w = await mountPage()
+    try {
+      await w.get('[data-testid="smart-schedule-interval-auto-sort"]').trigger('click')
+      await w.get('[data-testid="smart-schedule-auto-refresh"]').trigger('click')
+      await w.get('[data-testid="smart-schedule-auto-refresh-menu"]').findAll('button')[0].trigger('click')
+      autoSortMocks.sortSmartSchedulePoolMembers.mockClear()
+      apiMocks.updateSmartScheduleSortOrder.mockClear()
+      apiMocks.getSmartSchedule.mockClear()
+      appStoreMocks.showInfo.mockClear()
+      appStoreMocks.showSuccess.mockClear()
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushPromises()
+      expect(apiMocks.getSmartSchedule).toHaveBeenCalled()
+      expect(autoSortMocks.sortSmartSchedulePoolMembers).toHaveBeenCalled()
+      expect(apiMocks.updateSmartScheduleSortOrder).toHaveBeenCalled()
+      expect(appStoreMocks.showInfo).not.toHaveBeenCalled()
+      expect(appStoreMocks.showSuccess).not.toHaveBeenCalled()
+      expect(JSON.parse(localStorage.getItem('smart-schedule-auto-sort') ?? '{}')).toEqual({
+        enabled: true
+      })
+    } finally {
+      w.unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not start a separate auto-sort timer when auto-refresh is off', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 11, platform: 'anthropic', max_concurrency: null },
+            { account_id: 12, platform: 'anthropic', max_concurrency: 1 }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        { id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true, concurrency: 2, priority: 8 },
+        { id: 12, name: 'stopped-acc', platform: 'anthropic', type: 'oauth', status: 'active', schedulable: false, concurrency: 9, priority: 1 }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 2,
+      pages: 1
+    })
+    vi.useFakeTimers()
+    const w = await mountPage()
+    try {
+      await w.get('[data-testid="smart-schedule-interval-auto-sort"]').trigger('click')
+      autoSortMocks.sortSmartSchedulePoolMembers.mockClear()
+      apiMocks.updateSmartScheduleSortOrder.mockClear()
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushPromises()
+      expect(autoSortMocks.sortSmartSchedulePoolMembers).not.toHaveBeenCalled()
+      expect(apiMocks.updateSmartScheduleSortOrder).not.toHaveBeenCalled()
+    } finally {
+      w.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('move-to-top writes pool sort_order only and does not change account.priority', async () => {

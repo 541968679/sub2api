@@ -67,6 +67,7 @@ function mountBar(overrides: Record<string, unknown> = {}) {
       autoRefreshCountdown: 0,
       autoRefreshIntervalSeconds: 5,
       autoRefreshIntervals: intervals,
+      autoSortEnabled: false,
       ...overrides
     }
   })
@@ -93,6 +94,7 @@ describe('SmartSchedulePoolAddBar', () => {
     expect(ops.get('[data-testid="smart-schedule-refresh"]').exists()).toBe(true)
     expect(ops.get('[data-testid="smart-schedule-auto-refresh"]').exists()).toBe(true)
     expect(ops.get('[data-testid="smart-schedule-auto-sort"]').exists()).toBe(true)
+    expect(ops.get('[data-testid="smart-schedule-interval-auto-sort"]').exists()).toBe(true)
     expect(ops.find('[data-testid="smart-schedule-filtered-add"]').exists()).toBe(false)
   })
 
@@ -126,5 +128,39 @@ describe('SmartSchedulePoolAddBar', () => {
     expect(w.get('[data-testid="smart-schedule-auto-refresh-menu"]').exists()).toBe(true)
     await w.get('[data-testid="smart-schedule-auto-refresh-menu"]').findAll('button')[0].trigger('click')
     expect(w.emitted('set-auto-refresh-enabled')?.[0]).toEqual([true])
+  })
+
+  it('spins the interval auto-sort icon and shares the auto-refresh countdown', () => {
+    const w = mountBar({
+      autoSortEnabled: true,
+      autoRefreshEnabled: true,
+      autoRefreshCountdown: 3
+    })
+    expect(w.get('[data-testid="smart-schedule-interval-auto-sort-icon"]').classes()).toContain('animate-spin')
+    expect(w.get('[data-testid="smart-schedule-interval-auto-sort"]').text()).toContain(
+      'admin.users.smartSchedule.autoSortCountdown'
+    )
+
+    const sortOnly = mountBar({ autoSortEnabled: true, autoRefreshEnabled: false })
+    expect(sortOnly.get('[data-testid="smart-schedule-interval-auto-sort-icon"]').classes()).toContain('animate-spin')
+    expect(sortOnly.get('[data-testid="smart-schedule-interval-auto-sort"]').text()).toContain(
+      'admin.users.smartSchedule.autoSort'
+    )
+    expect(sortOnly.get('[data-testid="smart-schedule-interval-auto-sort"]').text()).not.toContain(
+      'admin.users.smartSchedule.autoSortCountdown'
+    )
+
+    const idle = mountBar({ autoSortEnabled: false })
+    expect(idle.get('[data-testid="smart-schedule-interval-auto-sort-icon"]').classes()).not.toContain('animate-spin')
+    expect(idle.get('[data-testid="smart-schedule-auto-sort"]').text()).toContain(
+      'admin.users.smartSchedule.manualSort'
+    )
+  })
+
+  it('toggles interval auto-sort without its own interval menu', async () => {
+    const w = mountBar()
+    await w.get('[data-testid="smart-schedule-interval-auto-sort"]').trigger('click')
+    expect(w.find('[data-testid="smart-schedule-interval-auto-sort-menu"]').exists()).toBe(false)
+    expect(w.emitted('set-auto-sort-enabled')?.[0]).toEqual([true])
   })
 })
