@@ -10,7 +10,7 @@
 
 ### Verification
 - `go test -tags=unit ./internal/service -run "PairFull|PairConcurrency|UserSchedulePair|AttachPairSlot|SkipPairFullWait" -count=1`
-- `go test -tags=unit ./internal/handler -run "TestAcquireAccountSlotWithWaitTimeout|TestWaitForSlotWithPingTimeout" -count=1`
+- `go test -tags=unit ./internal/handler -run "TestAcquireResponsesAccountSlot_|TestAcquireAccountSlotWithWaitTimeout|TestWaitForSlotWithPingTimeout" -count=1`
 
 ### Affected files
 `backend/internal/service/account_user_concurrency.go`,

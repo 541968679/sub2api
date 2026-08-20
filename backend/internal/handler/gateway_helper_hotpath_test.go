@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type helperConcurrencyCacheStub struct {
@@ -322,6 +324,99 @@ func TestWaitForSlotWithPingTimeout_AcquireError(t *testing.T) {
 	require.Nil(t, release)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "redis unavailable")
+}
+
+func TestAcquireResponsesAccountSlot_WaitWakeAttachesPair(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{accountSeq: []bool{true}}
+	conc := service.NewConcurrencyService(cache)
+	h := &OpenAIGatewayHandler{
+		gatewayService:    service.NewOpenAIGatewayServiceWithConcurrency(conc),
+		concurrencyHelper: NewConcurrencyHelper(conc, SSEPingFormatNone, 5*time.Millisecond),
+	}
+	c, rec := newHelperTestContext(http.MethodPost, "/v1/responses")
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.UserID, int64(16)))
+	streamStarted := false
+	selection := &service.AccountSelectionResult{
+		Account: &service.Account{
+			ID:              11,
+			Concurrency:     8,
+			UserConcurrency: map[int64]int{16: 2},
+		},
+		WaitPlan: &service.AccountWaitPlan{
+			AccountID:      11,
+			MaxConcurrency: 8,
+			Timeout:        time.Second,
+			MaxWaiting:     1,
+		},
+	}
+
+	release, acquired, pairFull := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.False(t, pairFull)
+	require.True(t, acquired)
+	require.NotNil(t, release)
+	require.Equal(t, 1, cache.pairAcquireCalls, "wait-wake must attach the pair slot")
+	release()
+	require.Equal(t, 1, cache.pairReleaseCalls)
+	require.Equal(t, 1, cache.accountReleaseCalls)
+}
+
+func TestAcquireResponsesAccountSlot_WaitWakePairFullReleasesAndDoesNotWrite503(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{accountSeq: []bool{true}, pairAcquireFails: true}
+	conc := service.NewConcurrencyService(cache)
+	h := &OpenAIGatewayHandler{
+		gatewayService:    service.NewOpenAIGatewayServiceWithConcurrency(conc),
+		concurrencyHelper: NewConcurrencyHelper(conc, SSEPingFormatNone, 5*time.Millisecond),
+	}
+	c, rec := newHelperTestContext(http.MethodPost, "/v1/responses")
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.UserID, int64(16)))
+	streamStarted := false
+	selection := &service.AccountSelectionResult{
+		Account: &service.Account{
+			ID:              11,
+			Concurrency:     8,
+			UserConcurrency: map[int64]int{16: 1},
+		},
+		WaitPlan: &service.AccountWaitPlan{
+			AccountID:      11,
+			MaxConcurrency: 8,
+			Timeout:        time.Second,
+			MaxWaiting:     1,
+		},
+	}
+
+	release, acquired, pairFull := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+	require.True(t, pairFull)
+	require.False(t, acquired)
+	require.Nil(t, release)
+	require.Equal(t, 1, cache.pairAcquireCalls)
+	require.Equal(t, 1, cache.accountReleaseCalls, "pairFull must release the waited account slot")
+	require.Equal(t, 0, rec.Body.Len(), "pairFull must reselect, not write 503")
+}
+
+func TestAcquireResponsesAccountSlot_AlreadyAcquiredDoesNotAttachAgain(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{}
+	conc := service.NewConcurrencyService(cache)
+	released := false
+	h := &OpenAIGatewayHandler{
+		gatewayService:    service.NewOpenAIGatewayServiceWithConcurrency(conc),
+		concurrencyHelper: NewConcurrencyHelper(conc, SSEPingFormatNone, 5*time.Millisecond),
+	}
+	c, _ := newHelperTestContext(http.MethodPost, "/v1/responses")
+	streamStarted := false
+	selection := &service.AccountSelectionResult{
+		Account:     &service.Account{ID: 11, Concurrency: 8, UserConcurrency: map[int64]int{16: 2}},
+		Acquired:    true,
+		ReleaseFunc: func() { released = true },
+	}
+
+	release, acquired, pairFull := h.acquireResponsesAccountSlot(c, nil, "", selection, false, &streamStarted, zap.NewNop())
+	require.False(t, pairFull)
+	require.True(t, acquired)
+	require.NotNil(t, release)
+	require.Equal(t, 0, cache.pairAcquireCalls, "already-acquired selection already holds the pair")
+	release()
+	require.True(t, released)
 }
 
 func TestAcquireAccountSlotWithWaitTimeout_ImmediateAttemptBeforeBackoff(t *testing.T) {

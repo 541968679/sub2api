@@ -230,6 +230,12 @@ func (s *GatewayService) AttachPairSlotAfterAccountWait(ctx context.Context, acc
 	return attachPairSlotHoldingAccount(ctx, s.concurrencyService, s.smartScheduleCache, account, accountRelease)
 }
 
+// NewOpenAIGatewayServiceWithConcurrency builds a service that can attach
+// pair slots. Used by handler tests that cannot set the unexported field.
+func NewOpenAIGatewayServiceWithConcurrency(conc *ConcurrencyService) *OpenAIGatewayService {
+	return &OpenAIGatewayService{concurrencyService: conc}
+}
+
 // AttachPairSlotAfterAccountWait acquires the user×account pair slot after a
 // WaitPlan woke with only the account slot. pairFull means the account slot
 // was released and the caller must reselect.
