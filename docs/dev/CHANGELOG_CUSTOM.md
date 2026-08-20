@@ -1,3 +1,20 @@
+## 2026-08-20 - deploy: v0.1.244
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:0.1.244` (revision `91adbd539`, digest `sha256:1cae09a00e3b35f91fcdf34726bb2c3d0b9f78a246ef796689ecc948ec79edb7`). Healthy, `/health` ok.
+- Ships OpenAI API Key passthrough routing plus custom-base_url sync inbound upstream SSE buffering. Inbound `/v1/chat/completions` (`stream:false`) still returns one JSON.
+
+### Why
+- Midstream Cloudflare 524 on custom OpenAI hops; clients keep sending sync Chat Completions and must not be asked to change stream/endpoint/body.
+
+### Verification
+- Release [32365913583](https://github.com/541968679/sub2api/actions/runs/32365913583) succeeded; GHCR `0.1.244` / `latest` digest above; image revision `91adbd539c8c5cb8304a75e544fadecfe5a5257f`.
+- Preflight `/health` passed (attempt 2/36), then live cutover. Rollback digest `sha256:d7e97bb50f8d2ad5053d758e6a344c04f992dcdd897ad1790bb1c8d9ad6733f7` (`v0.1.243`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-20 - fix: sync inbound upstream SSE buffer for midstream CF 524
 
 ### What
