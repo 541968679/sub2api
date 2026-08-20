@@ -1,3 +1,20 @@
+## 2026-08-20 - deploy: v0.1.243
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:0.1.243` (revision `09d567545`, digest `sha256:d7e97bb50f8d2ad5053d758e6a344c04f992dcdd897ad1790bb1c8d9ad6733f7`). Healthy, `/health` ok.
+- Ships delete-account cascade off `user_smart_schedule_accounts` plus GET/PUT ghost-member stripping.
+
+### Why
+- Soft-deleted pool member 1706 locked user 220's openai smart-schedule save.
+
+### Verification
+- Release [32350459333](https://github.com/541968679/sub2api/actions/runs/32350459333) succeeded; GHCR `0.1.243` / `latest` digest above; image revision `09d567545e5618f4ed10d40ea0876cd266299fac`.
+- Preflight `/health` passed (attempt 2/36), then live cutover. Rollback digest `sha256:785c5295521823154e7aa8e147fe8e4d57c36d320f23ccbb849013544b8841fb` (`v0.1.242`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-20 - fix: delete account detaches smart-schedule pool ghosts
 
 ### What
