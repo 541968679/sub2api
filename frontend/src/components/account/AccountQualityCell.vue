@@ -24,6 +24,14 @@
         <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.successShort') }}</span>
         <span class="text-sm font-medium">{{ successDisplay || '—' }}</span>
       </div>
+      <div
+        class="flex items-baseline gap-1"
+        :class="failoverToneClass"
+        data-test="account-quality-failover-rate"
+      >
+        <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.failoverShort') }}</span>
+        <span class="text-sm font-medium">{{ failoverDisplay || '—' }}</span>
+      </div>
     </div>
     <div
       v-else-if="mode === 'ttft' && hasTtft"
@@ -64,8 +72,10 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import {
+  formatQualityFailoverSuccessRate,
   formatQualitySuccessRate,
-  hasDisplayableQualityRate
+  hasDisplayableQualityRate,
+  qualityFailoverSuccessRateValue
 } from '@/utils/accountQualityStats'
 
 const props = withDefaults(
@@ -110,6 +120,14 @@ const hasSuccessRate = computed(() => hasDisplayableQualityRate(props.stats, pro
 
 const successDisplay = computed(() => formatQualitySuccessRate(props.stats, props.minSamples) ?? '')
 
+const failoverSuccessRate = computed(() =>
+  qualityFailoverSuccessRateValue(props.stats, props.minSamples)
+)
+
+const failoverDisplay = computed(
+  () => formatQualityFailoverSuccessRate(props.stats, props.minSamples) ?? ''
+)
+
 const displayText = computed(() => {
   if (props.mode !== 'success_rate') return ''
   return successDisplay.value
@@ -140,6 +158,14 @@ const successToneClass = computed(() => {
   return 'text-emerald-600 dark:text-emerald-400'
 })
 
+const failoverToneClass = computed(() => {
+  const rate = failoverSuccessRate.value
+  if (rate == null) return 'text-gray-700 dark:text-gray-300'
+  if (rate < 0.9) return 'text-red-600 dark:text-red-400'
+  if (rate < 0.95) return 'text-amber-600 dark:text-amber-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+})
+
 const tooltipText = computed(() => {
   const stats = props.stats
   if (!stats) return ''
@@ -160,6 +186,10 @@ const tooltipText = computed(() => {
         success: stats.success_count ?? 0,
         error: stats.error_count ?? 0,
         ttftSamples: stats.ttft_samples ?? 0
+      }),
+      t('admin.accounts.quality.failoverTooltip', {
+        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        error: stats.failover_error_count ?? '—'
       })
     ]
     base = parts.join('\n')

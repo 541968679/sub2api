@@ -4533,14 +4533,17 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Live 15-minute account quality: p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded). The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling. Click to open the stability curve, bridge error rate, and hard-close settings.',
+          'Live 15-minute account quality: p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings.',
         successShort: 'ok',
+        failoverShort: 'fo',
         bridgeShort: 'br',
         ttftHint:
           'True first-token latency over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
           'Scheduling success rate over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens, Claude→GPT bridge failures, and client/routing model-not-found or unsupported-model misses). Real upstream 429/502/503 still count. Shows — when empty.',
         tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}',
+        failoverTooltip:
+          'Last {windowMinutes} min · failover/Recovered comparison success (1 − comparison error rate) · comparison errors {error} · not used for scheduling',
         bridgeTooltip: 'Last {windowMinutes} min · bridge success {success} · bridge fail {error} (not used for scheduling)',
         ttftTooltip:
           'Last {windowMinutes} min · samples {samples} · p50 {p50}ms · p95 {p95}ms · avg {avg}ms · max {max}ms'

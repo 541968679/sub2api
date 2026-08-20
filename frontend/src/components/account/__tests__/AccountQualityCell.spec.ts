@@ -50,17 +50,65 @@ describe('AccountQualityCell', () => {
     expect(wrapper.emitted('click')).toHaveLength(1)
   })
 
-  it('combined mode stacks p50 and success rate', () => {
+  it('combined mode stacks p50, schedule success rate, and failover success rate', () => {
     const wrapper = mount(AccountQualityCell, {
-      props: { mode: 'combined', stats, clickable: true }
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          terminal_error_count: 1,
+          terminal_error_rate: 1 / 11,
+          failover_error_count: 20,
+          failover_error_rate: 20 / 30
+        },
+        clickable: true
+      }
     })
 
     expect(wrapper.text()).toContain('300ms')
     expect(wrapper.text()).toContain('91.0%')
+    expect(wrapper.text()).toContain('33.3%')
+    expect(wrapper.text()).not.toContain('66.7%')
+    expect(wrapper.text()).toContain('admin.accounts.quality.successShort')
+    expect(wrapper.text()).toContain('admin.accounts.quality.failoverShort')
+    const failoverRow = wrapper.get('[data-test="account-quality-failover-rate"]')
+    expect(failoverRow.text()).toContain('33.3%')
+    expect(failoverRow.classes().join(' ')).toContain('text-red-600')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.tooltip')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.failoverTooltip')
     expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
     expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
+  })
+
+  it('colors failover success rate like schedule success, not like an error-rate scale', () => {
+    const amber = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          success_rate: 0.96,
+          failover_error_count: 8,
+          failover_error_rate: 0.08
+        }
+      }
+    })
+    expect(amber.get('[data-test="account-quality-failover-rate"]').text()).toContain('92.0%')
+    expect(amber.get('[data-test="account-quality-failover-rate"]').classes().join(' ')).toContain('text-amber-600')
+
+    const good = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          success_rate: 0.99,
+          failover_error_count: 1,
+          failover_error_rate: 0.02
+        }
+      }
+    })
+    expect(good.get('[data-test="account-quality-failover-rate"]').text()).toContain('98.0%')
+    expect(good.get('[data-test="account-quality-failover-rate"]').classes().join(' ')).toContain('text-emerald-600')
   })
 
   it('combined mode does not render an in-cell bridge error rate', () => {
@@ -81,6 +129,7 @@ describe('AccountQualityCell', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
     expect(wrapper.text()).not.toContain('60.0%')
     expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('—')
   })
 
   it('clickable keeps the existing tooltip on stats', () => {
@@ -102,6 +151,10 @@ describe('AccountQualityCell', () => {
           error_count: 0,
           success_rate: 0,
           error_rate: 0,
+          terminal_error_count: 0,
+          terminal_error_rate: 0,
+          failover_error_count: 0,
+          failover_error_rate: 0,
           bridge_success_count: 0,
           bridge_error_count: 0,
           bridge_error_rate: 0,
@@ -117,6 +170,7 @@ describe('AccountQualityCell', () => {
     expect(wrapper.text()).toContain('—')
     expect(wrapper.text()).not.toContain('0.0%')
     expect(wrapper.text()).not.toContain('100.0%')
+    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
   })
 
   it('does not render 0% for error-only windows with no completed usage', () => {
@@ -140,6 +194,25 @@ describe('AccountQualityCell', () => {
 
     expect(wrapper.text()).toContain('—')
     expect(wrapper.text()).not.toContain('0.0%')
+  })
+
+  it('success_rate mode keeps schedule success only and does not print failover', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'success_rate',
+        stats: {
+          ...stats,
+          failover_error_count: 20,
+          failover_error_rate: 20 / 30
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('91.0%')
+    expect(wrapper.text()).not.toContain('33.3%')
+    expect(wrapper.text()).not.toContain('66.7%')
+    expect(wrapper.text()).not.toContain('admin.accounts.quality.failoverShort')
+    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
   })
 
   it('hides the rate when samples are below minSamples', () => {

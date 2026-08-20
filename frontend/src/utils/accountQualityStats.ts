@@ -78,43 +78,67 @@ export function hasDisplayableBridgeErrorRate(
   return qualityBridgeSampleCount(stats) >= needed
 }
 
-function formatNamedErrorRate(
-  stats: QualityRateStats | null | undefined,
-  errorCount: number,
-  explicit: number | null | undefined,
-  minSamples = 1
-): string | null {
-  if (!stats) return null
-  const samples = Math.max(0, (stats.success_count ?? 0) + errorCount)
-  if (samples < (minSamples > 1 ? minSamples : 1)) return null
-  const value = ratioOrNull(explicit, errorCount, samples)
-  if (value == null) return null
-  return `${(value * 100).toFixed(1)}%`
-}
-
 export function formatQualityTerminalErrorRate(
   stats: QualityRateStats | null | undefined,
   minSamples = 1
 ): string | null {
-  return formatNamedErrorRate(
-    stats,
-    stats?.terminal_error_count ?? stats?.error_count ?? 0,
-    stats?.terminal_error_rate,
-    minSamples
+  return formatPercent(
+    namedErrorRateValue(
+      stats,
+      stats?.terminal_error_count ?? stats?.error_count ?? 0,
+      stats?.terminal_error_rate,
+      minSamples
+    )
   )
+}
+
+function namedErrorRateValue(
+  stats: QualityRateStats | null | undefined,
+  errorCount: number,
+  explicit: number | null | undefined,
+  minSamples = 1
+): number | null {
+  if (!stats) return null
+  const samples = Math.max(0, (stats.success_count ?? 0) + errorCount)
+  if (samples < (minSamples > 1 ? minSamples : 1)) return null
+  return ratioOrNull(explicit, errorCount, samples)
+}
+
+function formatPercent(value: number | null): string | null {
+  if (value == null) return null
+  return `${(value * 100).toFixed(1)}%`
+}
+
+export function qualityFailoverErrorRateValue(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): number | null {
+  if (stats?.failover_error_count == null) return null
+  return namedErrorRateValue(stats, stats.failover_error_count, stats.failover_error_rate, minSamples)
+}
+
+/** Display-only: 1 - failover_error_rate. Same samples as the dialog error rate. */
+export function qualityFailoverSuccessRateValue(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): number | null {
+  const errorRate = qualityFailoverErrorRateValue(stats, minSamples)
+  if (errorRate == null) return null
+  return 1 - errorRate
 }
 
 export function formatQualityFailoverErrorRate(
   stats: QualityRateStats | null | undefined,
   minSamples = 1
 ): string | null {
-  if (stats?.failover_error_count == null) return null
-  return formatNamedErrorRate(
-    stats,
-    stats.failover_error_count,
-    stats.failover_error_rate,
-    minSamples
-  )
+  return formatPercent(qualityFailoverErrorRateValue(stats, minSamples))
+}
+
+export function formatQualityFailoverSuccessRate(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): string | null {
+  return formatPercent(qualityFailoverSuccessRateValue(stats, minSamples))
 }
 
 export function formatQualityBridgeErrorRate(

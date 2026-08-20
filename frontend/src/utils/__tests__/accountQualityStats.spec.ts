@@ -3,6 +3,7 @@ import {
   formatQualityBridgeErrorRate,
   formatQualityErrorRate,
   formatQualityFailoverErrorRate,
+  formatQualityFailoverSuccessRate,
   formatQualitySuccessRate,
   formatQualityTerminalErrorRate,
   hasDisplayableBridgeErrorRate,
@@ -75,11 +76,29 @@ describe('accountQualityStats rate display', () => {
     expect(formatQualityBridgeErrorRate(bridge)).toBe('60.0%')
   })
 
+  it('keeps empty-window failover rate null even when JSON emits 0', () => {
+    const emptyFailover = {
+      ...emptyZeroRate,
+      failover_error_count: 0,
+      failover_error_rate: 0
+    }
+    expect(formatQualityFailoverErrorRate(emptyFailover)).toBeNull()
+    expect(formatQualityFailoverSuccessRate(emptyFailover)).toBeNull()
+    expect(
+      formatQualityTerminalErrorRate({
+        ...emptyZeroRate,
+        terminal_error_count: 0,
+        terminal_error_rate: 0
+      })
+    ).toBeNull()
+  })
+
   it('keeps success-rate display when failover_error_count is omitted', () => {
     expect(hasDisplayableQualityRate(mixed)).toBe(true)
     expect(formatQualitySuccessRate(mixed)).toBe('90.9%')
     expect(formatQualityErrorRate(mixed)).toBe('9.1%')
     expect(formatQualityFailoverErrorRate(mixed)).toBeNull()
+    expect(formatQualityFailoverSuccessRate(mixed)).toBeNull()
   })
 
   it('formats terminal vs failover account error rates without inventing a missing failover window', () => {
@@ -95,5 +114,6 @@ describe('accountQualityStats rate display', () => {
     }
     expect(formatQualityTerminalErrorRate(dual)).toBe('33.3%')
     expect(formatQualityFailoverErrorRate(dual)).toBe('66.7%')
+    expect(formatQualityFailoverSuccessRate(dual)).toBe('33.3%')
   })
 })

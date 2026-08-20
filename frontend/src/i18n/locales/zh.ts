@@ -4119,14 +4119,17 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '最近 15 分钟账号质量：上行 p50 首字延迟，下行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度。点击打开稳定性曲线、桥接错误率与硬关闭。',
+          '最近 15 分钟账号质量：上行 p50 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。',
         successShort: '率',
+        failoverShort: '含',
         bridgeShort: '桥',
         ttftHint:
           '最近 15 分钟真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
           '最近 15 分钟调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens、Claude→GPT 桥接失败，以及客户端/路由的模型不存在或不受支持）。上游 429/502/503 仍计入。无样本显示 —。',
         tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}',
+        failoverTooltip:
+          '最近 {windowMinutes} 分钟 · 含 failover/Recovered 对照正确率（1 − 对照错误率）· 对照失败 {error} · 不进调度',
         bridgeTooltip: '最近 {windowMinutes} 分钟 · 桥接成功 {success} · 桥接失败 {error}（不进调度）',
         ttftTooltip:
           '最近 {windowMinutes} 分钟 · 样本 {samples} · p50 {p50}ms · p95 {p95}ms · 均值 {avg}ms · 最大 {max}ms'

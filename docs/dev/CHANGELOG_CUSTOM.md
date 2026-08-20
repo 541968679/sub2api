@@ -34,6 +34,30 @@
 `.trellis/spec/backend/account-user-schedule.md`,
 this changelog.
 
+## 2026-08-20 - feat: quality cell shows failover/Recovered success rate
+
+### What
+- Account-list and smart-schedule pool quality cells (`AccountQualityCell` combined mode) now stack p50, scheduling success rate, and the failover/Recovered **comparison success rate** (`1 - failover_error_rate`).
+- Same `failover_error_*` denominator as `AccountStabilityDialog` (dialog still shows the error rate). Bridge stays dialog-only. Empty-window rates stay `null` / `—`, never `0%`.
+- Cell color matches scheduling success (`<0.9` red, `<0.95` amber), not an error-rate scale.
+- Display only: `ApplyAccountQualityScheduleCaliber` default remains false; Recovered is not copied into scheduling `ErrorCount`.
+
+### Why
+- Operators asked to read the third line as a success rate next to the terminal success rate, without opening the dialog or changing the schedule caliber.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/utils/__tests__/accountQualityStats.spec.ts`
+
+### Affected files
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/account/__tests__/AccountQualityCell.spec.ts`,
+`frontend/src/utils/accountQualityStats.ts`,
+`frontend/src/utils/__tests__/accountQualityStats.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-20 - deploy: v0.1.244
 
 ### What
