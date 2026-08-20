@@ -929,6 +929,9 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		h.adminService.ForceAntigravityPrivacy(ctx, account)
 		// OpenAI OAuth: 新账号直接设置隐私
 		h.adminService.ForceOpenAIPrivacy(ctx, account)
+		// OpenAI APIKey: 单个创建也异步双端点探测（与 BatchCreate 对齐）。
+		// 未完成前 extra 仍 Unknown=走 Responses，不改变路由默认。
+		h.scheduleOpenAIResponsesProbe(account)
 		return h.buildAccountResponseWithRuntime(ctx, account), nil
 	})
 	if err != nil {
@@ -1035,11 +1038,11 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
-// scheduleOpenAIResponsesProbe 异步触发 OpenAI APIKey 账号的 Responses API 能力探测。
+// scheduleOpenAIResponsesProbe 异步触发 OpenAI APIKey 账号的双端点能力探测。
 //
 // 仅对 platform=openai && type=apikey 账号生效；其他账号无操作。
-// 探测本身在 goroutine 中执行（会发一次 HTTP 请求到上游），不会阻塞
-// 当前请求。探测错误仅记录日志，不向上下文传播：探测失败时标记保持缺失，
+// 探测本身在 goroutine 中执行（顺序 POST /v1/responses 与 /v1/chat/completions），
+// 不会阻塞当前请求。探测错误仅记录日志，不向上下文传播：探测失败时标记保持缺失，
 // 网关会按"现状即证据"默认走 Responses。
 func (h *AccountHandler) scheduleOpenAIResponsesProbe(account *service.Account) {
 	if account == nil || account.Platform != service.PlatformOpenAI || account.Type != service.AccountTypeAPIKey {
@@ -1837,7 +1840,7 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 					openaiPrivacyAccounts = append(openaiPrivacyAccounts, account)
 				}
 			}
-			// OpenAI APIKey 账号异步探测 /v1/responses 能力。
+			// OpenAI APIKey 账号异步探测 /v1/responses 与 /v1/chat/completions。
 			h.scheduleOpenAIResponsesProbe(account)
 			success++
 			results = append(results, gin.H{

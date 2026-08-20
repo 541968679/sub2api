@@ -254,6 +254,7 @@ func TestAccountTestService_OpenAIResponsesProbeAddsV1ForRootBaseURL(t *testing.
 	}
 	upstream := &queuedHTTPUpstream{responses: []*http.Response{
 		newJSONResponse(http.StatusOK, `{"output":[{"type":"function_call","name":"probe_ping"}]}`),
+		newJSONResponse(http.StatusOK, `{"choices":[{"index":0,"message":{"content":"pong"}}]}`),
 	}}
 	svc := &AccountTestService{
 		accountRepo:  repo,
@@ -270,11 +271,98 @@ func TestAccountTestService_OpenAIResponsesProbeAddsV1ForRootBaseURL(t *testing.
 
 	svc.ProbeOpenAIAPIKeyResponsesSupport(context.Background(), account.ID)
 
-	require.Len(t, upstream.requests, 1)
+	require.Len(t, upstream.requests, 2)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
+	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.requests[1].URL.String())
+	require.Equal(t, map[string]any{
+		openai_compat.ExtraKeyResponsesSupported:       true,
+		openai_compat.ExtraKeyChatCompletionsSupported: true,
+	}, repo.updatedExtra)
+}
+
+func TestAccountTestService_OpenAIResponsesProbeSkipsPersistOnTransportFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	account := &Account{
+		ID:          98,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+	}
+	repo := &openAIAccountTestRepo{
+		mockAccountRepoForGemini: mockAccountRepoForGemini{
+			accountsByID: map[int64]*Account{
+				account.ID: account,
+			},
+		},
+	}
+	upstream := &queuedHTTPUpstream{}
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+	}
+
+	svc.ProbeOpenAIAPIKeyResponsesSupport(context.Background(), account.ID)
+	require.Nil(t, repo.updatedExtra)
+}
+
+func TestAccountTestService_OpenAIResponsesProbePersistsOnlySuccessfulEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	account := &Account{
+		ID:          99,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+	}
+	repo := &openAIAccountTestRepo{
+		mockAccountRepoForGemini: mockAccountRepoForGemini{
+			accountsByID: map[int64]*Account{
+				account.ID: account,
+			},
+		},
+	}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusOK, `{"output":[{"type":"function_call","name":"probe_ping"}]}`),
+	}}
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+	}
+
+	svc.ProbeOpenAIAPIKeyResponsesSupport(context.Background(), account.ID)
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
+	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.requests[1].URL.String())
 	require.Equal(t, map[string]any{
 		openai_compat.ExtraKeyResponsesSupported: true,
 	}, repo.updatedExtra)
+	_, hasCC := repo.updatedExtra[openai_compat.ExtraKeyChatCompletionsSupported]
+	require.False(t, hasCC)
 }
 
 func TestAccountTestService_OpenAIResponsesPathAcceptsDoneAfterContentDelta(t *testing.T) {
@@ -573,6 +661,54 @@ func TestAccountTestService_OpenAIAPIKeyForceChatCompletionsUsesRawChatTestPath(
 	require.Equal(t, true, body["stream"])
 	require.NotNil(t, body["messages"])
 	require.Nil(t, body["input"])
+	require.Contains(t, recorder.Body.String(), `"type":"content","text":"ok"`)
+	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+}
+
+func TestAccountTestService_OpenAIAPIKeyPassthroughUsesResponsesTestPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"ok"}`,
+		"",
+		`data: [DONE]`,
+		"",
+	}, "\n")))
+
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+	}
+	account := &Account{
+		ID:       96,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example/v1",
+		},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode:            string(openai_compat.ResponsesSupportModePassthrough),
+			openai_compat.ExtraKeyResponsesSupported:       false,
+			openai_compat.ExtraKeyChatCompletionsSupported: true,
+		},
+		Concurrency: 1,
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
 	require.Contains(t, recorder.Body.String(), `"type":"content","text":"ok"`)
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
 }

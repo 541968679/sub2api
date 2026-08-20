@@ -49,11 +49,12 @@ var cursorResponsesUnsupportedFields = []string{
 // 正确的，但 sub2api 接入 DeepSeek/Kimi/GLM 等第三方 OpenAI 兼容上游后假设破裂：
 // 这些上游普遍只支持 /v1/chat/completions，无 /v1/responses 端点。
 //
-// 当前路由策略（基于账号探测标记，详见 openai_compat.ShouldUseResponsesAPI）：
-//   - APIKey 账号 + 探测确认不支持 Responses → 走 forwardAsRawChatCompletions
-//     直转上游 /v1/chat/completions，不做协议转换
-//   - 其他所有情况（OAuth、APIKey 探测确认支持、未探测）→ 走原有 CC→Responses
-//     转换路径（保留旧行为，存量未探测账号零兼容破坏）
+// 当前路由策略（按 inbound + extra，详见 openai_compat.ResolveUpstreamAPI）：
+//   - APIKey 账号 + 入站 CC 判定上游为 Chat Completions
+//     （force_chat_completions / passthrough / auto+Rsupp=false）
+//     → 走 forwardAsRawChatCompletions 直转，不做协议转换
+//   - 其他所有情况（OAuth、auto+未探测/支持、force_responses）→ 走原有
+//     CC→Responses 转换路径。auto 在两路都可用时仍转 Responses。
 func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
@@ -88,9 +89,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 
-	// 入口分流：APIKey 账号 + 已探测且确认上游不支持 Responses，走 CC 直转。
-	// 标记缺失（未探测）按"现状即证据"原则继续走下方原 Responses 转换路径。
-	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+	// 入口分流：按入站 CC + extra 选上游。passthrough 走 raw CC；
+	// auto+未探测仍走下方 Responses 转换（存量兼容）。
+	if account.Type == AccountTypeAPIKey &&
+		openai_compat.ResolveUpstreamAPI(openai_compat.InboundChatCompletions, account.Extra) == openai_compat.UpstreamChatCompletions {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 
@@ -259,18 +261,29 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	// 6. Build upstream request.
-	// API Key + client sync: ask Responses for a single JSON body instead of
-	// SSE-then-buffer. OAuth transform already forced stream=true above.
+	// API Key + client sync + official/empty base_url: keep S2 (upstream JSON).
+	// Custom midstream base_url: upstream SSE + local buffer so CF sees bytes.
+	// OAuth transform already forced stream=true above.
 	upstreamStream := true
 	if account.Type == AccountTypeAPIKey && !clientStream {
-		upstreamStream = false
-		if patched, setErr := sjson.SetBytes(responsesBody, "stream", false); setErr == nil {
-			responsesBody = patched
+		if shouldForceSyncInboundUpstreamSSE(account, s.cfg, clientStream) {
+			if patched, setErr := sjson.SetBytes(responsesBody, "stream", true); setErr == nil {
+				responsesBody = patched
+			}
+			logger.L().Debug("openai chat_completions: sync_inbound_upstream_sse=true",
+				zap.Int64("account_id", account.ID),
+				zap.String("upstream_model", upstreamModel),
+			)
+		} else {
+			upstreamStream = false
+			if patched, setErr := sjson.SetBytes(responsesBody, "stream", false); setErr == nil {
+				responsesBody = patched
+			}
+			logger.L().Debug("openai chat_completions: upstream_non_stream=true",
+				zap.Int64("account_id", account.ID),
+				zap.String("upstream_model", upstreamModel),
+			)
 		}
-		logger.L().Debug("openai chat_completions: upstream_non_stream=true",
-			zap.Int64("account_id", account.ID),
-			zap.String("upstream_model", upstreamModel),
-		)
 	}
 	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, upstreamStream, promptCacheKey, false)
 	if err != nil {

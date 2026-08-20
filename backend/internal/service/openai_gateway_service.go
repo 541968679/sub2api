@@ -2550,7 +2550,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, reqModel, reqStream, startTime)
 	}
-	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+	if account.Type == AccountTypeAPIKey &&
+		openai_compat.ResolveUpstreamAPI(openai_compat.InboundResponses, account.Extra) == openai_compat.UpstreamChatCompletions {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
 	}
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey {

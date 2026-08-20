@@ -222,6 +222,43 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('hydrates passthrough and shows both probe results', async () => {
+    const account = buildAccount()
+    account.extra = {
+      openai_responses_mode: 'passthrough',
+      openai_responses_supported: true,
+      openai_chat_completions_supported: false,
+      preserved_setting: 'keep-me'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const modeSelect = wrapper.get<HTMLSelectElement>(
+      '[data-testid="edit-openai-responses-mode"]'
+    )
+
+    expect(modeSelect.element.value).toBe('passthrough')
+    expect(wrapper.get('[data-testid="edit-openai-responses-probe-status"]').text()).toContain(
+      'admin.accounts.openai.responsesProbeSupported'
+    )
+    expect(wrapper.get('[data-testid="edit-openai-chat-completions-probe-status"]').text()).toContain(
+      'admin.accounts.openai.chatCompletionsProbeUnsupported'
+    )
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_responses_mode: 'passthrough',
+      openai_responses_supported: true,
+      openai_chat_completions_supported: false,
+      preserved_setting: 'keep-me'
+    })
+  })
+
   it('hydrates and can reset Anthropic API key bearer auth', async () => {
     const account = buildAccount()
     account.name = 'Anthropic Compatible'
@@ -891,7 +928,8 @@ describe('EditAccountModal', () => {
       pause_minutes: 15,
       min_success_samples: 8,
       min_ttft_samples: 6,
-      condition: 'and'
+      condition: 'and',
+      schedule_use_failover_error_rate: false
     })
     expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty('user_id')
     expect(updateAccountMock).not.toHaveBeenCalled()

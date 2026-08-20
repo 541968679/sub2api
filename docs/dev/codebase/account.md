@@ -518,6 +518,24 @@ Implementation notes:
 - `openai_images_endpoint_enabled` is scheduler-relevant, so updating it must
   enqueue scheduler outbox work and refresh account snapshots.
 
+## OpenAI API-Key upstream endpoint routing
+
+`accounts.extra` for `platform=openai` + `type=apikey`:
+
+| Key | Values / missing |
+|---|---|
+| `openai_responses_mode` | `auto` (omit/illegal), `force_responses`, `force_chat_completions`, `passthrough` |
+| `openai_responses_supported` | bool; missing = Unknown = treat as Responses-capable for **auto** |
+| `openai_chat_completions_supported` | bool; display/persist only; **never** changes auto routing |
+
+Routing is `(inbound endpoint, extra) → upstream`. `passthrough` maps inbound CC→upstream CC and inbound Responses→upstream Responses and does not fall back to a protocol bridge when a probe is false. `auto` keeps today's default: if Responses is supported or unprobed, inbound CC still converts to Responses. Missing new fields must not change the path.
+
+Capability probe (`ProbeOpenAIAPIKeyResponsesSupport`) POSTs `/v1/responses` then `/v1/chat/completions` (15s each, same header override / TLS / proxy) and writes both flags in one `UpdateExtra`. Responses still requires 2xx `function_call`; CC only checks endpoint-shaped JSON (no tool_calls requirement). Transport failure leaves that key unwritten.
+
+Triggers: single `Create` (added 2026-08-20), `BatchCreate`, and `Update` only when `credentials` is present. Extra-only saves do not re-probe. No backfill job.
+
+Admin create/edit UI: four modes. Label passthrough as 原样映射 / native mapping so it is not confused with `extra.openai_passthrough` (request body) or WS mode `passthrough`.
+
 ## OpenAI API-Key Account Connection Tests
 
 The admin account-test endpoint must follow the same upstream capability
@@ -529,10 +547,10 @@ Important mechanisms:
   OpenAI endpoint URL builder: root base URLs such as `https://example.com`
   map to `https://example.com/v1/responses`, while versioned base URLs such as
   `https://example.com/v1` map to `https://example.com/v1/responses`.
-- API-key accounts whose `extra.openai_responses_mode` or
-  `extra.openai_responses_supported` resolve to "do not use Responses" test
-  with `{base_url}/v1/chat/completions`, matching the production raw
-  Chat Completions forwarding path.
+- `passthrough` connectivity tests the existing Responses primary path.
+  `force_chat_completions` and `auto` + `openai_responses_supported=false`
+  test `{base_url}/v1/chat/completions`, matching raw Chat Completions
+  forwarding. Missing mode/probe fields keep today's Responses test.
 - The Chat Completions test stream maps upstream `delta.content` and
   `delta.reasoning_content` chunks into the existing account-test SSE
   `content` events, so DeepSeek/Kimi/GLM/Qwen-style compatible upstreams can be

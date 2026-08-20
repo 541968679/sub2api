@@ -126,3 +126,31 @@ func TestResolveOpenAIUpstreamEndpoint_APIKeyChatOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveOpenAIUpstreamEndpoint_PassthroughFollowsInbound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	account := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode:            string(openai_compat.ResponsesSupportModePassthrough),
+			openai_compat.ExtraKeyResponsesSupported:       false,
+			openai_compat.ExtraKeyChatCompletionsSupported: true,
+		},
+	}
+
+	t.Run("inbound responses stays responses", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+		require.Equal(t, EndpointResponses, resolveOpenAIUpstreamEndpoint(c, account, nil))
+	})
+
+	t.Run("inbound chat completions stays chat completions", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		require.Equal(t, EndpointChatCompletions, resolveOpenAIUpstreamEndpoint(c, account, nil))
+	})
+}

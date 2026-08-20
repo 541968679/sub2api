@@ -251,6 +251,16 @@ describe('CreateAccountModal', () => {
     )
   })
 
+  it('can create an OpenAI API key account with native upstream mapping', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-openai-responses-mode"]').setValue('passthrough')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_responses_mode).toBe('passthrough')
+  })
+
   it('omits OpenAI images endpoint toggle when enabled by default', async () => {
     const wrapper = await mountOpenAIAPIKeyModal()
 

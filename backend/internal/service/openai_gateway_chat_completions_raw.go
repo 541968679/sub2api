@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
@@ -43,7 +45,7 @@ var openaiCCRawAllowedHeaders = map[string]bool{
 //   - 不注入 prompt_cache_key（OAuth 专属机制）
 //
 // 调用入口：openai_gateway_chat_completions.go::ForwardAsChatCompletions
-// 在函数顶部按 openai_compat.ShouldUseResponsesAPI 分流。
+// 在函数顶部按 openai_compat.ResolveUpstreamAPI(InboundChatCompletions) 分流。
 func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
@@ -108,11 +110,17 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 			addGrokOpenAIUsage(&bridgeUsage, usage)
 		}
 	}
-	if clientStream {
+	forceUpstreamSSE := shouldForceSyncInboundUpstreamSSE(account, s.cfg, clientStream)
+	if clientStream || forceUpstreamSSE {
 		var usageErr error
 		upstreamBody, usageErr = ensureOpenAIChatStreamUsage(upstreamBody)
 		if usageErr != nil {
 			return nil, fmt.Errorf("enable stream usage: %w", usageErr)
+		}
+	}
+	if forceUpstreamSSE {
+		if patched, setErr := sjson.SetBytes(upstreamBody, "stream", true); setErr == nil {
+			upstreamBody = patched
 		}
 	}
 	if account.Platform == PlatformGrok {
@@ -155,7 +163,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Authorization", "Bearer "+token)
-	if clientStream {
+	if clientStream || forceUpstreamSSE {
 		upstreamReq.Header.Set("Accept", "text/event-stream")
 	} else {
 		upstreamReq.Header.Set("Accept", "application/json")
@@ -254,8 +262,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	var result *OpenAIForwardResult
 	if clientStream {
 		result, err = s.streamRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(upstreamBody), account)
-	} else {
+	} else if isOpenAIJSONResponse(resp) {
 		result, err = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	} else {
+		result, err = s.bufferRawChatCompletionsFromSSE(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
 	stageClk.Complete(c)
 	if result != nil {
@@ -507,6 +517,321 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		Stream:          false,
 		Duration:        time.Since(startTime),
 	}, nil
+}
+
+type rawChatSSEAccumulator struct {
+	id                string
+	model             string
+	systemFingerprint string
+	serviceTier       string
+	finishReason      string
+	created           int64
+	content           strings.Builder
+	reasoning         strings.Builder
+	usage             *OpenAIUsage
+	toolCalls         map[int]*apicompat.ChatToolCall
+	hasMessage        bool
+}
+
+func (a *rawChatSSEAccumulator) usable() bool {
+	return a != nil && (a.hasMessage || a.finishReason != "" || a.usage != nil || len(a.toolCalls) > 0)
+}
+
+func (a *rawChatSSEAccumulator) processPayload(payload string) {
+	trimmed := strings.TrimSpace(payload)
+	if trimmed == "" || trimmed == "[DONE]" {
+		return
+	}
+	var chunk apicompat.ChatCompletionsChunk
+	if err := json.Unmarshal([]byte(trimmed), &chunk); err != nil {
+		return
+	}
+	if chunk.ID != "" {
+		a.id = chunk.ID
+	}
+	if chunk.Model != "" {
+		a.model = chunk.Model
+	}
+	if chunk.Created != 0 {
+		a.created = chunk.Created
+	}
+	if chunk.SystemFingerprint != "" {
+		a.systemFingerprint = chunk.SystemFingerprint
+	}
+	if chunk.ServiceTier != "" {
+		a.serviceTier = chunk.ServiceTier
+	}
+	if u := extractCCStreamUsage(trimmed); u != nil {
+		copied := *u
+		a.usage = &copied
+	}
+	for _, choice := range chunk.Choices {
+		if choice.FinishReason != nil && strings.TrimSpace(*choice.FinishReason) != "" {
+			a.finishReason = strings.TrimSpace(*choice.FinishReason)
+		}
+		if choice.Delta.Content != nil && *choice.Delta.Content != "" {
+			_, _ = a.content.WriteString(*choice.Delta.Content)
+			a.hasMessage = true
+		}
+		if reasoning := apicompat.ChatDeltaReasoningText(choice.Delta); reasoning != "" {
+			_, _ = a.reasoning.WriteString(reasoning)
+			a.hasMessage = true
+		}
+		for i, toolCall := range choice.Delta.ToolCalls {
+			a.mergeToolCall(toolCall, i)
+		}
+	}
+}
+
+func (a *rawChatSSEAccumulator) mergeToolCall(toolCall apicompat.ChatToolCall, fallback int) {
+	idx := fallback
+	if toolCall.Index != nil {
+		idx = *toolCall.Index
+	}
+	if a.toolCalls == nil {
+		a.toolCalls = make(map[int]*apicompat.ChatToolCall)
+	}
+	stored, ok := a.toolCalls[idx]
+	if !ok {
+		copyCall := toolCall
+		if strings.TrimSpace(copyCall.Type) == "" {
+			copyCall.Type = "function"
+		}
+		a.toolCalls[idx] = &copyCall
+		return
+	}
+	if toolCall.ID != "" {
+		stored.ID = toolCall.ID
+	}
+	if toolCall.Type != "" {
+		stored.Type = toolCall.Type
+	}
+	if toolCall.Function.Name != "" {
+		stored.Function.Name = toolCall.Function.Name
+	}
+	if toolCall.Function.Arguments != "" {
+		stored.Function.Arguments += toolCall.Function.Arguments
+	}
+}
+
+func (a *rawChatSSEAccumulator) assembledToolCalls() []apicompat.ChatToolCall {
+	if len(a.toolCalls) == 0 {
+		return nil
+	}
+	idxs := make([]int, 0, len(a.toolCalls))
+	for idx := range a.toolCalls {
+		idxs = append(idxs, idx)
+	}
+	sort.Ints(idxs)
+	out := make([]apicompat.ChatToolCall, 0, len(idxs))
+	for _, idx := range idxs {
+		tc := *a.toolCalls[idx]
+		tc.Index = nil
+		out = append(out, tc)
+	}
+	return out
+}
+
+func (a *rawChatSSEAccumulator) chatResponse(originalModel string) apicompat.ChatCompletionsResponse {
+	model := a.model
+	if model == "" {
+		model = originalModel
+	}
+	toolCalls := a.assembledToolCalls()
+	var contentRaw json.RawMessage
+	if a.content.Len() == 0 && len(toolCalls) > 0 {
+		contentRaw = json.RawMessage("null")
+	} else {
+		contentRaw, _ = json.Marshal(a.content.String())
+	}
+	finish := a.finishReason
+	if finish == "" {
+		if len(toolCalls) > 0 {
+			finish = "tool_calls"
+		} else {
+			finish = "stop"
+		}
+	}
+	resp := apicompat.ChatCompletionsResponse{
+		ID:                a.id,
+		Object:            "chat.completion",
+		Created:           a.created,
+		Model:             model,
+		SystemFingerprint: a.systemFingerprint,
+		ServiceTier:       a.serviceTier,
+		Choices: []apicompat.ChatChoice{{
+			Index: 0,
+			Message: apicompat.ChatMessage{
+				Role:             "assistant",
+				Content:          contentRaw,
+				ReasoningContent: a.reasoning.String(),
+				ToolCalls:        toolCalls,
+			},
+			FinishReason: finish,
+		}},
+	}
+	if a.usage != nil {
+		resp.Usage = &apicompat.ChatUsage{
+			PromptTokens:     a.usage.InputTokens,
+			CompletionTokens: a.usage.OutputTokens,
+			TotalTokens:      a.usage.InputTokens + a.usage.OutputTokens,
+		}
+		if a.usage.CacheReadInputTokens > 0 {
+			resp.Usage.PromptTokensDetails = &apicompat.ChatTokenDetails{
+				CachedTokens: a.usage.CacheReadInputTokens,
+			}
+		}
+	}
+	return resp
+}
+
+func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
+	c *gin.Context,
+	resp *http.Response,
+	account *Account,
+	originalModel string,
+	billingModel string,
+	upstreamModel string,
+	reasoningEffort *string,
+	serviceTier *string,
+	startTime time.Time,
+) (*OpenAIForwardResult, error) {
+	requestID := resolveOpenAIBufferedRequestID(resp, c)
+	if account == nil {
+		account = &Account{Platform: PlatformOpenAI}
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	maxLineSize := defaultMaxLineSize
+	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+		maxLineSize = s.cfg.Gateway.MaxLineSize
+	}
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
+
+	acc := &rawChatSSEAccumulator{}
+	processLine := func(line string) {
+		payload, ok := extractOpenAISSEDataLine(line)
+		if !ok {
+			return
+		}
+		acc.processPayload(payload)
+	}
+
+	finish := func() (*OpenAIForwardResult, error) {
+		if !acc.usable() {
+			writeChatCompletionsError(c, http.StatusBadGateway, "api_error", "Upstream stream ended without a terminal chat chunk")
+			return nil, fmt.Errorf("upstream stream ended without terminal chat chunk")
+		}
+		chatResp := acc.chatResponse(originalModel)
+		body, marshalErr := json.Marshal(chatResp)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("marshal buffered raw chat completions: %w", marshalErr)
+		}
+		if s.responseHeaderFilter != nil && resp != nil {
+			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+		}
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
+		}
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+		usage := OpenAIUsage{}
+		if acc.usage != nil {
+			usage = *acc.usage
+		}
+		return &OpenAIForwardResult{
+			RequestID:       requestID,
+			Usage:           usage,
+			Model:           originalModel,
+			BillingModel:    billingModel,
+			UpstreamModel:   upstreamModel,
+			ReasoningEffort: reasoningEffort,
+			ServiceTier:     serviceTier,
+			Stream:          false,
+			Duration:        time.Since(startTime),
+		}, nil
+	}
+
+	timeoutSeconds := 0
+	if s.cfg != nil {
+		timeoutSeconds = s.cfg.Gateway.StreamDataIntervalTimeout
+	}
+	interval := chatBufferedStreamInterval(timeoutSeconds)
+	if interval <= 0 {
+		for scanner.Scan() {
+			processLine(scanner.Text())
+		}
+		if failover := s.handleChatBufferedReadError(c, account, requestID, scanner.Err()); failover != nil && !acc.usable() {
+			return nil, failover
+		}
+		return finish()
+	}
+
+	type scanEvent struct {
+		line string
+		err  error
+	}
+	events := make(chan scanEvent, 16)
+	done := make(chan struct{})
+	defer close(done)
+	var lastReadAt int64
+	atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+	sendEvent := func(ev scanEvent) bool {
+		select {
+		case events <- ev:
+			return true
+		case <-done:
+			return false
+		}
+	}
+	go func() {
+		defer close(events)
+		for scanner.Scan() {
+			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+			if !sendEvent(scanEvent{line: scanner.Text()}) {
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			_ = sendEvent(scanEvent{err: err})
+		}
+	}()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return finish()
+			}
+			if ev.err != nil {
+				if failover := s.handleChatBufferedReadError(c, account, requestID, ev.err); failover != nil && !acc.usable() {
+					return nil, failover
+				}
+				return finish()
+			}
+			processLine(ev.line)
+		case <-ticker.C:
+			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
+			if time.Since(lastRead) < interval {
+				continue
+			}
+			if acc.usable() {
+				return finish()
+			}
+			logger.L().Warn("openai chat_completions raw buffered: stream data interval timeout",
+				zap.Int64("account_id", account.ID),
+				zap.String("request_id", requestID),
+				zap.Duration("interval", interval),
+			)
+			if s.rateLimitService != nil && c != nil && c.Request != nil {
+				s.rateLimitService.HandleStreamTimeout(c.Request.Context(), account, originalModel)
+			} else if s.rateLimitService != nil {
+				s.rateLimitService.HandleStreamTimeout(context.Background(), account, originalModel)
+			}
+			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, "stream data interval timeout")
+		}
+	}
 }
 
 // extractCCStreamUsage 从单个 CC 流式 chunk 的 payload 中提取 usage 字段。

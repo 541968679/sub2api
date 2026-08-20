@@ -193,14 +193,26 @@ GatewayHandler.ChatCompletions
 
 ### `/v1/chat/completions` OpenAI conversion path
 
-Inbound OpenAI `/v1/chat/completions` still converts to `/v1/responses` when
-`ShouldUseResponsesAPI` is true (unknown / supported / `force_responses`).
-Only `force_chat_completions` or a probe that confirmed no Responses uses raw
-`/v1/chat/completions`. Production account extras are not changed by this path.
+Inbound OpenAI `/v1/chat/completions` and inbound `/v1/responses` pick the
+upstream via `openai_compat.ResolveUpstreamAPI(inbound, extra)`, not a single
+bool for both paths. `ShouldUseResponsesAPI` remains as "inbound CC converts
+to Responses".
+
+| Mode | Inbound CC | Inbound Responses |
+|---|---|---|
+| `passthrough` | raw `/v1/chat/completions` | native `/v1/responses` (probe does not retarget) |
+| `force_responses` | convert to Responses | native Responses |
+| `force_chat_completions` | raw CC | CC bridge |
+| `auto` + Rsupp true/unknown | convert to Responses (**today's default**) | native Responses |
+| `auto` + Rsupp false | raw CC | CC bridge |
+| missing extra / illegal mode | same as auto+unknown | same as auto+unknown |
+
+`openai_chat_completions_supported` is display-only and never changes auto.
+OAuth / Grok stay on their existing early-return paths.
 
 ```
 ForwardAsChatCompletions
-  -> Grok / force_chat_completions / probe=unsupported
+  -> Grok / ResolveUpstreamAPI(InboundCC)==CC
        -> forwardAsRawChatCompletions
   -> else convert Chat Completions -> Responses
        -> inject compat_cc_<hash> prompt_cache_key for GPT-5/Codex when the
@@ -215,17 +227,25 @@ ForwardAsChatCompletions
             -> a completed terminal already in hand is returned as JSON even if
                the connection later hangs
        -> API Key + client stream=false
-            -> after OAuth transform (skipped): stream=false + Accept JSON
-            -> handleChatNonStreamResponsesJSON via ReadUpstreamResponseBody
-               (same 128 MiB default as native Responses)
-            -> shared finishChatCompletionsFromResponsesResponse (usage /
-               display rewrite / cyber-policy / failed status)
-            -> upstream still SSE -> fall back to the buffered path
+            -> default auto: official/empty base_url keeps S2
+               (upstream stream=false + Accept JSON)
+            -> custom credential base_url (midstream): upstream stream=true
+               + Accept text/event-stream, then buffer SSE to one CC JSON
+            -> handleChatNonStreamResponsesJSON if upstream still returns JSON
+            -> else handleChatBufferedStreamingResponse (interval timeout +
+               H2 failover, no client body until finish)
+            -> rollback: gateway.openai_sync_inbound_upstream_sse_mode=off
+               or extra openai_sync_inbound_upstream_sse=false
+            -> mode=all also forces SSE on api.openai.com
 ```
 
-Client contract is unchanged: `stream=true` returns SSE, `stream=false`
-returns one JSON object. Billing, display transforms, and scheduler selection
-are not part of this conversion-path change.
+Inbound `stream=false` always returns one Chat Completions JSON. Do not ask
+clients to change `stream`, endpoint, or body to avoid midstream Cloudflare
+524. Official `api.openai.com` keeps S2 so S2 is not globally reverted.
+`forwardAsRawChatCompletions` uses the same gate (passthrough / force CC).
+The raw SSE buffer assembles text, reasoning, and incremental `tool_calls`
+before writing one Chat Completions JSON.
+Billing, display transforms, and scheduler selection are unchanged.
 
 ### Antigravity Native Entry
 
@@ -836,6 +856,7 @@ Responses→Chat fallback (`force_chat_completions` / unsupported native Respons
 
 ## Known Pitfalls
 
+- **Midstream Cloudflare 524 is not a client-stream problem**: inbound sync `/v1/chat/completions` (`stream:false`) must stay one JSON. Custom-`base_url` API keys now ask the upstream for SSE and buffer locally so CF sees bytes before 120s. Official `api.openai.com` keeps S2 JSON. Do not “fix” 524 by asking clients to set `stream:true` or switch to `/v1/responses`. Rollback: `gateway.openai_sync_inbound_upstream_sse_mode=off`. A 90s hop abort would kill the current 95–104s success p95; do not enable it by default.
 - **Claude-GPT prompt-too-long HTTP 413 is a client recovery trigger, not an unhandled passthrough**: the bridge intentionally normalizes explicit upstream context-window overflow into Anthropic HTTP 413 + `invalid_request_error` + `Prompt is too long: this request exceeds the context window for the selected model.` Claude Code uses this contract to start reactive compact. Diagnose the full request sequence rather than treating the first 413 as the final result: the expected sequence is generation 413 -> client compact request -> compact 200 -> compressed generation retry 200. The compact request itself may receive upstream HTTP 400 or 413; both must enter server-side compact recovery. A non-context 413 such as a byte-size request-body limit must not be classified as prompt-too-long.
 - **Replayed custom tool item IDs are sanitized, not regenerated**: Chat Completions -> Responses fallback still emits `custom_tool_call.id` through the generic `generateItemID()` helper as `item_<24 hex>`. A later client turn can replay that output into `/responses`, while ChatGPT/Codex validates the custom-tool namespace as `ctc`. The synchronized upstream sanitizer now removes invalid replayed call-input IDs before API-key forwarding, and the OAuth Codex filter uses the same predicate, preventing the observed `Invalid 'input[N].id': 'item_...'. Expected an ID that begins with 'ctc'.` failure. This intentionally does not generate `ctc_` IDs or change `call_id` pairing. Keep streaming/non-streaming bridge output generation and replay sanitization covered together when syncing future upstream protocol changes.
 - **Codex manifest URL depends on `/v1`**: for a Codex custom provider, configure `base_url` as the Sub2API origin plus `/v1`. A root-only URL makes the desktop client request `/models`, which this compatibility route does not register. Manifest discovery also requires at least one schedulable OpenAI OAuth account in the key's group; OpenAI API-key accounts cannot provide the ChatGPT manifest.

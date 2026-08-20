@@ -1,0 +1,29 @@
+---
+description: 生产同步超时/524/failover 必须由网关自行缓解，禁止以客户端改协议、改 stream、换端点、改 body 为前置
+alwaysApply: true
+---
+
+# 网关超时不得依赖客户端
+
+生产同步超时、Cloudflare 524、超长 failover 的优化与验收，**不得以客户端动作为前置**。
+
+客户端会继续发同步 `/v1/chat/completions`（`stream:false`）。网关必须在该前提下自行缓解 524 与超长 failover。
+
+## 禁止当成解决方案或验收条件
+
+- 请客户端改 `stream:true`
+- 请客户端改打 `/v1/responses`（或其它端点）
+- 请客户端降 `max_tokens` / 改 SDK / 改请求 body
+- 文档或 PRD 把「客户端配合改协议」写成 Done
+
+```text
+❌ BAD: 验收 = 客户端改 stream:true 后不再 524
+✅ GOOD: 入站仍回同步 JSON；上游可 SSE；524/failover 由网关处理
+```
+
+## 正确方向
+
+- 入站契约不变：同步 Chat Completions JSON。
+- 上游传输可改（例如上游 SSE + 本网关缓冲再组装）。
+- 未写出客户端 body 前才允许因 524/H2 切号。
+- 不要无脑全局撤回 S2（API Key 同步上游 JSON）；范围必须有证据。

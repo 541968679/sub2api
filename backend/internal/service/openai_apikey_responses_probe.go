@@ -60,6 +60,23 @@ func openaiResponsesProbePayload(modelID string) []byte {
 	return body
 }
 
+// openaiChatCompletionsProbePayload is a cheap existence probe. Do not require
+// tool_calls: many compatible midstreams can chat but cannot emit tools.
+func openaiChatCompletionsProbePayload(modelID string) []byte {
+	if strings.TrimSpace(modelID) == "" {
+		modelID = openai.DefaultTestModel
+	}
+	body, _ := json.Marshal(map[string]any{
+		"model": modelID,
+		"messages": []map[string]any{
+			{"role": "user", "content": "Reply with the single word pong."},
+		},
+		"max_tokens": 16,
+		"stream":     false,
+	})
+	return body
+}
+
 func selectResponsesProbeModel(account *Account) string {
 	mapping := account.GetModelMapping()
 	candidates := make([]string, 0, len(mapping))
@@ -77,8 +94,14 @@ func selectResponsesProbeModel(account *Account) string {
 	return candidates[0]
 }
 
-// ProbeOpenAIAPIKeyResponsesSupport probes whether an OpenAI API-key account can
-// use /v1/responses, then persists the result to accounts.extra.
+type openaiProbeHTTPResult struct {
+	status int
+	body   []byte
+}
+
+// ProbeOpenAIAPIKeyResponsesSupport probes /v1/responses then /v1/chat/completions
+// and persists both flags in one UpdateExtra. Transport failure for an endpoint
+// leaves that key unwritten.
 func (s *AccountTestService) ProbeOpenAIAPIKeyResponsesSupport(ctx context.Context, accountID int64) {
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
@@ -104,23 +127,61 @@ func (s *AccountTestService) ProbeOpenAIAPIKeyResponsesSupport(ctx context.Conte
 		return
 	}
 
-	probeURL := buildOpenAIResponsesURL(normalizedBaseURL)
 	probeModel := selectResponsesProbeModel(account)
+	extraUpdate := make(map[string]any, 2)
 
+	respURL := buildOpenAIResponsesURL(normalizedBaseURL)
+	if result, probeErr := s.doOpenAIAPIKeyProbe(ctx, account, apiKey, respURL, openaiResponsesProbePayload(probeModel)); probeErr != nil {
+		logger.LegacyPrintf("service.openai_probe", "probe_request_failed: account_id=%d url=%s err=%v", accountID, respURL, probeErr)
+	} else {
+		supported := decideResponsesProbeSupport(result.status, result.body)
+		extraUpdate[openai_compat.ExtraKeyResponsesSupported] = supported
+		logger.LegacyPrintf("service.openai_probe",
+			"probe_responses_done: account_id=%d base_url=%s probe_model=%s status=%d supported=%v",
+			accountID, normalizedBaseURL, probeModel, result.status, supported,
+		)
+	}
+
+	ccURL := buildOpenAIChatCompletionsURL(normalizedBaseURL)
+	if result, probeErr := s.doOpenAIAPIKeyProbe(ctx, account, apiKey, ccURL, openaiChatCompletionsProbePayload(probeModel)); probeErr != nil {
+		logger.LegacyPrintf("service.openai_probe", "probe_request_failed: account_id=%d url=%s err=%v", accountID, ccURL, probeErr)
+	} else {
+		supported := decideChatCompletionsProbeSupport(result.status, result.body)
+		extraUpdate[openai_compat.ExtraKeyChatCompletionsSupported] = supported
+		logger.LegacyPrintf("service.openai_probe",
+			"probe_chat_completions_done: account_id=%d base_url=%s probe_model=%s status=%d supported=%v",
+			accountID, normalizedBaseURL, probeModel, result.status, supported,
+		)
+	}
+
+	if len(extraUpdate) == 0 {
+		return
+	}
+	if err := s.accountRepo.UpdateExtra(ctx, accountID, extraUpdate); err != nil {
+		logger.LegacyPrintf("service.openai_probe", "probe_persist_failed: account_id=%d extra=%v err=%v", accountID, extraUpdate, err)
+		return
+	}
+	logger.LegacyPrintf("service.openai_probe", "probe_persist_done: account_id=%d extra=%v", accountID, extraUpdate)
+}
+
+func (s *AccountTestService) doOpenAIAPIKeyProbe(
+	ctx context.Context,
+	account *Account,
+	apiKey string,
+	probeURL string,
+	payload []byte,
+) (*openaiProbeHTTPResult, error) {
 	probeCtx, cancel := context.WithTimeout(ctx, openaiResponsesProbeTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(probeCtx, http.MethodPost, probeURL, bytes.NewReader(openaiResponsesProbePayload(probeModel)))
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodPost, probeURL, bytes.NewReader(payload))
 	if err != nil {
-		logger.LegacyPrintf("service.openai_probe", "probe_build_request_failed: account_id=%d err=%v", accountID, err)
-		return
+		return nil, err
 	}
 	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "application/json")
-
-	// 账号级请求头覆写：能力探测与真实转发保持一致的最终头
 	account.ApplyHeaderOverrides(req.Header)
 
 	proxyURL := ""
@@ -130,30 +191,15 @@ func (s *AccountTestService) ProbeOpenAIAPIKeyResponsesSupport(ctx context.Conte
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
-		logger.LegacyPrintf("service.openai_probe", "probe_request_failed: account_id=%d url=%s err=%v", accountID, probeURL, err)
-		return
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, responsesProbeMaxBodyBytes))
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, responsesProbeMaxBodyBytes))
 	if readErr != nil {
-		logger.LegacyPrintf("service.openai_probe", "probe_read_body_failed: account_id=%d url=%s err=%v", accountID, probeURL, readErr)
-		return
+		return nil, readErr
 	}
-
-	supported := decideResponsesProbeSupport(resp.StatusCode, bodyBytes)
-
-	if err := s.accountRepo.UpdateExtra(ctx, accountID, map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: supported,
-	}); err != nil {
-		logger.LegacyPrintf("service.openai_probe", "probe_persist_failed: account_id=%d supported=%v err=%v", accountID, supported, err)
-		return
-	}
-
-	logger.LegacyPrintf("service.openai_probe",
-		"probe_done: account_id=%d base_url=%s probe_model=%s status=%d supported=%v",
-		accountID, normalizedBaseURL, probeModel, resp.StatusCode, supported,
-	)
+	return &openaiProbeHTTPResult{status: resp.StatusCode, body: bodyBytes}, nil
 }
 
 func decideResponsesProbeSupport(status int, body []byte) bool {
@@ -164,6 +210,16 @@ func decideResponsesProbeSupport(status int, body []byte) bool {
 		return true
 	}
 	return responsesProbeBodyHasFunctionCall(body)
+}
+
+func decideChatCompletionsProbeSupport(status int, body []byte) bool {
+	if status == http.StatusNotFound || status == http.StatusMethodNotAllowed {
+		return false
+	}
+	if status < 200 || status >= 300 {
+		return true
+	}
+	return chatCompletionsProbeBodyLooksSupported(body)
 }
 
 func responsesProbeBodyHasFunctionCall(body []byte) bool {
@@ -177,4 +233,13 @@ func responsesProbeBodyHasFunctionCall(body []byte) bool {
 		}
 	}
 	return false
+}
+
+func chatCompletionsProbeBodyLooksSupported(body []byte) bool {
+	choices := gjson.GetBytes(body, "choices")
+	if choices.IsArray() {
+		return true
+	}
+	object := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "object").String()))
+	return object == "chat.completion" || object == "chat.completion.chunk"
 }

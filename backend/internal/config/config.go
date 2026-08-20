@@ -705,6 +705,9 @@ type GatewayConfig struct {
 
 	// StreamDataIntervalTimeout: 流数据间隔超时（秒），0表示禁用
 	StreamDataIntervalTimeout int `mapstructure:"stream_data_interval_timeout"`
+	// OpenAISyncInboundUpstreamSSEMode: API Key 同步入站（stream=false）时是否把上游改成 SSE 再缓冲。
+	// auto（缺省）= 仅自定义 base_url；off = 恢复 S2 上游 JSON；all = 官方 api.openai.com 也走 SSE。
+	OpenAISyncInboundUpstreamSSEMode string `mapstructure:"openai_sync_inbound_upstream_sse_mode"`
 	// StreamKeepaliveInterval: 流式 keepalive 间隔（秒），0表示禁用
 	StreamKeepaliveInterval int `mapstructure:"stream_keepalive_interval"`
 	// MaxLineSize: 上游 SSE 单行最大字节数（0使用默认值）
@@ -1891,6 +1894,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.client_idle_ttl_seconds", 900)
 	viper.SetDefault("gateway.concurrency_slot_ttl_minutes", 30) // 并发槽位过期时间（支持超长请求）
 	viper.SetDefault("gateway.stream_data_interval_timeout", 180)
+	viper.SetDefault("gateway.openai_sync_inbound_upstream_sse_mode", "auto")
 	viper.SetDefault("gateway.stream_keepalive_interval", 10)
 	viper.SetDefault("gateway.max_line_size", 500*1024*1024)
 	viper.SetDefault("gateway.scheduling.sticky_session_max_waiting", 3)
@@ -2535,6 +2539,11 @@ func (c *Config) Validate() error {
 	if c.Gateway.StreamDataIntervalTimeout != 0 &&
 		(c.Gateway.StreamDataIntervalTimeout < 30 || c.Gateway.StreamDataIntervalTimeout > 300) {
 		return fmt.Errorf("gateway.stream_data_interval_timeout must be 0 or between 30-300 seconds")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Gateway.OpenAISyncInboundUpstreamSSEMode)) {
+	case "", "auto", "off", "all":
+	default:
+		return fmt.Errorf("gateway.openai_sync_inbound_upstream_sse_mode must be auto, off, or all")
 	}
 	if c.Gateway.StreamKeepaliveInterval < 0 {
 		return fmt.Errorf("gateway.stream_keepalive_interval must be non-negative")

@@ -3994,7 +3994,7 @@ const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
-type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
+type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions' | 'passthrough'
 const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openAIImagesEndpointEnabled = ref(true)
@@ -4071,7 +4071,8 @@ const openAIResponsesModeOptions = computed(() => [
   {
     value: 'force_chat_completions',
     label: t('admin.accounts.openai.responsesRouteForceChatCompletions')
-  }
+  },
+  { value: 'passthrough', label: t('admin.accounts.openai.responsesRoutePassthrough') }
 ])
 const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
   { value: 'chat_completions', label: t('admin.accounts.openai.capabilityChatCompletions') },

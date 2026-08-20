@@ -70,3 +70,36 @@ func TestDecideResponsesProbeSupport(t *testing.T) {
 		})
 	}
 }
+
+func TestDecideChatCompletionsProbeSupport(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		want   bool
+	}{
+		{name: "404 unsupported", status: http.StatusNotFound, body: `{}`, want: false},
+		{name: "405 unsupported", status: http.StatusMethodNotAllowed, body: `{}`, want: false},
+		{name: "400 endpoint exists", status: http.StatusBadRequest, body: `{}`, want: true},
+		{name: "500 endpoint exists", status: http.StatusInternalServerError, body: `{}`, want: true},
+		{
+			name:   "2xx with choices",
+			status: http.StatusOK,
+			body:   `{"choices":[{"index":0,"message":{"content":"pong"}}]}`,
+			want:   true,
+		},
+		{
+			name:   "2xx chat.completion object",
+			status: http.StatusOK,
+			body:   `{"object":"chat.completion","id":"cmpl"}`,
+			want:   true,
+		},
+		{name: "2xx unlike chat completions", status: http.StatusOK, body: `{"output":[]}`, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, decideChatCompletionsProbeSupport(tt.status, []byte(tt.body)))
+		})
+	}
+}

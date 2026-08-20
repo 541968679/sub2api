@@ -1932,6 +1932,12 @@
           {{ t(openAIResponsesProbeStatusKey) }}
         </p>
         <p
+          data-testid="edit-openai-chat-completions-probe-status"
+          class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+        >
+          {{ t(openAIChatCompletionsProbeStatusKey) }}
+        </p>
+        <p
           v-if="openAIResponsesMode !== 'auto'"
           class="mt-1 text-xs text-amber-600 dark:text-amber-400"
         >
@@ -3213,9 +3219,10 @@ const modelMappingStrictScheduling = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
-type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
+type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions' | 'passthrough'
 const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 const openAIResponsesProbeSupported = ref<boolean | null>(null)
+const openAIChatCompletionsProbeSupported = ref<boolean | null>(null)
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openAIImagesEndpointEnabled = ref(true)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -3286,7 +3293,8 @@ const openAIResponsesModeOptions = computed(() => [
   {
     value: 'force_chat_completions',
     label: t('admin.accounts.openai.responsesRouteForceChatCompletions')
-  }
+  },
+  { value: 'passthrough', label: t('admin.accounts.openai.responsesRoutePassthrough') }
 ])
 const openAIResponsesProbeStatusKey = computed(() => {
   if (openAIResponsesProbeSupported.value === true) {
@@ -3296,6 +3304,15 @@ const openAIResponsesProbeStatusKey = computed(() => {
     return 'admin.accounts.openai.responsesProbeUnsupported'
   }
   return 'admin.accounts.openai.responsesProbeUnknown'
+})
+const openAIChatCompletionsProbeStatusKey = computed(() => {
+  if (openAIChatCompletionsProbeSupported.value === true) {
+    return 'admin.accounts.openai.chatCompletionsProbeSupported'
+  }
+  if (openAIChatCompletionsProbeSupported.value === false) {
+    return 'admin.accounts.openai.chatCompletionsProbeUnsupported'
+  }
+  return 'admin.accounts.openai.chatCompletionsProbeUnknown'
 })
 const codexImageGenerationBridgeOptions = computed(() => [
   { value: 'inherit', label: t('admin.accounts.openai.codexImageGenerationBridgeInherit') },
@@ -3875,6 +3892,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openAICompactMode.value = 'auto'
   openAIResponsesMode.value = 'auto'
   openAIResponsesProbeSupported.value = null
+  openAIChatCompletionsProbeSupported.value = null
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
   openAIImagesEndpointEnabled.value = true
   openAICompactModelMappings.value = []
@@ -3896,12 +3914,20 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     openAIImagesEndpointEnabled.value = extra?.openai_images_endpoint_enabled !== false
     if (newAccount.type === 'apikey') {
       const responsesMode = extra?.openai_responses_mode
-      if (responsesMode === 'force_responses' || responsesMode === 'force_chat_completions') {
+      if (
+        responsesMode === 'force_responses' ||
+        responsesMode === 'force_chat_completions' ||
+        responsesMode === 'passthrough'
+      ) {
         openAIResponsesMode.value = responsesMode
       }
       openAIResponsesProbeSupported.value =
         typeof extra?.openai_responses_supported === 'boolean'
           ? extra.openai_responses_supported
+          : null
+      openAIChatCompletionsProbeSupported.value =
+        typeof extra?.openai_chat_completions_supported === 'boolean'
+          ? extra.openai_chat_completions_supported
           : null
       openAIEndpointCapabilities.value = readOpenAIEndpointCapabilities(
         newAccount.credentials as Record<string, unknown> | undefined

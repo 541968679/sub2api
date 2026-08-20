@@ -344,8 +344,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 }
 
 // resolveOpenAIUpstreamEndpoint returns the actual upstream endpoint for OpenAI
-// usage records. API-key accounts that bypass Responses are sent to raw Chat
-// Completions even when the inbound path is normalized to Responses.
+// usage records. API-key routing is decided by (inbound endpoint, extra), not
+// a single ShouldUseResponsesAPI bool.
 func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account, result *service.OpenAIForwardResult) string {
 	if result != nil {
 		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
@@ -355,9 +355,14 @@ func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account, res
 	if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
 		return endpoint
 	}
-	if account != nil && account.Type == service.AccountTypeAPIKey &&
-		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
-		return "/v1/chat/completions"
+	if account != nil && account.Type == service.AccountTypeAPIKey {
+		inbound := openai_compat.InboundResponses
+		if GetInboundEndpoint(c) == EndpointChatCompletions {
+			inbound = openai_compat.InboundChatCompletions
+		}
+		if openai_compat.ResolveUpstreamAPI(inbound, account.Extra) == openai_compat.UpstreamChatCompletions {
+			return EndpointChatCompletions
+		}
 	}
 	return GetUpstreamEndpoint(c, account.Platform)
 }

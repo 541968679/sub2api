@@ -128,6 +128,9 @@ playbook: `docs/dev/PRODUCTION.md`. Release flow: `docs/dev/DEPLOYMENT.md`.
 - Production main service: GHCR pull only. No production-host `docker build` /
   `sub2api-custom:*`.
 - Never redeploy `v0.1.232` or `v0.1.233`.
+- Gateway 524 / sync-timeout / failover work must not require clients to
+  change protocol, `stream`, endpoint, or request body. Keep inbound sync
+  `/v1/chat/completions` (`stream:false`) and fix it in the gateway.
 
 ## Local Development Environment
 

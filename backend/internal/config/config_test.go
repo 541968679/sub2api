@@ -1347,6 +1347,11 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "gateway.stream_data_interval_timeout must be non-negative",
 		},
 		{
+			name:    "gateway sync inbound upstream sse mode",
+			mutate:  func(c *Config) { c.Gateway.OpenAISyncInboundUpstreamSSEMode = "hostlist" },
+			wantErr: "gateway.openai_sync_inbound_upstream_sse_mode must be auto, off, or all",
+		},
+		{
 			name:    "gateway max line size",
 			mutate:  func(c *Config) { c.Gateway.MaxLineSize = 1024 },
 			wantErr: "gateway.max_line_size must be at least",

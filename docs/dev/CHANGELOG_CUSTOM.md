@@ -1,3 +1,67 @@
+## 2026-08-20 - fix: sync inbound upstream SSE buffer for midstream CF 524
+
+### What
+- Inbound sync `/v1/chat/completions` (`stream:false`) still returns one Chat Completions JSON. No client protocol/stream/endpoint/body change is required.
+- OpenAI API Key accounts with a **custom credential `base_url`** now ask the upstream for SSE and buffer it locally (CC→Responses and raw CC). Official / empty `base_url` keeps S2 upstream JSON.
+- Rollback: `gateway.openai_sync_inbound_upstream_sse_mode=off` (or per-account extra `openai_sync_inbound_upstream_sse=false`). `all` also enables official `api.openai.com`.
+- 90s hop abort is **not** shipped: success p95 is already 95–104s.
+- Raw CC SSE buffer now assembles incremental `tool_calls` (not just text) so sync inbound JSON stays complete.
+
+### Why
+- Midstream Cloudflare 120s Proxy Read Timeout (524) waits for a complete origin JSON. Successful hops sit at 95–104s; failover then waits another ~126s per hop.
+- S2 (upstream JSON) is kept for official OpenAI so the old SSE-then-buffer wounds are not globally reintroduced. Custom midstreams need bytes on the wire so CF does not 524.
+
+### Verification
+- `go test -tags=unit ./internal/config -run "TestValidateConfigErrors" -count=1`
+- `go test -tags=unit ./internal/service -run "TestShouldForceSyncInboundUpstreamSSE|TestForwardAsChatCompletions_|TestHandleChatBuffered|TestHandleChatNonStream|TestBufferRawChatCompletions|TestAccountHasCustomOpenAIBaseURL" -count=1`
+
+### Affected files
+`backend/internal/config/config.go`,
+`backend/internal/config/config_test.go`,
+`backend/internal/service/openai_gateway_sync_inbound_sse.go`,
+`backend/internal/service/openai_gateway_sync_inbound_sse_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-20 - feat: OpenAI API Key passthrough routing + dual-endpoint probe
+
+### What
+- Added `openai_responses_mode=passthrough`: inbound `/v1/chat/completions` stays on upstream CC and inbound `/v1/responses` stays on upstream Responses. Probe failure does not retarget.
+- Routing is `(inbound, extra)` via `ResolveUpstreamAPI`. `auto` + both probes true still converts inbound CC to Responses (no production default change). New `openai_chat_completions_supported` is display/persist only.
+- Capability probe now POSTs `/v1/responses` then `/v1/chat/completions` and writes both flags in one `UpdateExtra`. Single `Create` now schedules the same async probe as `BatchCreate`. `Update` still re-probes only when credentials change.
+- Account create/edit UI has four modes plus both probe result strings (zh/en). Label uses 原样映射 / native mapping so it is not request-body or WS passthrough.
+
+### Why
+- One `ShouldUseResponsesAPI` bool bound both inbound paths, so an account could not be CC→CC and Responses→Responses at once. Probe only checked Responses.
+
+### Verification
+- `go test -tags=unit ./internal/pkg/openai_compat/ -count=1`
+- `go test -tags=unit ./internal/service -run "TestShouldUseResponsesAPI|TestResolve|TestDecideResponses|TestDecideChat|TestOpenAIResponsesProbe|TestAccountTestService_OpenAIResponsesProbe|TestAccountTestService_OpenAIAPIKeyPassthrough|TestForwardAsChatCompletions_Force|TestForwardAsChatCompletions_Auto|TestForwardAsChatCompletions_Passthrough|TestForwardResponses_Auto|TestForwardResponses_Passthrough|TestResolveOpenAIUpstreamEndpoint" -count=1`
+- `go test -tags=unit ./internal/handler -run "TestResolveOpenAIUpstreamEndpoint" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/CreateAccountModal.spec.ts`
+
+### Affected files
+`backend/internal/pkg/openai_compat/upstream_capability.go`,
+`backend/internal/pkg/openai_compat/upstream_capability_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_apikey_responses_probe.go`,
+`backend/internal/service/openai_apikey_responses_probe_test.go`,
+`backend/internal/service/account_test_service.go`,
+`backend/internal/service/account_test_service_openai_test.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-20 - deploy: v0.1.243
 
 ### What

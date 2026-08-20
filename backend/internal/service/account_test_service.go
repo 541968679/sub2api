@@ -691,7 +691,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		if !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		// 连通测试：force_chat_completions → CC；passthrough 走现有主路径 Responses；
+		// 其余与今天相同（auto+Rsupp false → CC）。
+		if openai_compat.ResponsesSupportModeFromExtra(account.Extra) != openai_compat.ResponsesSupportModePassthrough &&
+			!openai_compat.ShouldUseResponsesAPI(account.Extra) {
 			return s.testOpenAIChatCompletionsAPIKey(c, ctx, account, testModelID, prompt, normalizedBaseURL)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
