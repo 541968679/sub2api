@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Pair-full is exclude+reselect only; never WaitPlan/429. Quality Recovered counts are out of scope."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Selection, Redis pair slots, WaitPlan, and handler wake must keep the same pair-full contract."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index points at account-user-schedule as the active scheduling contract."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse isPairConcurrencyFull / tryAcquireAccountAndPairSlot / AcquireAccountUserSlot instead of a new wait-queue."}

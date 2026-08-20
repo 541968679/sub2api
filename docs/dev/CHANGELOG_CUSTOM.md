@@ -1,3 +1,39 @@
+## 2026-08-20 - fix: pair-full must not WaitPlan or forward on account slot only
+
+### What
+- Same-request `tryAcquireAccountAndPairSlot` `pairFull` now excludes that account from Layer 3 / model-routing wait (Anthropic, OpenAI load-aware fallback, OpenAI scheduler waitOrder).
+- WaitPlan wake paths attach `concurrency:account_user:{accountID}:{userID}` while holding the account slot. `pairFull` releases the account slot and reselects; it does not forward.
+- cap=0 / UI 999 / sticky-escape / quality Recovered counts are unchanged.
+
+### Why
+- Snapshot occupancy can lag Redis. Layer 3 used the pre-acquire candidate list, so a just-rejected pair-full account could still get `AccountWaitPlan`. Handlers then acquired only the account slot and forwarded.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "PairFull|PairConcurrency|UserSchedulePair|AttachPairSlot|SkipPairFullWait" -count=1`
+- `go test -tags=unit ./internal/handler -run "TestAcquireAccountSlotWithWaitTimeout|TestWaitForSlotWithPingTimeout" -count=1`
+
+### Affected files
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/service/account_user_concurrency_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/account_user_schedule_select_test.go`,
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/gateway_handler_chat_completions.go`,
+`backend/internal/handler/gateway_handler_responses.go`,
+`backend/internal/handler/gemini_v1beta_handler.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+`backend/internal/handler/openai_images.go`,
+`backend/internal/handler/openai_embeddings.go`,
+`backend/internal/handler/openai_alpha_search.go`,
+`backend/internal/handler/grok_media.go`,
+`backend/internal/handler/gateway_helper_hotpath_test.go`,
+`docs/dev/codebase/gateway.md`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
 ## 2026-08-20 - deploy: v0.1.244
 
 ### What

@@ -2105,6 +2105,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		})
 	}
 
+	pairFullIDs := make(map[int64]struct{})
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
 		ordered := append([]*Account(nil), candidates...)
@@ -2126,6 +2127,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			}
 			result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, fresh)
 			if pairFull {
+				markPairFullID(pairFullIDs, fresh.ID)
 				continue
 			}
 			if err == nil && result.Acquired {
@@ -2208,6 +2210,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 				}
 				result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, fresh)
 				if pairFull {
+					markPairFullID(pairFullIDs, fresh.ID)
 					continue
 				}
 				if err == nil && result.Acquired {
@@ -2235,6 +2238,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, eligibility.RequireCompact) {
+			continue
+		}
+		if skipPairFullWait(ctx, fresh, pairCounts, pairFullIDs, s.smartScheduleCache) {
 			continue
 		}
 		return s.newSelectionResult(ctx, fresh, false, nil, &AccountWaitPlan{

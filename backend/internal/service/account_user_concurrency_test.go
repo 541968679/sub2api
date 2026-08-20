@@ -234,6 +234,105 @@ func TestAcquireAccountAndPairSlot_NotInPoolSkipsPairWrite(t *testing.T) {
 	require.Equal(t, 0, cache.count(11))
 }
 
+func TestAttachPairSlotHoldingAccount_PairFullReleasesAccountSlot(t *testing.T) {
+	t.Parallel()
+	cache := &pairOccupancyCache{}
+	svc := NewConcurrencyService(cache)
+	acc := testPairAccount(11)
+	acc.UserConcurrency = map[int64]int{16: 1}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+
+	first, pairFull, err := acquireAccountAndPairSlot(ctx, svc, acc, 16, 1, true)
+	require.NoError(t, err)
+	require.False(t, pairFull)
+	require.True(t, first.Acquired)
+
+	accountHeld := true
+	accountRelease := func() { accountHeld = false }
+	release, pairFull, err := attachPairSlotHoldingAccount(ctx, svc, nil, acc, accountRelease)
+	require.NoError(t, err)
+	require.True(t, pairFull)
+	require.Nil(t, release)
+	require.False(t, accountHeld, "pairFull must release the waited account slot")
+	require.Equal(t, 1, cache.count(11))
+}
+
+func TestAttachPairSlotHoldingAccount_SuccessCombinesRelease(t *testing.T) {
+	t.Parallel()
+	cache := &pairOccupancyCache{}
+	svc := NewConcurrencyService(cache)
+	acc := testPairAccount(11)
+	acc.UserConcurrency = map[int64]int{16: 2}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+
+	accountReleased := false
+	accountRelease := func() { accountReleased = true }
+	release, pairFull, err := attachPairSlotHoldingAccount(ctx, svc, nil, acc, accountRelease)
+	require.NoError(t, err)
+	require.False(t, pairFull)
+	require.NotNil(t, release)
+	require.Equal(t, 1, cache.count(11))
+	release()
+	require.True(t, accountReleased)
+	require.Equal(t, 0, cache.count(11))
+}
+
+func TestAttachPairSlotHoldingAccount_UncappedNeverPairFull(t *testing.T) {
+	t.Parallel()
+	cache := &pairOccupancyCache{}
+	svc := NewConcurrencyService(cache)
+	acc := testPairAccount(11)
+	lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(11, 0, nil))}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+
+	release, pairFull, err := attachPairSlotHoldingAccount(ctx, svc, lookup, acc, func() {})
+	require.NoError(t, err)
+	require.False(t, pairFull)
+	require.NotNil(t, release)
+	require.Equal(t, []int{0}, cache.maxes())
+}
+
+func TestGatewayService_AttachPairSlotAfterAccountWait_PairFullReleases(t *testing.T) {
+	t.Parallel()
+	cache := &pairOccupancyCache{}
+	conc := NewConcurrencyService(cache)
+	acc := testPairAccount(11)
+	acc.UserConcurrency = map[int64]int{16: 1}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+
+	first, pairFull, err := acquireAccountAndPairSlot(ctx, conc, acc, 16, 1, true)
+	require.NoError(t, err)
+	require.False(t, pairFull)
+	require.True(t, first.Acquired)
+
+	gw := &GatewayService{concurrencyService: conc}
+	accountHeld := true
+	release, pairFull, err := gw.AttachPairSlotAfterAccountWait(ctx, acc, func() { accountHeld = false })
+	require.NoError(t, err)
+	require.True(t, pairFull)
+	require.Nil(t, release)
+	require.False(t, accountHeld)
+
+	oa := &OpenAIGatewayService{concurrencyService: conc}
+	accountHeld = true
+	release, pairFull, err = oa.AttachPairSlotAfterAccountWait(ctx, acc, func() { accountHeld = false })
+	require.NoError(t, err)
+	require.True(t, pairFull)
+	require.Nil(t, release)
+	require.False(t, accountHeld)
+}
+
+func TestSkipPairFullWait_ThisRequestPairFullBeatsStaleSnapshot(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	acc := testPairAccount(11)
+	acc.UserConcurrency = map[int64]int{16: 2}
+	pairCounts := map[int64]int{11: 0}
+	pairFullIDs := map[int64]struct{}{11: {}}
+	require.True(t, skipPairFullWait(ctx, acc, pairCounts, pairFullIDs, nil))
+	require.False(t, skipPairFullWait(ctx, acc, pairCounts, map[int64]struct{}{}, nil))
+}
+
 func TestTryAcquireAccountAndPairSlot_UncappedClosedPool(t *testing.T) {
 	t.Parallel()
 	cache := &pairOccupancyCache{}

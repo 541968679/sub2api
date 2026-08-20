@@ -445,6 +445,18 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				// Slot acquired: no longer waiting in queue.
 				releaseWait()
+				var pairFull bool
+				accountReleaseFunc, pairFull, err = h.gatewayService.AttachPairSlotAfterAccountWait(c.Request.Context(), account, accountReleaseFunc)
+				if err != nil {
+					reqLog.Warn("gateway.pair_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+					h.handleConcurrencyError(c, err, "account", streamStarted)
+					return
+				}
+				if pairFull {
+					reqLog.Info("gateway.pair_full_after_wait", zap.Int64("account_id", account.ID))
+					fs.FailedAccountIDs[account.ID] = struct{}{}
+					continue
+				}
 				if err := h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
@@ -706,6 +718,18 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				// Slot acquired: no longer waiting in queue.
 				releaseWait()
+				var pairFull bool
+				accountReleaseFunc, pairFull, err = h.gatewayService.AttachPairSlotAfterAccountWait(c.Request.Context(), account, accountReleaseFunc)
+				if err != nil {
+					reqLog.Warn("gateway.pair_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+					h.handleConcurrencyError(c, err, "account", streamStarted)
+					return
+				}
+				if pairFull {
+					reqLog.Info("gateway.pair_full_after_wait", zap.Int64("account_id", account.ID))
+					fs.FailedAccountIDs[account.ID] = struct{}{}
+					continue
+				}
 				reqLog.Info("sticky.bind_after_wait",
 					zap.String("session_key", sessionKey),
 					zap.Int64("account_id", account.ID),

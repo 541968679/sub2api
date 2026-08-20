@@ -1879,12 +1879,14 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					}
 					return out
 				}())
+				routingPairFullIDs := make(map[int64]struct{})
 				for _, item := range routingAvailable {
 					if isPairConcurrencyFull(ctx, item.account, routingPairCounts[item.account.ID], s.smartScheduleCache) {
 						continue
 					}
 					result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, item.account)
 					if pairFull {
+						markPairFullID(routingPairFullIDs, item.account.ID)
 						continue
 					}
 					if err == nil && result.Acquired {
@@ -1906,7 +1908,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				// 5. 所有路由账号槽位满，尝试返回等待计划（选择负载最低的）
 				// 遍历找到第一个满足会话限制的账号。Pair-full 不能 WaitPlan，交给 Layer 2 改选。
 				for _, item := range routingAvailable {
-					if isPairConcurrencyFull(ctx, item.account, routingPairCounts[item.account.ID], s.smartScheduleCache) {
+					if skipPairFullWait(ctx, item.account, routingPairCounts, routingPairFullIDs, s.smartScheduleCache) {
 						continue
 					}
 					if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
@@ -2125,9 +2127,10 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		})
 	}
 
+	pairFullIDs := make(map[int64]struct{})
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
-		if result, ok, legacyErr := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, preferOAuth); legacyErr != nil {
+		if result, ok, legacyErr := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, preferOAuth, pairFullIDs); legacyErr != nil {
 			return nil, legacyErr
 		} else if ok {
 			return result, nil
@@ -2163,7 +2166,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 			result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, selected.account)
 			if pairFull {
-				// exclude and retry layered selection
+				markPairFullID(pairFullIDs, selected.account.ID)
 			} else if err == nil && result.Acquired {
 				// 会话数量限制检查
 				if !s.checkAndRegisterSession(ctx, selected.account, sessionHash) {
@@ -2191,6 +2194,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	// ============ Layer 3: 兜底排队 ============
 	s.sortCandidatesForFallback(candidates, preferOAuth, cfg.FallbackSelectionMode)
 	for _, acc := range candidates {
+		if skipPairFullWait(ctx, acc, pairCounts, pairFullIDs, s.smartScheduleCache) {
+			continue
+		}
 		// 会话数量限制检查（等待计划也需要占用会话配额）
 		if !s.checkAndRegisterSession(ctx, acc, sessionHash) {
 			continue // 会话限制已满，尝试下一个账号
@@ -2205,13 +2211,14 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	return nil, ErrNoAvailableAccounts
 }
 
-func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool) (*AccountSelectionResult, bool, error) {
+func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool, pairFullIDs map[int64]struct{}) (*AccountSelectionResult, bool, error) {
 	ordered := append([]*Account(nil), candidates...)
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
 
 	for _, acc := range ordered {
 		result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, acc)
 		if pairFull {
+			markPairFullID(pairFullIDs, acc.ID)
 			continue
 		}
 		if err == nil && result.Acquired {

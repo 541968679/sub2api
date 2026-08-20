@@ -24,6 +24,9 @@ type helperConcurrencyCacheStub struct {
 	userAcquireCalls    int
 	accountReleaseCalls int
 	userReleaseCalls    int
+	pairAcquireFails    bool
+	pairAcquireCalls    int
+	pairReleaseCalls    int
 }
 
 func (s *helperConcurrencyCacheStub) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -109,9 +112,18 @@ func (s *helperConcurrencyCacheStub) GetAccountsLoadBatch(ctx context.Context, a
 }
 
 func (s *helperConcurrencyCacheStub) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pairAcquireCalls++
+	if s.pairAcquireFails {
+		return false, nil
+	}
 	return true, nil
 }
 func (s *helperConcurrencyCacheStub) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pairReleaseCalls++
 	return nil
 }
 func (s *helperConcurrencyCacheStub) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {

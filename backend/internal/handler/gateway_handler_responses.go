@@ -236,6 +236,18 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				h.handleConcurrencyError(c, err, "account", streamStarted)
 				return
 			}
+			var pairFull bool
+			accountReleaseFunc, pairFull, err = h.gatewayService.AttachPairSlotAfterAccountWait(c.Request.Context(), account, accountReleaseFunc)
+			if err != nil {
+				reqLog.Warn("gateway.responses.pair_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+				h.handleConcurrencyError(c, err, "account", streamStarted)
+				return
+			}
+			if pairFull {
+				reqLog.Info("gateway.responses.pair_full_after_wait", zap.Int64("account_id", account.ID))
+				fs.FailedAccountIDs[account.ID] = struct{}{}
+				continue
+			}
 		}
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 

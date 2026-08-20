@@ -1158,6 +1158,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 
 	compactBlocked := false
+	pairFullIDs := make(map[int64]struct{})
 	for i := 0; i < len(selectionOrder); i++ {
 		candidate := selectionOrder[i]
 		eligibility := openAIAccountRequestEligibility{
@@ -1184,6 +1185,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			return nil, candidateCount, topK, loadSkew, acquireErr
 		}
 		if pairFull {
+			markPairFullID(pairFullIDs, fresh.ID)
 			continue
 		}
 		if result != nil && result.Acquired {
@@ -1241,6 +1243,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				return nil, candidateCount, topK, loadSkew, acquireErr
 			}
 			if pairFull {
+				markPairFullID(pairFullIDs, fresh.ID)
 				continue
 			}
 			if result != nil && result.Acquired {
@@ -1278,7 +1281,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			compactBlocked = true
 			continue
 		}
-		if isPairConcurrencyFull(ctx, fresh, s.service.pairCountsForSelection(ctx, []*Account{fresh})[fresh.ID], s.service.smartScheduleCache) {
+		if skipPairFullWait(ctx, fresh, s.service.pairCountsForSelection(ctx, []*Account{fresh}), pairFullIDs, s.service.smartScheduleCache) {
 			continue
 		}
 		return &AccountSelectionResult{

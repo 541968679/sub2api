@@ -159,3 +159,86 @@ func (s *OpenAIGatewayService) pairCountsForSelection(ctx context.Context, accou
 	}
 	return loadPairConcurrencyCounts(ctx, s.concurrencyService, accounts, scheduleUserIDFromContext(ctx, 0), s.smartScheduleCache)
 }
+
+func markPairFullID(ids map[int64]struct{}, accountID int64) {
+	if ids == nil || accountID <= 0 {
+		return
+	}
+	ids[accountID] = struct{}{}
+}
+
+func skipPairFullWait(ctx context.Context, account *Account, pairCounts map[int64]int, pairFullIDs map[int64]struct{}, lookup SmartScheduleLookup) bool {
+	if account == nil {
+		return true
+	}
+	if _, ok := pairFullIDs[account.ID]; ok {
+		return true
+	}
+	return isPairConcurrencyFull(ctx, account, pairCounts[account.ID], lookup)
+}
+
+// attachPairSlotHoldingAccount acquires the pair slot while already holding the
+// account slot. pairFull releases the account slot and is true only for a real
+// cap (pairMax>=1). Callers must not forward with only the account slot.
+func attachPairSlotHoldingAccount(ctx context.Context, svc *ConcurrencyService, lookup SmartScheduleLookup, account *Account, accountRelease func()) (func(), bool, error) {
+	if accountRelease == nil {
+		accountRelease = func() {}
+	}
+	if account == nil {
+		accountRelease()
+		return nil, false, nil
+	}
+	if svc == nil {
+		return accountRelease, false, nil
+	}
+
+	pairMax, track := resolvePairSlotAcquire(ctx, account, lookup)
+	userID := scheduleUserIDFromContext(ctx, 0)
+	max := pairMax
+	if max < 0 {
+		max = account.PairMaxConcurrency(userID)
+	}
+	if max <= 0 && !track {
+		return accountRelease, false, nil
+	}
+
+	pair, err := svc.AcquireAccountUserSlot(ctx, account.ID, userID, max)
+	if err != nil {
+		accountRelease()
+		return nil, false, err
+	}
+	if pair == nil || !pair.Acquired {
+		if max <= 0 {
+			return accountRelease, false, nil
+		}
+		accountRelease()
+		return nil, true, nil
+	}
+	return combineReleaseFuncs(accountRelease, pair.ReleaseFunc), false, nil
+}
+
+// AttachPairSlotAfterAccountWait acquires the user×account pair slot after a
+// WaitPlan woke with only the account slot. pairFull means the account slot
+// was released and the caller must reselect.
+func (s *GatewayService) AttachPairSlotAfterAccountWait(ctx context.Context, account *Account, accountRelease func()) (func(), bool, error) {
+	if s == nil {
+		if accountRelease == nil {
+			return func() {}, false, nil
+		}
+		return accountRelease, false, nil
+	}
+	return attachPairSlotHoldingAccount(ctx, s.concurrencyService, s.smartScheduleCache, account, accountRelease)
+}
+
+// AttachPairSlotAfterAccountWait acquires the user×account pair slot after a
+// WaitPlan woke with only the account slot. pairFull means the account slot
+// was released and the caller must reselect.
+func (s *OpenAIGatewayService) AttachPairSlotAfterAccountWait(ctx context.Context, account *Account, accountRelease func()) (func(), bool, error) {
+	if s == nil {
+		if accountRelease == nil {
+			return func() {}, false, nil
+		}
+		return accountRelease, false, nil
+	}
+	return attachPairSlotHoldingAccount(ctx, s.concurrencyService, s.smartScheduleCache, account, accountRelease)
+}

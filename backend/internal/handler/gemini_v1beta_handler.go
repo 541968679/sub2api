@@ -472,6 +472,18 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				geminiConcurrency.DecrementAccountWaitCount(c.Request.Context(), account.ID)
 				accountWaitCounted = false
 			}
+			var pairFull bool
+			accountReleaseFunc, pairFull, err = h.gatewayService.AttachPairSlotAfterAccountWait(c.Request.Context(), account, accountReleaseFunc)
+			if err != nil {
+				reqLog.Warn("gemini.pair_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+				googleError(c, http.StatusTooManyRequests, err.Error())
+				return
+			}
+			if pairFull {
+				reqLog.Info("gemini.pair_full_after_wait", zap.Int64("account_id", account.ID))
+				fs.FailedAccountIDs[account.ID] = struct{}{}
+				continue
+			}
 			if err := h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID); err != nil {
 				reqLog.Warn("gemini.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
