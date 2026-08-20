@@ -866,3 +866,72 @@ func TestCompareSmartScheduleMemberIDs(t *testing.T) {
 	require.True(t, compareSmartScheduleMemberIDs(12, 99, orders), "assigned before unset")
 	require.False(t, compareSmartScheduleMemberIDs(99, 12, orders))
 }
+
+func TestUserSmartScheduleService_DropsDeletedPoolMembers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ghost := int64(1706)
+	repo := &stubSmartRepo{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI: {
+			Enabled:         true,
+			CooldownMinutes: 15,
+			AccountIDs:      map[int64]struct{}{11: {}, ghost: {}},
+			SortOrders:      map[int64]int{11: 1, ghost: 2},
+		},
+	}}}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 11, Platform: PlatformOpenAI, Priority: 7},
+	}}
+	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+
+	t.Run("get omits soft-deleted members", func(t *testing.T) {
+		t.Parallel()
+		view, err := svc.Get(ctx, 220)
+		require.NoError(t, err)
+		members := view.Platforms[PlatformOpenAI].Accounts
+		require.Len(t, members, 1)
+		require.Equal(t, int64(11), members[0].AccountID)
+		require.Equal(t, 7, members[0].Priority)
+		require.True(t, view.Platforms[PlatformOpenAI].Enabled)
+	})
+
+	t.Run("put strips in-pool ghosts and keeps new live accounts", func(t *testing.T) {
+		t.Parallel()
+		localRepo := &stubSmartRepo{bundle: cloneSmartBundle(repo.bundle)}
+		localAccounts := &stubSmartAccountRepo{accounts: []*Account{
+			{ID: 11, Platform: PlatformOpenAI, Priority: 7},
+			{ID: 1718, Platform: PlatformOpenAI, Priority: 4},
+		}}
+		local := NewUserSmartScheduleService(localRepo, nil, localAccounts, nil, nil)
+		view, err := local.PutPlatform(ctx, 220, PlatformOpenAI, SmartSchedulePlatformWrite{
+			Enabled:         true,
+			CooldownMinutes: 15,
+			Accounts: []SmartScheduleAccountMember{
+				{AccountID: 11, Platform: PlatformOpenAI},
+				{AccountID: ghost, Platform: PlatformOpenAI},
+				{AccountID: 1718, Platform: PlatformOpenAI},
+			},
+		})
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(view.Platforms[PlatformOpenAI].Accounts))
+		for _, member := range view.Platforms[PlatformOpenAI].Accounts {
+			ids = append(ids, member.AccountID)
+		}
+		require.Equal(t, []int64{11, 1718}, ids)
+		require.NotContains(t, localRepo.bundle.Policies[PlatformOpenAI].AccountIDs, ghost)
+	})
+
+	t.Run("put still rejects unknown ids that were never in the pool", func(t *testing.T) {
+		t.Parallel()
+		_, err := svc.PutPlatform(ctx, 220, PlatformOpenAI, SmartSchedulePlatformWrite{
+			Enabled:         true,
+			CooldownMinutes: 15,
+			Accounts: []SmartScheduleAccountMember{
+				{AccountID: 11, Platform: PlatformOpenAI},
+				{AccountID: 99999, Platform: PlatformOpenAI},
+			},
+		})
+		require.Error(t, err)
+		require.Equal(t, "SMART_SCHEDULE_UNKNOWN_ACCOUNT", infraerrors.Reason(err))
+	})
+}

@@ -114,7 +114,8 @@ func (s *UserSmartScheduleService) PutPlatform(ctx context.Context, userID int64
 	if err != nil {
 		return nil, err
 	}
-	if err := s.validatePoolMembers(ctx, platform, normalized.Accounts); err != nil {
+	normalized.Accounts, err = s.sanitizePoolMembers(ctx, userID, platform, normalized.Accounts)
+	if err != nil {
 		return nil, err
 	}
 	if normalized.Enabled && len(normalized.Accounts) == 0 {
@@ -312,28 +313,46 @@ func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accoun
 	return now.Add(time.Duration(minutes) * time.Minute), nil
 }
 
-func (s *UserSmartScheduleService) validatePoolMembers(ctx context.Context, platform string, members []SmartScheduleAccountMember) error {
-	if len(members) == 0 {
+func (s *UserSmartScheduleService) currentPoolAccountIDs(ctx context.Context, userID int64, platform string) map[int64]struct{} {
+	if s == nil || s.repo == nil || userID <= 0 {
 		return nil
 	}
+	bundle, err := s.repo.ListByUser(ctx, userID)
+	if err != nil || bundle == nil {
+		return nil
+	}
+	policy := bundle.Policy(platform)
+	if policy == nil || len(policy.AccountIDs) == 0 {
+		return nil
+	}
+	return policy.AccountIDs
+}
+
+// sanitizePoolMembers keeps live accounts and strips already-in-pool IDs that
+// GetByIDs cannot load (soft-deleted ghosts). Newly added unknown IDs still
+// fail so a typo cannot silently disappear.
+func (s *UserSmartScheduleService) sanitizePoolMembers(ctx context.Context, userID int64, platform string, members []SmartScheduleAccountMember) ([]SmartScheduleAccountMember, error) {
+	if len(members) == 0 {
+		return members, nil
+	}
 	if s == nil || s.accountRepo == nil {
-		return infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
+		return nil, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
 	}
 	ids := make([]int64, 0, len(members))
 	seen := map[int64]struct{}{}
 	for _, member := range members {
 		if member.AccountID <= 0 {
-			return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "invalid account id")
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "invalid account id")
 		}
 		if _, ok := seen[member.AccountID]; ok {
-			return infraerrors.BadRequest("SMART_SCHEDULE_DUPLICATE_ACCOUNT", "duplicate account in pool")
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_DUPLICATE_ACCOUNT", "duplicate account in pool")
 		}
 		seen[member.AccountID] = struct{}{}
 		ids = append(ids, member.AccountID)
 	}
 	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	byID := make(map[int64]*Account, len(accounts))
 	for _, acc := range accounts {
@@ -341,16 +360,22 @@ func (s *UserSmartScheduleService) validatePoolMembers(ctx context.Context, plat
 			byID[acc.ID] = acc
 		}
 	}
+	existing := s.currentPoolAccountIDs(ctx, userID, platform)
+	kept := make([]SmartScheduleAccountMember, 0, len(members))
 	for _, member := range members {
 		acc := byID[member.AccountID]
 		if acc == nil {
-			return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account not found")
+			if _, wasInPool := existing[member.AccountID]; wasInPool {
+				continue
+			}
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account not found")
 		}
 		if normalizeSmartSchedulePlatform(acc.Platform) != platform {
-			return infraerrors.BadRequest("SMART_SCHEDULE_PLATFORM_MISMATCH", "account platform does not match the selected tab")
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_PLATFORM_MISMATCH", "account platform does not match the selected tab")
 		}
+		kept = append(kept, member)
 	}
-	return nil
+	return kept, nil
 }
 
 func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedulePlatformWrite, error) {
@@ -459,7 +484,7 @@ func (s *UserSmartScheduleService) hydrateAccountPriority(ctx context.Context, v
 		return
 	}
 	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
-	if err != nil || len(accounts) == 0 {
+	if err != nil {
 		return
 	}
 	byID := make(map[int64]*Account, len(accounts))
@@ -468,11 +493,28 @@ func (s *UserSmartScheduleService) hydrateAccountPriority(ctx context.Context, v
 			byID[acc.ID] = acc
 		}
 	}
+	dropMissingSmartScheduleMembers(view, byID)
+}
+
+// dropMissingSmartScheduleMembers removes IDs that GetByIDs did not load
+// (soft-deleted) and turns an emptied platform off in the admin view only.
+func dropMissingSmartScheduleMembers(view *UserSmartScheduleView, byID map[int64]*Account) {
+	if view == nil || len(view.Platforms) == 0 {
+		return
+	}
 	for platformKey, platform := range view.Platforms {
-		for i := range platform.Accounts {
-			if acc := byID[platform.Accounts[i].AccountID]; acc != nil {
-				platform.Accounts[i].Priority = acc.Priority
+		kept := make([]SmartScheduleAccountMember, 0, len(platform.Accounts))
+		for _, member := range platform.Accounts {
+			acc := byID[member.AccountID]
+			if acc == nil {
+				continue
 			}
+			member.Priority = acc.Priority
+			kept = append(kept, member)
+		}
+		platform.Accounts = kept
+		if len(kept) == 0 {
+			platform.Enabled = false
 		}
 		view.Platforms[platformKey] = platform
 	}

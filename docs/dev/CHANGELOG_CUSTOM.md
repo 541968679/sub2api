@@ -1,3 +1,25 @@
+## 2026-08-20 - fix: delete account detaches smart-schedule pool ghosts
+
+### What
+- Soft-deleting an account now removes its `user_smart_schedule_accounts` rows, persists `enabled=false` when that user×platform pool is empty, and invalidates `smart-schedule:user:{userID}` plus the pair cooldown field.
+- Admin GET drops members that `GetByIDs` cannot load. PUT strips already-in-pool missing IDs instead of failing the whole save with `account not found`; newly added unknown IDs still 400.
+
+### Why
+- Account delete is soft-delete, so FK CASCADE never runs. A leftover pool id (user 220 / account 1706) locked the openai pool: every save re-validated the ghost and returned `SMART_SCHEDULE_UNKNOWN_ACCOUNT`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestUserSmartScheduleService_DropsDeletedPoolMembers -count=1`
+- `go test -tags=integration ./internal/repository -run TestAccountRepoSuite/TestDelete_DetachesSmartScheduleMemberships -count=1`
+
+### Affected files
+`backend/internal/repository/account_repo.go`,
+`backend/internal/repository/account_repo_integration_test.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_test.go`,
+`backend/cmd/server/wire_gen.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-19 - deploy: v0.1.242
 
 ### What

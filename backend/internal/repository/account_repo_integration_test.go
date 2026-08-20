@@ -9,6 +9,8 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/suite"
@@ -196,6 +198,103 @@ func (s *AccountRepoSuite) TestDelete_WithGroupBindings() {
 	count, err := s.client.AccountGroup.Query().Where(accountgroup.AccountIDEQ(account.ID)).Count(s.ctx)
 	s.Require().NoError(err)
 	s.Require().Zero(count, "expected bindings to be removed")
+}
+
+type smartScheduleDeleteCacheRecorder struct {
+	invalidated []int64
+	cleared     [][2]int64
+}
+
+func (c *smartScheduleDeleteCacheRecorder) Invalidate(_ context.Context, userID int64) error {
+	c.invalidated = append(c.invalidated, userID)
+	return nil
+}
+
+func (c *smartScheduleDeleteCacheRecorder) ClearCooldown(_ context.Context, accountID, userID int64) error {
+	c.cleared = append(c.cleared, [2]int64{accountID, userID})
+	return nil
+}
+
+func (s *AccountRepoSuite) TestDelete_DetachesSmartScheduleMemberships() {
+	user := mustCreateUser(s.T(), s.client, &service.User{Email: "smart-pool-delete@test.com"})
+	keep := mustCreateAccount(s.T(), s.client, &service.Account{Name: "keep-in-pool", Platform: service.PlatformOpenAI})
+	gone := mustCreateAccount(s.T(), s.client, &service.Account{Name: "remove-from-pool", Platform: service.PlatformOpenAI})
+	last := mustCreateAccount(s.T(), s.client, &service.Account{Name: "last-in-other-user", Platform: service.PlatformOpenAI})
+	other := mustCreateUser(s.T(), s.client, &service.User{Email: "smart-pool-last@test.com"})
+
+	s.Require().NoError(s.client.UserSmartSchedulePolicy.Create().
+		SetUserID(user.ID).
+		SetPlatform(service.PlatformOpenAI).
+		SetEnabled(true).
+		SetCooldownMinutes(15).
+		Exec(s.ctx))
+	s.Require().NoError(s.client.UserSmartSchedulePolicy.Create().
+		SetUserID(other.ID).
+		SetPlatform(service.PlatformOpenAI).
+		SetEnabled(true).
+		SetCooldownMinutes(15).
+		Exec(s.ctx))
+	s.Require().NoError(s.client.UserSmartScheduleAccount.Create().
+		SetUserID(user.ID).
+		SetAccountID(keep.ID).
+		SetPlatform(service.PlatformOpenAI).
+		Exec(s.ctx))
+	s.Require().NoError(s.client.UserSmartScheduleAccount.Create().
+		SetUserID(user.ID).
+		SetAccountID(gone.ID).
+		SetPlatform(service.PlatformOpenAI).
+		Exec(s.ctx))
+	s.Require().NoError(s.client.UserSmartScheduleAccount.Create().
+		SetUserID(other.ID).
+		SetAccountID(last.ID).
+		SetPlatform(service.PlatformOpenAI).
+		Exec(s.ctx))
+
+	cache := &smartScheduleDeleteCacheRecorder{}
+	s.repo.smartScheduleCache = cache
+
+	s.Require().NoError(s.repo.Delete(s.ctx, gone.ID))
+
+	goneCount, err := s.client.UserSmartScheduleAccount.Query().
+		Where(usersmartscheduleaccount.AccountIDEQ(gone.ID)).
+		Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Zero(goneCount, "deleted account must leave every smart-schedule pool")
+
+	keepCount, err := s.client.UserSmartScheduleAccount.Query().
+		Where(
+			usersmartscheduleaccount.UserIDEQ(user.ID),
+			usersmartscheduleaccount.AccountIDEQ(keep.ID),
+		).
+		Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(1, keepCount)
+
+	stillEnabled, err := s.client.UserSmartSchedulePolicy.Query().
+		Where(
+			usersmartschedulepolicy.UserIDEQ(user.ID),
+			usersmartschedulepolicy.PlatformEQ(service.PlatformOpenAI),
+		).
+		Only(s.ctx)
+	s.Require().NoError(err)
+	s.Require().True(stillEnabled.Enabled, "non-empty pool must stay enabled")
+	s.Require().Equal([]int64{user.ID}, cache.invalidated)
+	s.Require().Equal([][2]int64{{gone.ID, user.ID}}, cache.cleared)
+
+	s.Require().NoError(s.repo.Delete(s.ctx, last.ID))
+	disabled, err := s.client.UserSmartSchedulePolicy.Query().
+		Where(
+			usersmartschedulepolicy.UserIDEQ(other.ID),
+			usersmartschedulepolicy.PlatformEQ(service.PlatformOpenAI),
+		).
+		Only(s.ctx)
+	s.Require().NoError(err)
+	s.Require().False(disabled.Enabled, "last member delete must persist enabled=false")
+	lastCount, err := s.client.UserSmartScheduleAccount.Query().
+		Where(usersmartscheduleaccount.UserIDEQ(other.ID)).
+		Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Zero(lastCount)
 }
 
 // --- List / ListWithFilters ---

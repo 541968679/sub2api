@@ -26,6 +26,8 @@ import (
 	dbgroup "github.com/Wei-Shaw/sub2api/ent/group"
 	dbpredicate "github.com/Wei-Shaw/sub2api/ent/predicate"
 	dbproxy "github.com/Wei-Shaw/sub2api/ent/proxy"
+	usersmartscheduleaccount "github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
+	usersmartschedulepolicy "github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -50,6 +52,16 @@ type accountRepository struct {
 	// Used to proactively sync account snapshot to cache when status changes,
 	// ensuring sticky sessions can promptly detect unavailable accounts.
 	schedulerCache service.SchedulerCache
+	// smartScheduleCache is optional; delete must still detach pool rows
+	// even when cache invalidation is unavailable (tests, nested txs).
+	smartScheduleCache smartScheduleDeleteCache
+}
+
+// smartScheduleDeleteCache is the subset of UserSmartScheduleCache needed
+// after an account is removed from every user pool.
+type smartScheduleDeleteCache interface {
+	Invalidate(ctx context.Context, userID int64) error
+	ClearCooldown(ctx context.Context, accountID, userID int64) error
 }
 
 var schedulerNeutralExtraKeyPrefixes = []string{
@@ -72,8 +84,10 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 
 // NewAccountRepository 创建账户仓储实例。
 // 这是对外暴露的构造函数，返回接口类型以便于依赖注入。
-func NewAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache) service.AccountRepository {
-	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
+func NewAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache, smartScheduleCache service.UserSmartScheduleCache) service.AccountRepository {
+	repo := newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
+	repo.smartScheduleCache = smartScheduleCache
+	return repo
 }
 
 // newAccountRepositoryWithSQL 是内部构造函数，支持依赖注入 SQL 执行器。
@@ -472,6 +486,10 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 	if _, err := txClient.ExecContext(ctx, "DELETE FROM scheduled_test_plans WHERE account_id = $1", id); err != nil {
 		return err
 	}
+	affectedUsers, err := detachSmartScheduleMemberships(ctx, txClient, id)
+	if err != nil {
+		return err
+	}
 	if _, err := txClient.Account.Delete().Where(dbaccount.IDEQ(id)).Exec(ctx); err != nil {
 		return err
 	}
@@ -481,10 +499,97 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 			return err
 		}
 	}
+	r.invalidateSmartScheduleUsers(ctx, id, affectedUsers)
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &id, nil, buildSchedulerGroupPayload(groupIDs)); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue account delete failed: account=%d err=%v", id, err)
 	}
 	return nil
+}
+
+type smartScheduleUserPlatform struct {
+	userID   int64
+	platform string
+}
+
+// detachSmartScheduleMemberships removes the account from every user pool.
+// Soft-delete does not fire FK CASCADE, so leftover rows poison GET/PUT.
+// A (user, platform) pool that becomes empty is persisted as enabled=false.
+func detachSmartScheduleMemberships(ctx context.Context, txClient *dbent.Client, accountID int64) ([]int64, error) {
+	if txClient == nil || accountID <= 0 {
+		return nil, nil
+	}
+	members, err := txClient.UserSmartScheduleAccount.Query().
+		Where(usersmartscheduleaccount.AccountIDEQ(accountID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(members) == 0 {
+		return nil, nil
+	}
+	affected := make(map[smartScheduleUserPlatform]struct{}, len(members))
+	userIDs := make([]int64, 0, len(members))
+	seenUser := make(map[int64]struct{}, len(members))
+	for _, member := range members {
+		if member == nil || member.UserID <= 0 {
+			continue
+		}
+		affected[smartScheduleUserPlatform{userID: member.UserID, platform: member.Platform}] = struct{}{}
+		if _, ok := seenUser[member.UserID]; ok {
+			continue
+		}
+		seenUser[member.UserID] = struct{}{}
+		userIDs = append(userIDs, member.UserID)
+	}
+	if _, err := txClient.UserSmartScheduleAccount.Delete().
+		Where(usersmartscheduleaccount.AccountIDEQ(accountID)).
+		Exec(ctx); err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	for pair := range affected {
+		remaining, countErr := txClient.UserSmartScheduleAccount.Query().
+			Where(
+				usersmartscheduleaccount.UserIDEQ(pair.userID),
+				usersmartscheduleaccount.PlatformEQ(pair.platform),
+			).
+			Count(ctx)
+		if countErr != nil {
+			return nil, countErr
+		}
+		if remaining > 0 {
+			continue
+		}
+		if _, err := txClient.UserSmartSchedulePolicy.Update().
+			Where(
+				usersmartschedulepolicy.UserIDEQ(pair.userID),
+				usersmartschedulepolicy.PlatformEQ(pair.platform),
+				usersmartschedulepolicy.EnabledEQ(true),
+			).
+			SetEnabled(false).
+			SetUpdatedAt(now).
+			Save(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return userIDs, nil
+}
+
+func (r *accountRepository) invalidateSmartScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) {
+	if r == nil || r.smartScheduleCache == nil {
+		return
+	}
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if err := r.smartScheduleCache.Invalidate(ctx, userID); err != nil {
+			logger.LegacyPrintf("repository.account", "[SmartSchedule] invalidate user cache failed: user=%d account=%d err=%v", userID, accountID, err)
+		}
+		if err := r.smartScheduleCache.ClearCooldown(ctx, accountID, userID); err != nil {
+			logger.LegacyPrintf("repository.account", "[SmartSchedule] clear pair cooldown failed: user=%d account=%d err=%v", userID, accountID, err)
+		}
+	}
 }
 
 func (r *accountRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
