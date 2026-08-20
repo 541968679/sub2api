@@ -1,3 +1,20 @@
+## 2026-08-20 - deploy: v0.1.245
+
+### What
+- Production Sub2API is `ghcr.io/541968679/sub2api:0.1.245` (revision `872951282`, digest `sha256:17f79f1e15cab372386fa3237a6974fa2337c6a3bb05760b64f8da5851e13ef3`). Healthy, `/health` ok.
+- Ships pair-full no-WaitPlan + wait-wake pair attach, plus quality-cell failover/Recovered comparison success rate (display only; not scheduling `ErrorCount`).
+
+### Why
+- Release the reviewed pair-concurrency and quality-cell commits after handler wait-wake tests locked attach/reselect.
+
+### Verification
+- Release [32381781445](https://github.com/541968679/sub2api/actions/runs/32381781445) succeeded; GHCR `0.1.245` digest above; image revision `8729512827db3e4b538d64cd56c5ad50d05eb87e`.
+- Preflight `/health` passed (attempt 2/36), then live cutover. Rollback digest `sha256:1cae09a00e3b35f91fcdf34726bb2c3d0b9f78a246ef796689ecc948ec79edb7` (`v0.1.244`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-08-20 - fix: pair-full must not WaitPlan or forward on account slot only
 
 ### What
