@@ -81,6 +81,25 @@ func TestPairQualityCache_ExpiryZerosWindows(t *testing.T) {
 	require.True(t, foundEnter)
 }
 
+func TestPairQualityCache_ExpiryClearsResumeGrace(t *testing.T) {
+	cache, rdb := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, rdb.HSet(ctx, accountQualityResumeKey(7),
+		accountQualityResumeUserField(16), now.Add(15*time.Minute).Unix(),
+		accountQualityResumeWatchingField(16), now.Add(30*time.Minute).Unix(),
+	).Err())
+	cache.StartCooldown(ctx, 7, 16, 15, now)
+	require.False(t, cache.CooldownActive(ctx, 7, 16, now.Add(16*time.Minute)))
+	require.True(t, cache.IsProbing(ctx, 7, 16))
+	n, err := rdb.HExists(ctx, accountQualityResumeKey(7), accountQualityResumeUserField(16)).Result()
+	require.NoError(t, err)
+	require.False(t, n, "expiry must ClearUserResume so leftover u:/w: cannot skip graduate")
+	watching, err := rdb.HExists(ctx, accountQualityResumeKey(7), accountQualityResumeWatchingField(16)).Result()
+	require.NoError(t, err)
+	require.False(t, watching)
+}
+
 func TestPairQualityCache_NoBackfillWithoutMark(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()

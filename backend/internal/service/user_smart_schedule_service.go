@@ -128,9 +128,11 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	}
 	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, policy.WindowN(), obs.Success, obs.FirstTokenMs)
 	stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: obs.AccountID}, true)
-	if UserQualityResumeActive(stats, obs.UserID, now) {
+	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID)
+	if pairQualityResumeBlocksEvaluate(probing, stats, obs.UserID, now) {
 		return
 	}
+	clearLeftoverResumeIfProbing(ctx, s.qualityLiveCache, probing, obs.AccountID, obs.UserID, stats, now)
 	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, policy, live, now)
 }
 

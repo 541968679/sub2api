@@ -416,8 +416,24 @@ func pairQualityProbeAndMixed(live *PairQualityLive, policy *SmartSchedulePlatfo
 	return true
 }
 
+// pairQualityResumeBlocksEvaluate is 豁免期 fail-open only (no probe mark).
+// Leftover u:/w: during probing is not 豁免期 — do not skip graduate / and-mixed.
+func pairQualityResumeBlocksEvaluate(probing bool, stats *AccountQualityStats, userID int64, now time.Time) bool {
+	if probing {
+		return false
+	}
+	return UserQualityResumeActive(stats, userID, now)
+}
+
+func clearLeftoverResumeIfProbing(ctx context.Context, cache AccountQualityLiveCache, probing bool, accountID, userID int64, stats *AccountQualityStats, now time.Time) {
+	if !probing || cache == nil || !UserQualityResumeActive(stats, userID, now) {
+		return
+	}
+	_ = cache.ClearUserResume(ctx, accountID, userID)
+}
+
 // evaluateSmartSchedulePairQuality applies cooldown / probe graduate on the hot path
-// and after ingest. Resume grace must be checked by the caller (no evaluate).
+// and after ingest. 豁免期 (no probe mark) must be checked by the caller (no evaluate).
 func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
 	probing := lookup != nil && lookup.IsProbing(ctx, accountID, userID)
 	minutes := DefaultSmartScheduleCooldownMinutes

@@ -1,3 +1,28 @@
+## 2026-08-21 - fix: leftover u:/w: no longer blocks probe graduate
+
+### What
+- Probe evaluate no longer treats leftover `account-quality:resume` `u:`/`w:` as 豁免期. N counted completes in last-N `W_ok` graduate (or and-mixed cool) even if grace is still live.
+- `expirePairCooldown` now HDEL those resume fields when entering 考察.
+- Unit test: N successes in probe + leftover resume must leave `probing`.
+
+### Why
+- Shared resume HASH (豁免期 + 账号「立即恢复」) plus expiry that did not `ClearUserResume` let windows fill past N while graduate never ran — matches “有时候成功超过 N 却一直考察”.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Probe|ObservePairCompletion|AdmitsScheduleUser_Probing"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQualityCache_Expiry"`
+
+### Affected files
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/smart_schedule_probe_test.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/smart_schedule_pair_quality_cache_test.go`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-21 - check: user quality last-N grid + dialog
 
 ### What

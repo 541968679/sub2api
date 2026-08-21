@@ -152,11 +152,11 @@ Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’
 
 `probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearUserResume` (no `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(desired, member cap)` or desired if unset. `desired` is window N when `probe_concurrency_mode=follow_n` (omit/empty), or `probe_concurrency` (1–100) when `custom`. Member `max_concurrency` is a hard ceiling. This is **not** account-quality global N. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY`; do not silently fall back. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
 
-`cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark, no time grace.
+`cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark + `ClearUserResume`, no time grace.
 
 `paused` is **long-lived manual only**. Sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, deletes `u:`/`w:`, and **clears** the probe mark. **No implicit unpause** and **no default next state**. Leaving pause requires an explicit `state` ∈ {`probing`,`selectable`,`resumed`,`cooling`} (or write `paused` again). Clearing the paused flag must not write `probing`.
 
-Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). Otherwise the legacy scenario in this file. Do not fold pause or probing into `IsSchedulable()`. Do not backfill existing selectable pairs on deploy.
+Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover resume during probing still evaluates (graduate / and-mixed); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). Otherwise the legacy scenario in this file. Do not fold pause or probing into `IsSchedulable()`. Do not backfill existing selectable pairs on deploy.
 
 Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`). `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells.
 
@@ -181,7 +181,7 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 ### 6. Tests Required
 
 - `EnabledPolicy`: off / empty / one member; pool miss vs hit; ignore legacy deny/gate/cap when enabled.
-- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); probe `and` mixed→cool; pause does not auto-probe; 调度→考察 zeros; no backfill.
+- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`, `ClearUserResume`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); leftover `u:`/`w:` must not skip graduate; probe `and` mixed→cool; pause does not auto-probe; 调度→考察 zeros; no backfill.
 - Admin: reject enabled+empty; GET masks empty as disabled; copy omits accounts; copy probe settings as their own fields (not account-quality N); delete-last auto-disables.
 - Probe concurrency: omit → follow_n; follow_n + cap / no cap; custom 2 with cap 5 → 2; custom 10 with cap 3 → 3; custom 0 / missing number rejected.
 - Select/sticky: Anthropic, OpenAI advanced+fallback, WS, Gemini all go through `admitsScheduleUser` + injected cache.
@@ -238,6 +238,14 @@ return account.AdmitsScheduleUser(userID, live)
 **Cause**: treating omitted `state` = `resumed` as a pause-exit default, or writing the probe HASH when only the paused flag is cleared.
 
 **Prevention**: `paused` has no automatic exit. `ParsePairAdmissionState("")` stays `resumed` (豁免期 write default). Enter probing only from cooldown expiry or an explicit `state=probing`. Tests must cover pause → omitted state ≠ probing.
+
+## Common Mistake: leftover `u:`/`w:` blocks probe graduate
+
+**Symptom**: pair last-N already has N counted completes (often N successes) but the pair stays `probing`. Account/user quality cells may also show “successes > N”.
+
+**Cause**: `UserQualityResumeActive` is shared with 豁免期 and account-quality 立即恢复. `expirePairCooldown` used to `HDEL` cooldown + zero windows + mark probe without `ClearUserResume`. `ObservePairCompletion` / `admitsScheduleUser` then skipped evaluate while grace was live, so windows filled past N with no graduate. Grace lasts 15–30m and can be refreshed.
+
+**Prevention**: enter probe always HDEL `u:`/`w:`. While `IsProbing`, do not skip evaluate for leftover grace. 豁免期 fail-open is only when there is no probe mark. Tests must cover “N successes in probe + leftover resume → graduate”.
 
 ## Common Mistake: leftover `AllowsScheduleUser` on a select path
 

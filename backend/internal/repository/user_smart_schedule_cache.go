@@ -230,6 +230,18 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
 	c.ZeroPairQuality(ctx, accountID, userID, service.PairQualityEventExpiryZero)
 	c.MarkProbing(ctx, accountID, userID)
+	c.clearPairResumeGrace(ctx, accountID, userID)
+}
+
+// clearPairResumeGrace drops leftover 豁免期 / 立即恢复 u:/w: when entering probe.
+func (c *userSmartScheduleCache) clearPairResumeGrace(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	_ = c.rdb.HDel(ctx, accountQualityResumeKey(accountID),
+		accountQualityResumeUserField(userID),
+		accountQualityResumeWatchingField(userID),
+	).Err()
 }
 
 func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64) bool {

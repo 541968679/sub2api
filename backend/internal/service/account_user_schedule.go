@@ -248,12 +248,14 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 	}
 	// Resume overlay still lives on account-quality:resume. Only the chip/grace
 	// fields are used here; live 15-minute Q_a numbers must not decide cooldown.
-	// 豁免期 (resumed) is fail-open: ingest happens elsewhere, no evaluate / no graduate.
+	// 豁免期 (resumed, no probe mark) is fail-open: ingest happens elsewhere, no evaluate / no graduate.
+	// Leftover u:/w: while probing must not skip graduate (expiry / 立即恢复 share this HASH).
 	stats := loadLiveQualityForAdmission(ctx, cache, account, true)
-	if UserQualityResumeActive(stats, userID, now) {
+	probing := lookup != nil && lookup.IsProbing(ctx, account.ID, userID)
+	if pairQualityResumeBlocksEvaluate(probing, stats, userID, now) {
 		return true
 	}
-	probing := lookup != nil && lookup.IsProbing(ctx, account.ID, userID)
+	clearLeftoverResumeIfProbing(ctx, cache, probing, account.ID, userID, stats, now)
 	if !policy.HasQualityMetrics() && !probing {
 		return true
 	}

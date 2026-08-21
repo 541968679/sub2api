@@ -253,20 +253,33 @@ func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
 		require.Equal(t, 0, lookup.graduated)
 	})
 
-	t.Run("resume grace skips evaluate", func(t *testing.T) {
+	t.Run("leftover resume during probe still graduates", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, policy),
+			pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		quality := &liveQualityCacheStub{}
+		require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
+		require.True(t, admitsScheduleUser(ctx, acc, quality, lookup))
+		require.Equal(t, 1, lookup.graduated, "N successes in probe must graduate even with leftover u:/w:")
+		require.False(t, lookup.IsProbing(ctx, 7, 16))
+		require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()))
+	})
+
+	t.Run("resume grace skips evaluate when not probing", func(t *testing.T) {
 		t.Parallel()
 		p50 := 50
 		lookup := &memorySmartLookup{
-			bundle:  smartBundle(PlatformAnthropic, probePolicy(7, 3, &p50, nil, false)),
-			pair:    map[string]*PairQualityLive{smartPairKey(7, 16): mixedAndLive(3, 400, 3)},
-			probing: map[string]bool{smartPairKey(7, 16): true},
+			bundle: smartBundle(PlatformAnthropic, probePolicy(7, 3, &p50, nil, false)),
+			pair:   map[string]*PairQualityLive{smartPairKey(7, 16): mixedAndLive(3, 400, 3)},
 		}
 		quality := &liveQualityCacheStub{}
 		require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
 		require.True(t, admitsScheduleUser(ctx, acc, quality, lookup))
 		require.Equal(t, 0, lookup.startCalls)
 		require.Equal(t, 0, lookup.graduated)
-		require.True(t, lookup.IsProbing(ctx, 7, 16))
 	})
 }
 
@@ -313,6 +326,31 @@ func TestObservePairCompletion_ProbeGraduateAndMixed(t *testing.T) {
 	require.Equal(t, 0, mixed.graduated)
 	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16).OKCount)
 	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16).TTFTCount)
+}
+
+func TestObservePairCompletion_ProbeResumeGraceDoesNotBlockGraduate(t *testing.T) {
+	t.Parallel()
+	rate := 0.8
+	policy := probePolicy(7, 3, nil, &rate, false)
+	cache := &observeCacheStub{
+		bundle:  smartBundle(PlatformAnthropic, policy),
+		live:    map[string]*PairQualityLive{},
+		probing: map[string]bool{smartPairKey(7, 16): true},
+	}
+	quality := &liveQualityCacheStub{}
+	require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
+	svc := NewUserSmartScheduleService(nil, cache, nil, quality, nil)
+
+	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
+	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
+	require.Equal(t, 0, cache.graduated, "W_ok < N stays probing")
+	require.True(t, cache.IsProbing(context.Background(), 7, 16))
+
+	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
+	require.Equal(t, 1, cache.graduated, "N successes in probe must graduate even with leftover u:/w:")
+	require.False(t, cache.IsProbing(context.Background(), 7, 16), "N successes in probe, still probing")
+	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16).OKCount)
+	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "leftover grace cleared on probe evaluate")
 }
 
 func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
