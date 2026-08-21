@@ -12,7 +12,10 @@ import {
   readBackendProbeCap,
   resolvePairCap,
   resolvePoolAdmission,
+  isValidProbeConcurrencyWrite,
+  probeConcurrencyWriteValue,
   resolveProbeConcurrency,
+  resolveProbeConcurrencyMode,
   UNCAPPED_PAIR_DISPLAY_MAX,
   resolveQualityAdmissionHint,
   pairAdmissionLiveState,
@@ -151,6 +154,33 @@ describe('resolveProbeConcurrency', () => {
     expect(readBackendProbeCap({ probing_cap: 4 })).toBe(4)
     expect(readBackendProbeCap({ in_flight_cap: 6, probe_cap: 5 })).toBe(5)
   })
+
+  it('uses custom probe concurrency and still honors the member cap ceiling', () => {
+    expect(
+      resolveProbeConcurrency({
+        windowN: 10,
+        pairCap: 5,
+        mode: 'custom',
+        probeConcurrency: 2
+      })
+    ).toBe(2)
+    expect(
+      resolveProbeConcurrency({
+        windowN: 10,
+        pairCap: 3,
+        mode: 'custom',
+        probeConcurrency: 10
+      })
+    ).toBe(3)
+    expect(
+      resolveProbeConcurrency({
+        windowN: 14,
+        pairCap: null,
+        mode: 'follow_n',
+        probeConcurrency: 2
+      })
+    ).toBe(14)
+  })
 })
 
 describe('pairOccupancyDisplayMaxForAdmission', () => {
@@ -164,6 +194,35 @@ describe('pairOccupancyDisplayMaxForAdmission', () => {
     expect(
       pairOccupancyDisplayMaxForAdmission({ probing: false, pairCap: null, windowN: 10 })
     ).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+    expect(
+      pairOccupancyDisplayMaxForAdmission({
+        probing: true,
+        pairCap: 8,
+        windowN: 10,
+        mode: 'custom',
+        probeConcurrency: 4
+      })
+    ).toBe(4)
+  })
+
+  it('defaults unknown probe concurrency mode to follow_n', () => {
+    expect(resolveProbeConcurrencyMode(undefined)).toBe('follow_n')
+    expect(resolveProbeConcurrencyMode(null)).toBe('follow_n')
+    expect(resolveProbeConcurrencyMode('custom')).toBe('custom')
+    expect(resolveProbeConcurrencyMode('follow_window')).toBe('follow_n')
+  })
+
+  it('does not clamp invalid custom probe concurrency on write', () => {
+    expect(probeConcurrencyWriteValue({ mode: 'follow_n', probeConcurrency: 7 })).toBeNull()
+    expect(probeConcurrencyWriteValue({ mode: 'custom', probeConcurrency: 7 })).toBe(7)
+    expect(probeConcurrencyWriteValue({ mode: 'custom', probeConcurrency: 0 })).toBe(0)
+    expect(probeConcurrencyWriteValue({ mode: 'custom', probeConcurrency: 101 })).toBe(101)
+    expect(probeConcurrencyWriteValue({ mode: 'custom', probeConcurrency: '' })).toBeNull()
+    expect(isValidProbeConcurrencyWrite({ mode: 'follow_n' })).toBe(true)
+    expect(isValidProbeConcurrencyWrite({ mode: 'custom', probeConcurrency: 7 })).toBe(true)
+    expect(isValidProbeConcurrencyWrite({ mode: 'custom', probeConcurrency: 0 })).toBe(false)
+    expect(isValidProbeConcurrencyWrite({ mode: 'custom', probeConcurrency: 101 })).toBe(false)
+    expect(isValidProbeConcurrencyWrite({ mode: 'custom', probeConcurrency: '' })).toBe(false)
   })
 })
 

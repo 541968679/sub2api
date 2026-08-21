@@ -3,6 +3,7 @@ import type { AccountQualityStats } from '@/api/admin/accounts'
 import type {
   SmartSchedulePairQuality,
   SmartSchedulePlatform,
+  SmartScheduleProbeConcurrencyMode,
   UserSmartScheduleView
 } from '@/api/admin/users'
 import { clampSmartScheduleWindowN } from '@/utils/smartScheduleWindowN'
@@ -131,21 +132,74 @@ export function memberProbingFromApi(member: {
   return member.admission === 'probing' || member.state === 'probing'
 }
 
+export function resolveProbeConcurrencyMode(
+  value: string | null | undefined
+): SmartScheduleProbeConcurrencyMode {
+  return value === 'custom' ? 'custom' : 'follow_n'
+}
+
+/** PUT body value. follow_n → null. custom empty/NaN → null (caller must reject). Does not clamp. */
+export function probeConcurrencyWriteValue(input: {
+  mode?: string | null
+  probeConcurrency?: number | '' | null
+}): number | null {
+  if (resolveProbeConcurrencyMode(input.mode) !== 'custom') {
+    return null
+  }
+  if (input.probeConcurrency === '' || input.probeConcurrency == null) {
+    return null
+  }
+  const n = Number(input.probeConcurrency)
+  if (!Number.isFinite(n)) {
+    return null
+  }
+  return Math.round(n)
+}
+
+/** custom requires 1–100. follow_n / omit is always valid. */
+export function isValidProbeConcurrencyWrite(input: {
+  mode?: string | null
+  probeConcurrency?: number | '' | null
+}): boolean {
+  if (resolveProbeConcurrencyMode(input.mode) !== 'custom') {
+    return true
+  }
+  const value = probeConcurrencyWriteValue(input)
+  return value != null && value >= 1 && value <= 100
+}
+
+/** Selected probe in-flight number before member-cap clamp. Not account-quality N. */
+export function resolveProbeConcurrencySelected(input: {
+  mode?: string | null
+  probeConcurrency?: number | '' | null
+  windowN: number | '' | null | undefined
+}): number {
+  if (resolveProbeConcurrencyMode(input.mode) === 'custom') {
+    return clampSmartScheduleWindowN(
+      input.probeConcurrency === '' ? null : input.probeConcurrency
+    )
+  }
+  return clampSmartScheduleWindowN(input.windowN === '' ? null : input.windowN)
+}
+
 /**
- * Probe in-flight cap: backend field if present, else min(N, member cap) or N.
- * Never 999 — uncapped probe is still N.
+ * Probe in-flight cap: GET `probe_cap` if present, else min(selected, member cap)
+ * or selected. Selected is window N when follow_n, or custom 1–100.
+ * Never 999 — uncapped probe is still the selected value.
  */
 export function resolveProbeConcurrency(input: {
   windowN: number | '' | null | undefined
   pairCap: number | null | undefined
   backendCap?: number | null
+  mode?: string | null
+  probeConcurrency?: number | '' | null
 }): number {
   if (input.backendCap != null && Number.isFinite(input.backendCap) && input.backendCap >= 1) {
     return Math.round(input.backendCap)
   }
-  const n = clampSmartScheduleWindowN(input.windowN === '' ? null : input.windowN)
+  const selected = resolveProbeConcurrencySelected(input)
   const cap = resolvePairCap(input.pairCap)
-  return cap != null ? Math.min(n, cap) : n
+  return cap != null ? Math.min(selected, cap) : selected
 }
 
 export function pairOccupancyDisplayMaxForAdmission(input: {
@@ -153,12 +207,16 @@ export function pairOccupancyDisplayMaxForAdmission(input: {
   pairCap: number | null | undefined
   windowN: number | '' | null | undefined
   backendCap?: number | null
+  mode?: string | null
+  probeConcurrency?: number | '' | null
 }): number {
   if (input.probing) {
     return resolveProbeConcurrency({
       windowN: input.windowN,
       pairCap: input.pairCap,
-      backendCap: input.backendCap
+      backendCap: input.backendCap,
+      mode: input.mode,
+      probeConcurrency: input.probeConcurrency
     })
   }
   return pairOccupancyDisplayMax(input.pairCap)

@@ -9,7 +9,8 @@ Date: 2026-08-21. Backend field names in `research/probe-api-contract.md` win.
 | Live states | `paused` / `cooling` / `probing` / `selectable` / `resumed` in `PAIR_ADMISSION_LIVE_STATES` (switcher order: 暂停 / 冷却 / 考察 / 调度 / 豁免期) |
 | Display + filter | `PoolAdmissionState` + `POOL_ADMISSION_FILTER_STATES` include `probing` |
 | Hydration | Member `probing: true`, or `admission` / `state` === `probing`. Missing mark = not probing (no backfill). Expired `cooldown_until` does **not** invent probing |
-| Probe cap | Prefer GET/POST `probe_cap`. Keep `probing_cap` / `in_flight_cap` / `pair_probe_cap` as read aliases only. Else `min(N, member cap)` or `N` |
+| Probe cap | Prefer GET/POST `probe_cap`. Keep `probing_cap` / `in_flight_cap` / `pair_probe_cap` as read aliases only. Else `min(selected, member cap)` or selected (`follow_n` → window N; `custom` → `probe_concurrency` 1–100) |
+| Policy form | GET/PUT `probe_concurrency_mode` (`follow_n` default) + `probe_concurrency`. Custom input hidden unless 自定义. Apply-template does not overwrite pair N or these fields. Backend `research/probe-api-contract.md` wins if field names change. |
 | Occupancy badge | Probe rows use that cap (never 999) |
 | Switch POST | `POST /admin/accounts/:id/smart-schedule-resume` `{ user_id, state: "probing" }` via `resumeSmartSchedule`. Backend `ParsePairAdmissionState` / `SetPairAdmission` accept `probing` (no 400) |
 | Local apply | Clearing pause does **not** write probing. Next state is whatever the admin picked. Selectable → probing is allowed |

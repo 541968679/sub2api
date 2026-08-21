@@ -64,6 +64,8 @@ function emptyPlatform() {
     quality_min_success_samples: null,
     quality_min_ttft_samples: null,
     quality_condition: null,
+    probe_concurrency_mode: 'follow_n' as const,
+    probe_concurrency: null,
     cooldown_minutes: 15,
     accounts: []
   }
@@ -363,6 +365,103 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     const w = mountEditor()
     await flushPromises()
     expect(w.vm.currentDraft.windowN).toBe(14)
+    expect(w.vm.currentDraft.probeConcurrencyMode).toBe('follow_n')
+  })
+
+  it('hydrates custom probe concurrency from GET and does not copy template N into it', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 14,
+          probe_concurrency_mode: 'custom',
+          probe_concurrency: 2,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 5 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.probeConcurrencyMode).toBe('custom')
+    expect(w.vm.currentDraft.probeConcurrency).toBe(2)
+    w.vm.applyTemplateToDraft({
+      quality_max_p50_ttft_ms: 200,
+      quality_min_success_rate_percent: 90,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 20,
+      quality_condition: 'or'
+    })
+    expect(w.vm.currentDraft.probeConcurrencyMode).toBe('custom')
+    expect(w.vm.currentDraft.probeConcurrency).toBe(2)
+    expect(w.vm.currentDraft.windowN).toBe(14)
+    expect(w.vm.currentDraft.maxP50).toBe(200)
+  })
+
+  it('writes follow_n by default and custom probe concurrency on save', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              ...body,
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.probeConcurrencyMode).toBe('follow_n')
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        probe_concurrency_mode: 'follow_n',
+        probe_concurrency: null
+      })
+    )
+    w.vm.currentDraft.probeConcurrencyMode = 'custom'
+    w.vm.currentDraft.probeConcurrency = 7
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenLastCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        probe_concurrency_mode: 'custom',
+        probe_concurrency: 7
+      })
+    )
+  })
+
+  it('rejects invalid custom probe concurrency instead of clamping', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.probeConcurrencyMode = 'custom'
+    w.vm.currentDraft.probeConcurrency = 0
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
+    w.vm.currentDraft.probeConcurrency = 101
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
+    w.vm.currentDraft.probeConcurrency = ''
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
   })
 
   it('hydrates probing from GET and only enters it when the next state is explicit', async () => {

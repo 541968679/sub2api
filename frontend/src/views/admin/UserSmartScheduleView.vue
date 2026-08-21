@@ -165,6 +165,29 @@
                 />
               </label>
               <label class="flex min-w-0 items-center gap-1.5">
+                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                  {{ t('admin.users.smartSchedule.probeConcurrency') }}
+                  <HelpTooltip :content="t('admin.users.smartSchedule.probeConcurrencyHint')" width-class="w-72" />
+                </span>
+                <select
+                  v-model="currentDraft.probeConcurrencyMode"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
+                  data-testid="smart-schedule-probe-concurrency-mode"
+                >
+                  <option value="follow_n">{{ t('admin.users.smartSchedule.probeConcurrencyFollowN') }}</option>
+                  <option value="custom">{{ t('admin.users.smartSchedule.probeConcurrencyCustom') }}</option>
+                </select>
+                <input
+                  v-if="currentDraft.probeConcurrencyMode === 'custom'"
+                  v-model.number="currentDraft.probeConcurrency"
+                  type="number"
+                  min="1"
+                  max="100"
+                  class="input w-16 shrink-0 !px-2 !py-1"
+                  data-testid="smart-schedule-probe-concurrency"
+                />
+              </label>
+              <label class="flex min-w-0 items-center gap-1.5">
                 <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
                 <select v-model="currentDraft.condition" class="input min-w-0 flex-1 !px-2 !py-1">
                   <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
@@ -1283,7 +1306,9 @@ function pairBadgeMax(accountId: number) {
     probing: memberProbing(accountId),
     pairCap: memberCapOrNull(accountId),
     windowN: currentDraft.value?.windowN,
-    backendCap: memberProbeCap(accountId)
+    backendCap: memberProbeCap(accountId),
+    mode: currentDraft.value?.probeConcurrencyMode,
+    probeConcurrency: currentDraft.value?.probeConcurrency
   })
 }
 

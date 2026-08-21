@@ -53,6 +53,83 @@ func TestProbeInFlightCap(t *testing.T) {
 	require.NotEqual(t, 999, ProbeInFlightCap(10, 0))
 }
 
+func TestProbeInFlightCap_FollowNAndCustom(t *testing.T) {
+	t.Parallel()
+	follow := &SmartSchedulePlatformPolicy{QualityWindowSamples: intPtr(10)}
+	require.Equal(t, 4, follow.ProbeInFlightCap(4), "follow_n + cap")
+	require.Equal(t, 10, follow.ProbeInFlightCap(0), "follow_n no cap")
+
+	custom2 := &SmartSchedulePlatformPolicy{
+		QualityWindowSamples: intPtr(10),
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+		ProbeConcurrency:     intPtr(2),
+	}
+	require.Equal(t, 2, custom2.ProbeInFlightCap(5), "custom 2 with cap 5 → 2")
+
+	custom10 := &SmartSchedulePlatformPolicy{
+		QualityWindowSamples: intPtr(10),
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+		ProbeConcurrency:     intPtr(10),
+	}
+	require.Equal(t, 3, custom10.ProbeInFlightCap(3), "custom 10 with cap 3 → 3")
+}
+
+func TestNormalizeSmartScheduleWrite_ProbeConcurrency(t *testing.T) {
+	t.Parallel()
+	omitted, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{CooldownMinutes: 15})
+	require.NoError(t, err)
+	require.Equal(t, ProbeConcurrencyModeFollowN, omitted.ProbeConcurrencyMode, "default omit → follow_n")
+	require.Nil(t, omitted.ProbeConcurrency)
+
+	emptyMode, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: "",
+		ProbeConcurrency:     intPtr(7),
+	})
+	require.NoError(t, err)
+	require.Equal(t, ProbeConcurrencyModeFollowN, emptyMode.ProbeConcurrencyMode)
+	require.Nil(t, emptyMode.ProbeConcurrency, "follow_n ignores custom")
+
+	got, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+		ProbeConcurrency:     intPtr(2),
+	})
+	require.NoError(t, err)
+	require.Equal(t, ProbeConcurrencyModeCustom, got.ProbeConcurrencyMode)
+	require.Equal(t, 2, *got.ProbeConcurrency)
+
+	_, err = normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+		ProbeConcurrency:     intPtr(0),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_INVALID_QUALITY")
+
+	_, err = normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_INVALID_QUALITY")
+
+	_, err = normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: ProbeConcurrencyModeCustom,
+		ProbeConcurrency:     intPtr(101),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_INVALID_QUALITY")
+
+	_, err = normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		CooldownMinutes:      15,
+		ProbeConcurrencyMode: "follow_window",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_INVALID_QUALITY")
+}
+
 func TestPairQualityProbeGraduates_WokOnlySync(t *testing.T) {
 	t.Parallel()
 	rate := 0.8
@@ -310,6 +387,26 @@ func TestUserSmartScheduleService_GetHydratesProbingAndProbeCap(t *testing.T) {
 	require.True(t, member.Probing)
 	require.NotNil(t, member.ProbeCap)
 	require.Equal(t, 4, *member.ProbeCap, "GET probe_cap is min(N=10, cap=4)")
+	require.Equal(t, ProbeConcurrencyModeFollowN, view.Platforms[PlatformAnthropic].ProbeConcurrencyMode)
+	require.Nil(t, view.Platforms[PlatformAnthropic].ProbeConcurrency)
+
+	customPolicy := enabledSmartPolicy(7, 5, nil)
+	customPolicy.QualityWindowSamples = intPtr(10)
+	customPolicy.ProbeConcurrencyMode = ProbeConcurrencyModeCustom
+	customPolicy.ProbeConcurrency = intPtr(2)
+	customRepo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, customPolicy)}
+	customCache := &admissionCacheRecorder{
+		bundle:  customRepo.bundle,
+		probing: map[string]bool{smartPairKey(7, 16): true},
+	}
+	customSvc := NewUserSmartScheduleService(customRepo, customCache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}, nil, nil)
+	customView, err := customSvc.Get(ctx, 16)
+	require.NoError(t, err)
+	require.Equal(t, ProbeConcurrencyModeCustom, customView.Platforms[PlatformAnthropic].ProbeConcurrencyMode)
+	require.Equal(t, 2, *customView.Platforms[PlatformAnthropic].ProbeConcurrency)
+	require.Equal(t, 2, *customView.Platforms[PlatformAnthropic].Accounts[0].ProbeCap, "custom 2 with cap 5 → 2")
 
 	cache.ClearProbing(ctx, 7, 16)
 	unmarked, err := svc.Get(ctx, 16)

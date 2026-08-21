@@ -10,15 +10,17 @@ import (
 )
 
 type putSmartScheduleRequest struct {
-	Enabled                  bool                                `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                                `json:"quality_max_p50_ttft_ms"`
-	QualityMinSuccessRate    *float64                            `json:"quality_min_success_rate"`
-	QualityWindowSamples     *int                                `json:"quality_window_samples"`
-	QualityWindowN           *int                                `json:"quality_window_n"`
-	QualityMinSuccessSamples *int                                `json:"quality_min_success_samples"`
-	QualityMinTTFTSamples    *int                                `json:"quality_min_ttft_samples"`
-	QualityCondition         *string                             `json:"quality_condition"`
-	CooldownMinutes          int                                 `json:"cooldown_minutes"`
+	Enabled                  bool                                 `json:"enabled"`
+	QualityMaxP50TTFTMs      *int                                 `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate    *float64                             `json:"quality_min_success_rate"`
+	QualityWindowSamples     *int                                 `json:"quality_window_samples"`
+	QualityWindowN           *int                                 `json:"quality_window_n"`
+	QualityMinSuccessSamples *int                                 `json:"quality_min_success_samples"`
+	QualityMinTTFTSamples    *int                                 `json:"quality_min_ttft_samples"`
+	QualityCondition         *string                              `json:"quality_condition"`
+	CooldownMinutes          int                                  `json:"cooldown_minutes"`
+	ProbeConcurrencyMode     string                               `json:"probe_concurrency_mode"`
+	ProbeConcurrency         *int                                 `json:"probe_concurrency"`
 	Accounts                 []service.SmartScheduleAccountMember `json:"accounts"`
 }
 
@@ -134,6 +136,8 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		QualityMinTTFTSamples:    req.QualityMinTTFTSamples,
 		QualityCondition:         req.QualityCondition,
 		CooldownMinutes:          req.CooldownMinutes,
+		ProbeConcurrencyMode:     req.ProbeConcurrencyMode,
+		ProbeConcurrency:         req.ProbeConcurrency,
 		Accounts:                 req.Accounts,
 	})
 	if err != nil {

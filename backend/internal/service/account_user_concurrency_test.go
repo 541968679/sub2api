@@ -141,6 +141,36 @@ func TestResolvePairSlotAcquire_ProbingUsesPolicyN(t *testing.T) {
 		require.Equal(t, 2, max)
 		require.True(t, track)
 	})
+
+	t.Run("custom 2 with cap 5 uses 2", func(t *testing.T) {
+		t.Parallel()
+		policy := enabledSmartPolicy(7, 5, nil)
+		policy.QualityWindowSamples = intPtr(10)
+		policy.ProbeConcurrencyMode = ProbeConcurrencyModeCustom
+		policy.ProbeConcurrency = intPtr(2)
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, policy),
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 2, max)
+		require.True(t, track)
+	})
+
+	t.Run("custom 10 with cap 3 uses member ceiling", func(t *testing.T) {
+		t.Parallel()
+		policy := enabledSmartPolicy(7, 3, nil)
+		policy.QualityWindowSamples = intPtr(10)
+		policy.ProbeConcurrencyMode = ProbeConcurrencyModeCustom
+		policy.ProbeConcurrency = intPtr(10)
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, policy),
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 3, max)
+		require.True(t, track)
+	})
 }
 
 func TestResolvePairSlotAcquire_ClosedPoolCapped(t *testing.T) {

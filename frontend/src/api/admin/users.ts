@@ -412,6 +412,9 @@ export {
   normalizeSmartSchedulePairQuality
 } from '@/utils/smartScheduleWindowN'
 
+/** Policy in-flight cap while probing. Not pair window N and not account-quality N. */
+export type SmartScheduleProbeConcurrencyMode = 'follow_n' | 'custom'
+
 export interface SmartSchedulePlatformView {
   enabled: boolean
   quality_max_p50_ttft_ms: number | null
@@ -424,6 +427,10 @@ export interface SmartSchedulePlatformView {
   quality_min_success_samples: number | null
   quality_min_ttft_samples: number | null
   quality_condition: 'or' | 'and' | null
+  /** `follow_n` (default) uses window N; `custom` uses `probe_concurrency`. */
+  probe_concurrency_mode?: SmartScheduleProbeConcurrencyMode | null
+  /** Custom probe in-flight cap (1–100). Meaningful when mode is `custom`. */
+  probe_concurrency?: number | null
   cooldown_minutes: number
   updated_at?: string
   accounts: SmartScheduleAccountMember[]
@@ -452,6 +459,8 @@ export interface SmartSchedulePlatformWrite {
   quality_min_success_samples?: number | null
   quality_min_ttft_samples?: number | null
   quality_condition?: 'or' | 'and' | null
+  probe_concurrency_mode?: SmartScheduleProbeConcurrencyMode | null
+  probe_concurrency?: number | null
   cooldown_minutes: number
   accounts: SmartScheduleAccountMember[]
 }

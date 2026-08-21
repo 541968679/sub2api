@@ -381,6 +381,8 @@ type cachedSmartSchedulePolicy struct {
 	QualityMinTTFTSamples    *int                        `json:"quality_min_ttft_samples,omitempty"`
 	QualityCondition         *string                     `json:"quality_condition,omitempty"`
 	CooldownMinutes          int                         `json:"cooldown_minutes"`
+	ProbeConcurrencyMode     string                      `json:"probe_concurrency_mode,omitempty"`
+	ProbeConcurrency         *int                        `json:"probe_concurrency,omitempty"`
 	Members                  []cachedSmartScheduleMember `json:"members,omitempty"`
 }
 
@@ -406,6 +408,8 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 			QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
 			QualityCondition:         policy.QualityCondition,
 			CooldownMinutes:          policy.CooldownMinutes,
+			ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
+			ProbeConcurrency:         policy.ProbeConcurrency,
 		}
 		for accountID := range policy.AccountIDs {
 			row.Members = append(row.Members, cachedSmartScheduleMember{
@@ -431,6 +435,8 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 			QualityMinTTFTSamples:    row.QualityMinTTFTSamples,
 			QualityCondition:         row.QualityCondition,
 			CooldownMinutes:          row.CooldownMinutes,
+			ProbeConcurrencyMode:     row.ProbeConcurrencyMode,
+			ProbeConcurrency:         row.ProbeConcurrency,
 			AccountIDs:               map[int64]struct{}{},
 			Caps:                     map[int64]int{},
 			Paused:                   map[int64]struct{}{},

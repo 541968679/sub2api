@@ -1,3 +1,57 @@
+## 2026-08-21 - fix: probe concurrency form no longer clamps invalid custom
+
+### What
+- Custom probe concurrency 0 / empty / >100 is rejected on save (`probeConcurrencyInvalid`), not clamped to 1–100 / default 10 before PUT.
+- Migration 208 adds a composite check so `custom` cannot persist without `probe_concurrency`.
+
+### Why
+- Contract is reject (`SMART_SCHEDULE_INVALID_QUALITY`), not silent fallback. The form used `clampSmartScheduleWindowN` on write.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`backend/migrations/208_user_smart_schedule_probe_concurrency.sql`.
+
+## 2026-08-21 - feat: user smart-schedule probe concurrency
+
+### What
+- User × platform smart-schedule policy adds 考察并发 next to window N: `probe_concurrency_mode` (`follow_n` default / `custom`) and `probe_concurrency` (1–100, required when custom).
+- Effective in-flight cap while probing is `min(desired, member cap)` or desired if unset. `follow_n` uses policy window N; `custom` uses the stored integer. Member `max_concurrency` is a hard ceiling. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY` (no silent fallback).
+- GET still returns computed `probe_cap` on probing rows and echoes mode + custom for form round-trip. Copy-from-platform copies probe settings as their own fields and does not copy account-quality N into them.
+- Persisted on `user_smart_schedule_policies` (migration 208). Not a new global setting and not `account_quality_window_n`.
+- Occupancy badge still prefers GET `probe_cap`; if missing, uses `min(selected, pair cap)` or selected.
+- Apply-template updates p50 / success / condition only. It does not overwrite pair window N or probe fields with account-quality N.
+
+### Why
+- Probe in-flight used to always follow window N. Admins need an independent 1–100 cap on the same policy page, without mixing in `account_quality_window_n`.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestProbeInFlightCap|TestNormalizeSmartScheduleWrite_Probe|TestResolvePairSlotAcquire_Probing|TestUserSmartScheduleService_GetHydratesProbing|TestUserSmartScheduleService_"`
+- `go test -tags=unit ./internal/repository -count=1 -run "CachedSmartScheduleBundle_Probe"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/migrations/208_user_smart_schedule_probe_concurrency.sql`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/tasks/08-21-smart-schedule-probe/research/probe-api-contract.md`.
+
 ## 2026-08-21 - fix: probe wiring aligned with landed backend
 
 ### What

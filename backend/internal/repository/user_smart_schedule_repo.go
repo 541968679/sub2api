@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -45,6 +46,11 @@ func (r *userSmartScheduleRepository) ListByUser(ctx context.Context, userID int
 	}); err != nil {
 		return nil, err
 	}
+	if err := overlaySmartScheduleProbeConcurrency(ctx, client, []int64{userID}, map[int64]*service.UserSmartScheduleBundle{
+		userID: bundle,
+	}); err != nil {
+		return nil, err
+	}
 	return bundle, nil
 }
 
@@ -84,6 +90,9 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 		out[userID] = assembleSmartScheduleBundle(policiesByUser[userID], membersByUser[userID])
 	}
 	if err := overlaySmartSchedulePaused(ctx, client, userIDs, out); err != nil {
+		return nil, err
+	}
+	if err := overlaySmartScheduleProbeConcurrency(ctx, client, userIDs, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -162,6 +171,9 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			}
 		}
 		if err := restoreSmartSchedulePaused(txCtx, client, userID, platform, keepPaused); err != nil {
+			return err
+		}
+		if err := writeSmartScheduleProbeConcurrency(txCtx, client, userID, platform, policy); err != nil {
 			return err
 		}
 		return nil
@@ -429,6 +441,75 @@ func overlaySmartSchedulePaused(
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("overlay smart schedule paused: %w", err)
+	}
+	return nil
+}
+
+func writeSmartScheduleProbeConcurrency(ctx context.Context, client *dbent.Client, userID int64, platform string, policy service.SmartSchedulePlatformWrite) error {
+	if client == nil || userID <= 0 || platform == "" {
+		return nil
+	}
+	mode, custom, err := service.NormalizeProbeConcurrencyWrite(policy.ProbeConcurrencyMode, policy.ProbeConcurrency)
+	if err != nil {
+		return err
+	}
+	var storedCustom any
+	if custom != nil {
+		storedCustom = *custom
+	}
+	if _, err := client.ExecContext(ctx, `
+		UPDATE user_smart_schedule_policies
+		SET probe_concurrency_mode = $3, probe_concurrency = $4
+		WHERE user_id = $1 AND platform = $2
+	`, userID, platform, mode, storedCustom); err != nil {
+		return fmt.Errorf("write smart schedule probe concurrency: %w", err)
+	}
+	return nil
+}
+
+func overlaySmartScheduleProbeConcurrency(
+	ctx context.Context,
+	client *dbent.Client,
+	userIDs []int64,
+	bundles map[int64]*service.UserSmartScheduleBundle,
+) error {
+	if client == nil || len(userIDs) == 0 || len(bundles) == 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT user_id, platform, probe_concurrency_mode, probe_concurrency
+		FROM user_smart_schedule_policies
+		WHERE user_id = ANY($1)
+	`, pq.Array(userIDs))
+	if err != nil {
+		return fmt.Errorf("overlay smart schedule probe concurrency: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var userID int64
+		var platform string
+		var mode sql.NullString
+		var custom sql.NullInt64
+		if err := rows.Scan(&userID, &platform, &mode, &custom); err != nil {
+			return fmt.Errorf("scan smart schedule probe concurrency: %w", err)
+		}
+		bundle := bundles[userID]
+		if bundle == nil || bundle.Policies == nil {
+			continue
+		}
+		policy := bundle.Policies[platform]
+		if policy == nil {
+			continue
+		}
+		var customPtr *int
+		if custom.Valid {
+			n := int(custom.Int64)
+			customPtr = &n
+		}
+		policy.ProbeConcurrencyMode, policy.ProbeConcurrency = service.EchoProbeConcurrency(mode.String, customPtr)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("overlay smart schedule probe concurrency: %w", err)
 	}
 	return nil
 }

@@ -323,6 +323,8 @@ function emptyPlatform() {
     quality_min_success_samples: null,
     quality_min_ttft_samples: null,
     quality_condition: null,
+    probe_concurrency_mode: 'follow_n' as const,
+    probe_concurrency: null,
     cooldown_minutes: 15,
     accounts: []
   }
@@ -352,6 +354,8 @@ function echoSmartScheduleWrite(
     quality_min_success_samples?: number | null
     quality_min_ttft_samples?: number | null
     quality_condition?: string | null
+    probe_concurrency_mode?: string | null
+    probe_concurrency?: number | null
     cooldown_minutes?: number
     accounts?: Array<{
       account_id: number
@@ -374,6 +378,8 @@ function echoSmartScheduleWrite(
         quality_min_success_samples: body.quality_min_success_samples ?? body.quality_window_n ?? null,
         quality_min_ttft_samples: body.quality_min_ttft_samples ?? body.quality_window_n ?? null,
         quality_condition: body.quality_condition ?? null,
+        probe_concurrency_mode: body.probe_concurrency_mode === 'custom' ? 'custom' : 'follow_n',
+        probe_concurrency: body.probe_concurrency_mode === 'custom' ? body.probe_concurrency ?? null : null,
         cooldown_minutes: body.cooldown_minutes ?? 15,
         accounts: body.accounts ?? []
       }
@@ -526,6 +532,12 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('min')).toBe('1')
     expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('max')).toBe('100')
     expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowN')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').exists()).toBe(true)
+    expect(
+      (thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').element as HTMLSelectElement).value
+    ).toBe('follow_n')
+    expect(thresholdGrid.find('[data-testid="smart-schedule-probe-concurrency"]').exists()).toBe(false)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.probeConcurrency')
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinSuccessSamples')
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinTtftSamples')
     expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown"]').exists()).toBe(true)
@@ -1219,9 +1231,91 @@ describe('UserSmartScheduleView', () => {
       expect.objectContaining({
         quality_window_n: 14,
         quality_min_success_samples: 14,
-        quality_min_ttft_samples: 14
+        quality_min_ttft_samples: 14,
+        probe_concurrency_mode: 'follow_n',
+        probe_concurrency: null
       })
     )
+  })
+
+  it('hides custom probe concurrency unless mode is custom, then saves the integer', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    const mode = w.get('[data-testid="smart-schedule-probe-concurrency-mode"]')
+    expect((mode.element as HTMLSelectElement).value).toBe('follow_n')
+    expect(w.find('[data-testid="smart-schedule-probe-concurrency"]').exists()).toBe(false)
+    await mode.setValue('custom')
+    await flushPromises()
+    const input = w.get('[data-testid="smart-schedule-probe-concurrency"]')
+    expect(input.attributes('min')).toBe('1')
+    expect(input.attributes('max')).toBe('100')
+    await input.setValue(6)
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({
+        probe_concurrency_mode: 'custom',
+        probe_concurrency: 6
+      })
+    )
+  })
+
+  it('rejects custom probe concurrency 0 / 101 / empty instead of clamping', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-probe-concurrency-mode"]').setValue('custom')
+    await flushPromises()
+    const input = w.get('[data-testid="smart-schedule-probe-concurrency"]')
+    await input.setValue(0)
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
+    await input.setValue(101)
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
+    await input.setValue('')
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).not.toHaveBeenCalled()
   })
 
   it('shows the dirty banner only for unsaved pair-cap or threshold drafts', async () => {
@@ -1769,6 +1863,33 @@ describe('UserSmartScheduleView', () => {
     })
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/10')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
+  })
+
+  it('computes the probe badge from custom concurrency when GET has no probe_cap', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          probe_concurrency_mode: 'custom',
+          probe_concurrency: 4,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 8, probing: true }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/4')
     expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
   })
 

@@ -265,6 +265,8 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 		QualityMinTTFTSamples:    from.QualityMinTTFTSamples,
 		QualityCondition:         from.QualityCondition,
 		CooldownMinutes:          from.CooldownMinutes,
+		ProbeConcurrencyMode:     from.ProbeConcurrencyMode,
+		ProbeConcurrency:         from.ProbeConcurrency,
 		Accounts:                 to.Accounts,
 	}
 	if write.Enabled && len(write.Accounts) == 0 {
@@ -398,13 +400,13 @@ func (s *UserSmartScheduleService) probeCapForPair(ctx context.Context, accountI
 		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
 		if err == nil && len(accounts) > 0 && accounts[0] != nil {
 			if policy := bundle.Policy(accounts[0].Platform); policy != nil {
-				return ProbeInFlightCap(policy.WindowN(), policy.PairCap(accountID))
+				return policy.ProbeInFlightCap(policy.PairCap(accountID))
 			}
 		}
 	}
 	for _, policy := range bundle.Policies {
 		if policy != nil && policy.HasAccount(accountID) {
-			return ProbeInFlightCap(policy.WindowN(), policy.PairCap(accountID))
+			return policy.ProbeInFlightCap(policy.PairCap(accountID))
 		}
 	}
 	return ProbeInFlightCap(n, memberCap)
@@ -554,6 +556,12 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 		write.QualityWindowSamples, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples = EchoSmartScheduleWindowN(n)
 		write.QualityWindowN = write.QualityWindowSamples
 	}
+	mode, custom, err := NormalizeProbeConcurrencyWrite(write.ProbeConcurrencyMode, write.ProbeConcurrency)
+	if err != nil {
+		return SmartSchedulePlatformWrite{}, err
+	}
+	write.ProbeConcurrencyMode = mode
+	write.ProbeConcurrency = custom
 	outMembers := make([]SmartScheduleAccountMember, 0, len(write.Accounts))
 	seen := map[int64]struct{}{}
 	for _, member := range write.Accounts {
@@ -761,7 +769,7 @@ func (s *UserSmartScheduleService) hydratePairProbing(ctx context.Context, userI
 		return
 	}
 	for platformKey, platform := range view.Platforms {
-		n := viewPolicyN(&platform)
+		desired := viewProbeDesired(&platform)
 		for i := range platform.Accounts {
 			if !probing[platform.Accounts[i].AccountID] {
 				continue
@@ -774,7 +782,7 @@ func (s *UserSmartScheduleService) hydratePairProbing(ctx context.Context, userI
 			if platform.Accounts[i].MaxConcurrency != nil {
 				memberCap = *platform.Accounts[i].MaxConcurrency
 			}
-			cap := ProbeInFlightCap(n, memberCap)
+			cap := ProbeInFlightCap(desired, memberCap)
 			platform.Accounts[i].ProbeCap = &cap
 		}
 		view.Platforms[platformKey] = platform
@@ -850,6 +858,17 @@ func viewPolicyN(platform *SmartSchedulePlatformView) int {
 		return DefaultSmartScheduleWindowN
 	}
 	return NormalizeSmartScheduleWindowN(platform.QualityWindowSamples, platform.QualityMinSuccessSamples, platform.QualityMinTTFTSamples)
+}
+
+func viewProbeDesired(platform *SmartSchedulePlatformView) int {
+	if platform == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	mode, custom := EchoProbeConcurrency(platform.ProbeConcurrencyMode, platform.ProbeConcurrency)
+	if mode == ProbeConcurrencyModeCustom && custom != nil {
+		return *custom
+	}
+	return viewPolicyN(platform)
 }
 
 func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, userID int64, platform string, accountID int64) (*SmartSchedulePairQualityDetail, error) {
@@ -1043,8 +1062,9 @@ func bundleToView(userID int64, bundle *UserSmartScheduleBundle) *UserSmartSched
 
 func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSchedulePlatformView {
 	view := SmartSchedulePlatformView{
-		CooldownMinutes: DefaultSmartScheduleCooldownMinutes,
-		Accounts:        []SmartScheduleAccountMember{},
+		CooldownMinutes:      DefaultSmartScheduleCooldownMinutes,
+		ProbeConcurrencyMode: ProbeConcurrencyModeFollowN,
+		Accounts:             []SmartScheduleAccountMember{},
 	}
 	if policy == nil {
 		return view
@@ -1058,6 +1078,7 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 		view.QualityWindowN = view.QualityWindowSamples
 	}
 	view.QualityCondition = policy.QualityCondition
+	view.ProbeConcurrencyMode, view.ProbeConcurrency = EchoProbeConcurrency(policy.ProbeConcurrencyMode, policy.ProbeConcurrency)
 	if policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
 		view.CooldownMinutes = policy.CooldownMinutes
 	}

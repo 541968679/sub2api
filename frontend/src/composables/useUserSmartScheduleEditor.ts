@@ -9,6 +9,7 @@ import type {
   SmartSchedulePairQuality,
   SmartSchedulePlatform,
   SmartSchedulePlatformView,
+  SmartScheduleProbeConcurrencyMode,
   UserSmartScheduleView
 } from '@/api/admin/users'
 import {
@@ -27,10 +28,13 @@ import {
 import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
 import {
   isCurrentlySchedulingAccount,
+  isValidProbeConcurrencyWrite,
   memberProbingFromApi,
   pickDefaultSmartSchedulePlatform,
+  probeConcurrencyWriteValue,
   readBackendProbeCap,
   resolvePairCap,
+  resolveProbeConcurrencyMode,
   userQualityResumeActive,
   userQualityResumeChipActive,
   type PairAdmissionLiveState
@@ -62,6 +66,8 @@ export type SmartSchedulePlatformDraft = {
   maxP50: number | ''
   successPercent: number | ''
   windowN: number | ''
+  probeConcurrencyMode: SmartScheduleProbeConcurrencyMode
+  probeConcurrency: number | ''
   condition: 'or' | 'and'
   cooldownMinutes: number
   accounts: SmartSchedulePoolMemberDraft[]
@@ -78,6 +84,8 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
     maxP50: row.maxP50,
     successPercent: row.successPercent,
     windowN: row.windowN,
+    probeConcurrencyMode: row.probeConcurrencyMode,
+    probeConcurrency: row.probeConcurrency,
     condition: row.condition,
     cooldownMinutes: row.cooldownMinutes,
     accounts: row.accounts.map((item) => ({
@@ -93,6 +101,8 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
     maxP50: '',
     successPercent: '',
     windowN: SMART_SCHEDULE_WINDOW_N_DEFAULT,
+    probeConcurrencyMode: 'follow_n',
+    probeConcurrency: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     condition: 'or',
     cooldownMinutes: 15,
     accounts: []
@@ -118,6 +128,11 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
             ? (parsed as { minTtftSamples: number }).minTtftSamples
             : null
       }),
+      probeConcurrencyMode: resolveProbeConcurrencyMode(parsed.probeConcurrencyMode),
+      probeConcurrency:
+        typeof parsed.probeConcurrency === 'number'
+          ? clampSmartScheduleWindowN(parsed.probeConcurrency)
+          : SMART_SCHEDULE_WINDOW_N_DEFAULT,
       condition: parsed.condition === 'and' ? 'and' : 'or',
       cooldownMinutes: parsed.cooldownMinutes || 15,
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
@@ -205,6 +220,11 @@ export function useUserSmartScheduleEditor(
     draft.maxP50 = view.quality_max_p50_ttft_ms ?? ''
     draft.successPercent = successRateToPercent(view.quality_min_success_rate) ?? ''
     draft.windowN = resolveSmartScheduleWindowN(view)
+    draft.probeConcurrencyMode = resolveProbeConcurrencyMode(view.probe_concurrency_mode)
+    draft.probeConcurrency =
+      view.probe_concurrency != null && Number.isFinite(view.probe_concurrency)
+        ? clampSmartScheduleWindowN(view.probe_concurrency)
+        : draft.windowN
     draft.condition = view.quality_condition === 'and' ? 'and' : 'or'
     draft.cooldownMinutes = view.cooldown_minutes || 15
     draft.accounts = (view.accounts ?? []).map((item) => ({
@@ -266,10 +286,6 @@ export function useUserSmartScheduleEditor(
     if (!currentDraft.value) return
     currentDraft.value.maxP50 = fields.quality_max_p50_ttft_ms ?? ''
     currentDraft.value.successPercent = fields.quality_min_success_rate_percent ?? ''
-    currentDraft.value.windowN = resolveSmartScheduleWindowN({
-      quality_min_success_samples: fields.quality_min_success_samples,
-      quality_min_ttft_samples: fields.quality_min_ttft_samples
-    })
     currentDraft.value.condition = fields.quality_condition
   }
 
@@ -780,6 +796,11 @@ export function useUserSmartScheduleEditor(
       quality_min_success_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
       quality_min_ttft_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
       quality_condition: draft.condition,
+      probe_concurrency_mode: resolveProbeConcurrencyMode(draft.probeConcurrencyMode),
+      probe_concurrency: probeConcurrencyWriteValue({
+        mode: draft.probeConcurrencyMode,
+        probeConcurrency: draft.probeConcurrency
+      }),
       cooldown_minutes: draft.cooldownMinutes || 15,
       accounts: draft.accounts.map((item) => ({
         account_id: item.account_id,
@@ -825,6 +846,15 @@ export function useUserSmartScheduleEditor(
     if (nextEnabled && currentDraft.value.accounts.length === 0) {
       emptyPoolError.value = true
       currentDraft.value.enabled = false
+      return false
+    }
+    if (
+      !isValidProbeConcurrencyWrite({
+        mode: currentDraft.value.probeConcurrencyMode,
+        probeConcurrency: currentDraft.value.probeConcurrency
+      })
+    ) {
+      appStore.showError(t('admin.users.smartSchedule.probeConcurrencyInvalid'))
       return false
     }
     submitting.value = true

@@ -352,10 +352,10 @@ func pairQualityBlocks(live *PairQualityLive, policy *SmartSchedulePlatformPolic
 }
 
 // ProbeInFlightCap is the probing in-flight pair slot cap.
-// N is the smart-schedule policy window (1–100, default 10), not account-quality N.
-// Member cap >= 1 → min(N, cap). No cap → N (never unlimited / never 999).
-func ProbeInFlightCap(windowN, memberCap int) int {
-	n := ClampSmartScheduleWindowN(windowN)
+// desired is follow_n window N or a custom 1–100 value — not account-quality N.
+// Member cap >= 1 → min(desired, cap). No cap → desired (never unlimited / never 999).
+func ProbeInFlightCap(desired, memberCap int) int {
+	n := ClampSmartScheduleWindowN(desired)
 	if memberCap >= 1 && memberCap < n {
 		return memberCap
 	}

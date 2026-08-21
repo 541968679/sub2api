@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 const (
@@ -11,6 +13,8 @@ const (
 	MinSmartScheduleCooldownMinutes     = 1
 	MaxSmartScheduleCooldownMinutes     = 1440
 	SmartScheduleUserCacheTTL           = 10 * time.Minute
+	ProbeConcurrencyModeFollowN         = "follow_n"
+	ProbeConcurrencyModeCustom          = "custom"
 )
 
 // SmartScheduleAccountMember is one pool member + optional pair cap.
@@ -18,11 +22,11 @@ const (
 // CooldownUntil is read-only: when the pair cooldown HASH field is still in the future.
 // Paused is a durable user×account skip; the account stays in the pool. Writes ignore it.
 type SmartScheduleAccountMember struct {
-	AccountID          int64      `json:"account_id"`
-	Platform           string     `json:"platform"`
-	MaxConcurrency     *int       `json:"max_concurrency,omitempty"`
-	SortOrder          *int       `json:"sort_order"`
-	Priority           int        `json:"priority"` // read-only live accounts.priority; writes ignore
+	AccountID          int64                         `json:"account_id"`
+	Platform           string                        `json:"platform"`
+	MaxConcurrency     *int                          `json:"max_concurrency,omitempty"`
+	SortOrder          *int                          `json:"sort_order"`
+	Priority           int                           `json:"priority"` // read-only live accounts.priority; writes ignore
 	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
@@ -48,6 +52,8 @@ type SmartSchedulePlatformPolicy struct {
 	QualityMinTTFTSamples    *int
 	QualityCondition         *string
 	CooldownMinutes          int
+	ProbeConcurrencyMode     string
+	ProbeConcurrency         *int
 	UpdatedAt                time.Time
 	AccountIDs               map[int64]struct{}
 	Caps                     map[int64]int
@@ -108,6 +114,25 @@ func (p *SmartSchedulePlatformPolicy) MemberCount() int {
 		return 0
 	}
 	return len(p.AccountIDs)
+}
+
+// ProbeDesiredConcurrency is the probing in-flight target before the member cap ceiling.
+// follow_n / omit / invalid stored custom → window N. custom + 1–100 → that number.
+// This is not account_quality_window_n.
+func (p *SmartSchedulePlatformPolicy) ProbeDesiredConcurrency() int {
+	if p == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	mode, custom := EchoProbeConcurrency(p.ProbeConcurrencyMode, p.ProbeConcurrency)
+	if mode == ProbeConcurrencyModeCustom && custom != nil {
+		return *custom
+	}
+	return p.WindowN()
+}
+
+// ProbeInFlightCap is min(desired, memberCap) or desired when the member has no cap.
+func (p *SmartSchedulePlatformPolicy) ProbeInFlightCap(memberCap int) int {
+	return ProbeInFlightCap(p.ProbeDesiredConcurrency(), memberCap)
 }
 
 // UserSmartScheduleBundle is the cached per-user map of platform policies.
@@ -190,6 +215,8 @@ type SmartSchedulePlatformWrite struct {
 	QualityMinTTFTSamples    *int
 	QualityCondition         *string
 	CooldownMinutes          int
+	ProbeConcurrencyMode     string
+	ProbeConcurrency         *int
 	Accounts                 []SmartScheduleAccountMember
 }
 
@@ -204,6 +231,8 @@ type SmartSchedulePlatformView struct {
 	QualityMinTTFTSamples    *int                         `json:"quality_min_ttft_samples"`
 	QualityCondition         *string                      `json:"quality_condition"`
 	CooldownMinutes          int                          `json:"cooldown_minutes"`
+	ProbeConcurrencyMode     string                       `json:"probe_concurrency_mode"`
+	ProbeConcurrency         *int                         `json:"probe_concurrency"`
 	UpdatedAt                time.Time                    `json:"updated_at,omitempty"`
 	Accounts                 []SmartScheduleAccountMember `json:"accounts"`
 }
@@ -241,6 +270,48 @@ func ClampSmartScheduleCooldownMinutes(minutes int) int {
 		return MaxSmartScheduleCooldownMinutes
 	}
 	return minutes
+}
+
+func NormalizeProbeConcurrencyMode(raw string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	if mode == "" {
+		return ProbeConcurrencyModeFollowN, nil
+	}
+	switch mode {
+	case ProbeConcurrencyModeFollowN, ProbeConcurrencyModeCustom:
+		return mode, nil
+	default:
+		return "", infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "probe_concurrency_mode must be follow_n or custom")
+	}
+}
+
+// NormalizeProbeConcurrencyWrite validates admin writes.
+// omit/empty mode → follow_n and ignore custom. custom requires 1–100.
+func NormalizeProbeConcurrencyWrite(mode string, custom *int) (string, *int, error) {
+	normalized, err := NormalizeProbeConcurrencyMode(mode)
+	if err != nil {
+		return "", nil, err
+	}
+	if normalized == ProbeConcurrencyModeFollowN {
+		return ProbeConcurrencyModeFollowN, nil, nil
+	}
+	if custom == nil {
+		return "", nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "probe_concurrency is required when probe_concurrency_mode is custom")
+	}
+	if *custom < MinSmartScheduleWindowN || *custom > MaxSmartScheduleWindowN {
+		return "", nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "probe_concurrency must be between 1 and 100")
+	}
+	copied := *custom
+	return ProbeConcurrencyModeCustom, &copied, nil
+}
+
+// EchoProbeConcurrency is the GET/cache shape. Invalid stored custom falls back to follow_n.
+func EchoProbeConcurrency(mode string, custom *int) (string, *int) {
+	normalized, value, err := NormalizeProbeConcurrencyWrite(mode, custom)
+	if err != nil {
+		return ProbeConcurrencyModeFollowN, nil
+	}
+	return normalized, value
 }
 
 func normalizeSmartSchedulePlatform(platform string) string {

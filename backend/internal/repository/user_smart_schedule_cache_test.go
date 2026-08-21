@@ -126,6 +126,23 @@ func TestUserSmartScheduleCache_ApplyMemberPausedWriteThrough(t *testing.T) {
 	require.False(t, cache.Lookup(ctx, 16).Policies[service.PlatformAnthropic].IsPaused(7))
 }
 
+func TestCachedSmartScheduleBundle_ProbeConcurrencyRoundTrip(t *testing.T) {
+	stored := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:              true,
+			CooldownMinutes:      15,
+			QualityWindowSamples: intPtrRepo(10),
+			ProbeConcurrencyMode: service.ProbeConcurrencyModeCustom,
+			ProbeConcurrency:     intPtrRepo(2),
+			AccountIDs:           map[int64]struct{}{7: {}},
+		},
+	}})
+	got := stored.toBundle()
+	require.Equal(t, service.ProbeConcurrencyModeCustom, got.Policies[service.PlatformAnthropic].ProbeConcurrencyMode)
+	require.Equal(t, 2, *got.Policies[service.PlatformAnthropic].ProbeConcurrency)
+	require.Equal(t, 2, got.Policies[service.PlatformAnthropic].ProbeInFlightCap(5))
+}
+
 func TestCachedSmartScheduleBundle_PausedRoundTrip(t *testing.T) {
 	stored := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
 		service.PlatformAnthropic: {

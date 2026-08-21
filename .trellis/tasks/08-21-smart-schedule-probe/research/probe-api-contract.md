@@ -48,8 +48,18 @@ API / Redis / Go constants (do not invent a sixth state or `unpause`):
 | `probing` | `true` iff this write landed in 考察. Always present (`false` otherwise). |
 | `probe_cap` | Present only when `state=probing`. In-flight cap actually enforced. |
 
-`probe_cap` = `min(N, member_pair_cap)` if the member has a cap ≥ 1, else N.  
-N = this user×platform smart-schedule `quality_window_samples` (1–100, default 10). **Not** account-quality global N.
+`probe_cap` = `min(desired, member_pair_cap)` if the member has a cap ≥ 1, else desired.
+
+`desired` comes from this user×platform policy:
+
+| `probe_concurrency_mode` | `probe_concurrency` | desired |
+| --- | --- | --- |
+| omit / empty / `follow_n` | ignored | window N (`quality_window_samples`, 1–100, default 10) |
+| `custom` | required integer 1–100 | that number |
+
+Member `max_concurrency` is a hard ceiling. **Not** account-quality global N. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY` (do not silently fall back).
+
+GET `/admin/users/:id/smart-schedule` also echoes policy fields `probe_concurrency_mode` and `probe_concurrency` so the form can round-trip. Copy-from-platform copies these as their own fields; it must not copy account-quality N into `probe_concurrency`.
 
 ### GET pool row — how the UI knows a pair is probing
 

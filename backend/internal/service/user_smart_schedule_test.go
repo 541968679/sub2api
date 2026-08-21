@@ -295,6 +295,8 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
 		QualityCondition:         policy.QualityCondition,
 		CooldownMinutes:          policy.CooldownMinutes,
+		ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
+		ProbeConcurrency:         policy.ProbeConcurrency,
 		AccountIDs:               map[int64]struct{}{},
 		Caps:                     map[int64]int{},
 		SortOrders:               map[int64]int{},
@@ -476,6 +478,32 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		require.Len(t, dest.Accounts, 1)
 		require.Equal(t, int64(12), dest.Accounts[0].AccountID)
 		require.Equal(t, 4, *dest.Accounts[0].MaxConcurrency)
+		require.Equal(t, ProbeConcurrencyModeFollowN, dest.ProbeConcurrencyMode)
+		require.Nil(t, dest.ProbeConcurrency)
+	})
+
+	t.Run("copy copies probe settings as their own fields", func(t *testing.T) {
+		t.Parallel()
+		from := enabledSmartPolicy(11, 3, intPtr(800))
+		from.QualityWindowSamples = intPtr(14)
+		from.ProbeConcurrencyMode = ProbeConcurrencyModeCustom
+		from.ProbeConcurrency = intPtr(2)
+		localRepo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, from)}
+		localRepo.bundle.Policies[PlatformOpenAI] = &SmartSchedulePlatformPolicy{
+			Enabled:         false,
+			CooldownMinutes: 15,
+			AccountIDs:      map[int64]struct{}{12: {}},
+			Caps:            map[int64]int{12: 4},
+		}
+		local := NewUserSmartScheduleService(localRepo, nil, accounts, nil, nil)
+		view, err := local.CopyPlatform(ctx, 16, PlatformOpenAI, PlatformAnthropic)
+		require.NoError(t, err)
+		dest := view.Platforms[PlatformOpenAI]
+		require.Equal(t, ProbeConcurrencyModeCustom, dest.ProbeConcurrencyMode)
+		require.NotNil(t, dest.ProbeConcurrency)
+		require.Equal(t, 2, *dest.ProbeConcurrency)
+		require.Equal(t, 14, *dest.QualityWindowSamples)
+		require.NotEqual(t, *dest.QualityWindowSamples, *dest.ProbeConcurrency)
 	})
 
 	t.Run("copy onto empty dest forces enabled off", func(t *testing.T) {

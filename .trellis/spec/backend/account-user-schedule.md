@@ -133,7 +133,7 @@ if pairFull {
 
 ### 2. Signatures
 
-- DB `user_smart_schedule_policies`: unique `(user_id, platform)`; `enabled bool`; quality columns same shape as pair gates; one window size N stored in both `quality_min_success_samples` and `quality_min_ttft_samples` (default 10, clamp **1–100**). API field `quality_window_samples` (alias `quality_window_n`). `cooldown_minutes` 1–1440 default 15. Platforms: `anthropic|openai|gemini|antigravity|grok`.
+- DB `user_smart_schedule_policies`: unique `(user_id, platform)`; `enabled bool`; quality columns same shape as pair gates; one window size N stored in both `quality_min_success_samples` and `quality_min_ttft_samples` (default 10, clamp **1–100**). API field `quality_window_samples` (alias `quality_window_n`). Probe in-flight: `probe_concurrency_mode` (`follow_n` default / `custom`) + optional `probe_concurrency` (1–100, required when custom). This is **not** `account_quality_window_n`. `cooldown_minutes` 1–1440 default 15. Platforms: `anthropic|openai|gemini|antigravity|grok`.
 - DB `user_smart_schedule_accounts`: PK `(user_id, account_id)`; redundant `platform`; `max_concurrency` null or ≥1; `paused bool` default false (migration 207). Member `account.platform` must equal row `platform`. CASCADE from users/accounts. PUT replace-all restores `paused` for members that remain. Client writes ignore `paused`.
 - Domain: `SmartSchedulePolicy` / `EnabledPolicy(userID, platform)` — nil when missing, disabled, or `MemberCount()==0`.
 - Redis user cache: `smart-schedule:user:{userID}` JSON of all platforms; invalidate on PUT/copy.
@@ -144,13 +144,13 @@ if pairFull {
 
 ### 3. Contracts
 
-PUT body: `{enabled, quality_*, quality_window_samples|quality_window_n, cooldown_minutes, accounts:[{account_id, max_concurrency?}]}`. Copy copies enabled/thresholds/N/cooldown only, never members or caps. GET shows `enabled=false` when the stored row is enabled but the pool is empty. GET echoes `quality_window_samples`, `quality_window_n`, and both old sample fields as the same N.
+PUT body: `{enabled, quality_*, quality_window_samples|quality_window_n, probe_concurrency_mode, probe_concurrency, cooldown_minutes, accounts:[{account_id, max_concurrency?}]}`. Copy copies enabled/thresholds/N/cooldown/probe settings only, never members or caps. Do not copy account-quality N into `probe_concurrency`. GET shows `enabled=false` when the stored row is enabled but the pool is empty. GET echoes `quality_window_samples`, `quality_window_n`, and both old sample fields as the same N, plus `probe_concurrency_mode` / `probe_concurrency` (omit/empty mode → `follow_n`).
 
 Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’s cooldown field, **zeros both pair windows**, clears `paused` and the probe mark, and writes `account-quality:resume` `u:`+`w:` grace. Completions during grace **do enter** the windows; evaluate is skipped until `u:`/`w:` expire. After grace the pair is 调度 (`selectable`): **keep** in-grace windows, then evaluate with selectable rules (may cool immediately). Grace end does **not** enter 考察.
 
 `selectable` (调度) clears `paused`, `HDEL`s cooldown, **zeros both windows**, `ClearUserResume` (deletes `u:` **and** `w:`), and clears the probe mark. There is **no** 15-minute watching fail-open. Re-accumulate N before cooldown.
 
-`probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearUserResume` (no `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(N, member cap)` or N if unset. N is the smart-schedule policy window (1–100, default 10), **not** account-quality global N. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
+`probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearUserResume` (no `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(desired, member cap)` or desired if unset. `desired` is window N when `probe_concurrency_mode=follow_n` (omit/empty), or `probe_concurrency` (1–100) when `custom`. Member `max_concurrency` is a hard ceiling. This is **not** account-quality global N. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY`; do not silently fall back. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
 
 `cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark, no time grace.
 
@@ -167,7 +167,7 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 | `enabled=true` and zero members | `SMART_SCHEDULE_EMPTY_POOL` (write). Runtime: treat as disabled (legacy). |
 | Unknown / wrong-platform account id | `SMART_SCHEDULE_INVALID_ACCOUNT` |
 | `cooldown_minutes` out of 1–1440 | `SMART_SCHEDULE_INVALID_COOLDOWN` |
-| Invalid quality metric / condition / N outside 1–100 | `SMART_SCHEDULE_INVALID_QUALITY` |
+| Invalid quality metric / condition / N outside 1–100 / invalid probe concurrency | `SMART_SCHEDULE_INVALID_QUALITY` |
 | Copy `from_platform` missing or same | `SMART_SCHEDULE_COPY_INVALID` |
 | `userID<=0` or cache miss | legacy rules only |
 
@@ -182,7 +182,8 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 
 - `EnabledPolicy`: off / empty / one member; pool miss vs hit; ignore legacy deny/gate/cap when enabled.
 - Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); probe `and` mixed→cool; pause does not auto-probe; 调度→考察 zeros; no backfill.
-- Admin: reject enabled+empty; GET masks empty as disabled; copy omits accounts; delete-last auto-disables.
+- Admin: reject enabled+empty; GET masks empty as disabled; copy omits accounts; copy probe settings as their own fields (not account-quality N); delete-last auto-disables.
+- Probe concurrency: omit → follow_n; follow_n + cap / no cap; custom 2 with cap 5 → 2; custom 10 with cap 3 → 3; custom 0 / missing number rejected.
 - Select/sticky: Anthropic, OpenAI advanced+fallback, WS, Gemini all go through `admitsScheduleUser` + injected cache.
 
 ### 7. Wrong vs Correct
