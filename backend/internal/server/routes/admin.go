@@ -297,9 +297,12 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.GET("/:id/smart-schedule/pnl/trend", h.Admin.User.GetSmartSchedulePnlTrend)
 		users.POST("/:id/smart-schedule/pnl/pairs", h.Admin.User.GetSmartSchedulePnlPairs)
 		users.GET("/:id/smart-schedule", h.Admin.User.GetUserSmartSchedule)
+		users.POST("/:id/smart-schedule/pair-quality", h.Admin.User.GetUserSmartSchedulePairQualityBatch)
+		users.GET("/:id/smart-schedule/pair-quality/:accountId", h.Admin.User.GetUserSmartSchedulePairQualityByAccount)
 		users.PUT("/:id/smart-schedule/:platform", h.Admin.User.UpdateUserSmartSchedule)
 		users.PATCH("/:id/smart-schedule/:platform/sort-order", h.Admin.User.PatchUserSmartScheduleSortOrder)
 		users.POST("/:id/smart-schedule/:platform/copy", h.Admin.User.CopyUserSmartSchedule)
+		users.GET("/:id/smart-schedule/:platform/accounts/:account_id/pair-quality", h.Admin.User.GetUserSmartSchedulePairQuality)
 
 		// User attribute values
 		users.GET("/:id/attributes", h.Admin.UserAttribute.GetUserAttributes)

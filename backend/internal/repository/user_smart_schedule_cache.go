@@ -82,7 +82,7 @@ func (c *userSmartScheduleCache) CooldownActive(ctx context.Context, accountID, 
 	until, parseErr := strconv.ParseInt(raw, 10, 64)
 	if parseErr != nil || until <= now.Unix() {
 		if until > 0 && until <= now.Unix() {
-			_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
+			c.expirePairCooldown(ctx, accountID, userID)
 		}
 		return false
 	}
@@ -103,6 +103,11 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 	}
 	ttl := time.Duration(minutes)*time.Minute + smartScheduleCooldownTTLBuffer
 	c.extendCooldownTTL(ctx, key, ttl)
+	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		Ts:    now.Unix(),
+		Type:  service.PairQualityEventCooldownStart,
+		Until: &until,
+	})
 }
 
 // SetCooldown overwrites the pair cooldown (admin switcher). Hot path stays HSETNX.
@@ -117,10 +122,16 @@ func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, use
 		until = now.Add(time.Duration(minutes) * time.Minute)
 	}
 	key := smartScheduleCooldownKey(accountID)
-	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), until.Unix()).Err(); err != nil {
+	untilUnix := until.Unix()
+	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), untilUnix).Err(); err != nil {
 		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
+	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		Ts:    now.Unix(),
+		Type:  service.PairQualityEventCooldownStart,
+		Until: &untilUnix,
+	})
 	return until, nil
 }
 
@@ -194,7 +205,25 @@ func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, u
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return nil
 	}
-	return c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
+	n, err := c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Result()
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+			Ts:   time.Now().UTC().Unix(),
+			Type: service.PairQualityEventCooldownEnd,
+		})
+	}
+	return nil
+}
+
+func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
+	c.ZeroPairQuality(ctx, accountID, userID, service.PairQualityEventExpiryZero)
 }
 
 func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time {
@@ -231,6 +260,9 @@ func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, acco
 		}
 		until, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil || until <= nowUnix {
+			if until > 0 && until <= nowUnix {
+				c.expirePairCooldown(ctx, ids[i], userID)
+			}
 			continue
 		}
 		out[ids[i]] = time.Unix(until, 0).UTC()
@@ -259,6 +291,7 @@ type cachedSmartSchedulePolicy struct {
 	Enabled                  bool                        `json:"enabled"`
 	QualityMaxP50TTFTMs      *int                        `json:"quality_max_p50_ttft_ms,omitempty"`
 	QualityMinSuccessRate    *float64                    `json:"quality_min_success_rate,omitempty"`
+	QualityWindowSamples     *int                        `json:"quality_window_samples,omitempty"`
 	QualityMinSuccessSamples *int                        `json:"quality_min_success_samples,omitempty"`
 	QualityMinTTFTSamples    *int                        `json:"quality_min_ttft_samples,omitempty"`
 	QualityCondition         *string                     `json:"quality_condition,omitempty"`
@@ -283,6 +316,7 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 			Enabled:                  policy.Enabled,
 			QualityMaxP50TTFTMs:      policy.QualityMaxP50TTFTMs,
 			QualityMinSuccessRate:    policy.QualityMinSuccessRate,
+			QualityWindowSamples:     policy.QualityWindowSamples,
 			QualityMinSuccessSamples: policy.QualityMinSuccessSamples,
 			QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
 			QualityCondition:         policy.QualityCondition,
@@ -307,6 +341,7 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 			Enabled:                  row.Enabled,
 			QualityMaxP50TTFTMs:      row.QualityMaxP50TTFTMs,
 			QualityMinSuccessRate:    row.QualityMinSuccessRate,
+			QualityWindowSamples:     row.QualityWindowSamples,
 			QualityMinSuccessSamples: row.QualityMinSuccessSamples,
 			QualityMinTTFTSamples:    row.QualityMinTTFTSamples,
 			QualityCondition:         row.QualityCondition,

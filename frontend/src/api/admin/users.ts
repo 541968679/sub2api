@@ -6,6 +6,7 @@
 import { apiClient } from '../client'
 import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, DownstreamUsageTokenMode, UserStatus } from '@/types'
 import type { BatchQualityStatsResponse } from './accounts'
+import { normalizeSmartSchedulePairQuality } from '@/utils/smartScheduleWindowN'
 
 export interface AdminBindAuthIdentityChannelRequest {
   channel: string
@@ -395,10 +396,24 @@ export interface SmartScheduleSortAssignment {
   sort_order: number
 }
 
+export {
+  SMART_SCHEDULE_WINDOW_N_DEFAULT,
+  SMART_SCHEDULE_WINDOW_N_MIN,
+  SMART_SCHEDULE_WINDOW_N_MAX,
+  clampSmartScheduleWindowN,
+  resolveSmartScheduleWindowN,
+  normalizeSmartSchedulePairQuality
+} from '@/utils/smartScheduleWindowN'
+
 export interface SmartSchedulePlatformView {
   enabled: boolean
   quality_max_p50_ttft_ms: number | null
   quality_min_success_rate: number | null
+  /** Preferred single N for both pair windows. */
+  quality_window_n?: number | null
+  /** Canonical backend N echo; same value as quality_window_n. */
+  quality_window_samples?: number | null
+  /** Legacy GET echo; same N as quality_window_n after the pairing change. */
   quality_min_success_samples: number | null
   quality_min_ttft_samples: number | null
   quality_condition: 'or' | 'and' | null
@@ -426,11 +441,46 @@ export interface SmartSchedulePlatformWrite {
   enabled: boolean
   quality_max_p50_ttft_ms?: number | null
   quality_min_success_rate?: number | null
+  quality_window_n?: number | null
   quality_min_success_samples?: number | null
   quality_min_ttft_samples?: number | null
   quality_condition?: 'or' | 'and' | null
   cooldown_minutes: number
   accounts: SmartScheduleAccountMember[]
+}
+
+export type SmartSchedulePairQuality = {
+  ttft_p50_ms?: number | null
+  success_rate?: number | null
+  ttft_samples: number
+  ok_samples: number
+  n: number
+}
+
+export type SmartSchedulePairQualitySnapshot = SmartSchedulePairQuality & {
+  captured_at: string
+}
+
+export type SmartSchedulePairQualityEventType =
+  | 'cooldown_start'
+  | 'cooldown_end'
+  | 'resumed'
+  | 'selectable'
+  | 'expiry_zero'
+
+export type SmartSchedulePairQualityEvent = {
+  at: string
+  type: SmartSchedulePairQualityEventType | string
+}
+
+export type BatchSmartSchedulePairQualityResponse = {
+  pairs: Record<string, SmartSchedulePairQuality>
+}
+
+export type SmartSchedulePairQualityDetail = {
+  current?: SmartSchedulePairQuality | null
+  snapshots: SmartSchedulePairQualitySnapshot[]
+  events: SmartSchedulePairQualityEvent[]
 }
 
 export async function getSmartSchedule(id: number): Promise<UserSmartScheduleView> {
@@ -551,6 +601,63 @@ export async function getSmartSchedulePnlPairs(
   return data
 }
 
+export async function getSmartSchedulePairQualityBatch(
+  userId: number,
+  accountIds: number[]
+): Promise<BatchSmartSchedulePairQualityResponse> {
+  const { data } = await apiClient.post<
+    BatchSmartSchedulePairQualityResponse & { stats?: Record<string, SmartSchedulePairQuality> }
+  >(
+    `/admin/users/${userId}/smart-schedule/pair-quality`,
+    { account_ids: accountIds }
+  )
+  const bag = data.pairs ?? data.stats ?? {}
+  const pairs: Record<string, SmartSchedulePairQuality> = {}
+  for (const [key, value] of Object.entries(bag)) {
+    const normalized = normalizeSmartSchedulePairQuality(value)
+    if (normalized) pairs[key] = normalized
+  }
+  return { pairs }
+}
+
+function rfc3339FromUnixSeconds(ts: number | null | undefined): string {
+  if (typeof ts !== 'number' || !Number.isFinite(ts) || ts <= 0) return ''
+  return new Date(ts * 1000).toISOString()
+}
+
+type SmartSchedulePairQualityDetailResponse = {
+  current?: SmartSchedulePairQuality | null
+  live?: SmartSchedulePairQuality | null
+  snapshots?: Array<Partial<SmartSchedulePairQualitySnapshot> & { ts?: number }>
+  events?: Array<Partial<SmartSchedulePairQualityEvent> & { ts?: number; type?: string }>
+}
+
+export async function getSmartSchedulePairQualityDetail(
+  userId: number,
+  accountId: number
+): Promise<SmartSchedulePairQualityDetail> {
+  const { data } = await apiClient.get<SmartSchedulePairQualityDetailResponse>(
+    `/admin/users/${userId}/smart-schedule/pair-quality/${accountId}`
+  )
+  return {
+    current: normalizeSmartSchedulePairQuality(data.current ?? data.live),
+    snapshots: (data.snapshots ?? [])
+      .map((point) => {
+        const normalized = normalizeSmartSchedulePairQuality(point)
+        if (!normalized) return null
+        return {
+          ...normalized,
+          captured_at: point.captured_at || rfc3339FromUnixSeconds(point.ts)
+        }
+      })
+      .filter((point): point is SmartSchedulePairQualitySnapshot => point != null),
+    events: (data.events ?? []).map((event) => ({
+      type: event.type ?? '',
+      at: event.at || rfc3339FromUnixSeconds(event.ts)
+    }))
+  }
+}
+
 export async function getSmartSchedulePnlTrend(
   userId: number,
   range: SchedulePnlTrendRange = '24h',
@@ -601,6 +708,8 @@ export const usersAPI = {
   getBatchSmartSchedulePnlSummaries,
   getSmartSchedulePnlPairs,
   getSmartSchedulePnlTrend,
+  getSmartSchedulePairQualityBatch,
+  getSmartSchedulePairQualityDetail,
   getBatchQualityStats,
 }
 

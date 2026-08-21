@@ -6,16 +6,21 @@ import type { Account, WindowStats } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import type {
   SchedulePnlSummary,
+  SmartSchedulePairQuality,
   SmartSchedulePlatform,
   SmartSchedulePlatformView,
   UserSmartScheduleView
 } from '@/api/admin/users'
+import {
+  SMART_SCHEDULE_WINDOW_N_DEFAULT,
+  clampSmartScheduleWindowN,
+  resolveSmartScheduleWindowN
+} from '@/utils/smartScheduleWindowN'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
   ACCOUNT_QUALITY_WINDOW_SECONDS,
-  applyQualityGateFormToDraft,
+  optionalNumber,
   percentToSuccessRate,
-  qualityGateFormFromDraft,
   successRateToPercent,
   type QualityGateFormFields
 } from '@/utils/accountQualityHardClose'
@@ -52,8 +57,7 @@ export type SmartSchedulePlatformDraft = {
   enabled: boolean
   maxP50: number | ''
   successPercent: number | ''
-  minSuccessSamples: number | ''
-  minTtftSamples: number | ''
+  windowN: number | ''
   condition: 'or' | 'and'
   cooldownMinutes: number
   accounts: SmartSchedulePoolMemberDraft[]
@@ -69,8 +73,7 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
     enabled: row.enabled,
     maxP50: row.maxP50,
     successPercent: row.successPercent,
-    minSuccessSamples: row.minSuccessSamples,
-    minTtftSamples: row.minTtftSamples,
+    windowN: row.windowN,
     condition: row.condition,
     cooldownMinutes: row.cooldownMinutes,
     accounts: row.accounts.map((item) => ({
@@ -85,8 +88,7 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
     enabled: false,
     maxP50: '',
     successPercent: '',
-    minSuccessSamples: '',
-    minTtftSamples: '',
+    windowN: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     condition: 'or',
     cooldownMinutes: 15,
     accounts: []
@@ -101,8 +103,17 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
       enabled: Boolean(parsed.enabled),
       maxP50: parsed.maxP50 ?? '',
       successPercent: parsed.successPercent ?? '',
-      minSuccessSamples: parsed.minSuccessSamples ?? '',
-      minTtftSamples: parsed.minTtftSamples ?? '',
+      windowN: resolveSmartScheduleWindowN({
+        quality_window_n: typeof parsed.windowN === 'number' ? parsed.windowN : null,
+        quality_min_success_samples:
+          typeof (parsed as { minSuccessSamples?: number }).minSuccessSamples === 'number'
+            ? (parsed as { minSuccessSamples: number }).minSuccessSamples
+            : null,
+        quality_min_ttft_samples:
+          typeof (parsed as { minTtftSamples?: number }).minTtftSamples === 'number'
+            ? (parsed as { minTtftSamples: number }).minTtftSamples
+            : null
+      }),
       condition: parsed.condition === 'and' ? 'and' : 'or',
       cooldownMinutes: parsed.cooldownMinutes || 15,
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
@@ -154,6 +165,7 @@ export function useUserSmartScheduleEditor(
   const qualityStatsById = ref<Record<string, AccountQualityStats>>({})
   const todayStatsById = ref<Record<string, WindowStats>>({})
   const pairPnlById = ref<Record<string, SchedulePnlSummary>>({})
+  const pairQualityById = ref<Record<string, SmartSchedulePairQuality>>({})
   const savedSnapshots = reactive<Record<SmartSchedulePlatform, string>>(
     {} as Record<SmartSchedulePlatform, string>
   )
@@ -187,8 +199,7 @@ export function useUserSmartScheduleEditor(
     draft.enabled = view.enabled
     draft.maxP50 = view.quality_max_p50_ttft_ms ?? ''
     draft.successPercent = successRateToPercent(view.quality_min_success_rate) ?? ''
-    draft.minSuccessSamples = view.quality_min_success_samples ?? ''
-    draft.minTtftSamples = view.quality_min_ttft_samples ?? ''
+    draft.windowN = resolveSmartScheduleWindowN(view)
     draft.condition = view.quality_condition === 'and' ? 'and' : 'or'
     draft.cooldownMinutes = view.cooldown_minutes || 15
     draft.accounts = (view.accounts ?? []).map((item) => ({
@@ -244,7 +255,24 @@ export function useUserSmartScheduleEditor(
 
   function applyTemplateToDraft(fields: QualityGateFormFields) {
     if (!currentDraft.value) return
-    applyQualityGateFormToDraft(currentDraft.value, fields)
+    currentDraft.value.maxP50 = fields.quality_max_p50_ttft_ms ?? ''
+    currentDraft.value.successPercent = fields.quality_min_success_rate_percent ?? ''
+    currentDraft.value.windowN = resolveSmartScheduleWindowN({
+      quality_min_success_samples: fields.quality_min_success_samples,
+      quality_min_ttft_samples: fields.quality_min_ttft_samples
+    })
+    currentDraft.value.condition = fields.quality_condition
+  }
+
+  function qualityGateFormFromDraft(draft: SmartSchedulePlatformDraft): QualityGateFormFields {
+    const n = clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN))
+    return {
+      quality_max_p50_ttft_ms: optionalNumber(draft.maxP50),
+      quality_min_success_rate_percent: optionalNumber(draft.successPercent),
+      quality_min_success_samples: n,
+      quality_min_ttft_samples: n,
+      quality_condition: draft.condition
+    }
   }
 
   function memberCap(accountId: number): number {
@@ -348,10 +376,7 @@ export function useUserSmartScheduleEditor(
     }
     if (member) member.cooldown_until = null
     if (state === 'selectable') {
-      patchLocalResume(accountId, {
-        chipUntil: 0,
-        watchUntil: nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
-      })
+      patchLocalResume(accountId, null)
       return
     }
     patchLocalResume(accountId, {
@@ -575,6 +600,7 @@ export function useUserSmartScheduleEditor(
       qualityStatsById.value = {}
       todayStatsById.value = {}
       pairPnlById.value = {}
+      pairQualityById.value = {}
       return
     }
     const needs = resolvePoolFetchNeeds()
@@ -595,12 +621,24 @@ export function useUserSmartScheduleEditor(
       const pnlPromise = needs.pnl && userId.value
         ? adminAPI.users.getSmartSchedulePnlPairs(userId.value, ids).catch(() => ({ pairs: {} as Record<string, SchedulePnlSummary> }))
         : Promise.resolve({ pairs: {} as Record<string, SchedulePnlSummary> })
-      const [listed, quality, today, pnl] = await Promise.all([listedPromise, qualityPromise, todayPromise, pnlPromise])
+      const pairQualityPromise = userId.value
+        ? adminAPI.users.getSmartSchedulePairQualityBatch(userId.value, ids).catch(() => ({
+            pairs: {} as Record<string, SmartSchedulePairQuality>
+          }))
+        : Promise.resolve({ pairs: {} as Record<string, SmartSchedulePairQuality> })
+      const [listed, quality, today, pnl, pairQuality] = await Promise.all([
+        listedPromise,
+        qualityPromise,
+        todayPromise,
+        pnlPromise,
+        pairQualityPromise
+      ])
       const byID = new Map((listed.items ?? []).map((item) => [item.id, item]))
       poolAccounts.value = ids.map((id) => byID.get(id)).filter((item): item is Account => Boolean(item))
       qualityStatsById.value = needs.quality ? (quality.stats ?? {}) : {}
       todayStatsById.value = needs.today ? (today.stats ?? {}) : {}
       pairPnlById.value = needs.pnl ? (pnl.pairs ?? {}) : {}
+      pairQualityById.value = pairQuality.pairs ?? {}
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
     } finally {
@@ -710,8 +748,9 @@ export function useUserSmartScheduleEditor(
       enabled,
       quality_max_p50_ttft_ms: draft.maxP50 === '' ? null : Number(draft.maxP50),
       quality_min_success_rate: percentToSuccessRate(draft.successPercent),
-      quality_min_success_samples: draft.minSuccessSamples === '' ? null : Number(draft.minSuccessSamples),
-      quality_min_ttft_samples: draft.minTtftSamples === '' ? null : Number(draft.minTtftSamples),
+      quality_window_n: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
+      quality_min_success_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
+      quality_min_ttft_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
       quality_condition: draft.condition,
       cooldown_minutes: draft.cooldownMinutes || 15,
       accounts: draft.accounts.map((item) => ({
@@ -890,6 +929,7 @@ export function useUserSmartScheduleEditor(
     qualityStatsById,
     todayStatsById,
     pairPnlById,
+    pairQualityById,
     currentDraft,
     currentSavedDraft,
     otherPlatforms,

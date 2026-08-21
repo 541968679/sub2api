@@ -12,7 +12,8 @@ const apiMocks = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getBatchTodayStats: vi.fn(),
-  getSmartSchedulePnlPairs: vi.fn()
+  getSmartSchedulePnlPairs: vi.fn(),
+  getSmartSchedulePairQualityBatch: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -21,7 +22,8 @@ vi.mock('@/api/admin', () => ({
       getSmartSchedule: apiMocks.getSmartSchedule,
       updateSmartSchedule: apiMocks.updateSmartSchedule,
       updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
-      getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs
+      getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs,
+      getSmartSchedulePairQualityBatch: apiMocks.getSmartSchedulePairQualityBatch
     },
     accounts: {
       list: apiMocks.listAccounts,
@@ -56,6 +58,7 @@ function emptyPlatform() {
     enabled: false,
     quality_max_p50_ttft_ms: null,
     quality_min_success_rate: null,
+    quality_window_n: null,
     quality_min_success_samples: null,
     quality_min_ttft_samples: null,
     quality_condition: null,
@@ -137,6 +140,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     apiMocks.getBatchQualityStats.mockResolvedValue({ stats: {} })
     apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
     apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
+    apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
   })
 
   it('does not wait for candidates and skips the default-platform watch reload', async () => {
@@ -304,5 +308,47 @@ describe('useUserSmartScheduleEditor loadAll', () => {
       expect.objectContaining({ id: 21, name: 'oa-1' })
     ])
     expect(w.vm.pairPnlById).toEqual({})
+  })
+
+  it('loads pair quality independently of account 15m quality', async () => {
+    apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({
+      pairs: {
+        '21': { ttft_p50_ms: 180, success_rate: 0.95, ttft_samples: 4, ok_samples: 6, n: 10 }
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(apiMocks.getSmartSchedulePairQualityBatch).toHaveBeenCalledWith(99, [21])
+    expect(w.vm.pairQualityById['21']).toEqual({
+      ttft_p50_ms: 180,
+      success_rate: 0.95,
+      ttft_samples: 4,
+      ok_samples: 6,
+      n: 10
+    })
+  })
+
+  it('maps a single window N from GET, preferring the new field', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 14,
+          quality_min_success_samples: 3,
+          quality_min_ttft_samples: 4,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.windowN).toBe(14)
   })
 })

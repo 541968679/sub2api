@@ -151,21 +151,17 @@
                 />
               </label>
               <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
+                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                  {{ t('admin.users.smartSchedule.windowN') }}
+                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNHint')" width-class="w-72" />
+                </span>
                 <input
-                  v-model.number="currentDraft.minSuccessSamples"
+                  v-model.number="currentDraft.windowN"
                   type="number"
                   min="1"
+                  max="100"
                   class="input min-w-0 flex-1 !px-2 !py-1"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
-                <input
-                  v-model.number="currentDraft.minTtftSamples"
-                  type="number"
-                  min="1"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
+                  data-testid="smart-schedule-window-n"
                 />
               </label>
               <label class="flex min-w-0 items-center gap-1.5">
@@ -602,6 +598,19 @@
                   @click="openStabilityDialog(row)"
                 />
               </template>
+              <template #header-pair_quality="{ column }">
+                <div class="flex items-center">
+                  <span>{{ column.label }}</span>
+                  <HelpTooltip :content="t('admin.users.smartSchedule.pairQualityHint')" width-class="w-80" />
+                </div>
+              </template>
+              <template #cell-pair_quality="{ row }">
+                <SmartSchedulePairQualityCell
+                  :quality="pairQualityById[String(row.id)] ?? null"
+                  :loading="statsLoading"
+                  @click="openPairQualityDialog(row)"
+                />
+              </template>
               <template #cell-today_stats="{ row }">
                 <AccountTodayStatsCell
                   :stats="todayStatsById[String(row.id)] ?? null"
@@ -802,6 +811,12 @@
       @close="showStability = false"
       @recovered="handleStabilityRecovered"
     />
+    <SmartSchedulePairQualityDialog
+      :show="pairQualityAcc != null"
+      :user-id="userId"
+      :account="pairQualityAcc"
+      @close="pairQualityAcc = null"
+    />
     <SchedulePnlTrendDialog
       :show="schedulePnlDialog != null"
       :user-id="userId"
@@ -891,6 +906,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import SmartSchedulePairQualityCell from '@/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue'
+import SmartSchedulePairQualityDialog from '@/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import SmartSchedulePnlCell from '@/components/admin/user/SmartSchedulePnlCell.vue'
@@ -930,6 +947,7 @@ const userBurnRateStats = ref<BatchUserBurnRateStats | null>(null)
 const userSchedulePnl = ref<SchedulePnlSummary | null>(null)
 const userSchedulePnlLoading = ref(false)
 const schedulePnlDialog = ref<{ accountId?: number; title: string } | null>(null)
+const pairQualityAcc = ref<Account | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
 const showAddDialog = ref(false)
@@ -986,6 +1004,7 @@ const {
   qualityStatsById,
   todayStatsById,
   pairPnlById,
+  pairQualityById,
   currentDraft,
   currentSavedDraft,
   otherPlatforms,
@@ -1102,6 +1121,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, minWidth: 88 },
   { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, minWidth: 88 },
   { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false, minWidth: 88 },
+  { key: 'pair_quality', label: t('admin.users.smartSchedule.pairQuality'), sortable: false, minWidth: 100 },
   { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, minWidth: 88 },
   { key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, minWidth: 88 },
   { key: 'schedule_pnl', label: t('admin.accounts.columns.schedulePnl'), sortable: false, minWidth: 160 },
@@ -1146,7 +1166,7 @@ const poolTableRows = computed(() =>
       qualityHint: resolveQualityAdmissionHint({
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
-        stats: qualityStatsById.value[String(account.id)],
+        pairQuality: pairQualityById.value[String(account.id)],
         resumeActive: memberResumeActive(account.id),
         resumeChipActive: memberResumeChipActive(account.id)
       })
@@ -1409,6 +1429,10 @@ function openPairSchedulePnl(account: Account) {
     accountId: account.id,
     title: t('admin.users.schedulePnl.dialogTitlePair', { account: account.name || String(account.id) })
   }
+}
+
+function openPairQualityDialog(account: Account) {
+  pairQualityAcc.value = account
 }
 
 async function loadUserListRowExtras(detail: AdminUser) {

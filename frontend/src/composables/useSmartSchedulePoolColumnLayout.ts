@@ -23,6 +23,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   status: 120,
   schedulable: 110,
   quality_ttft: 110,
+  pair_quality: 120,
   today_stats: 120,
   groups: 140,
   schedule_pnl: 200,

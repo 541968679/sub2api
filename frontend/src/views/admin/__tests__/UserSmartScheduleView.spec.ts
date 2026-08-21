@@ -23,7 +23,9 @@ const apiMocks = vi.hoisted(() => ({
   resumeSmartSchedule: vi.fn(),
   getSmartSchedulePnlPairs: vi.fn(),
   getBatchSmartSchedulePnlSummaries: vi.fn(),
-  getSmartSchedulePnlTrend: vi.fn()
+  getSmartSchedulePnlTrend: vi.fn(),
+  getSmartSchedulePairQualityBatch: vi.fn(),
+  getSmartSchedulePairQualityDetail: vi.fn()
 }))
 
 const tableMocks = vi.hoisted(() => ({
@@ -57,7 +59,9 @@ vi.mock('@/api/admin', () => ({
       copySmartSchedule: apiMocks.copySmartSchedule,
       getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs,
       getBatchSmartSchedulePnlSummaries: apiMocks.getBatchSmartSchedulePnlSummaries,
-      getSmartSchedulePnlTrend: apiMocks.getSmartSchedulePnlTrend
+      getSmartSchedulePnlTrend: apiMocks.getSmartSchedulePnlTrend,
+      getSmartSchedulePairQualityBatch: apiMocks.getSmartSchedulePairQualityBatch,
+      getSmartSchedulePairQualityDetail: apiMocks.getSmartSchedulePairQualityDetail
     },
     dashboard: {
       getBatchUsersUsage: apiMocks.getBatchUsersUsage,
@@ -155,6 +159,7 @@ vi.mock('@/components/common/DataTable.vue', () => ({
           <slot name="cell-pair_cap" :row="row" />
           <slot name="cell-admission" :row="row" />
           <slot name="cell-quality_ttft" :row="row" />
+          <slot name="cell-pair_quality" :row="row" />
           <slot name="cell-quality_success_rate" :row="row" />
           <slot name="cell-status" :row="row" :value="row.status" />
           <slot name="cell-actions" :row="row" />
@@ -282,6 +287,12 @@ vi.mock('@/components/account/AccountStabilityDialog.vue', () => ({
     template: '<div v-if="show" data-testid="account-stability-dialog" />'
   }
 }))
+vi.mock('@/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue', () => ({
+  default: {
+    props: ['show', 'userId', 'account'],
+    template: '<div v-if="show" data-testid="smart-schedule-pair-quality-dialog" />'
+  }
+}))
 vi.mock('@/components/account', () => ({
   EditAccountModal: {
     props: ['show', 'account'],
@@ -308,6 +319,7 @@ function emptyPlatform() {
     enabled: false,
     quality_max_p50_ttft_ms: null,
     quality_min_success_rate: null,
+    quality_window_n: null,
     quality_min_success_samples: null,
     quality_min_ttft_samples: null,
     quality_condition: null,
@@ -336,6 +348,7 @@ function echoSmartScheduleWrite(
     enabled?: boolean
     quality_max_p50_ttft_ms?: number | null
     quality_min_success_rate?: number | null
+    quality_window_n?: number | null
     quality_min_success_samples?: number | null
     quality_min_ttft_samples?: number | null
     quality_condition?: string | null
@@ -357,8 +370,9 @@ function echoSmartScheduleWrite(
         enabled: Boolean(body.enabled),
         quality_max_p50_ttft_ms: body.quality_max_p50_ttft_ms ?? null,
         quality_min_success_rate: body.quality_min_success_rate ?? null,
-        quality_min_success_samples: body.quality_min_success_samples ?? null,
-        quality_min_ttft_samples: body.quality_min_ttft_samples ?? null,
+        quality_window_n: body.quality_window_n ?? body.quality_min_success_samples ?? null,
+        quality_min_success_samples: body.quality_min_success_samples ?? body.quality_window_n ?? null,
+        quality_min_ttft_samples: body.quality_min_ttft_samples ?? body.quality_window_n ?? null,
         quality_condition: body.quality_condition ?? null,
         cooldown_minutes: body.cooldown_minutes ?? 15,
         accounts: body.accounts ?? []
@@ -429,6 +443,8 @@ beforeEach(() => {
   apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
   apiMocks.getBatchSmartSchedulePnlSummaries.mockResolvedValue({ summaries: {} })
   apiMocks.getSmartSchedulePnlTrend.mockResolvedValue({ range: '24h', granularity: 'hour', points: [] })
+  apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
+  apiMocks.getSmartSchedulePairQualityDetail.mockResolvedValue({ current: null, snapshots: [], events: [] })
   apiMocks.updateAccount.mockReset()
   apiMocks.updateAccount.mockResolvedValue({})
   apiMocks.getQualityHardCloseSettings.mockResolvedValue({
@@ -503,6 +519,12 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.classes()).toContain('lg:grid-cols-3')
     expect(thresholdGrid.get('[data-testid="smart-schedule-p50"]').exists()).toBe(true)
     expect(thresholdGrid.get('[data-testid="smart-schedule-success"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('min')).toBe('1')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('max')).toBe('100')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowN')
+    expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinSuccessSamples')
+    expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinTtftSamples')
     expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown"]').exists()).toBe(true)
 
     const tableRegion = w.get('[data-testid="smart-schedule-pool-table-region"]')
@@ -728,11 +750,15 @@ describe('UserSmartScheduleView', () => {
     expect(headers.get('[data-column="pair_cap"]').attributes('data-sortable')).toBe('true')
     expect(headers.get('[data-column="status"]').attributes('data-sortable')).toBe('true')
     expect(headers.get('[data-column="quality_ttft"]').attributes('data-sortable')).toBe('false')
+    expect(headers.get('[data-column="pair_quality"]').attributes('data-sortable')).toBe('false')
+    expect(headers.get('[data-column="pair_quality"]').text()).toBe('admin.users.smartSchedule.pairQuality')
     expect(headers.get('[data-column="schedule_pnl"]').exists()).toBe(true)
     expect(headers.find('[data-column="usage"]').exists()).toBe(false)
     expect(w.get('[data-testid="account-open-stability"]').exists()).toBe(true)
     await w.get('[data-testid="account-quality-cell-button"]').trigger('click')
     expect(w.get('[data-testid="account-stability-dialog"]').exists()).toBe(true)
+    await w.get('[data-testid="smart-schedule-pair-quality-cell"]').trigger('click')
+    expect(w.get('[data-testid="smart-schedule-pair-quality-dialog"]').exists()).toBe(true)
   })
 
   it('loads the full account before opening the edit modal', async () => {
@@ -1161,6 +1187,40 @@ describe('UserSmartScheduleView', () => {
     )
   })
 
+  it('saves a single window N and echoes it onto the legacy min-sample fields', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-window-n"]').setValue(14)
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({
+        quality_window_n: 14,
+        quality_min_success_samples: 14,
+        quality_min_ttft_samples: 14
+      })
+    )
+  })
+
   it('shows the dirty banner only for unsaved pair-cap or threshold drafts', async () => {
     const w = await mountPage()
     expect(w.find('[data-testid="smart-schedule-dirty-banner"]').exists()).toBe(false)
@@ -1390,7 +1450,7 @@ describe('UserSmartScheduleView', () => {
     expect(tableMocks.setSort).toHaveBeenCalledWith('sort_order', 'asc')
   })
 
-  it('labels a saved-gate miss without cooldown as will-cool, not a quality lock', async () => {
+  it('labels a saved-gate miss without cooldown as will-cool from pair windows', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,
       platforms: {
@@ -1400,8 +1460,63 @@ describe('UserSmartScheduleView', () => {
           enabled: true,
           quality_max_p50_ttft_ms: 200,
           quality_min_success_rate: 0.9,
+          quality_window_n: 1,
           quality_min_success_samples: 1,
           quality_min_ttft_samples: 1,
+          quality_condition: 'or',
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    apiMocks.getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '11': {
+          window_seconds: 900,
+          success_count: 20,
+          error_count: 0,
+          success_rate: 1,
+          p50_ttft_ms: 80,
+          ttft_samples: 20
+        }
+      }
+    })
+    apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({
+      pairs: {
+        '11': {
+          ttft_p50_ms: 900,
+          success_rate: 0,
+          ttft_samples: 8,
+          ok_samples: 8,
+          n: 1
+        }
+      }
+    })
+    const w = await mountPage()
+    const cell = w.get('[data-testid="smart-schedule-admission"]')
+    expect(cell.attributes('data-admission')).toBe('will_cool')
+    expect(cell.text()).toContain('admin.users.smartSchedule.admissionWillCool')
+    expect(cell.text()).not.toContain('admin.users.smartSchedule.admissionQualityBlocked')
+    expect(w.get('[data-testid="smart-schedule-admission-switch"]').exists()).toBe(true)
+  })
+
+  it('does not mark will-cool from account 15m quality cells', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_max_p50_ttft_ms: 200,
+          quality_min_success_rate: 0.9,
+          quality_window_n: 1,
           quality_condition: 'or',
           accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
         }
@@ -1426,12 +1541,9 @@ describe('UserSmartScheduleView', () => {
         }
       }
     })
+    apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
     const w = await mountPage()
-    const cell = w.get('[data-testid="smart-schedule-admission"]')
-    expect(cell.attributes('data-admission')).toBe('will_cool')
-    expect(cell.text()).toContain('admin.users.smartSchedule.admissionWillCool')
-    expect(cell.text()).not.toContain('admin.users.smartSchedule.admissionQualityBlocked')
-    expect(w.get('[data-testid="smart-schedule-admission-switch"]').exists()).toBe(true)
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
   })
 
   it('after resume, shows resumed instead of will-cool', async () => {
@@ -1571,6 +1683,17 @@ describe('UserSmartScheduleView', () => {
           success_rate: 0.8,
           p50_ttft_ms: 400,
           ttft_samples: 10
+        }
+      }
+    })
+    apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({
+      pairs: {
+        '11': {
+          ttft_p50_ms: 400,
+          success_rate: 0.8,
+          ttft_samples: 10,
+          ok_samples: 10,
+          n: 1
         }
       }
     })

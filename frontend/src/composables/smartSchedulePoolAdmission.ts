@@ -1,7 +1,12 @@
 import type { Account } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
-import type { SmartSchedulePlatform, UserSmartScheduleView } from '@/api/admin/users'
-import { percentToSuccessRate, userQualityGateBreached } from '@/utils/accountQualityHardClose'
+import type {
+  SmartSchedulePairQuality,
+  SmartSchedulePlatform,
+  UserSmartScheduleView
+} from '@/api/admin/users'
+import { clampSmartScheduleWindowN } from '@/utils/smartScheduleWindowN'
+import { percentToSuccessRate } from '@/utils/accountQualityHardClose'
 
 const DEFAULT_PLATFORMS: SmartSchedulePlatform[] = [
   'anthropic',
@@ -76,8 +81,7 @@ export type PoolQualityGateDraft = {
   enabled?: boolean
   maxP50: number | ''
   successPercent: number | ''
-  minSuccessSamples: number | ''
-  minTtftSamples: number | ''
+  windowN: number | ''
   condition: 'or' | 'and'
 }
 
@@ -114,21 +118,35 @@ export function isSavedQualityGateLive(saved?: PoolQualityGateDraft | null): boo
   return Boolean(saved?.enabled) && hasQualityGateFromDraft(saved)
 }
 
+export function pairQualityGateBreached(
+  draft: PoolQualityGateDraft | undefined | null,
+  pair: SmartSchedulePairQuality | null | undefined
+): boolean {
+  if (!draft || !pair || !hasQualityGateFromDraft(draft)) return false
+  const n = clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN))
+  const judged: boolean[] = []
+  if (draft.maxP50 !== '' && draft.maxP50 != null) {
+    if (pair.ttft_samples >= n && pair.ttft_p50_ms != null) {
+      judged.push(pair.ttft_p50_ms > Number(draft.maxP50))
+    }
+  }
+  if (draft.successPercent !== '' && draft.successPercent != null) {
+    const minRate = percentToSuccessRate(draft.successPercent)
+    if (minRate != null && pair.ok_samples >= n && pair.success_rate != null) {
+      judged.push(pair.success_rate < minRate)
+    }
+  }
+  if (judged.length === 0) return false
+  if (draft.condition === 'and') return judged.every(Boolean)
+  return judged.some(Boolean)
+}
+
+/** @deprecated Use pairQualityGateBreached — will_cool reads pair windows, not account 15m cells. */
 export function gateBreachedFromDraft(
   draft: PoolQualityGateDraft | undefined | null,
-  stats: AccountQualityStats | null | undefined
+  pair: SmartSchedulePairQuality | null | undefined
 ): boolean {
-  if (!draft) return false
-  return userQualityGateBreached(
-    {
-      quality_max_p50_ttft_ms: draft.maxP50 === '' ? null : Number(draft.maxP50),
-      quality_min_success_rate: percentToSuccessRate(draft.successPercent),
-      quality_min_success_samples: draft.minSuccessSamples === '' ? null : Number(draft.minSuccessSamples),
-      quality_min_ttft_samples: draft.minTtftSamples === '' ? null : Number(draft.minTtftSamples),
-      quality_condition: draft.condition
-    },
-    stats
-  )
+  return pairQualityGateBreached(draft, pair)
 }
 
 function resumeUntilUnix(
@@ -140,7 +158,7 @@ function resumeUntilUnix(
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : null
 }
 
-/** True during 已恢复 chip or the following fail-open accumulation window. */
+/** True during 豁免期 (`resumed`): u: chip and/or remaining w: window. Selectable has no time grace. */
 export function userQualityResumeActive(
   stats:
     | Pick<AccountQualityStats, 'resume_users' | 'resume_watching_users'>
@@ -166,23 +184,24 @@ export function userQualityResumeChipActive(
 }
 
 /**
- * Quality column hint. Saved+enabled miss without cooldown is will-cool (not a lock).
+ * Quality column hint. Saved+enabled pair-window miss without cooldown is will-cool (not a lock).
  * Draft-only miss (tighter unsaved form, or platform not enabled) is preview.
- * Active resume grace is 已恢复 / selectable — never a fake 质量拦截.
+ * Chip or watching grace is 豁免期 (`resumed`). Selectable has no 15m w: fail-open.
  */
 export function resolveQualityAdmissionHint(input: {
   draft?: PoolQualityGateDraft | null
   saved?: PoolQualityGateDraft | null
-  stats?: AccountQualityStats | null
+  pairQuality?: SmartSchedulePairQuality | null
+  /** @deprecated Ignored. will_cool uses pairQuality, not account 15m cells. */
+  stats?: unknown
   resumeActive?: boolean
   resumeChipActive?: boolean
 }): PoolQualityHint | null {
-  if (input.resumeChipActive) return 'resumed'
-  if (input.resumeActive) return null
-  if (isSavedQualityGateLive(input.saved) && gateBreachedFromDraft(input.saved, input.stats)) {
+  if (input.resumeChipActive || input.resumeActive) return 'resumed'
+  if (isSavedQualityGateLive(input.saved) && pairQualityGateBreached(input.saved, input.pairQuality)) {
     return 'will_cool'
   }
-  if (hasQualityGateFromDraft(input.draft) && gateBreachedFromDraft(input.draft, input.stats)) {
+  if (hasQualityGateFromDraft(input.draft) && pairQualityGateBreached(input.draft, input.pairQuality)) {
     return 'unsaved_preview'
   }
   return null

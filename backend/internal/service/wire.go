@@ -591,6 +591,7 @@ func ProvideOpsService(
 	antigravityGatewayService *AntigravityGatewayService,
 	systemLogSink *OpsSystemLogSink,
 	settingService *SettingService,
+	smartSchedule *UserSmartScheduleService,
 ) *OpsService {
 	svc := NewOpsService(
 		opsRepo, settingRepo, cfg, accountRepo, userRepo, concurrencyService,
@@ -601,6 +602,7 @@ func ProvideOpsService(
 		svc.SetOpenAIQuotaAutoPauseSettingsSink(settingService.SetOpenAIQuotaAutoPauseSettings)
 		settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
 	}
+	svc.SetPairQualityObserver(smartSchedule)
 	return svc
 }
 

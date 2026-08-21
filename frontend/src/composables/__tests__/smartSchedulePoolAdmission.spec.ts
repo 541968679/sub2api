@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { AccountQualityStats } from '@/api/admin/accounts'
 import type { UserSmartScheduleView } from '@/api/admin/users'
+import { normalizeSmartSchedulePairQuality, resolveSmartScheduleWindowN } from '@/utils/smartScheduleWindowN'
 import {
   POOL_ADMISSION_FILTER_STATES,
   isCurrentlySchedulingAccount,
   matchesPoolFilters,
   pickDefaultSmartSchedulePlatform,
   pairOccupancyDisplayMax,
+  pairQualityGateBreached,
   resolvePairCap,
   resolvePoolAdmission,
   UNCAPPED_PAIR_DISPLAY_MAX,
@@ -21,6 +22,7 @@ function emptyPlatform(overrides: Partial<UserSmartScheduleView['platforms'][str
     enabled: false,
     quality_max_p50_ttft_ms: null,
     quality_min_success_rate: null,
+    quality_window_n: null,
     quality_min_success_samples: null,
     quality_min_ttft_samples: null,
     quality_condition: null,
@@ -32,30 +34,27 @@ function emptyPlatform(overrides: Partial<UserSmartScheduleView['platforms'][str
 
 const live = { status: 'active' as const, schedulable: true }
 
-const failingStats: AccountQualityStats = {
-  window_seconds: 900,
-  success_count: 0,
-  error_count: 8,
+const failingPair = {
+  ttft_p50_ms: 900,
   success_rate: 0,
-  p50_ttft_ms: 900,
-  ttft_samples: 8
+  ttft_samples: 8,
+  ok_samples: 8,
+  n: 1
 }
 
-const passingStats: AccountQualityStats = {
-  window_seconds: 900,
-  success_count: 20,
-  error_count: 0,
+const passingPair = {
+  ttft_p50_ms: 80,
   success_rate: 1,
-  p50_ttft_ms: 80,
-  ttft_samples: 20
+  ttft_samples: 20,
+  ok_samples: 20,
+  n: 10
 }
 
 const savedLiveGate = {
   enabled: true,
   maxP50: 200,
   successPercent: 90,
-  minSuccessSamples: 1,
-  minTtftSamples: 1,
+  windowN: 1,
   condition: 'or' as const
 }
 
@@ -63,10 +62,60 @@ const looseSavedGate = {
   enabled: true,
   maxP50: 2000,
   successPercent: 10,
-  minSuccessSamples: 1,
-  minTtftSamples: 1,
+  windowN: 1,
   condition: 'or' as const
 }
+
+describe('resolveSmartScheduleWindowN', () => {
+  it('prefers the new field, then legacy min-sample echoes, then default 10', () => {
+    expect(resolveSmartScheduleWindowN({ quality_window_n: 7 })).toBe(7)
+    expect(resolveSmartScheduleWindowN({ quality_window_samples: 9 })).toBe(9)
+    expect(
+      resolveSmartScheduleWindowN({
+        quality_window_n: 12,
+        quality_window_samples: 9,
+        quality_min_success_samples: 3,
+        quality_min_ttft_samples: 4
+      })
+    ).toBe(12)
+    expect(
+      resolveSmartScheduleWindowN({
+        quality_min_success_samples: 8,
+        quality_min_ttft_samples: 8
+      })
+    ).toBe(8)
+    expect(
+      resolveSmartScheduleWindowN({
+        quality_min_success_samples: 20,
+        quality_min_ttft_samples: 10
+      })
+    ).toBe(10)
+    expect(resolveSmartScheduleWindowN({ quality_min_ttft_samples: 6 })).toBe(6)
+    expect(resolveSmartScheduleWindowN({})).toBe(10)
+    expect(resolveSmartScheduleWindowN({ quality_window_n: 0 })).toBe(1)
+    expect(resolveSmartScheduleWindowN({ quality_window_n: 250 })).toBe(100)
+  })
+})
+
+describe('normalizeSmartSchedulePairQuality', () => {
+  it('reads backend canonical counts and p50 aliases', () => {
+    expect(
+      normalizeSmartSchedulePairQuality({
+        p50_ttft_ms: 120,
+        success_rate: 0.9,
+        ttft_count: 4,
+        ok_count: 6,
+        n: 10
+      })
+    ).toEqual({
+      ttft_p50_ms: 120,
+      success_rate: 0.9,
+      ttft_samples: 4,
+      ok_samples: 6,
+      n: 10
+    })
+  })
+})
 
 describe('resolvePairCap', () => {
   it('treats empty and zero as no extra pair cap', () => {
@@ -178,15 +227,60 @@ describe('resolvePoolAdmission', () => {
   })
 })
 
+describe('pairQualityGateBreached', () => {
+  it('does not cool when a window is still under N', () => {
+    expect(
+      pairQualityGateBreached(savedLiveGate, {
+        ttft_p50_ms: 900,
+        success_rate: 0,
+        ttft_samples: 0,
+        ok_samples: 0,
+        n: 10
+      })
+    ).toBe(false)
+    expect(
+      pairQualityGateBreached({ ...savedLiveGate, windowN: 10 }, {
+        ttft_p50_ms: 900,
+        success_rate: 0,
+        ttft_samples: 9,
+        ok_samples: 9,
+        n: 10
+      })
+    ).toBe(false)
+  })
+
+  it('cools from pair windows once N is met, not from missing pair data', () => {
+    expect(pairQualityGateBreached(savedLiveGate, failingPair)).toBe(true)
+    expect(pairQualityGateBreached(savedLiveGate, null)).toBe(false)
+  })
+})
+
 describe('resolveQualityAdmissionHint', () => {
-  it('labels a saved live-gate miss as will-cool', () => {
+  it('labels a saved live-gate miss as will-cool from pair windows', () => {
     expect(
       resolveQualityAdmissionHint({
         draft: savedLiveGate,
         saved: savedLiveGate,
-        stats: failingStats
+        pairQuality: failingPair
       })
     ).toBe('will_cool')
+  })
+
+  it('ignores leftover account 15m cells on the deprecated stats field', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        stats: {
+          window_seconds: 900,
+          success_count: 0,
+          error_count: 8,
+          success_rate: 0,
+          p50_ttft_ms: 900,
+          ttft_samples: 8
+        }
+      })
+    ).toBeNull()
   })
 
   it('labels a tighter unsaved draft as preview when the saved gate still passes', () => {
@@ -194,13 +288,12 @@ describe('resolveQualityAdmissionHint', () => {
       resolveQualityAdmissionHint({
         draft: savedLiveGate,
         saved: looseSavedGate,
-        stats: {
-          window_seconds: 900,
-          success_count: 8,
-          error_count: 2,
+        pairQuality: {
+          ttft_p50_ms: 400,
           success_rate: 0.8,
-          p50_ttft_ms: 400,
-          ttft_samples: 10
+          ttft_samples: 10,
+          ok_samples: 10,
+          n: 1
         }
       })
     ).toBe('unsaved_preview')
@@ -211,7 +304,7 @@ describe('resolveQualityAdmissionHint', () => {
       resolveQualityAdmissionHint({
         draft: { ...savedLiveGate, enabled: false },
         saved: { ...savedLiveGate, enabled: false },
-        stats: failingStats
+        pairQuality: failingPair
       })
     ).toBe('unsaved_preview')
   })
@@ -221,40 +314,46 @@ describe('resolveQualityAdmissionHint', () => {
       resolveQualityAdmissionHint({
         draft: { ...savedLiveGate, maxP50: 50 },
         saved: savedLiveGate,
-        stats: failingStats
+        pairQuality: failingPair
       })
     ).toBe('will_cool')
   })
 
-  it('shows resumed while the chip grace is active', () => {
+  it('shows 豁免期 while the chip or remaining watching window is active', () => {
     expect(
       resolveQualityAdmissionHint({
         draft: savedLiveGate,
         saved: savedLiveGate,
-        stats: failingStats,
+        pairQuality: failingPair,
         resumeChipActive: true,
+        resumeActive: true
+      })
+    ).toBe('resumed')
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        pairQuality: failingPair,
         resumeActive: true
       })
     ).toBe('resumed')
   })
 
-  it('stays selectable during watching grace so stats cannot fake a lock', () => {
+  it('does not fail-open selectable just because pair quality is missing', () => {
     expect(
       resolveQualityAdmissionHint({
         draft: savedLiveGate,
-        saved: savedLiveGate,
-        stats: failingStats,
-        resumeActive: true
+        saved: savedLiveGate
       })
     ).toBeNull()
   })
 
-  it('does not hint when the saved live gate still passes', () => {
+  it('does not hint when the saved live pair window still passes', () => {
     expect(
       resolveQualityAdmissionHint({
         draft: savedLiveGate,
         saved: savedLiveGate,
-        stats: passingStats
+        pairQuality: passingPair
       })
     ).toBeNull()
   })

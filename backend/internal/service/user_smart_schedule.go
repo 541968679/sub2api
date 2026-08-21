@@ -23,9 +23,11 @@ type SmartScheduleAccountMember struct {
 	MaxConcurrency     *int       `json:"max_concurrency,omitempty"`
 	SortOrder          *int       `json:"sort_order"`
 	Priority           int        `json:"priority"` // read-only live accounts.priority; writes ignore
-	CurrentConcurrency int        `json:"current_concurrency,omitempty"`
-	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
-	Paused             bool       `json:"paused,omitempty"`
+	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
+	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
+	Paused             bool                          `json:"paused,omitempty"`
+	PairQuality        *SmartSchedulePairQualityView `json:"pair_quality,omitempty"`
+	WillCool           bool                          `json:"will_cool"`
 }
 
 // SmartScheduleSortAssignment is one membership row's pool display order.
@@ -39,6 +41,7 @@ type SmartSchedulePlatformPolicy struct {
 	Enabled                  bool
 	QualityMaxP50TTFTMs      *int
 	QualityMinSuccessRate    *float64
+	QualityWindowSamples     *int
 	QualityMinSuccessSamples *int
 	QualityMinTTFTSamples    *int
 	QualityCondition         *string
@@ -88,11 +91,12 @@ func (p *SmartSchedulePlatformPolicy) QualityGate() QualityHardCloseSettings {
 	if p == nil || !p.HasQualityMetrics() {
 		return QualityHardCloseSettings{}
 	}
+	n := p.WindowN()
 	return fillUserQualityGateDefaults(QualityHardCloseSettings{
 		MaxP50TTFTMs:      p.QualityMaxP50TTFTMs,
 		MinSuccessRate:    p.QualityMinSuccessRate,
-		MinSuccessSamples: derefPositiveOrZero(p.QualityMinSuccessSamples),
-		MinTTFTSamples:    derefPositiveOrZero(p.QualityMinTTFTSamples),
+		MinSuccessSamples: n,
+		MinTTFTSamples:    n,
 		Condition:         derefString(p.QualityCondition),
 	})
 }
@@ -133,6 +137,7 @@ type SmartScheduleLookup interface {
 	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
 	CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool
 	StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time)
+	GetPairQuality(ctx context.Context, accountID, userID int64) *PairQualityLive
 }
 
 // UserSmartScheduleCache is the admin + hot-path cache (invalidate on save).
@@ -143,6 +148,12 @@ type UserSmartScheduleCache interface {
 	SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) (time.Time, error)
 	ApplyMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error
 	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time
+	IngestPairQuality(ctx context.Context, accountID, userID int64, n int, success bool, firstTokenMs *int) *PairQualityLive
+	ZeroPairQuality(ctx context.Context, accountID, userID int64, eventType string)
+	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]*PairQualityLive
+	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, limit int) []PairQualitySnapshot
+	ListPairQualityEvents(ctx context.Context, accountID, userID int64, limit int) []PairQualityEvent
+	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, event PairQualityEvent)
 }
 
 // UserSmartScheduleRepository persists policies and pool members.
@@ -165,6 +176,8 @@ type SmartSchedulePlatformWrite struct {
 	Enabled                  bool
 	QualityMaxP50TTFTMs      *int
 	QualityMinSuccessRate    *float64
+	QualityWindowSamples     *int
+	QualityWindowN           *int
 	QualityMinSuccessSamples *int
 	QualityMinTTFTSamples    *int
 	QualityCondition         *string
@@ -177,6 +190,8 @@ type SmartSchedulePlatformView struct {
 	Enabled                  bool                         `json:"enabled"`
 	QualityMaxP50TTFTMs      *int                         `json:"quality_max_p50_ttft_ms"`
 	QualityMinSuccessRate    *float64                     `json:"quality_min_success_rate"`
+	QualityWindowSamples     *int                         `json:"quality_window_samples"`
+	QualityWindowN           *int                         `json:"quality_window_n"`
 	QualityMinSuccessSamples *int                         `json:"quality_min_success_samples"`
 	QualityMinTTFTSamples    *int                         `json:"quality_min_ttft_samples"`
 	QualityCondition         *string                      `json:"quality_condition"`

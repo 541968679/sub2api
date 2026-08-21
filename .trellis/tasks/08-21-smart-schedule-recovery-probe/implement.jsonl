@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "智能调度准入、冷却 HASH、resumed/selectable 宽限与账号质量轨合同"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/research/pair-quality-n-window.md", "reason": "配对 N 条双窗、豁免期/可调度/到期清零的已决产品合同"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/research/pair-cooldown-vs-quality-window.md", "reason": "配对冷却与账号 15m 质量窗的边界，避免误改轨 A"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/prd.md", "reason": "本阶段验收范围与锁定合同（N=1–100，默认 10）"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/design.md", "reason": "Redis 双窗、完成路径挂钩、详情 API 与回滚边界"}

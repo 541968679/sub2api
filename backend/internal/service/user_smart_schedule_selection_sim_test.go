@@ -100,6 +100,15 @@ func simQualityCache() *liveQualityCacheStub {
 	}
 }
 
+func simPairLookup(bundle *UserSmartScheduleBundle) *memorySmartLookup {
+	return &memorySmartLookup{
+		bundle: bundle,
+		pair: map[string]*PairQualityLive{
+			smartPairKey(simQualitySlowID, simUserID): breachedPairLive(4000),
+		},
+	}
+}
+
 func newSimAccountRepo(accounts []Account) *mockAccountRepoForPlatform {
 	repo := &mockAccountRepoForPlatform{
 		accounts:     append([]Account(nil), accounts...),
@@ -185,7 +194,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("closed pool picks cheapest eligible primary", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
 		require.Equal(t, simPairCappedID, got.Account.ID, "0.10 in-pool primary must beat 0.15/0.20/1.0 and ignore outside 0.05 plus fallback 0.01")
@@ -196,7 +205,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("pair cap full reselects next cheapest", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, map[int64]int{simPairCappedID: 1}, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
 		require.Equal(t, simCheapOAuthID, got.Account.ID, "after pair-full 0.10, next cheapest eligible is 0.15 not denied-legacy 0.20 or billing-cheap 1.0")
@@ -204,13 +213,14 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("quality cooldown stays blocked after live recovery", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		quality := simQualityCache()
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, map[int64]int{simPairCappedID: 1}, quality, nil)
 		first := pickAnthropic(t, svc, "", nil)
 		require.Equal(t, simCheapOAuthID, first.Account.ID)
 		require.Equal(t, 1, lookup.startCalls)
 
+		lookup.pair[smartPairKey(simQualitySlowID, simUserID)] = breachedPairLive(200)
 		quality.byID[simQualitySlowID] = liveQualityStats(200, 12, 20, 0, 1)
 		second := pickAnthropic(t, svc, "", nil)
 		require.Equal(t, simCheapOAuthID, second.Account.ID, "cooldown must keep excluding the recovered cheapest account")
@@ -219,7 +229,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("sticky keeps expensive pin while it still admits", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		cache := map[string]int64{"sticky-expensive": simExpensiveID}
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), cache)
 		got := pickAnthropic(t, svc, "sticky-expensive", nil)
@@ -229,7 +239,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("sticky quality miss clears pin and reselects", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky-quality": simQualitySlowID}}
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
 		svc.cache = cache
@@ -241,7 +251,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("fallback_only waits until primaries are gone", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", map[int64]struct{}{
 			simDeniedInPoolID: {},
@@ -278,7 +288,7 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 
 	t.Run("sequential occupancy walks cheapest then next", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		pairCounts := map[int64]int{}
 		quality := simQualityCache()
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, pairCounts, quality, nil)
@@ -302,21 +312,21 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 	caps := map[int64]int{simPairCappedID: 1}
 
 	t.Run("closed pool picks cheapest eligible primary", func(t *testing.T) {
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickOpenAI(t, svc, "", nil)
 		require.Equal(t, simPairCappedID, got.Account.ID)
 	})
 
 	t.Run("pair cap full reselects next cheapest", func(t *testing.T) {
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, map[int64]int{simPairCappedID: 1}, simQualityCache(), nil)
 		got := pickOpenAI(t, svc, "", nil)
 		require.Equal(t, simCheapOAuthID, got.Account.ID)
 	})
 
 	t.Run("outside pool and fallback stay excluded while primaries exist", func(t *testing.T) {
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickOpenAI(t, svc, "", nil)
 		require.NotEqual(t, simOutsideCheapID, got.Account.ID)
@@ -325,7 +335,7 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 	})
 
 	t.Run("sticky keeps expensive pin", func(t *testing.T) {
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps))}
+		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), map[string]int64{"openai:sticky-expensive": simExpensiveID})
 		got := pickOpenAI(t, svc, "sticky-expensive", nil)
 		require.Equal(t, simExpensiveID, got.Account.ID)

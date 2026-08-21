@@ -249,19 +249,22 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 		if row == nil {
 			continue
 		}
-		out.Policies[row.Platform] = &service.SmartSchedulePlatformPolicy{
-			Enabled:                  row.Enabled,
-			QualityMaxP50TTFTMs:      row.QualityMaxP50TtftMs,
-			QualityMinSuccessRate:    row.QualityMinSuccessRate,
-			QualityMinSuccessSamples: row.QualityMinSuccessSamples,
-			QualityMinTTFTSamples:    row.QualityMinTtftSamples,
-			QualityCondition:         row.QualityCondition,
-			CooldownMinutes:          row.CooldownMinutes,
-			UpdatedAt:                row.UpdatedAt,
-			AccountIDs:               map[int64]struct{}{},
-			Caps:                     map[int64]int{},
-			SortOrders:               map[int64]int{},
+		policy := &service.SmartSchedulePlatformPolicy{
+			Enabled:               row.Enabled,
+			QualityMaxP50TTFTMs:   row.QualityMaxP50TtftMs,
+			QualityMinSuccessRate: row.QualityMinSuccessRate,
+			QualityCondition:      row.QualityCondition,
+			CooldownMinutes:       row.CooldownMinutes,
+			UpdatedAt:             row.UpdatedAt,
+			AccountIDs:            map[int64]struct{}{},
+			Caps:                  map[int64]int{},
+			SortOrders:            map[int64]int{},
 		}
+		if row.QualityMaxP50TtftMs != nil || row.QualityMinSuccessRate != nil || row.QualityMinSuccessSamples != nil || row.QualityMinTtftSamples != nil {
+			n := service.NormalizeSmartScheduleWindowN(nil, row.QualityMinSuccessSamples, row.QualityMinTtftSamples)
+			policy.QualityWindowSamples, policy.QualityMinSuccessSamples, policy.QualityMinTTFTSamples = service.EchoSmartScheduleWindowN(n)
+		}
+		out.Policies[row.Platform] = policy
 	}
 	for _, row := range members {
 		if row == nil {

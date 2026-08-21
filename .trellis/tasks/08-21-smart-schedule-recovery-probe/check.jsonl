@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "验收时核对智能调度热路径不得再读 account-quality:live 做配对冷却"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/research/pair-quality-n-window.md", "reason": "核对两窗入样、未满 N 不冷、豁免期入窗期满可冷、可调度无时间豁免"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/prd.md", "reason": "对照 AC1–AC5 与明确不做的考察期/夹并发"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/design.md", "reason": "核对 GET 回填旧样本字段、will_cool 只看配对窗、账号轨不回归"}

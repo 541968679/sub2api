@@ -66,6 +66,52 @@ func (s *UserSmartScheduleService) StartCooldown(ctx context.Context, accountID,
 	s.cache.StartCooldown(ctx, accountID, userID, minutes, now)
 }
 
+func (s *UserSmartScheduleService) GetPairQuality(ctx context.Context, accountID, userID int64) *PairQualityLive {
+	if s == nil || s.cache == nil {
+		return nil
+	}
+	return s.cache.GetPairQuality(ctx, accountID, userID)
+}
+
+func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, obs PairQualityObservation) {
+	if s == nil || s.cache == nil || obs.AccountID <= 0 || obs.UserID <= 0 {
+		return
+	}
+	bundle := s.Lookup(ctx, obs.UserID)
+	if bundle == nil {
+		return
+	}
+	var policy *SmartSchedulePlatformPolicy
+	for _, candidate := range bundle.Policies {
+		if candidate != nil && candidate.HasAccount(obs.AccountID) {
+			policy = candidate
+			break
+		}
+	}
+	if policy == nil || !policy.Enabled || policy.MemberCount() == 0 {
+		return
+	}
+	if policy.IsPaused(obs.AccountID) {
+		return
+	}
+	now := time.Now().UTC()
+	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, now) {
+		return
+	}
+	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, policy.WindowN(), obs.Success, obs.FirstTokenMs)
+	if !policy.HasQualityMetrics() {
+		return
+	}
+	stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: obs.AccountID}, true)
+	if UserQualityResumeActive(stats, obs.UserID, now) {
+		return
+	}
+	if !pairQualityBlocks(live, policy) {
+		return
+	}
+	s.cache.StartCooldown(ctx, obs.AccountID, obs.UserID, policy.CooldownMinutes, now)
+}
+
 func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*UserSmartScheduleView, error) {
 	if s == nil || s.repo == nil {
 		return emptySmartScheduleView(userID), nil
@@ -78,6 +124,7 @@ func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*User
 	s.hydrateAccountPriority(ctx, view)
 	s.hydratePairCurrent(ctx, userID, view)
 	s.hydratePairCooldown(ctx, userID, view)
+	s.hydratePairQuality(ctx, userID, view)
 	view.DefaultPlatform = pickDefaultSmartSchedulePlatform(view)
 	return view, nil
 }
@@ -189,6 +236,8 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 		Enabled:                  from.Enabled,
 		QualityMaxP50TTFTMs:      from.QualityMaxP50TTFTMs,
 		QualityMinSuccessRate:    from.QualityMinSuccessRate,
+		QualityWindowSamples:     from.QualityWindowSamples,
+		QualityWindowN:           from.QualityWindowN,
 		QualityMinSuccessSamples: from.QualityMinSuccessSamples,
 		QualityMinTTFTSamples:    from.QualityMinTTFTSamples,
 		QualityCondition:         from.QualityCondition,
@@ -257,9 +306,10 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
 				return nil, err
 			}
+			s.cache.ZeroPairQuality(ctx, accountID, userID, PairQualityEventSelectable)
 		}
 		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.MarkUserQualityWindow(ctx, accountID, userID); err != nil {
+			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
 				return nil, err
 			}
 		}
@@ -269,6 +319,9 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
 				return nil, err
 			}
+		}
+		if s != nil && s.cache != nil {
+			s.cache.ZeroPairQuality(ctx, accountID, userID, PairQualityEventResumed)
 		}
 		if s != nil && s.qualityLiveCache != nil {
 			if err := s.qualityLiveCache.MarkUserResume(ctx, accountID, userID); err != nil {
@@ -391,6 +444,12 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 	if write.QualityMinSuccessRate != nil && (*write.QualityMinSuccessRate <= 0 || *write.QualityMinSuccessRate > 1) {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_min_success_rate must be in (0,1]")
 	}
+	if write.QualityWindowSamples == nil && write.QualityWindowN != nil {
+		write.QualityWindowSamples = write.QualityWindowN
+	}
+	if write.QualityWindowSamples != nil && (*write.QualityWindowSamples < MinSmartScheduleWindowN || *write.QualityWindowSamples > MaxSmartScheduleWindowN) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_window_samples must be between 1 and 100")
+	}
 	if write.QualityMinSuccessSamples != nil && *write.QualityMinSuccessSamples < 1 {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_min_success_samples must be >= 1")
 	}
@@ -410,9 +469,15 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 	if !qualityGateHasConfiguredColumn(write.QualityMaxP50TTFTMs, write.QualityMinSuccessRate, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples, write.QualityCondition) {
 		write.QualityMaxP50TTFTMs = nil
 		write.QualityMinSuccessRate = nil
+		write.QualityWindowSamples = nil
+		write.QualityWindowN = nil
 		write.QualityMinSuccessSamples = nil
 		write.QualityMinTTFTSamples = nil
 		write.QualityCondition = nil
+	} else {
+		n := NormalizeSmartScheduleWindowN(write.QualityWindowSamples, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples)
+		write.QualityWindowSamples, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples = EchoSmartScheduleWindowN(n)
+		write.QualityWindowN = write.QualityWindowSamples
 	}
 	outMembers := make([]SmartScheduleAccountMember, 0, len(write.Accounts))
 	seen := map[int64]struct{}{}
@@ -595,6 +660,188 @@ func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, user
 	}
 }
 
+func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userID int64, view *UserSmartScheduleView) {
+	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
+		return
+	}
+	ids := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, platform := range view.Platforms {
+		for _, member := range platform.Accounts {
+			if member.AccountID <= 0 {
+				continue
+			}
+			if _, ok := seen[member.AccountID]; ok {
+				continue
+			}
+			seen[member.AccountID] = struct{}{}
+			ids = append(ids, member.AccountID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	lives := s.cache.GetPairQualityBatch(ctx, ids, userID)
+	now := time.Now().UTC()
+	for platformKey, platform := range view.Platforms {
+		n := DefaultSmartScheduleWindowN
+		if policy := viewPolicyN(&platform); policy > 0 {
+			n = policy
+		}
+		gate := QualityHardCloseSettings{}
+		if platform.QualityMaxP50TTFTMs != nil || platform.QualityMinSuccessRate != nil {
+			gate = fillUserQualityGateDefaults(QualityHardCloseSettings{
+				MaxP50TTFTMs:      platform.QualityMaxP50TTFTMs,
+				MinSuccessRate:    platform.QualityMinSuccessRate,
+				MinSuccessSamples: n,
+				MinTTFTSamples:    n,
+				Condition:         derefString(platform.QualityCondition),
+			})
+		}
+		for i := range platform.Accounts {
+			live := lives[platform.Accounts[i].AccountID]
+			viewSnap := SmartSchedulePairQualityView{N: n}
+			if live != nil {
+				viewSnap = live.View()
+				viewSnap.N = n
+			}
+			viewSnap = aliasPairQualityView(viewSnap)
+			platform.Accounts[i].PairQuality = &viewSnap
+			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil {
+				continue
+			}
+			stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: platform.Accounts[i].AccountID}, true)
+			if UserQualityResumeActive(stats, userID, now) {
+				continue
+			}
+			if !qualityGateHasMetric(gate) {
+				continue
+			}
+			blocked, _ := EvaluateAccountQualityHardClose(live.ToAccountQualityStats(), gate, false)
+			platform.Accounts[i].WillCool = blocked
+		}
+		view.Platforms[platformKey] = platform
+	}
+}
+
+func viewPolicyN(platform *SmartSchedulePlatformView) int {
+	if platform == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	return NormalizeSmartScheduleWindowN(platform.QualityWindowSamples, platform.QualityMinSuccessSamples, platform.QualityMinTTFTSamples)
+}
+
+func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, userID int64, platform string, accountID int64) (*SmartSchedulePairQualityDetail, error) {
+	if userID <= 0 || accountID <= 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_id and user_id are required")
+	}
+	platform = normalizeSmartSchedulePlatform(platform)
+	if !IsAllowedSmartSchedulePlatform(platform) {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_PLATFORM", "invalid platform")
+	}
+	view, err := s.Get(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	row := view.Platforms[platform]
+	found := false
+	n := viewPolicyN(&row)
+	for _, member := range row.Accounts {
+		if member.AccountID == accountID {
+			found = true
+			if member.PairQuality != nil && member.PairQuality.N > 0 {
+				n = member.PairQuality.N
+			}
+			break
+		}
+	}
+	if !found {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	}
+	detail := &SmartSchedulePairQualityDetail{
+		AccountID: accountID,
+		UserID:    userID,
+		N:         n,
+		Live:      aliasPairQualityView(SmartSchedulePairQualityView{N: n}),
+		Current:   aliasPairQualityView(SmartSchedulePairQualityView{N: n}),
+		Snapshots: []PairQualitySnapshot{},
+		Events:    []PairQualityEvent{},
+	}
+	if s.cache != nil {
+		if live := s.cache.GetPairQuality(ctx, accountID, userID); live != nil {
+			detail.Live = live.View()
+			detail.Live.N = n
+			detail.Live = aliasPairQualityView(detail.Live)
+		}
+		detail.Current = detail.Live
+		if snaps := s.cache.ListPairQualitySnapshots(ctx, accountID, userID, 200); snaps != nil {
+			detail.Snapshots = make([]PairQualitySnapshot, 0, len(snaps))
+			for _, snap := range snaps {
+				snap.N = n
+				detail.Snapshots = append(detail.Snapshots, aliasPairQualitySnapshot(snap))
+			}
+		}
+		if events := s.cache.ListPairQualityEvents(ctx, accountID, userID, 200); events != nil {
+			detail.Events = make([]PairQualityEvent, 0, len(events))
+			for _, event := range events {
+				detail.Events = append(detail.Events, aliasPairQualityEvent(event))
+			}
+		}
+	}
+	return detail, nil
+}
+
+func (s *UserSmartScheduleService) GetPairQualityDetailForAccount(ctx context.Context, userID, accountID int64) (*SmartSchedulePairQualityDetail, error) {
+	if userID <= 0 || accountID <= 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_id and user_id are required")
+	}
+	view, err := s.Get(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for platform, row := range view.Platforms {
+		for _, member := range row.Accounts {
+			if member.AccountID == accountID {
+				return s.GetPairQualityDetail(ctx, userID, platform, accountID)
+			}
+		}
+	}
+	return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+}
+
+func (s *UserSmartScheduleService) GetPairQualityBatch(ctx context.Context, userID int64, accountIDs []int64) (*SmartSchedulePairQualityBatch, error) {
+	if userID <= 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "user_id is required")
+	}
+	out := &SmartSchedulePairQualityBatch{Pairs: map[string]SmartSchedulePairQualityView{}}
+	view, err := s.Get(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	wanted := map[int64]struct{}{}
+	for _, id := range accountIDs {
+		if id > 0 {
+			wanted[id] = struct{}{}
+		}
+	}
+	for _, platform := range view.Platforms {
+		for _, member := range platform.Accounts {
+			if member.AccountID <= 0 {
+				continue
+			}
+			if len(wanted) > 0 {
+				if _, ok := wanted[member.AccountID]; !ok {
+					continue
+				}
+			}
+			if member.PairQuality != nil {
+				out.Pairs[strconv.FormatInt(member.AccountID, 10)] = *member.PairQuality
+			}
+		}
+	}
+	return out, nil
+}
+
 func pickDefaultSmartSchedulePlatform(view *UserSmartScheduleView) string {
 	if view == nil || len(view.Platforms) == 0 {
 		return PlatformAnthropic
@@ -684,8 +931,11 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	view.Enabled = policy.Enabled && policy.MemberCount() > 0
 	view.QualityMaxP50TTFTMs = policy.QualityMaxP50TTFTMs
 	view.QualityMinSuccessRate = policy.QualityMinSuccessRate
-	view.QualityMinSuccessSamples = policy.QualityMinSuccessSamples
-	view.QualityMinTTFTSamples = policy.QualityMinTTFTSamples
+	if policy.HasQualityMetrics() || policy.QualityWindowSamples != nil || policy.QualityMinSuccessSamples != nil || policy.QualityMinTTFTSamples != nil {
+		n := policy.WindowN()
+		view.QualityWindowSamples, view.QualityMinSuccessSamples, view.QualityMinTTFTSamples = EchoSmartScheduleWindowN(n)
+		view.QualityWindowN = view.QualityWindowSamples
+	}
 	view.QualityCondition = policy.QualityCondition
 	if policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
 		view.CooldownMinutes = policy.CooldownMinutes

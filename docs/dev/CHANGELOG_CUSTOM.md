@@ -1,3 +1,76 @@
+## 2026-08-21 - chore: pair-quality API alias check-pass
+
+### What
+- Frontend N / pair-quality readers now accept backend canonical names (`quality_window_samples`, `p50_ttft_ms`, `ttft_count`, `ok_count`, detail `live`/`ts`) in addition to the already-wired UI aliases.
+- Two legacy min-sample fields without an explicit N now resolve to `min`, matching backend normalize. `frontend-wiring.md` no longer claims the pair-quality APIs are pending.
+
+### Why
+- Parallel backend/frontend landings used complementary field names; GET must deserialize either side.
+
+### Verification
+- Focused Go unit packages and smart-schedule Vitest specs from the task implement.md.
+
+### Affected files
+`frontend/src/utils/smartScheduleWindowN.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/__tests__/smartSchedulePoolAdmission.spec.ts`,
+`.trellis/tasks/08-21-smart-schedule-recovery-probe/research/frontend-wiring.md`.
+
+## 2026-08-21 - feat: smart-schedule pair-quality windows (backend)
+
+### What
+- Smart-schedule cooldown now judges pair windows \(Q_{a,u}\) (one N, 1–100, default 10; two FIFO windows) instead of `account-quality:live` 15m cells. Account quality track is unchanged.
+- Completions after usage / counted ops errors ingest `W_ttft` / `W_ok`. Cooling and paused pairs skip ingest. 豁免期 (`resumed`) zeros windows, still ingests, does not evaluate until `u:`/`w:` expire. 可调度 (`selectable`) and cooldown expiry zero windows and re-accumulate with no `w:` fail-open.
+- Admin GET pool rows include `pair_quality` + `will_cool`. Pair-quality batch/detail APIs (plus frontend aliases) expose live, snapshots, and cooldown/resume events.
+
+### Why
+- Pair cooldown must follow this user × this account’s last-N samples, not the shared 15-minute account cell.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1`
+- `go test -tags=unit ./internal/repository -count=1`
+
+### Affected files
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/repository/smart_schedule_pair_quality_cache.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`backend/internal/server/routes/admin.go`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/tasks/08-21-smart-schedule-recovery-probe/research/backend-api-contract.md`.
+
+## 2026-08-21 - feat: smart-schedule pair quality column and single N
+
+### What
+- Smart-schedule policy form now has one window size N (1–100, default 10) instead of min success / min TTFT samples. GET still accepts the old sample fields as the same N.
+- Pool table keeps the account 15m 账号质量 column and adds 配对质量. Click opens a pair-window trend + cooldown / 豁免期 / 可调度 dialog (not account quality-history).
+- Admission `will_cool` uses pair windows. 可调度 has no 15m watching fail-open. Product copy 已恢复 → 豁免期; API state stays `resumed`.
+
+### Why
+- Pair cooldown must judge this user × this account’s last-N windows, not the shared 15-minute account cell.
+
+### Verification
+- `pnpm --dir frontend exec vitest run` on the smart-schedule specs touched in this change.
+
+### Affected files
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/useSmartSchedulePoolColumnLayout.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/utils/smartScheduleWindowN.ts`,
+`.trellis/tasks/08-21-smart-schedule-recovery-probe/research/frontend-wiring.md`.
+
 ## 2026-08-20 - deploy: v0.1.245
 
 ### What

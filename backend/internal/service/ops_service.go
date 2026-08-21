@@ -55,11 +55,18 @@ type OpsService struct {
 	antigravityGatewayService *AntigravityGatewayService
 	systemLogSink             *OpsSystemLogSink
 	quotaAutoPauseSink        func(OpsOpenAIAccountQuotaAutoPauseSettings)
+	pairQuality               PairQualityObserver
 }
 
 func (s *OpsService) SetOpenAIQuotaAutoPauseSettingsSink(sink func(OpsOpenAIAccountQuotaAutoPauseSettings)) {
 	if s != nil {
 		s.quotaAutoPauseSink = sink
+	}
+}
+
+func (s *OpsService) SetPairQualityObserver(observer PairQualityObserver) {
+	if s != nil {
+		s.pairQuality = observer
 	}
 }
 
@@ -142,6 +149,7 @@ func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogIn
 		log.Printf("[Ops] RecordError failed: %v", err)
 		return err
 	}
+	s.observePairQualityErrors(ctx, []*OpsInsertErrorLogInput{prepared})
 	return nil
 }
 
@@ -167,8 +175,10 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 		_, err := s.opsRepo.InsertErrorLog(ctx, prepared[0])
 		if err != nil {
 			log.Printf("[Ops] RecordErrorBatch single insert failed: %v", err)
+			return err
 		}
-		return err
+		s.observePairQualityErrors(ctx, prepared)
+		return nil
 	}
 
 	if _, err := s.opsRepo.BatchInsertErrorLogs(ctx, prepared); err != nil {
@@ -182,9 +192,45 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 				}
 			}
 		}
-		return firstErr
+		if firstErr != nil {
+			return firstErr
+		}
 	}
+	s.observePairQualityErrors(ctx, prepared)
 	return nil
+}
+
+func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*OpsInsertErrorLogInput) {
+	if s == nil || s.pairQuality == nil || len(entries) == 0 {
+		return
+	}
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	for _, entry := range entries {
+		if entry == nil || entry.IsCountTokens || entry.AccountID == nil || entry.UserID == nil {
+			continue
+		}
+		if *entry.AccountID <= 0 || *entry.UserID <= 0 {
+			continue
+		}
+		cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+			ClientStatus:  entry.StatusCode,
+			Phase:         entry.ErrorPhase,
+			Type:          entry.ErrorType,
+			Message:       entry.ErrorMessage,
+			ErrorBody:     entry.ErrorBody,
+			Platform:      entry.Platform,
+			UpstreamModel: entry.UpstreamModel,
+			UseFailover:   useFailover,
+		})
+		if !cals.CountedInAccountScheduleRate {
+			continue
+		}
+		s.pairQuality.ObservePairCompletion(ctx, PairQualityObservation{
+			AccountID: *entry.AccountID,
+			UserID:    *entry.UserID,
+			Success:   false,
+		})
+	}
 }
 
 func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertErrorLogInput) (*OpsInsertErrorLogInput, bool, error) {

@@ -9015,6 +9015,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		if wroteUsage && creditSample != nil && s.antigravitySampler != nil {
 			s.antigravitySampler.Finish(ctx, creditSample, account, usageLog)
 		}
+		if wroteUsage {
+			observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
+		}
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -9039,6 +9042,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	wroteUsage := writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 	if wroteUsage && creditSample != nil && s.antigravitySampler != nil {
 		s.antigravitySampler.Finish(ctx, creditSample, account, usageLog)
+	}
+	if wroteUsage {
+		observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
 	}
 
 	return nil

@@ -13,6 +13,8 @@ type putSmartScheduleRequest struct {
 	Enabled                  bool                                `json:"enabled"`
 	QualityMaxP50TTFTMs      *int                                `json:"quality_max_p50_ttft_ms"`
 	QualityMinSuccessRate    *float64                            `json:"quality_min_success_rate"`
+	QualityWindowSamples     *int                                `json:"quality_window_samples"`
+	QualityWindowN           *int                                `json:"quality_window_n"`
 	QualityMinSuccessSamples *int                                `json:"quality_min_success_samples"`
 	QualityMinTTFTSamples    *int                                `json:"quality_min_ttft_samples"`
 	QualityCondition         *string                             `json:"quality_condition"`
@@ -126,6 +128,8 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		Enabled:                  req.Enabled,
 		QualityMaxP50TTFTMs:      req.QualityMaxP50TTFTMs,
 		QualityMinSuccessRate:    req.QualityMinSuccessRate,
+		QualityWindowSamples:     req.QualityWindowSamples,
+		QualityWindowN:           req.QualityWindowN,
 		QualityMinSuccessSamples: req.QualityMinSuccessSamples,
 		QualityMinTTFTSamples:    req.QualityMinTTFTSamples,
 		QualityCondition:         req.QualityCondition,
@@ -197,6 +201,97 @@ func (h *UserHandler) CopyUserSmartSchedule(c *gin.Context) {
 		return
 	}
 	response.Success(c, view)
+}
+
+type batchSmartSchedulePairQualityRequest struct {
+	AccountIDs []int64 `json:"account_ids"`
+}
+
+// GetUserSmartSchedulePairQualityBatch POST /admin/users/:id/smart-schedule/pair-quality
+func (h *UserHandler) GetUserSmartSchedulePairQualityBatch(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	var req batchSmartSchedulePairQualityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	batch, err := svc.GetPairQualityBatch(c.Request.Context(), userID, req.AccountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, batch)
+}
+
+// GetUserSmartSchedulePairQualityByAccount GET /admin/users/:id/smart-schedule/pair-quality/:accountId
+func (h *UserHandler) GetUserSmartSchedulePairQualityByAccount(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("accountId"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	detail, err := svc.GetPairQualityDetailForAccount(c.Request.Context(), userID, accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+// GetUserSmartSchedulePairQuality GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality
+func (h *UserHandler) GetUserSmartSchedulePairQuality(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("account_id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	detail, err := svc.GetPairQualityDetail(c.Request.Context(), userID, c.Param("platform"), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
 }
 
 // ResumeSmartSchedule POST /admin/accounts/:id/smart-schedule-resume

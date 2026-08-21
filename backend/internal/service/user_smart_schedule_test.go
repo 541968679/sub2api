@@ -18,6 +18,7 @@ import (
 type memorySmartLookup struct {
 	bundle        *UserSmartScheduleBundle
 	cooldownUntil map[string]int64
+	pair          map[string]*PairQualityLive
 	startCalls    int
 	lastUntilUnix int64
 }
@@ -52,6 +53,13 @@ func (m *memorySmartLookup) StartCooldown(_ context.Context, accountID, userID i
 	}
 	m.cooldownUntil[key] = until
 	m.lastUntilUnix = until
+}
+
+func (m *memorySmartLookup) GetPairQuality(_ context.Context, accountID, userID int64) *PairQualityLive {
+	if m == nil || len(m.pair) == 0 {
+		return nil
+	}
+	return m.pair[smartPairKey(accountID, userID)]
 }
 
 func smartPairKey(accountID, userID int64) string {
@@ -125,18 +133,42 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 
 	t.Run("quality breach starts cooldown and later quality recovery stays blocked", func(t *testing.T) {
 		t.Parallel()
-		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, &p50))}
-		breached := &liveQualityCacheStub{byID: map[int64]*AccountQualityStats{7: liveQualityStats(4000, 12, 20, 0, 1)}}
-		require.False(t, admitsScheduleUser(ctx, denied, breached, lookup))
+		lookup := &memorySmartLookup{
+			bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, &p50)),
+			pair:   map[string]*PairQualityLive{smartPairKey(7, 16): breachedPairLive(4000)},
+		}
+		accountLive := &liveQualityCacheStub{byID: map[int64]*AccountQualityStats{7: liveQualityStats(4000, 12, 20, 0, 1)}}
+		require.False(t, admitsScheduleUser(ctx, denied, accountLive, lookup))
 		require.Equal(t, 1, lookup.startCalls)
 		firstUntil := lookup.lastUntilUnix
 		require.Greater(t, firstUntil, time.Now().UTC().Unix())
 
-		good := &liveQualityCacheStub{byID: map[int64]*AccountQualityStats{7: liveQualityStats(200, 12, 20, 0, 1)}}
-		require.False(t, admitsScheduleUser(ctx, denied, good, lookup))
+		lookup.pair[smartPairKey(7, 16)] = breachedPairLive(200)
+		require.False(t, admitsScheduleUser(ctx, denied, accountLive, lookup))
 		lookup.StartCooldown(ctx, 7, 16, 30, time.Now().UTC())
 		require.Equal(t, firstUntil, lookup.lastUntilUnix)
 		require.Equal(t, firstUntil, lookup.cooldownUntil[smartPairKey(7, 16)])
+	})
+
+	t.Run("account 15m live breach does not start smart-schedule cooldown", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, &p50))}
+		require.True(t, admitsScheduleUser(ctx, denied, &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{7: liveQualityStats(4000, 12, 20, 0, 1)},
+		}, lookup))
+		require.Equal(t, 0, lookup.startCalls)
+	})
+
+	t.Run("under-N pair window does not cooldown", func(t *testing.T) {
+		t.Parallel()
+		live := &PairQualityLive{N: DefaultSmartScheduleWindowN, TTFTMs: []int{4000, 4100}, OK: []bool{true, true}}
+		RecomputePairQuality(live)
+		lookup := &memorySmartLookup{
+			bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, &p50)),
+			pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
+		}
+		require.True(t, admitsScheduleUser(ctx, denied, nil, lookup))
+		require.Equal(t, 0, lookup.startCalls)
 	})
 
 	t.Run("live miss with quality metrics fails open", func(t *testing.T) {
@@ -222,6 +254,7 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		Enabled:                  policy.Enabled,
 		QualityMaxP50TTFTMs:      policy.QualityMaxP50TTFTMs,
 		QualityMinSuccessRate:    policy.QualityMinSuccessRate,
+		QualityWindowSamples:     policy.QualityWindowSamples,
 		QualityMinSuccessSamples: policy.QualityMinSuccessSamples,
 		QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
 		QualityCondition:         policy.QualityCondition,
@@ -682,7 +715,7 @@ func TestUserSmartScheduleService_SetPairAdmission(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionSelectable, selectable.State)
 	require.False(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
-	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()))
+	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "selectable must not write w: grace")
 
 	cooling, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionCooling)
 	require.NoError(t, err)
@@ -746,6 +779,35 @@ func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ in
 		return map[int64]time.Time{}
 	}
 	return s.until
+}
+
+func (s stubSmartCache) GetPairQuality(context.Context, int64, int64) *PairQualityLive { return nil }
+func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, int, bool, *int) *PairQualityLive {
+	return nil
+}
+func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string) {}
+func (s stubSmartCache) GetPairQualityBatch(context.Context, []int64, int64) map[int64]*PairQualityLive {
+	return map[int64]*PairQualityLive{}
+}
+func (s stubSmartCache) ListPairQualitySnapshots(context.Context, int64, int64, int) []PairQualitySnapshot {
+	return nil
+}
+func (s stubSmartCache) ListPairQualityEvents(context.Context, int64, int64, int) []PairQualityEvent {
+	return nil
+}
+func (s stubSmartCache) AppendPairQualityEvent(context.Context, int64, int64, PairQualityEvent) {}
+
+func breachedPairLive(p50 int) *PairQualityLive {
+	n := DefaultSmartScheduleWindowN
+	ttft := make([]int, n)
+	ok := make([]bool, n)
+	for i := 0; i < n; i++ {
+		ttft[i] = p50
+		ok[i] = true
+	}
+	live := &PairQualityLive{N: n, TTFTMs: ttft, OK: ok}
+	RecomputePairQuality(live)
+	return live
 }
 
 func TestUserSmartScheduleService_SortOrderPersistsOnMembership(t *testing.T) {
