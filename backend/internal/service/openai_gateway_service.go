@@ -4144,6 +4144,9 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 
 // newOpenAIEmptyVisibleOutputError marks empty-completed Anthropic conversions
 // so the handler does not multi-account failover (same request fails the same way).
+// If the Anthropic SSE transport has already started (ping or flushed bytes),
+// write a terminal event: error instead of leaving the stream hanging for a
+// later HTTP 502 JSON body.
 func (s *OpenAIGatewayService) newOpenAIEmptyVisibleOutputError(
 	c *gin.Context,
 	account *Account,
@@ -4153,6 +4156,29 @@ func (s *OpenAIGatewayService) newOpenAIEmptyVisibleOutputError(
 	err := s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, nil, message)
 	if err != nil {
 		err.NoAccountFailover = true
+		clientMsg := strings.TrimSpace(extractUpstreamErrorMessage(err.ResponseBody))
+		if clientMsg == "" {
+			clientMsg = "Upstream messages stream completed without assistant content or tool output"
+		}
+		body, _ := json.Marshal(gin.H{
+			"error": gin.H{
+				"type":    "api_error",
+				"message": clientMsg,
+			},
+		})
+		err.ResponseBody = body
+	}
+	if OpenAIAnthropicTransportStreamStarted(c) && !OpenAIAnthropicResponseTerminated(c) {
+		clientMsg := strings.TrimSpace(message)
+		if err != nil {
+			if bodyMsg := strings.TrimSpace(extractUpstreamErrorMessage(err.ResponseBody)); bodyMsg != "" {
+				clientMsg = bodyMsg
+			}
+		}
+		if clientMsg == "" {
+			clientMsg = "Upstream messages stream completed without assistant content or tool output"
+		}
+		writeAnthropicError(c, http.StatusBadGateway, "api_error", clientMsg)
 	}
 	return err
 }

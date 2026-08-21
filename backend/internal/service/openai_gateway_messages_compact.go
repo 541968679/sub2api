@@ -259,11 +259,11 @@ func (s *OpenAIGatewayService) handleAnthropicCompactStreamingResponse(
 		resp, "openai messages compact buffered", requestID, c, nil,
 	)
 	if err != nil {
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
+		return nil, s.newOpenAICompactTerminalError(c, account, requestID,
 			"Upstream compact stream could not be read to completion")
 	}
 	if finalResponse == nil {
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
+		return nil, s.newOpenAICompactTerminalError(c, account, requestID,
 			"Upstream compact stream ended without a terminal response")
 	}
 	acc.SupplementResponseOutput(finalResponse)
@@ -413,7 +413,7 @@ func (s *OpenAIGatewayService) runAnthropicCompactRecoveryWithModelFallbacks(
 ) (*OpenAIForwardResult, error) {
 	candidates := compactModelFallbackCandidates(candidateUpstreamModels, "")
 	if len(candidates) == 0 {
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, initialRequestID, nil,
+		return nil, s.newOpenAIEmptyVisibleOutputError(c, account, initialRequestID,
 			"Upstream compact recovery has no candidate model")
 	}
 
@@ -439,8 +439,7 @@ func (s *OpenAIGatewayService) runAnthropicCompactRecoveryWithModelFallbacks(
 		semanticOutputStarted := openAIAnthropicSemanticOutputStarted(c) ||
 			(result != nil && result.ClientOutputStarted)
 		if i+1 >= len(candidates) || !isOpenAICompactModelUnavailableError(err) || semanticOutputStarted {
-			s.handleAnthropicCompactRecoveryExhaustedError(ctx, account, err)
-			return result, err
+			return s.finishAnthropicCompactRecoveryExhausted(ctx, c, account, initialRequestID, result, err)
 		}
 		logger.L().Warn("openai_messages.compact_recovery_model_switch",
 			zap.Int64("account_id", account.ID),
@@ -451,11 +450,10 @@ func (s *OpenAIGatewayService) runAnthropicCompactRecoveryWithModelFallbacks(
 		)
 	}
 	if lastErr == nil {
-		lastErr = s.newOpenAIStreamFailoverError(c, account, false, initialRequestID, nil,
+		lastErr = s.newOpenAIEmptyVisibleOutputError(c, account, initialRequestID,
 			"Upstream compact recovery exhausted candidate models")
 	}
-	s.handleAnthropicCompactRecoveryExhaustedError(ctx, account, lastErr)
-	return lastResult, lastErr
+	return s.finishAnthropicCompactRecoveryExhausted(ctx, c, account, initialRequestID, lastResult, lastErr)
 }
 
 func (s *OpenAIGatewayService) handleAnthropicCompactRecoveryExhaustedError(
@@ -467,6 +465,9 @@ func (s *OpenAIGatewayService) handleAnthropicCompactRecoveryExhaustedError(
 	if !errors.As(err, &upstreamErr) || upstreamErr == nil {
 		return
 	}
+	if upstreamErr.NoAccountFailover {
+		return
+	}
 	message := strings.TrimSpace(extractUpstreamErrorMessage(upstreamErr.ResponseBody))
 	if !s.shouldFailoverOpenAIUpstreamResponse(upstreamErr.StatusCode, message, upstreamErr.ResponseBody) {
 		return
@@ -474,6 +475,95 @@ func (s *OpenAIGatewayService) handleAnthropicCompactRecoveryExhaustedError(
 	s.handleOpenAIAccountUpstreamError(
 		ctx, account, upstreamErr.StatusCode, upstreamErr.ResponseHeaders, upstreamErr.ResponseBody,
 	)
+}
+
+func (s *OpenAIGatewayService) finishAnthropicCompactRecoveryExhausted(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	requestID string,
+	result *OpenAIForwardResult,
+	err error,
+) (*OpenAIForwardResult, error) {
+	semanticOutputStarted := openAIAnthropicSemanticOutputStarted(c) ||
+		(result != nil && result.ClientOutputStarted)
+	if semanticOutputStarted {
+		s.handleAnthropicCompactRecoveryExhaustedError(ctx, account, err)
+		return result, err
+	}
+
+	var upstreamErr *UpstreamFailoverError
+	if errors.As(err, &upstreamErr) && upstreamErr != nil && upstreamErr.NoAccountFailover {
+		return result, upstreamErr
+	}
+
+	emptySummary := isCompactRecoveryEmptySummaryError(err)
+	if !emptySummary && !OpenAIAnthropicTransportStreamStarted(c) {
+		s.handleAnthropicCompactRecoveryExhaustedError(ctx, account, err)
+		return result, err
+	}
+	if !emptySummary {
+		s.handleAnthropicCompactRecoveryExhaustedError(ctx, account, err)
+	}
+	return result, s.newOpenAIEmptyVisibleOutputError(c, account, requestID, compactRecoveryExhaustedClientMessage(err))
+}
+
+func isCompactRecoveryEmptySummaryError(err error) bool {
+	if err == nil {
+		return true
+	}
+	var upstreamErr *UpstreamFailoverError
+	if errors.As(err, &upstreamErr) && upstreamErr != nil && upstreamErr.NoAccountFailover {
+		return true
+	}
+	msg := strings.ToLower(strings.TrimSpace(compactRecoveryExhaustedClientMessage(err)))
+	if text := strings.TrimSpace(err.Error()); text != "" {
+		msg += " " + strings.ToLower(text)
+	}
+	for _, marker := range []string{
+		"without a usable summary",
+		"without assistant content or tool output",
+		"no candidate model",
+		"transcript is empty",
+		"produced no summary",
+		"exhausted candidate models",
+		"merge summaries are empty",
+		"produced no text",
+		strings.ToLower(openAIAnthropicCompactFallbackClientMessage),
+	} {
+		if marker != "" && strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func compactRecoveryExhaustedClientMessage(err error) string {
+	if err == nil {
+		return openAIAnthropicCompactFallbackClientMessage
+	}
+	var upstreamErr *UpstreamFailoverError
+	if errors.As(err, &upstreamErr) && upstreamErr != nil {
+		if msg := strings.TrimSpace(extractUpstreamErrorMessage(upstreamErr.ResponseBody)); msg != "" {
+			return msg
+		}
+	}
+	if msg := strings.TrimSpace(err.Error()); msg != "" {
+		return msg
+	}
+	return openAIAnthropicCompactFallbackClientMessage
+}
+
+func (s *OpenAIGatewayService) newOpenAICompactTerminalError(
+	c *gin.Context,
+	account *Account,
+	requestID string,
+	message string,
+) *UpstreamFailoverError {
+	if OpenAIAnthropicTransportStreamStarted(c) {
+		return s.newOpenAIEmptyVisibleOutputError(c, account, requestID, message)
+	}
+	return s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
 }
 
 func isOpenAIResponsesContextLengthExceeded(resp *apicompat.ResponsesResponse) bool {
@@ -536,7 +626,7 @@ func (s *OpenAIGatewayService) runAnthropicCompactRecovery(
 		transcript, openAIAnthropicCompactChunkTargetChars, openAIAnthropicCompactFallbackMaxChunks,
 	)
 	if len(chunks) == 0 {
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, initialRequestID, nil,
+		return nil, s.newOpenAIEmptyVisibleOutputError(c, account, initialRequestID,
 			"Upstream compact recovery transcript is empty")
 	}
 
@@ -581,7 +671,7 @@ func (s *OpenAIGatewayService) runAnthropicCompactRecovery(
 			s.wrapAnthropicCompactRecoveryError(c, account, lastRequestID, err)
 	}
 	if finalResponse == nil {
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, lastRequestID, nil,
+		return nil, s.newOpenAIEmptyVisibleOutputError(c, account, lastRequestID,
 			openAIAnthropicCompactFallbackClientMessage)
 	}
 	finalResponse.Usage = responsesUsageFromOpenAIUsage(totalUsage)
@@ -1063,7 +1153,7 @@ func (s *OpenAIGatewayService) writeAnthropicCompactFinalResponse(
 	anthropicResp := apicompat.ResponsesToAnthropic(finalResponse, originalModel)
 	if !anthropicResponseHasVisibleOutput(anthropicResp) {
 		return compactRecoveryResult(requestID, finalResponse.ID, usage, originalModel, billingModel, upstreamModel, clientStream, startTime),
-			s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
+			s.newOpenAIEmptyVisibleOutputError(c, account, requestID,
 				"Upstream compact recovery completed without a usable summary")
 	}
 	if bridgeMode {

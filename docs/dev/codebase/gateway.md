@@ -466,6 +466,14 @@ until a real content block has started. Do not create a synthetic preamble block
 only to send no-op deltas: doing so would commit semantic stream state and make
 cross-account recovery unsafe.
 
+The shared Responses→Anthropic converter still emits `message_start` first even
+when upstream skips `response.created`. Any `content_block_start` /
+`content_block_delta` must follow that start event; Claude Code rejects a delta
+without a current message. If compact recovery still has no visible summary,
+an unstarted transport stays HTTP 502 JSON (`NoAccountFailover`); after ping or
+any flushed SSE the stream ends with `event: error`, never HTTP 200 plus an
+empty `message_stop` / `end_turn`.
+
 Successful `message_stop` and downstream `event: error` writes mark the
 Anthropic response terminal. Handler panic/error fallbacks consult that state so
 they cannot append a second terminal event. A canceled downstream request exits

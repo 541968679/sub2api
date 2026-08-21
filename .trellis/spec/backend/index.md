@@ -21,6 +21,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Display Token Pricing](./display-token-pricing.md) | L1/L2 usage display transform + B1 cache amplify (M) | Active |
 | [OpenAI API-Key Upstream Routing](./openai-apikey-upstream-routing.md) | `(inbound, extra)` → Responses vs CC; passthrough; dual probe | Active |
+| [Anthropic Messages SSE](./anthropic-messages-sse.md) | Responses→Anthropic SSE: `message_start` before `content_block_*`; empty compact 502 / `event: error` | Active |
 | [Account User Schedule](./account-user-schedule.md) | Independent allow/deny/pair-cap/quality-gate plus user×platform smart-schedule composition | Active |
 | [Account Quality Snapshots](./account-quality-snapshots.md) | last-N \(Q_a\) (site-wide N, default 20) persisted every 5m + history API | Active |
 | [Account Quality Hard Close](./account-quality-hard-close.md) | Opt-in last-N pause via TempUnschedulableUntil (same stats as the grid) | Active |

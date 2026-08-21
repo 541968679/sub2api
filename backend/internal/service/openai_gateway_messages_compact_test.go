@@ -770,6 +770,149 @@ func TestMergeAnthropicCompactSummaries_AttemptBudgetCapsAllRecursiveRequests(t 
 	require.Contains(t, openAIResponsesOutputText(response), "# Compact Capsule")
 }
 
+func TestWriteAnthropicCompactFinalResponse_EmptyBeforeTransportKeepsJSONPath(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+	resp := &apicompat.ResponsesResponse{
+		ID:     "resp_empty_compact",
+		Model:  "gpt-5.5",
+		Status: "completed",
+		Output: []apicompat.ResponsesOutput{},
+		Usage:  &apicompat.ResponsesUsage{InputTokens: 10, OutputTokens: 0},
+	}
+
+	result, err := svc.writeAnthropicCompactFinalResponse(
+		c, account, nil, resp, OpenAIUsage{InputTokens: 10}, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(), true, "rid_empty",
+	)
+
+	failoverErr := requireMessagesFailoverError(t, err)
+	require.NotNil(t, result)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Equal(t, "api_error", gjson.GetBytes(failoverErr.ResponseBody, "error.type").String())
+	require.Empty(t, rec.Body.String())
+	require.False(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestWriteAnthropicCompactFinalResponse_EmptyAfterPingWritesStreamError(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+	require.NoError(t, writeAnthropicCompactKeepalive(c))
+	resp := &apicompat.ResponsesResponse{
+		ID:     "resp_empty_compact_ping",
+		Model:  "gpt-5.5",
+		Status: "completed",
+		Output: []apicompat.ResponsesOutput{},
+		Usage:  &apicompat.ResponsesUsage{InputTokens: 10, OutputTokens: 0},
+	}
+
+	result, err := svc.writeAnthropicCompactFinalResponse(
+		c, account, nil, resp, OpenAIUsage{InputTokens: 10}, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(), true, "rid_empty_ping",
+	)
+
+	failoverErr := requireMessagesFailoverError(t, err)
+	require.NotNil(t, result)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "event: error")
+	require.Contains(t, rec.Body.String(), "without a usable summary")
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+	require.True(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestFinishAnthropicCompactRecoveryExhausted_UsesEmptyVisibleConstructor(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+
+	result, err := svc.finishAnthropicCompactRecoveryExhausted(
+		context.Background(), c, account, "rid_empty_summary",
+		&OpenAIForwardResult{}, errors.New("upstream compact recovery chunk 1/1 produced no summary"),
+	)
+
+	failoverErr := requireMessagesFailoverError(t, err)
+	require.NotNil(t, result)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.Equal(t, "api_error", gjson.GetBytes(failoverErr.ResponseBody, "error.type").String())
+	require.Empty(t, rec.Body.String())
+	require.False(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestFinishAnthropicCompactRecoveryExhausted_DoesNotRewriteAfterSemanticOutput(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+	markOpenAIAnthropicSemanticOutputStarted(c)
+	original := svc.newOpenAIStreamFailoverError(c, account, false, "rid_partial", nil, "partial compact write failed")
+
+	result, err := svc.finishAnthropicCompactRecoveryExhausted(
+		context.Background(), c, account, "rid_partial",
+		&OpenAIForwardResult{ClientOutputStarted: true}, original,
+	)
+
+	require.Equal(t, original, err)
+	require.NotNil(t, result)
+	require.False(t, original.NoAccountFailover)
+	require.Empty(t, rec.Body.String())
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+}
+
+func TestFinishAnthropicCompactRecoveryExhausted_KeepsUnstartedRateLimit(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+	original := &UpstreamFailoverError{
+		StatusCode:   http.StatusTooManyRequests,
+		ResponseBody: []byte(`{"error":{"type":"rate_limit_error","message":"The compact model is rate limited."}}`),
+	}
+
+	result, err := svc.finishAnthropicCompactRecoveryExhausted(
+		context.Background(), c, account, "rid_429", &OpenAIForwardResult{}, original,
+	)
+
+	require.Equal(t, original, err)
+	require.NotNil(t, result)
+	require.False(t, original.NoAccountFailover)
+	require.Empty(t, rec.Body.String())
+}
+
+func TestFinishAnthropicCompactRecoveryExhausted_AfterPingWritesStreamError(t *testing.T) {
+	svc, c, rec, _, account := messagesTestStream(t)
+	require.NoError(t, writeAnthropicCompactKeepalive(c))
+
+	result, err := svc.finishAnthropicCompactRecoveryExhausted(
+		context.Background(), c, account, "rid_ping_empty",
+		&OpenAIForwardResult{}, errors.New("upstream compact recovery chunk 1/1 produced no summary"),
+	)
+
+	failoverErr := requireMessagesFailoverError(t, err)
+	require.NotNil(t, result)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "event: error")
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+	require.True(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestWriteAnthropicResponseAsSSE_ClaudeCodeStateMachineAcceptsCompactSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	err := writeAnthropicResponseAsSSE(c, &apicompat.AnthropicResponse{
+		ID:    "msg_compact",
+		Type:  "message",
+		Role:  "assistant",
+		Model: "claude-opus-4-8",
+		Content: []apicompat.AnthropicContentBlock{{
+			Type: "text",
+			Text: "usable compact summary",
+		}},
+		Usage: apicompat.AnthropicUsage{InputTokens: 10, OutputTokens: 5},
+	})
+	require.NoError(t, err)
+	body := rec.Body.String()
+	require.Equal(t, "message_start", firstAnthropicSSEEvent(body))
+	require.Contains(t, body, "usable compact summary")
+	require.Contains(t, body, "event: message_stop")
+	requireClaudeCodeAnthropicSSEStateMachine(t, body)
+}
+
 func TestReadOpenAICompatBufferedTerminal_CompactKeepaliveMarksTransportStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

@@ -90,6 +90,7 @@ func TestEmptyVisibleOutputError_NoAccountFailover(t *testing.T) {
 	require.NotNil(t, err)
 	require.True(t, err.NoAccountFailover)
 	require.NotEmpty(t, err.ResponseBody)
+	require.Contains(t, string(err.ResponseBody), `"type":"api_error"`)
 }
 
 // compact 恢复的 context-length sentinel 渲染文本不得点名 OpenAI。

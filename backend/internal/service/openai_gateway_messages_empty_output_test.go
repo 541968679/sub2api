@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func messagesResponsesSSE(events ...string) string {
@@ -111,6 +112,8 @@ func TestOpenAIMessagesStreamReasoningOnlyTriggersFailoverBeforeEmptyReply(t *te
 	failoverErr := requireMessagesFailoverError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Equal(t, "api_error", gjson.GetBytes(failoverErr.ResponseBody, "error.type").String())
 	require.Empty(t, rec.Body.String(), "reasoning-only preamble must stay buffered so another account can be tried")
 }
 
@@ -237,4 +240,101 @@ func TestOpenAIMessagesStreamPreVisibleKeepaliveDoesNotCommitFailover(t *testing
 	require.True(t, OpenAIAnthropicTransportStreamStarted(c))
 	require.Contains(t, rec.Body.String(), "event: ping")
 	require.NotContains(t, rec.Body.String(), "internal reasoning")
+}
+
+func requireClaudeCodeAnthropicSSEStateMachine(t *testing.T, sse string) {
+	t.Helper()
+	hasMessage := false
+	hasCurrentBlock := false
+	for _, line := range strings.Split(sse, "\n") {
+		if !strings.HasPrefix(line, "event: ") {
+			continue
+		}
+		evt := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+		switch evt {
+		case "ping":
+			continue
+		case "message_start":
+			hasMessage = true
+		case "content_block_start":
+			require.True(t, hasMessage, "content_block_start without a current message")
+			hasCurrentBlock = true
+		case "content_block_delta":
+			require.True(t, hasMessage, "Received content_block_delta without a current message")
+			require.True(t, hasCurrentBlock, "content_block_delta without a current content block")
+		case "content_block_stop":
+			hasCurrentBlock = false
+		case "message_stop":
+			hasMessage = false
+			hasCurrentBlock = false
+		case "error":
+			hasMessage = false
+			hasCurrentBlock = false
+		}
+	}
+}
+
+func firstAnthropicSSEEvent(sse string) string {
+	for _, line := range strings.Split(sse, "\n") {
+		if strings.HasPrefix(line, "event: ") {
+			evt := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+			if evt != "ping" {
+				return evt
+			}
+		}
+	}
+	return ""
+}
+
+func TestOpenAIMessagesStreamMissingCreatedStartsWithMessageStart(t *testing.T) {
+	result, err, rec := handleMessagesTestStream(t,
+		`{"type":"response.output_text.delta","output_index":0,"delta":"usable compact summary"}`,
+		`{"type":"response.completed","response":{"id":"resp_skip_created","status":"completed","output":[],"usage":{"input_tokens":10,"output_tokens":3,"total_tokens":13}}}`,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	body := rec.Body.String()
+	require.Equal(t, "message_start", firstAnthropicSSEEvent(body))
+	require.Contains(t, body, "usable compact summary")
+	require.Contains(t, body, "event: message_stop")
+	requireClaudeCodeAnthropicSSEStateMachine(t, body)
+}
+
+func TestOpenAIMessagesStreamEmptyAfterPingWritesSSEError(t *testing.T) {
+	svc, c, rec, resp, account := messagesTestStream(t,
+		`{"type":"response.created","response":{"id":"resp_empty_ping","model":"gpt-5.5","status":"in_progress"}}`,
+		`{"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[]}}`,
+		`{"type":"response.completed","response":{"id":"resp_empty_ping","status":"completed","output":[{"type":"reasoning","summary":[]}],"usage":{"input_tokens":10,"output_tokens":2,"total_tokens":12}}}`,
+	)
+	MarkOpenAIAnthropicTransportStreamStarted(c)
+
+	result, err := svc.handleAnthropicStreamingResponse(
+		resp, c, account, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+	)
+
+	failoverErr := requireMessagesFailoverError(t, err)
+	require.NotNil(t, result)
+	require.True(t, failoverErr.NoAccountFailover)
+	require.Contains(t, rec.Body.String(), "event: error")
+	require.Contains(t, rec.Body.String(), "without assistant content")
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+	require.True(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestEmptyVisibleOutputError_WritesSSEAfterTransportStarted(t *testing.T) {
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	_, c, rec, _, account := messagesTestStream(t)
+	require.NoError(t, writeAnthropicCompactKeepalive(c))
+
+	err := svc.newOpenAIEmptyVisibleOutputError(c, account, "rid",
+		"Upstream messages stream completed without assistant content or tool output")
+	require.NotNil(t, err)
+	require.True(t, err.NoAccountFailover)
+	require.Equal(t, "api_error", gjson.GetBytes(err.ResponseBody, "error.type").String())
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "event: error")
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+	require.True(t, OpenAIAnthropicResponseTerminated(c))
 }

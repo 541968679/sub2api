@@ -1,3 +1,27 @@
+## 2026-08-21 - fix: bridge compact SSE requires message_start before content_block_*
+
+### What
+- Shared Responses→Anthropic converter now `ensureResponsesAnthropicMessageStart` before every `content_block_start` / `content_block_delta` (output item added, text/thinking/tool deltas, text done, terminal replay). `response.created` stays the primary path; the helper no-ops if already sent.
+- Compact / empty-visible failure: transport not started → existing HTTP 502 JSON + `api_error` + `NoAccountFailover`; after ping or flushed SSE → `event: error` + `MarkOpenAIAnthropicResponseTerminated`. Never HTTP 200 + empty `message_stop`. Compact recovery exhausted uses that constructor; a 429/5xx before any SSE is not rewritten as empty compact, and semantic output already started is never rewritten.
+- Ping remains transport-only keepalive. No synthetic preamble `content_block_delta`.
+
+### Why
+- Third-party relays (jizhiapi / tokenbits) can skip `response.created`. Claude Code then reports `Received content_block_delta without a current message`, drops the compact `<summary>`, and continues as a new session.
+
+### Verification
+- `go test -tags=unit ./internal/pkg/apicompat -count=1`
+- `go test -tags=unit ./internal/service -run "Anthropic|Compact|Messages|EmptyVisible|PromptTooLong" -count=1`
+- `go test -tags=unit ./internal/handler -run "Bridge|Anthropic|Messages|Stream" -count=1`
+
+### Affected files
+`backend/internal/pkg/apicompat/responses_to_anthropic.go`,
+`backend/internal/pkg/apicompat/anthropic_responses_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_gateway_messages_compact.go`,
+`backend/internal/service/openai_gateway_messages_empty_output_test.go`,
+`backend/internal/service/openai_gateway_messages_compact_test.go`,
+`docs/dev/codebase/gateway.md`.
+
 ## 2026-08-21 - fix: probe concurrency form no longer clamps invalid custom
 
 ### What

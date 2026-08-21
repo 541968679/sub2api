@@ -371,23 +371,15 @@ func ResponsesAnthropicEventToSSE(evt AnthropicStreamEvent) (string, error) {
 
 // --- internal handlers ---
 
-func resToAnthHandleCreated(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if evt.Response != nil {
-		state.ResponseID = evt.Response.ID
-		// Only use upstream model if no override was set (e.g. originalModel)
-		if state.Model == "" {
-			state.Model = evt.Response.Model
-		}
-		if evt.Response.Usage != nil {
-			setResponsesAnthropicStateUsage(state, anthropicUsageFromResponsesUsage(evt.Response.Usage))
-		}
-	}
-
-	if state.MessageStartSent {
+// ensureResponsesAnthropicMessageStart emits message_start when it has not been
+// sent yet. response.created remains the primary path; later content_block_*
+// handlers call this so relays that skip response.created still produce a
+// legal Claude Code SSE sequence. Repeat calls are a no-op once sent.
+func ensureResponsesAnthropicMessageStart(state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	if state == nil || state.MessageStartSent {
 		return nil
 	}
 	state.MessageStartSent = true
-
 	return []AnthropicStreamEvent{{
 		Type: "message_start",
 		Message: &AnthropicResponse{
@@ -404,6 +396,45 @@ func resToAnthHandleCreated(evt *ResponsesStreamEvent, state *ResponsesEventToAn
 			},
 		},
 	}}
+}
+
+func prependResponsesAnthropicContentEvents(state *ResponsesEventToAnthropicState, events []AnthropicStreamEvent) []AnthropicStreamEvent {
+	if len(events) == 0 {
+		return events
+	}
+	needsStart := false
+	for i := range events {
+		switch events[i].Type {
+		case "content_block_start", "content_block_delta":
+			needsStart = true
+		}
+		if needsStart {
+			break
+		}
+	}
+	if !needsStart {
+		return events
+	}
+	start := ensureResponsesAnthropicMessageStart(state)
+	if len(start) == 0 {
+		return events
+	}
+	return append(start, events...)
+}
+
+func resToAnthHandleCreated(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	if evt.Response != nil {
+		state.ResponseID = evt.Response.ID
+		// Only use upstream model if no override was set (e.g. originalModel)
+		if state.Model == "" {
+			state.Model = evt.Response.Model
+		}
+		if evt.Response.Usage != nil {
+			setResponsesAnthropicStateUsage(state, anthropicUsageFromResponsesUsage(evt.Response.Usage))
+		}
+	}
+
+	return ensureResponsesAnthropicMessageStart(state)
 }
 
 func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -440,7 +471,7 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 				Input: json.RawMessage("{}"),
 			},
 		})
-		return events
+		return prependResponsesAnthropicContentEvents(state, events)
 
 	case "reasoning":
 		var events []AnthropicStreamEvent
@@ -461,7 +492,7 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 				Thinking: "",
 			},
 		})
-		return events
+		return prependResponsesAnthropicContentEvents(state, events)
 
 	case "message":
 		return nil
@@ -511,7 +542,7 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 			Text: evt.Delta,
 		},
 	})
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 func resToAnthHandleContentPart(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -570,7 +601,7 @@ func resToAnthHandleTextDone(evt *ResponsesStreamEvent, state *ResponsesEventToA
 		state.CurrentContentIndex == evt.ContentIndex {
 		events = append(events, closeCurrentBlock(state)...)
 	}
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -594,14 +625,14 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 		return nil
 	}
 
-	return []AnthropicStreamEvent{{
+	return prependResponsesAnthropicContentEvents(state, []AnthropicStreamEvent{{
 		Type:  "content_block_delta",
 		Index: &blockIdx,
 		Delta: &AnthropicDelta{
 			Type:        "input_json_delta",
 			PartialJSON: evt.Delta,
 		},
-	}}
+	}})
 }
 
 func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -638,7 +669,7 @@ func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEven
 					Delta: &AnthropicDelta{Type: "input_json_delta", PartialJSON: suffix},
 				})
 			}
-			return append(events, closeCurrentBlock(state)...)
+			return prependResponsesAnthropicContentEvents(state, append(events, closeCurrentBlock(state)...))
 		}
 		return closeCurrentBlock(state)
 	}
@@ -665,7 +696,7 @@ func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEven
 	}}
 	state.HandledOutputIndexes[evt.OutputIndex] = true
 	events = append(events, closeCurrentBlock(state)...)
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 func resToAnthHandleReasoningDelta(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -679,14 +710,14 @@ func resToAnthHandleReasoningDelta(evt *ResponsesStreamEvent, state *ResponsesEv
 	}
 	state.HandledOutputIndexes[evt.OutputIndex] = true
 
-	return []AnthropicStreamEvent{{
+	return prependResponsesAnthropicContentEvents(state, []AnthropicStreamEvent{{
 		Type:  "content_block_delta",
 		Index: &blockIdx,
 		Delta: &AnthropicDelta{
 			Type:     "thinking_delta",
 			Thinking: evt.Delta,
 		},
-	}}
+	}})
 }
 
 func resToAnthHandleBlockDone(state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -733,7 +764,7 @@ func resToAnthHandleOutputItemDone(evt *ResponsesStreamEvent, state *ResponsesEv
 	if state.ContentBlockOpen {
 		events = append(events, closeCurrentBlock(state)...)
 	}
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 // resToAnthHandleWebSearchDone converts an OpenAI web_search_call output item
@@ -789,7 +820,7 @@ func resToAnthHandleWebSearchDone(evt *ResponsesStreamEvent, state *ResponsesEve
 	})
 	state.ContentBlockIndex++
 
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 func resToAnthHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
@@ -849,7 +880,7 @@ func resToAnthHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 		AnthropicStreamEvent{Type: "message_stop"},
 	)
 	state.MessageStopSent = true
-	return events
+	return prependResponsesAnthropicContentEvents(state, events)
 }
 
 func setResponsesAnthropicStateUsage(state *ResponsesEventToAnthropicState, usage AnthropicUsage) {
@@ -892,9 +923,7 @@ func resToAnthHandleTerminalOutput(resp *ResponsesResponse, state *ResponsesEven
 				if text == "" {
 					continue
 				}
-				if !state.MessageStartSent {
-					events = append(events, resToAnthHandleCreated(&ResponsesStreamEvent{}, state)...)
-				}
+				events = append(events, ensureResponsesAnthropicMessageStart(state)...)
 				events = append(events, resToAnthHandleTextDone(&ResponsesStreamEvent{
 					Type:         "response.terminal_output_text",
 					OutputIndex:  outputIndex,
@@ -936,22 +965,7 @@ func resToAnthHandleTerminalOutput(resp *ResponsesResponse, state *ResponsesEven
 			continue
 		}
 
-		if !state.MessageStartSent {
-			state.MessageStartSent = true
-			events = append(events, AnthropicStreamEvent{
-				Type: "message_start",
-				Message: &AnthropicResponse{
-					ID:      state.ResponseID,
-					Type:    "message",
-					Role:    "assistant",
-					Content: []AnthropicContentBlock{},
-					Model:   state.Model,
-					Usage: AnthropicUsage{
-						InputTokens: state.InputTokens,
-					},
-				},
-			})
-		}
+		events = append(events, ensureResponsesAnthropicMessageStart(state)...)
 
 		for _, block := range blocks {
 			idx := state.ContentBlockIndex

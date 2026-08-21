@@ -1030,6 +1030,146 @@ func TestStreamingCachedTokensUseAnthropicInputSemantics(t *testing.T) {
 	assert.Equal(t, "message_stop", events[1].Type)
 }
 
+func requireClaudeCodeAnthropicEventOrder(t *testing.T, events []AnthropicStreamEvent) {
+	t.Helper()
+	hasMessage := false
+	hasCurrentBlock := false
+	for _, evt := range events {
+		switch evt.Type {
+		case "message_start":
+			hasMessage = true
+		case "content_block_start":
+			require.True(t, hasMessage, "content_block_start without a current message")
+			hasCurrentBlock = true
+		case "content_block_delta":
+			require.True(t, hasMessage, "Received content_block_delta without a current message")
+			require.True(t, hasCurrentBlock, "content_block_delta without a current content block")
+		case "content_block_stop":
+			hasCurrentBlock = false
+		case "message_stop":
+			hasMessage = false
+			hasCurrentBlock = false
+		}
+	}
+}
+
+func firstAnthropicEventType(events []AnthropicStreamEvent) string {
+	if len(events) == 0 {
+		return ""
+	}
+	return events[0].Type
+}
+
+func TestStreamingTextDeltaWithoutResponseCreatedEmitsMessageStartFirst(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	state.Model = "claude-opus-4-8"
+
+	var events []AnthropicStreamEvent
+	for _, evt := range []*ResponsesStreamEvent{
+		{Type: "response.output_text.delta", OutputIndex: 0, Delta: "usable compact summary"},
+		{Type: "response.output_text.delta", OutputIndex: 0, Delta: " continues"},
+		{Type: "response.completed", Response: &ResponsesResponse{
+			ID: "resp_skip_created", Status: "completed",
+			Usage: &ResponsesUsage{InputTokens: 10, OutputTokens: 4},
+		}},
+	} {
+		events = append(events, ResponsesEventToAnthropicEvents(evt, state)...)
+	}
+
+	require.Equal(t, "message_start", firstAnthropicEventType(events))
+	require.True(t, state.MessageStartSent)
+	requireClaudeCodeAnthropicEventOrder(t, events)
+	require.Equal(t, "content_block_start", events[1].Type)
+	require.Equal(t, "content_block_delta", events[2].Type)
+	require.Equal(t, "usable compact summary", events[2].Delta.Text)
+}
+
+func TestStreamingFunctionCallAddedWithoutResponseCreatedEmitsMessageStartFirst(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	state.Model = "claude-opus-4-8"
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_skip", Name: "Read"},
+	}, state)
+	require.GreaterOrEqual(t, len(events), 2)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	requireClaudeCodeAnthropicEventOrder(t, events)
+
+	delta := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.delta",
+		OutputIndex: 0,
+		Delta:       `{"file_path":"README.md"}`,
+	}, state)
+	requireClaudeCodeAnthropicEventOrder(t, append(append([]AnthropicStreamEvent{}, events...), delta...))
+}
+
+func TestStreamingReasoningAddedWithoutResponseCreatedEmitsMessageStartFirst(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	state.Model = "claude-opus-4-8"
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item:        &ResponsesOutput{Type: "reasoning", ID: "rs_skip"},
+	}, state)
+	require.GreaterOrEqual(t, len(events), 2)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	require.NotNil(t, events[1].ContentBlock)
+	assert.Equal(t, "thinking", events[1].ContentBlock.Type)
+	requireClaudeCodeAnthropicEventOrder(t, events)
+
+	delta := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.reasoning_summary_text.delta",
+		OutputIndex: 0,
+		Delta:       "internal reasoning",
+	}, state)
+	require.NotEmpty(t, delta)
+	assert.Equal(t, "content_block_delta", delta[0].Type)
+	requireClaudeCodeAnthropicEventOrder(t, append(append([]AnthropicStreamEvent{}, events...), delta...))
+}
+
+func TestStreamingContentPartWithoutResponseCreatedEmitsMessageStartFirst(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	state.Model = "claude-opus-4-8"
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:         "response.content_part.added",
+		OutputIndex:  0,
+		ContentIndex: 0,
+		Part:         &ResponsesContentPart{Type: "output_text", Text: "usable compact summary"},
+	}, state)
+	require.GreaterOrEqual(t, len(events), 3)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	assert.Equal(t, "content_block_delta", events[2].Type)
+	require.NotNil(t, events[2].Delta)
+	assert.Equal(t, "usable compact summary", events[2].Delta.Text)
+	requireClaudeCodeAnthropicEventOrder(t, events)
+}
+
+func TestEnsureResponsesAnthropicMessageStartIsNoopAfterCreated(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	created := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_once", Model: "gpt-5.5"},
+	}, state)
+	require.Len(t, created, 1)
+	assert.Equal(t, "message_start", created[0].Type)
+	assert.Nil(t, ensureResponsesAnthropicMessageStart(state))
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:  "response.output_text.delta",
+		Delta: "Hello",
+	}, state)
+	require.GreaterOrEqual(t, len(events), 1)
+	assert.Equal(t, "content_block_start", events[0].Type)
+	requireClaudeCodeAnthropicEventOrder(t, append(created, events...))
+}
+
 func TestStreamingToolCall(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 
@@ -1078,6 +1218,51 @@ func TestStreamingToolCall(t *testing.T) {
 	}, state)
 	require.Len(t, events, 2)
 	assert.Equal(t, "tool_use", events[0].Delta.StopReason)
+}
+
+func TestStreamingToolCallWithoutResponseCreated(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	state.Model = "gpt-5.2"
+
+	var all []AnthropicStreamEvent
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item:        &ResponsesOutput{Type: "function_call", CallID: "call_1", Name: "get_weather"},
+	}, state)
+	require.GreaterOrEqual(t, len(events), 2)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	assert.Equal(t, "tool_use", events[1].ContentBlock.Type)
+	all = append(all, events...)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.delta",
+		OutputIndex: 0,
+		Delta:       `{"city":`,
+	}, state)
+	require.Len(t, events, 1)
+	assert.Equal(t, "content_block_delta", events[0].Type)
+	all = append(all, events...)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.function_call_arguments.done",
+	}, state)
+	require.Len(t, events, 1)
+	assert.Equal(t, "content_block_stop", events[0].Type)
+	all = append(all, events...)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			Status: "completed",
+			Usage:  &ResponsesUsage{InputTokens: 20, OutputTokens: 10},
+		},
+	}, state)
+	require.Len(t, events, 2)
+	assert.Equal(t, "tool_use", events[0].Delta.StopReason)
+	all = append(all, events...)
+	requireClaudeCodeAnthropicEventOrder(t, all)
 }
 
 func TestStreamingToolCallStopReasonSurvivesLaterText(t *testing.T) {
