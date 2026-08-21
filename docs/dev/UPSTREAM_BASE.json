@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-21",
+  "fork_version": "0.1.247",
+  "fork_tip_at_record": "7f054bc3e",
+  "upstream_repo": "https://github.com/Wei-Shaw/sub2api",
+  "upstream_remote": "upstream",
+  "sync_mode": "selective_graded",
+  "equivalent_to_full_upstream_tag": false,
+  "upstream_large_baseline": {
+    "tag": "v0.1.152",
+    "commit": "b73d8c3ef",
+    "upstream_version_file": "0.1.152",
+    "batch_date": "2026-07-14",
+    "batch_title": "Selective alignment to upstream v0.1.152",
+    "branch": "codex/upstream-v0152-sync-20260713",
+    "notes": "Still the last baseline actually on main. UPSYNC-152-170 exists only on sync/upstream-v0152-to-v0170 and is not merged."
+  },
+  "standing_replica": {
+    "branch": "sync/upstream-standing-20260821",
+    "worktree": "E:/cursor project/api2sub-upstream-standing-20260821",
+    "branch_point": "7f054bc3e",
+    "patch_source": "7feb1549f",
+    "patch_source_branch": "sync/upstream-catchup-20260814",
+    "migrations": ["210", "211", "212"],
+    "window1_status": "landed_on_isolation_branch",
+    "merge_to_main": "deferred_pending_authorization"
+  },
+  "pending_port": {
+    "from_branch": "sync/upstream-v0152-to-v0170",
+    "from_tip": "1379d3c66",
+    "target_branch": "sync/upstream-standing-20260821",
+    "target_worktree": "E:/cursor project/api2sub-upstream-standing-20260821",
+    "status": "window1_landed_on_isolation_branch"
+  },
+  "pending_eval_window": {
+    "from_commit": "fbfdcef81",
+    "to_commit": "fbfdcef81",
+    "to_ref_note": "Frozen ceiling (C2). Do not expand if upstream/main later moves. Pending eval still starts at fbfdcef81.",
+    "upstream_version_file": "0.1.176",
+    "commit_count_all": 332,
+    "commit_count_no_merges": 238
+  },
+  "active_plan": {
+    "id": "UPSYNC-STANDING-20260821",
+    "doc": "docs/dev/UPSTREAM_SYNC.md",
+    "trellis_parent": ".trellis/tasks/08-21-upstream-sync-standing",
+    "trellis_inventory": ".trellis/tasks/08-21-upsync-standing-replica",
+    "status": "window1_landed_pending_eval_still_fbfdcef81",
+    "merge_to_main": "deferred_pending_authorization"
+  }
+}

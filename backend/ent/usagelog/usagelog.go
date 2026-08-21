@@ -92,6 +92,8 @@ const (
 	FieldIPAddress = "ip_address"
 	// FieldImageCount holds the string denoting the image_count field in the database.
 	FieldImageCount = "image_count"
+	// FieldImageInputTokens holds the string denoting the image_input_tokens field in the database.
+	FieldImageInputTokens = "image_input_tokens"
 	// FieldImageSize holds the string denoting the image_size field in the database.
 	FieldImageSize = "image_size"
 	// FieldImageInputSize holds the string denoting the image_input_size field in the database.
@@ -114,6 +116,10 @@ const (
 	FieldCacheTTLOverridden = "cache_ttl_overridden"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldTrueCost holds the string denoting the true_cost field in the database.
+	FieldTrueCost = "true_cost"
+	// FieldTrueCostRate holds the string denoting the true_cost_rate field in the database.
+	FieldTrueCostRate = "true_cost_rate"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeAPIKey holds the string denoting the api_key edge name in mutations.
@@ -205,6 +211,7 @@ var Columns = []string{
 	FieldUserAgent,
 	FieldIPAddress,
 	FieldImageCount,
+	FieldImageInputTokens,
 	FieldImageSize,
 	FieldImageInputSize,
 	FieldImageOutputSize,
@@ -216,6 +223,8 @@ var Columns = []string{
 	FieldVideoDurationSeconds,
 	FieldCacheTTLOverridden,
 	FieldCreatedAt,
+	FieldTrueCost,
+	FieldTrueCostRate,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -281,6 +290,8 @@ var (
 	IPAddressValidator func(string) error
 	// DefaultImageCount holds the default value on creation for the "image_count" field.
 	DefaultImageCount int
+	// DefaultImageInputTokens holds the default value on creation for the "image_input_tokens" field.
+	DefaultImageInputTokens int
 	// ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
 	ImageSizeValidator func(string) error
 	// ImageInputSizeValidator is a validator for the "image_input_size" field. It is called by the builders before save.
@@ -504,6 +515,11 @@ func ByImageCount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImageCount, opts...).ToFunc()
 }
 
+// ByImageInputTokens orders the results by the image_input_tokens field.
+func ByImageInputTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageInputTokens, opts...).ToFunc()
+}
+
 // ByImageSize orders the results by the image_size field.
 func ByImageSize(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImageSize, opts...).ToFunc()
@@ -552,6 +568,16 @@ func ByCacheTTLOverridden(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByTrueCost orders the results by the true_cost field.
+func ByTrueCost(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTrueCost, opts...).ToFunc()
+}
+
+// ByTrueCostRate orders the results by the true_cost_rate field.
+func ByTrueCostRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTrueCostRate, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

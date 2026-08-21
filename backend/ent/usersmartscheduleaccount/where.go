@@ -35,6 +35,11 @@ func MaxConcurrency(v int) predicate.UserSmartScheduleAccount {
 	return predicate.UserSmartScheduleAccount(sql.FieldEQ(FieldMaxConcurrency, v))
 }
 
+// SortOrder applies equality check predicate on the "sort_order" field. It's identical to SortOrderEQ.
+func SortOrder(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldEQ(FieldSortOrder, v))
+}
+
 // AccountIDEQ applies the EQ predicate on the "account_id" field.
 func AccountIDEQ(v int64) predicate.UserSmartScheduleAccount {
 	return predicate.UserSmartScheduleAccount(sql.FieldEQ(FieldAccountID, v))
@@ -228,6 +233,56 @@ func MaxConcurrencyIsNil() predicate.UserSmartScheduleAccount {
 // MaxConcurrencyNotNil applies the NotNil predicate on the "max_concurrency" field.
 func MaxConcurrencyNotNil() predicate.UserSmartScheduleAccount {
 	return predicate.UserSmartScheduleAccount(sql.FieldNotNull(FieldMaxConcurrency))
+}
+
+// SortOrderEQ applies the EQ predicate on the "sort_order" field.
+func SortOrderEQ(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldEQ(FieldSortOrder, v))
+}
+
+// SortOrderNEQ applies the NEQ predicate on the "sort_order" field.
+func SortOrderNEQ(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldNEQ(FieldSortOrder, v))
+}
+
+// SortOrderIn applies the In predicate on the "sort_order" field.
+func SortOrderIn(vs ...int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldIn(FieldSortOrder, vs...))
+}
+
+// SortOrderNotIn applies the NotIn predicate on the "sort_order" field.
+func SortOrderNotIn(vs ...int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldNotIn(FieldSortOrder, vs...))
+}
+
+// SortOrderGT applies the GT predicate on the "sort_order" field.
+func SortOrderGT(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldGT(FieldSortOrder, v))
+}
+
+// SortOrderGTE applies the GTE predicate on the "sort_order" field.
+func SortOrderGTE(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldGTE(FieldSortOrder, v))
+}
+
+// SortOrderLT applies the LT predicate on the "sort_order" field.
+func SortOrderLT(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldLT(FieldSortOrder, v))
+}
+
+// SortOrderLTE applies the LTE predicate on the "sort_order" field.
+func SortOrderLTE(v int) predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldLTE(FieldSortOrder, v))
+}
+
+// SortOrderIsNil applies the IsNil predicate on the "sort_order" field.
+func SortOrderIsNil() predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldIsNull(FieldSortOrder))
+}
+
+// SortOrderNotNil applies the NotNil predicate on the "sort_order" field.
+func SortOrderNotNil() predicate.UserSmartScheduleAccount {
+	return predicate.UserSmartScheduleAccount(sql.FieldNotNull(FieldSortOrder))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

@@ -711,6 +711,9 @@ export interface Group {
 	peak_end: string
 	peak_rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
+  profit_control_enabled?: boolean
+  profit_min_margin?: number
+  profit_safety_buffer?: number
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType

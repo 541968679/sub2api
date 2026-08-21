@@ -483,6 +483,12 @@ func NewOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 ) *OpenAIGatewayService {
+	// enforceCodexIdentityHeaders is shared by HTTP / passthrough / WS / probes
+	// and cannot inject config; publish the process snapshot here. Config is
+	// inverted so the zero value means "normalization enabled".
+	if cfg != nil {
+		SetCodexOriginatorNormalizationEnabled(!cfg.Gateway.DisableCodexOriginatorNormalization)
+	}
 	svc := &OpenAIGatewayService{
 		accountRepo:         accountRepo,
 		usageLogRepo:        usageLogRepo,
@@ -4016,10 +4022,13 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	}
 	combined := strings.TrimSpace(errType + " " + code + " " + strings.ToLower(strings.TrimSpace(message)))
 	switch {
-	case strings.Contains(errType, "invalid_request"):
-		return http.StatusBadRequest
+	// Prefer rate_limit over invalid_request: some upstreams set type=invalid_request
+	// with code=rate_limit_exceeded inside HTTP 200 response.failed SSE; promote to 429
+	// so pool-mode same-account retry / failover apply (upstream 85a27fae3).
 	case strings.Contains(combined, "rate_limit"):
 		return http.StatusTooManyRequests
+	case strings.Contains(errType, "invalid_request"):
+		return http.StatusBadRequest
 	case strings.Contains(combined, "authentication"), strings.Contains(combined, "unauthorized"), strings.Contains(combined, "invalid_api_key"):
 		return http.StatusUnauthorized
 	case strings.Contains(combined, "permission"), strings.Contains(combined, "forbidden"), strings.Contains(combined, "access denied"):
@@ -4029,6 +4038,19 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	default:
 		return http.StatusBadGateway
 	}
+}
+
+// openAIStreamFailureStatus maps an HTTP-200 SSE response.failed payload to the
+// status used for failover/retry decisions. Only rate limits are promoted to 429;
+// other failures keep 502 failover behavior.
+func openAIStreamFailureStatus(payload []byte, message string) int {
+	if len(bytes.TrimSpace(payload)) == 0 || !gjson.ValidBytes(payload) {
+		return http.StatusBadGateway
+	}
+	if openAIStreamFailedEventSemanticStatus(payload, message) == http.StatusTooManyRequests {
+		return http.StatusTooManyRequests
+	}
+	return http.StatusBadGateway
 }
 
 func openAIStreamFailedEventPassthroughBody(payload []byte, failedMessage string) []byte {
@@ -4098,6 +4120,11 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 }
 
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
+	// A response.failed event is transported over HTTP 200. Prefer its semantic
+	// status when classifying rate limits so failover/retry still run.
+	if openAIStreamFailureStatus(payload, message) == http.StatusTooManyRequests {
+		return true
+	}
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
 	if code == "" {
 		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
@@ -6018,6 +6045,10 @@ func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsag
 		gjson.GetBytes(data, "response.usage.input_tokens_details.cache_write_tokens").Int(),
 		gjson.GetBytes(data, "response.usage.prompt_tokens_details.cache_write_tokens").Int(),
 	))
+	usage.ImageInputTokens = int(firstNonZeroInt64(
+		gjson.GetBytes(data, "response.usage.input_tokens_details.image_tokens").Int(),
+		gjson.GetBytes(data, "response.usage.input_tokens_details.image_input_tokens").Int(),
+	))
 	usage.ImageOutputTokens = int(gjson.GetBytes(data, "response.usage.output_tokens_details.image_tokens").Int())
 }
 
@@ -6046,6 +6077,8 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 		usageRoot+".cache_write_tokens",
 		usageRoot+".input_tokens_details.cache_write_tokens",
 		usageRoot+".prompt_tokens_details.cache_write_tokens",
+		usageRoot+".input_tokens_details.image_tokens",
+		usageRoot+".input_tokens_details.image_input_tokens",
 	)
 	inputTokens := values[0].Int()
 	if inputTokens == 0 {
@@ -6063,8 +6096,10 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 	if imageOutputTokens == 0 {
 		imageOutputTokens = values[7].Int()
 	}
+	imageInputTokens := firstNonZeroInt64(values[12].Int(), values[13].Int())
 	return OpenAIUsage{
 		InputTokens:              int(inputTokens),
+		ImageInputTokens:         int(imageInputTokens),
 		OutputTokens:             int(outputTokens),
 		CacheCreationInputTokens: int(firstNonZeroInt64(values[8].Int(), values[9].Int(), values[10].Int(), values[11].Int())),
 		CacheReadInputTokens:     int(cacheReadTokens),
@@ -7289,6 +7324,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		OutputTokens:        result.Usage.OutputTokens,
 		CacheCreationTokens: cacheCreationInputTokens,
 		CacheReadTokens:     cacheReadInputTokens,
+		ImageInputTokens:    result.Usage.ImageInputTokens,
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 		ImageCount:          result.ImageCount,
 		ImageSize:           normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),

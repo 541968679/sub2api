@@ -1,3 +1,30 @@
+## 2026-08-21 - sync: fine-port catchup window-1 onto 0.1.247 standing replica
+
+### What
+- Overlay window-1 P1/P2/P5 from `7feb1549f` onto `sync/upstream-standing-20260821` (branch-point `7f054bc3e`): Codex load-shed identity rewrite, Claude Code security-monitor classifier, configurable client-IP headers / True-Client-IP, moderation proxy fail-closed, plan currency, `response.failed` rate_limit → 429, security-audit default Off, optional group profit-control admin fields.
+- Keep pair/smart-schedule, `true_first_token_ms`, `true_cost`, display billing, and `actual_cost` unchanged. Migrations stay 210–212.
+
+### Why
+- Standing replica needs the catchup window-1 behaviors on current main 0.1.247 without merging old catchup branches or whole-file replacing hot paths.
+
+### Verification
+- `go test -tags=unit -count=1` on changed packages (service, repository, pkg/ip, pkg/openai, handler, securityaudit)
+- `go run ./tools/upstream-sync-guard` and `--base 7f054bc3e`
+
+### Affected files
+`backend/internal/pkg/openai/request.go`, `backend/internal/config/config.go`, `deploy/config.example.yaml`,
+`backend/internal/service/openai_codex_identity.go`, `backend/internal/service/claude_code_validator.go`,
+`backend/internal/pkg/ip/ip.go`, `backend/internal/service/content_moderation.go`,
+`backend/internal/handler/content_moderation_helper.go`, `backend/internal/handler/security_audit_helper.go`,
+`backend/internal/service/payment_config_plans.go`, `backend/internal/service/payment_config_service.go`,
+`backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_ws_v2/passthrough_relay.go`,
+`backend/internal/service/admin_service.go`, `backend/internal/handler/admin/group_handler.go`,
+`backend/internal/handler/dto/types.go`, `backend/internal/service/wire.go`,
+`frontend/src/views/admin/GroupsView.vue`, `frontend/src/views/admin/orders/PlanEditDialog.vue`,
+`frontend/src/views/admin/orders/AdminPaymentPlansView.vue`, `frontend/src/views/admin/RiskControlView.vue`,
+`docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`,
+this changelog.
+
 ## 2026-08-21 - fix: leftover u:/w: no longer blocks probe graduate
 
 ### What

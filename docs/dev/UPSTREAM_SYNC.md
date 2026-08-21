@@ -2,6 +2,31 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 当前状态（2026-08-21 standing）
+
+| 项 | 值 |
+|----|----|
+| 本仓 `main` | 占用 checkout 保持 `main`；创建本分支时为 `7f054bc3e` / VERSION **0.1.247** |
+| 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合 `main`、未 push） |
+| branch-point / `--base` | `7f054bc3e` |
+| 窗 1 补丁源 | `7feb1549f` on `sync/upstream-catchup-20260814`（只当补丁源，禁止 merge/rebase） |
+| 窗 1 SQL | `210_subscription_plan_currency.sql`、`211_usage_log_image_input_tokens.sql`、`212_group_profit_control.sql`（`209` 已是 main 的 user_quality_snapshots） |
+| 已合入的 large baseline | 上游 `v0.1.152` / `b73d8c3ef` |
+| pending eval window | 仍从 `fbfdcef81` 起（冻结上限不变） |
+| 水位 JSON | [UPSTREAM_BASE.json](./UPSTREAM_BASE.json) |
+| 代码状态 | **窗 1 P1–P5 精细叠到 0.1.247**（利润门/安全审计默认关；image tokens 与 `true_cost`/`true_first_token_ms` 共存） |
+
+## 2026-08-21 - Fine-port catchup window-1 onto 0.1.247
+
+- **Branch**: `sync/upstream-standing-20260821` from `7f054bc3e`.
+- **Patch source**: `7feb1549f` hunk overlay only. Did not merge `sync/upstream-catchup-20260814`, `sync/upstream-v0152-to-v0170`, or `upstream/main`.
+- **P1**: Codex load-shed originator rewrite (`codex-tui` → `codex_cli_rs`) + disable switch (zero-value = ON); Claude Code security-monitor classifier without billing block.
+- **P2**: configurable client-IP header order / `True-Client-IP`; moderation proxy fail-closed; plan currency; `response.failed` rate_limit → 429 failover.
+- **P3/P4** (prior on this branch): `image_input_tokens` + profit-control default off after pair-full filter.
+- **P5**: security-audit process default Off; ModeOff/Observe/Blocking merges onto existing moderation decision.
+- **Fork-local kept**: display billing / `actual_cost` / real `cache_read` / pair / smart-schedule / `true_first_token_ms` / `true_cost`.
+- **Pushed/deployed**: no.
+
 ## 2026-07-27 - Selective sync of Responses item-ID sanitization
 
 - **Local baseline**: `b39f5fe01`.

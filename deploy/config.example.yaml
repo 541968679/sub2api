@@ -212,6 +212,12 @@ gateway:
   #
   # 注意：开启后会影响所有客户端的行为（不仅限于 VS Code / Codex CLI），请谨慎开启。
   force_codex_cli: false
+  # Rewrite load-shed Codex originators (e.g. codex-tui) to codex_cli_rs before
+  # outbound dispatch. Zero-value/default false means normalization is ON.
+  # Only set true if upstream retargets capacity buckets so normalization would shed.
+  # 将落入上游降载桶的 Codex originator（如 codex-tui）改写为 codex_cli_rs。
+  # 默认 false = 归一化开启；仅当上游改桶使归一化反而降载时才设 true。
+  disable_codex_originator_normalization: false
   # Optional: template file used to build the final top-level Codex `instructions`.
   # 可选：用于构建最终 Codex 顶层 `instructions` 的模板文件路径。
   #

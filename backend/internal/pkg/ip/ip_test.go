@@ -52,6 +52,23 @@ func TestIsPrivateIP(t *testing.T) {
 	}
 }
 
+func TestGetClientIP_UsesConfiguredHeaderOrder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	prev := ClientIPHeaderOrder()
+	t.Cleanup(func() { SetClientIPHeaderOrder(prev) })
+
+	SetClientIPHeaderOrder([]string{"True-Client-IP", "X-Real-IP"})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	c.Request.Header.Set("X-Real-IP", "8.8.8.8")
+	c.Request.Header.Set("True-Client-IP", "1.1.1.1")
+	c.Request.RemoteAddr = "9.9.9.9:1234"
+
+	require.Equal(t, "1.1.1.1", GetClientIP(c))
+}
+
 func TestGetTrustedClientIPUsesGinClientIP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

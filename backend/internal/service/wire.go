@@ -615,8 +615,26 @@ func ProvideOpsService(
 }
 
 // ProvideSettingService wires SettingService with group reader and proxy repo.
+// ProvideContentModerationService wires content moderation with the managed proxy repo
+// so ProxyID can route API calls. Missing repo + configured ProxyID is a hard error.
+func ProvideContentModerationService(
+	settingRepo SettingRepository,
+	repo ContentModerationRepository,
+	hashCache ContentModerationHashCache,
+	groupRepo GroupRepository,
+	userRepo UserRepository,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	emailService *EmailService,
+	proxyRepo ProxyRepository,
+) *ContentModerationService {
+	svc := NewContentModerationService(settingRepo, repo, hashCache, groupRepo, userRepo, authCacheInvalidator, emailService)
+	svc.SetProxyRepository(proxyRepo)
+	return svc
+}
+
 func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
+	ApplyClientIPHeaderSettings(nil)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
 	domain.GetPlatformDefaultMappingBillingObjectOverride = func(platform string) map[string]string {
@@ -734,7 +752,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpsCleanupService,
 	ProvideOpsScheduledReportService,
 	NewEmailService,
-	NewContentModerationService,
+	ProvideContentModerationService,
 	ProvideEmailQueueService,
 	NewTurnstileService,
 	ProvideSubscriptionService,

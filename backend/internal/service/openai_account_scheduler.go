@@ -893,6 +893,27 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
 	}
 
+	if schedGroup != nil {
+		policy := ProfitControlPolicyFromGroup(schedGroup)
+		if policy.Enabled {
+			downstream := schedGroup.RateMultiplier
+			if downstream <= 0 {
+				downstream = 1
+			}
+			filtered = FilterAccountsByProfitControl(filtered, downstream, policy)
+			loadReq = loadReq[:0]
+			for _, candidate := range filtered {
+				loadReq = append(loadReq, AccountWithConcurrency{
+					ID:             candidate.ID,
+					MaxConcurrency: candidate.EffectiveLoadFactor(),
+				})
+			}
+			if len(filtered) == 0 {
+				return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
+			}
+		}
+	}
+
 	loadMap := map[int64]*AccountLoadInfo{}
 	if s.service.concurrencyService != nil {
 		if batchLoad, loadErr := s.service.concurrencyService.GetAccountsLoadBatch(ctx, loadReq); loadErr == nil {
