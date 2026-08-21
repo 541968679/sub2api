@@ -1,3 +1,20 @@
+## 2026-08-21 - docs: standing upstream-sync hard rules
+
+### What
+- Add `.cursor/rules/upstream-sync.mdc` (always-on, keyword-gated) and an **Upstream sync (MUST)** section in `AGENTS.md`.
+- Lock A/B/C lanes, no wholesale `merge upstream/main`, no whole-file overlay, isolation worktree, migration `main` max+1, stop-for-Brandon on unresolved fork conflicts, and old catchup worktrees as patch-source-only (do not delete).
+
+### Why
+- Fork drift plus faster upstream cadence made large catch-up windows expire before merge. Agents need executable rules, not campaign-only PRDs.
+
+### Verification
+- Docs only. Occupied checkout stays on `main`. No product code.
+
+### Affected files
+`.cursor/rules/upstream-sync.mdc`,
+`AGENTS.md`,
+this changelog.
+
 ## 2026-08-21 - fix: bridge compact SSE requires message_start before content_block_*
 
 ### What

@@ -1,0 +1,40 @@
+---
+description: 上游同步必须先评估再精细叠行为；禁止整仓合入、整文件覆盖、在占用中的 main checkout 改产品代码
+alwaysApply: true
+---
+
+# 上游同步 MUST
+
+任务信号含「上游 / upstream / 同步 / sync / worktree / 合并副本」且涉及从 Wei-Shaw/sub2api 取更新时：
+
+- MUST 先出评估表并等确认，再改同步相关产品代码。
+- 按三车道处置，禁止一股脑全收。
+- 占用中的 `E:\cursor project\api2sub` 保持 `main`。产品代码只写隔离 worktree。规则/文档可写在该 checkout（不切分支）。
+
+| 车道 | 收什么 |
+|------|--------|
+| A 热修 | 协议 / 失败分类 / 身份 / 换号；不碰展示计费 |
+| B 三维 | gateway / scheduler / usage 等同文件；先读本仓二开再叠 |
+| C 延后/拒绝 | Grok 整包、monitor v2、Passkey、plaza、换部署等 |
+
+```text
+❌ BAD: git merge upstream/main，或整文件替换 openai_gateway_service.go
+❌ BAD: 在占用中的 api2sub checkout 切分支、改网关/调度/计费
+❌ BAD: 删除旧 catchup worktree，或把它 merge/rebase 进 main / 新副本
+❌ BAD: 功能冲突时自行删二开或选边上游
+✅ GOOD: 评估表 → 隔离 worktree → 按文件精细叠行为 → 冲突先问 Brandon
+✅ GOOD: 旧 catchup worktree/分支只当补丁源，不删、不整仓合入
+```
+
+## 硬禁止
+
+- 整仓 `merge upstream/main` 当交付；整段/整文件用上游或旧同步分支覆盖热路径。
+- 未读本仓用法就改共享文件（展示计费 / `actual_cost` / cache-read / bridge / 调度 pair / TTFT / migration 号）。
+- 解不了的功能冲突不先问 Brandon。
+- 把旧同步分支（如 `sync/upstream-v0152-to-v0170`、`sync/upstream-catchup-*`）直接 merge/rebase 进 `main` 或新副本。
+- 删除旧 catchup worktree（如 `E:\cursor project\api2sub-upstream-catchup-20260814`）。旧产物只当补丁源。
+- 新增 SQL 复用 `main` 已占用号，或改历史 migration。编号必须从当时 `main` max+1 起。
+- 未获当次明确授权：把同步分支合进真正的 `main`、`git push`、生产部署。
+- 把本仓 `VERSION` 改成上游版本号。
+
+评估表必填列与二开影响面见 `AGENTS.md`「Upstream sync」。细则以 `AGENTS.md` 为准。

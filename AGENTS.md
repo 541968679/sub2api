@@ -97,6 +97,43 @@ code-exploration walk.
 | Unfamiliar code / change a module | Existing Start Here chain: `ARCHITECTURE.md` → `codebase/README.md` → `codebase/{module}.md` |
 | 生产 / 线上 / 报错 / 排查 / 日志 / incident | `docs/dev/PRODUCTION.md` — pull logs before reading or changing code |
 | Deploy / release process | `docs/dev/DEPLOYMENT.md` — not the same as an incident |
+| 上游 / upstream / 同步 / sync / worktree / 合并副本 | `.cursor/rules/upstream-sync.mdc` then this file's **Upstream sync** section — assess before changing product code |
+
+## Upstream sync (MUST)
+
+When the task is pulling updates from upstream `Wei-Shaw/sub2api` (or porting a prior sync branch):
+
+- MUST write an assessment table and wait until it has been presented (and confirmed, for a new window) before changing sync-related product code.
+- MUST classify each theme into a lane; do not absorb the window wholesale.
+
+| Lane | Take | Do not |
+|------|------|--------|
+| **A hotfix** | Protocol, failure class, identity, failover — no display-billing change | Touch stored billing / display transform |
+| **B 3-way** | Same-file overlay on gateway / scheduler / usage after reading fork-local use | Whole-file or whole-hunk replace from upstream / old sync branch |
+| **C defer/reject** | Living catalog (Grok wholesale, channel-monitor v2, Passkey, plaza, deploy-path swap, bill-by-upstream-model) | Re-litigate the whole catalog every week |
+
+### Assessment table columns (minimum)
+
+upstream commit/feature point; concrete behavior change; affected backend/frontend modules; frontend-visible; how to test; relation to fork-local secondary development; expected impact on fork-local features; risk; handling (`A` / `B` / `C` or 采纳/适配/精细/延后/拒绝/已有). The fork-local impact column is mandatory and must call out applicable areas: billing/display-token accounting, curated/default model lists, Claude-GPT bridge, OpenAI image generation, default-model fallback, account scheduling/failover/pair, ops logging, public/admin settings, migrations, frontend i18n/routes.
+
+### Workspace
+
+- Occupied checkout `E:\cursor project\api2sub` stays on `main`. Do not `checkout` it away from `main` for sync work.
+- Sync **product** code is written only in an isolation worktree (new branch; never reuse an old catchup branch as the continue-stacking point).
+- Rule/doc edits (`AGENTS.md`, `.cursor/rules`) may be made on that occupied `main` checkout without switching branches.
+- Old sync worktrees/branches (including `E:\cursor project\api2sub-upstream-catchup-20260814` and `sync/upstream-catchup-*`) are patch sources only. Do not delete them. Do not `merge` / `rebase` them into `main` or into a new replica.
+
+### Fine-grained port (hard)
+
+- Never `git merge upstream/main` as the delivery form.
+- Never replace a hot-path file or hunk wholesale from upstream or an old sync branch. Read the fork-local use of each shared file first, then overlay behavior.
+- If a functional conflict cannot be resolved without breaking fork invariants (display prices not from `cost/tokens`; display must not change stored billing / `actual_cost`; real `cache_read` + `display_cache_token_max_mult`; Claude-GPT bridge; Batch Image; scheduler/pair; GHCR deploy policy), **stop and ask Brandon**. Do not pick a side or delete fork-local behavior.
+- New SQL is additive only. Number from **current `main` max+1**. Do not edit historical migrations. Do not reuse numbers already on `main`.
+- Do not set this repo's `VERSION` to an upstream version number. Record waterline only in `docs/dev/UPSTREAM_BASE.json` / `UPSTREAM_SYNC.md` (`git add -f`).
+- Do not merge a sync branch into real `main`, `git push`, or deploy without explicit Brandon authorization **for that action**.
+
+Cursor short form: `.cursor/rules/upstream-sync.mdc`. The `.cursor/` tree is
+gitignored; `git add -f` that rule file when committing.
 
 ## Production incidents (MUST)
 
@@ -373,17 +410,11 @@ before relying on that target.
 ## Mandatory Workflow Rules
 
 - Read `docs/dev/ARCHITECTURE.md` before exploring unfamiliar code.
-- Before every upstream-sync batch, list an explicit assessment table and wait
-  until that table has been presented before changing sync-related code. The
-  table must include, at minimum: upstream commit/feature point, concrete
-  behavior change, affected backend/frontend modules, whether the change is
-  visible in the frontend, how to test it, relation to fork-local secondary
-  development, expected impact on fork-local features, risk level, and planned
-  handling strategy. The fork-local impact column is mandatory and must call
-  out relevant custom areas such as billing/display-token accounting, curated
-  model lists, Claude-GPT bridge, OpenAI image generation, default-model
-  fallback, account scheduling/failover, ops logging, public/admin settings,
-  migrations, and frontend i18n/routes when applicable.
+- Before every upstream-sync batch, follow **Upstream sync (MUST)** above
+  (assessment table, A/B/C lanes, isolation worktree, fine-grained overlay,
+  ask Brandon on unresolved conflicts). Do not merge `upstream/main` wholesale
+  or replace hot-path files. The short Cursor form is
+  `.cursor/rules/upstream-sync.mdc`.
 - Append every verified change to `docs/dev/CHANGELOG_CUSTOM.md` with what
   changed, why, and affected files.
 - Sub2API repository changes are logged in `docs/dev/CHANGELOG_CUSTOM.md`.
