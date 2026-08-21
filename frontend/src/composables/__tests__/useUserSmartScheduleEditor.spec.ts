@@ -152,6 +152,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
           user_id: userId,
           state,
           probing: state === 'probing',
+          pinned: state === 'pinned',
           probe_cap: state === 'probing' ? 2 : undefined,
           cooldown_until: null
         })
@@ -505,6 +506,13 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.memberProbing(21)).toBe(true)
     expect(w.vm.memberProbeCap(21)).toBe(2)
     expect(w.vm.memberResumeActive(21)).toBe(false)
+
+    await w.vm.setPairAdmission(21, 'pinned')
+    await flushPromises()
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'pinned')
+    expect(w.vm.memberPinned(21)).toBe(true)
+    expect(w.vm.memberProbing(21)).toBe(false)
+    expect(w.vm.memberResumeActive(21)).toBe(false)
   })
 
   it('hydrates probing and probe_cap from GET without inventing them', async () => {
@@ -534,5 +542,57 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     await flushPromises()
     expect(w.vm.memberProbing(21)).toBe(true)
     expect(w.vm.memberProbeCap(21)).toBe(3)
+  })
+
+  it('hydrates pinned from GET without inventing it from resume', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            pinned: true
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberPinned(21)).toBe(true)
+    expect(w.vm.memberProbing(21)).toBe(false)
+  })
+
+  it('does not invent pin from an expired resume mark', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            admission: 'resumed',
+            pinned: false
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberPinned(21)).toBe(false)
   })
 })

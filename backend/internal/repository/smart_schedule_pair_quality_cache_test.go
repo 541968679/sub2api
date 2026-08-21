@@ -71,6 +71,7 @@ func TestPairQualityCache_ExpiryZerosWindows(t *testing.T) {
 	}
 	require.True(t, found)
 	require.True(t, cache.IsProbing(ctx, 7, 16), "expiry must enter probing, not selectable")
+	require.False(t, cache.IsPinned(ctx, 7, 16), "expiry must never enter pinned")
 	require.False(t, cache.IsProbing(ctx, 7, 17), "other user is not backfilled")
 	foundEnter := false
 	for _, event := range cache.ListPairQualityEvents(ctx, 7, 16, 20) {
@@ -128,6 +129,46 @@ func TestPairQualityCache_ZeroClearsAndKeepsIsolation(t *testing.T) {
 	cache.ZeroPairQuality(ctx, 7, 16, service.PairQualityEventSelectable)
 	require.Equal(t, 0, cache.GetPairQuality(ctx, 7, 16).OKCount)
 	require.Equal(t, 1, cache.GetPairQuality(ctx, 7, 17).OKCount)
+}
+
+func TestPairQualityCache_PinnedNoTTLNoBackfillAndBlocksCooldown(t *testing.T) {
+	cache, rdb := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 17, 0, 0, 0, time.UTC)
+
+	require.False(t, cache.IsPinned(ctx, 7, 16), "Redis miss is not pinned")
+	require.Empty(t, cache.IsPinnedBatch(ctx, []int64{7, 8}, 16))
+	cache.MarkPinned(ctx, 7, 16)
+	require.True(t, cache.IsPinned(ctx, 7, 16))
+	require.True(t, cache.IsPinnedBatch(ctx, []int64{7, 8}, 16)[7])
+	require.False(t, cache.IsPinnedBatch(ctx, []int64{7, 8}, 16)[8])
+	ttl, err := rdb.TTL(ctx, smartSchedulePinnedKey(7)).Result()
+	require.NoError(t, err)
+	require.Less(t, ttl, time.Duration(0), "pin HASH must have no TTL")
+
+	cache.StartCooldown(ctx, 7, 16, 15, now)
+	require.False(t, cache.CooldownActive(ctx, 7, 16, now), "StartCooldown is a no-op while pinned")
+
+	cache.ClearPinned(ctx, 7, 16)
+	require.False(t, cache.IsPinned(ctx, 7, 16))
+	foundPin := false
+	for _, event := range cache.ListPairQualityEvents(ctx, 7, 16, 20) {
+		if event.Type == service.PairQualityEventPinEnter {
+			foundPin = true
+		}
+	}
+	require.True(t, foundPin)
+}
+
+func TestPairQualityCache_ExpiryWhilePinnedDoesNotProbe(t *testing.T) {
+	cache, _ := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 17, 0, 0, 0, time.UTC)
+	cache.MarkPinned(ctx, 7, 16)
+	require.NoError(t, cache.rdb.HSet(ctx, smartScheduleCooldownKey(7), smartScheduleCooldownField(16), now.Add(-time.Minute).Unix()).Err())
+	require.False(t, cache.CooldownActive(ctx, 7, 16, now))
+	require.True(t, cache.IsPinned(ctx, 7, 16))
+	require.False(t, cache.IsProbing(ctx, 7, 16), "leftover cooldown expiry on a pinned pair must not enter probing")
 }
 
 func intPtrRepo(n int) *int { return &n }

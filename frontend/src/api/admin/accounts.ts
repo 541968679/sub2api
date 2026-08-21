@@ -635,7 +635,13 @@ export async function updateQualityHardClose(
   return data
 }
 
-export type SmartScheduleAdmissionState = 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
+export type SmartScheduleAdmissionState =
+  | 'paused'
+  | 'cooling'
+  | 'probing'
+  | 'resumed'
+  | 'selectable'
+  | 'pinned'
 
 export interface SmartScheduleAdmissionResult {
   account_id: number
@@ -643,13 +649,14 @@ export interface SmartScheduleAdmissionResult {
   state: SmartScheduleAdmissionState
   cooldown_until?: string | null
   probing?: boolean
+  pinned?: boolean
   probe_cap?: number | null
   probing_cap?: number | null
   in_flight_cap?: number | null
   pair_probe_cap?: number | null
 }
 
-/** Switch one user×account pair among paused / cooling / probing / resumed / selectable. Omitted state is resumed (exemption), never probing. */
+/** Switch one user×account pair among paused / cooling / probing / resumed / selectable / pinned. Omitted state is resumed (豁免期), never pinned or probing. */
 export async function resumeSmartSchedule(
   accountId: number,
   userId: number,

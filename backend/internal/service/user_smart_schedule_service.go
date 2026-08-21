@@ -101,6 +101,27 @@ func (s *UserSmartScheduleService) GraduateProbing(ctx context.Context, accountI
 	s.cache.GraduateProbing(ctx, accountID, userID)
 }
 
+func (s *UserSmartScheduleService) IsPinned(ctx context.Context, accountID, userID int64) bool {
+	if s == nil || s.cache == nil {
+		return false
+	}
+	return s.cache.IsPinned(ctx, accountID, userID)
+}
+
+func (s *UserSmartScheduleService) MarkPinned(ctx context.Context, accountID, userID int64) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.MarkPinned(ctx, accountID, userID)
+}
+
+func (s *UserSmartScheduleService) ClearPinned(ctx context.Context, accountID, userID int64) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.ClearPinned(ctx, accountID, userID)
+}
+
 func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, obs PairQualityObservation) {
 	if s == nil || s.cache == nil || obs.AccountID <= 0 || obs.UserID <= 0 {
 		return
@@ -123,6 +144,11 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 		return
 	}
 	now := time.Now().UTC()
+	pinned := s.cache.IsPinned(ctx, obs.AccountID, obs.UserID)
+	if pinned {
+		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, policy.WindowN(), obs.Success, obs.FirstTokenMs)
+		return
+	}
 	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, now) {
 		return
 	}
@@ -149,6 +175,7 @@ func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*User
 	s.hydratePairCurrent(ctx, userID, view)
 	s.hydratePairCooldown(ctx, userID, view)
 	s.hydratePairProbing(ctx, userID, view)
+	s.hydratePairPinned(ctx, userID, view)
 	s.hydratePairQuality(ctx, userID, view)
 	view.DefaultPlatform = pickDefaultSmartSchedulePlatform(view)
 	return view, nil
@@ -283,10 +310,10 @@ func ParsePairAdmissionState(raw string) (string, error) {
 		return PairAdmissionResumed, nil
 	}
 	switch state {
-	case PairAdmissionPaused, PairAdmissionCooling, PairAdmissionProbing, PairAdmissionResumed, PairAdmissionSelectable:
+	case PairAdmissionPaused, PairAdmissionCooling, PairAdmissionProbing, PairAdmissionResumed, PairAdmissionSelectable, PairAdmissionPinned:
 		return state, nil
 	default:
-		return "", infraerrors.BadRequest("SMART_SCHEDULE_ADMISSION_INVALID", "state must be paused, cooling, probing, resumed, or selectable")
+		return "", infraerrors.BadRequest("SMART_SCHEDULE_ADMISSION_INVALID", "state must be paused, cooling, probing, resumed, selectable, or pinned")
 	}
 }
 
@@ -307,6 +334,9 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 	result := &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}
 	if parsed != PairAdmissionProbing {
 		s.clearProbeMark(ctx, accountID, userID)
+	}
+	if parsed != PairAdmissionPinned {
+		s.clearPinMark(ctx, accountID, userID)
 	}
 	switch parsed {
 	case PairAdmissionPaused:
@@ -359,6 +389,19 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 				return nil, err
 			}
 		}
+	case PairAdmissionPinned:
+		if s != nil && s.cache != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+			s.cache.MarkPinned(ctx, accountID, userID)
+		}
+		if s != nil && s.qualityLiveCache != nil {
+			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
+				return nil, err
+			}
+		}
+		result.Pinned = true
 	default:
 		result.State = PairAdmissionResumed
 		if s != nil && s.cache != nil {
@@ -386,6 +429,13 @@ func (s *UserSmartScheduleService) clearProbeMark(ctx context.Context, accountID
 		return
 	}
 	s.cache.ClearProbing(ctx, accountID, userID)
+}
+
+func (s *UserSmartScheduleService) clearPinMark(ctx context.Context, accountID, userID int64) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.ClearPinned(ctx, accountID, userID)
 }
 
 func (s *UserSmartScheduleService) probeCapForPair(ctx context.Context, accountID, userID int64) int {
@@ -791,6 +841,47 @@ func (s *UserSmartScheduleService) hydratePairProbing(ctx context.Context, userI
 	}
 }
 
+func (s *UserSmartScheduleService) hydratePairPinned(ctx context.Context, userID int64, view *UserSmartScheduleView) {
+	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
+		return
+	}
+	ids := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, platform := range view.Platforms {
+		for _, member := range platform.Accounts {
+			if member.AccountID <= 0 {
+				continue
+			}
+			if _, ok := seen[member.AccountID]; ok {
+				continue
+			}
+			seen[member.AccountID] = struct{}{}
+			ids = append(ids, member.AccountID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	pinned := s.cache.IsPinnedBatch(ctx, ids, userID)
+	if len(pinned) == 0 {
+		return
+	}
+	for platformKey, platform := range view.Platforms {
+		for i := range platform.Accounts {
+			if !pinned[platform.Accounts[i].AccountID] {
+				continue
+			}
+			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil {
+				continue
+			}
+			platform.Accounts[i].Pinned = true
+			platform.Accounts[i].Probing = false
+			platform.Accounts[i].ProbeCap = nil
+		}
+		view.Platforms[platformKey] = platform
+	}
+}
+
 func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
@@ -838,7 +929,7 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 			}
 			viewSnap = aliasPairQualityView(viewSnap)
 			platform.Accounts[i].PairQuality = &viewSnap
-			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil {
+			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil || platform.Accounts[i].Pinned {
 				continue
 			}
 			stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: platform.Accounts[i].AccountID}, true)

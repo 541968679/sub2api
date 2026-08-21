@@ -31,6 +31,7 @@ type SmartScheduleAccountMember struct {
 	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
 	Probing            bool                          `json:"probing"`
+	Pinned             bool                          `json:"pinned"`
 	ProbeCap           *int                          `json:"probe_cap,omitempty"`
 	PairQuality        *SmartSchedulePairQualityView `json:"pair_quality,omitempty"`
 	WillCool           bool                          `json:"will_cool"`
@@ -170,6 +171,9 @@ type SmartScheduleLookup interface {
 	MarkProbing(ctx context.Context, accountID, userID int64)
 	ClearProbing(ctx context.Context, accountID, userID int64)
 	GraduateProbing(ctx context.Context, accountID, userID int64)
+	IsPinned(ctx context.Context, accountID, userID int64) bool
+	MarkPinned(ctx context.Context, accountID, userID int64)
+	ClearPinned(ctx context.Context, accountID, userID int64)
 }
 
 // UserSmartScheduleCache is the admin + hot-path cache (invalidate on save).
@@ -187,6 +191,7 @@ type UserSmartScheduleCache interface {
 	ListPairQualityEvents(ctx context.Context, accountID, userID int64, limit int) []PairQualityEvent
 	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, event PairQualityEvent)
 	IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool
+	IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool
 }
 
 // UserSmartScheduleRepository persists policies and pool members.
@@ -250,6 +255,7 @@ const (
 	PairAdmissionProbing    = "probing"
 	PairAdmissionResumed    = "resumed"
 	PairAdmissionSelectable = "selectable"
+	PairAdmissionPinned     = "pinned"
 )
 
 // PairAdmissionResult is the admin response after switching a pair's live state.
@@ -259,6 +265,7 @@ type PairAdmissionResult struct {
 	State         string     `json:"state"`
 	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
 	Probing       bool       `json:"probing"`
+	Pinned        bool       `json:"pinned"`
 	ProbeCap      *int       `json:"probe_cap,omitempty"`
 }
 

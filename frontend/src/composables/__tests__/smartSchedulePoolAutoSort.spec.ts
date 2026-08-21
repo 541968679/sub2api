@@ -72,6 +72,17 @@ describe('comparePoolAutoSort', () => {
     ])
   })
 
+  it('ranks pinned with selectable and resumed', () => {
+    const pinned = item({ id: 1, admission: 'pinned' })
+    const selectable = item({ id: 2, admission: 'selectable' })
+    const cooling = item({ id: 3, admission: 'cooling' })
+    expect(sortSmartSchedulePoolMembers([cooling, pinned, selectable]).map((row) => row.admission)).toEqual([
+      'pinned',
+      'selectable',
+      'cooling'
+    ])
+  })
+
   it('ranks paused with cooling, above stopped', () => {
     const rows = [
       item({ id: 1, admission: 'paused' }),

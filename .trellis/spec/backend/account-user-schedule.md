@@ -139,7 +139,7 @@ if pairFull {
 - Redis user cache: `smart-schedule:user:{userID}` JSON of all platforms; invalidate on PUT/copy.
 - Redis cooldown: `smart-schedule:cooldown:{accountID}` HASH `u:{userID}=untilUnix`. Hot-path `StartCooldown` is `HSETNX` only (no extend). Admin switcher `SetCooldown` uses `HSET` overwrite. TTL may only be lengthened, never shortened (other users share the key).
 - Redis pair quality: `smart-schedule:pair-quality:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{accountID}:{userID}` (TTL 7d).
-- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable`; omitted `state` is `resumed` (豁免期 write default, **not** a pause-lift default and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{accountID}` field `u:{userID}`. Miss / no mark = not probing (no deploy backfill).
+- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable|pinned`; omitted `state` is `resumed` (豁免期 write default, **not** `pinned`, **not** a pause-lift default, and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{accountID}` field `u:{userID}`. Redis pin HASH: `smart-schedule:pinned:{accountID}` field `u:{userID}`, **no TTL**. Miss / no mark = not probing / not pinned (no deploy backfill). GET hydrates `pinned: true`. Do **not** reuse `resumed` for long-term exemption.
 - Pool account details: existing `GET /admin/accounts?platform=&ids=`.
 
 ### 3. Contracts
@@ -154,11 +154,13 @@ Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’
 
 `cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark + `ClearUserResume`, no time grace.
 
-`paused` is **long-lived manual only**. Sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, deletes `u:`/`w:`, and **clears** the probe mark. **No implicit unpause** and **no default next state**. Leaving pause requires an explicit `state` ∈ {`probing`,`selectable`,`resumed`,`cooling`} (or write `paused` again). Clearing the paused flag must not write `probing`.
+`paused` is **long-lived manual only**. Sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, deletes `u:`/`w:`, and **clears** the probe mark and pin mark. **No implicit unpause** and **no default next state**. Leaving pause requires an explicit `state` ∈ {`probing`,`selectable`,`resumed`,`cooling`,`pinned`} (or write `paused` again). Clearing the paused flag must not write `probing` or `pinned`.
 
-Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover resume during probing still evaluates (graduate / and-mixed); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). Otherwise the legacy scenario in this file. Do not fold pause or probing into `IsSchedulable()`. Do not backfill existing selectable pairs on deploy.
+`pinned` (长期豁免) is **manual only**. Enter (`state=pinned` only): `HDEL` cooldown, clear probe mark, `ClearUserResume` (do **not** write `u:`/`w:`, do **not** `MarkUserResume`), `HSET` pin mark, **keep** pair windows. Full member cap. Windows may keep ingesting. **Never evaluate, never `StartCooldown`** until the admin leaves. Leave requires an explicit next state (`paused` / `cooling` / `probing` / `selectable` / `resumed`). **No implicit timeout**. Cooldown expiry still → `probing`, never `pinned`.
 
-Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`). `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells.
+Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); **`pinned` admit and skip evaluate / `StartCooldown`** (check pin **before** leftover cooldown); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover resume during probing still evaluates (graduate / and-mixed); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). `pinned` uses the member cap, not the probe cap. Account hard-close / `IsSchedulable()` still applies (whole-account gate). Otherwise the legacy scenario in this file. Do not fold pause, probing, or pin into `IsSchedulable()`. Do not backfill existing pairs on deploy.
+
+Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`). Cooling / paused pairs do not ingest. `pinned` pairs **do** ingest and must not evaluate / `StartCooldown`. `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells; skip `will_cool` while pinned.
 
 ### 4. Validation & Error Matrix
 
@@ -181,7 +183,7 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 ### 6. Tests Required
 
 - `EnabledPolicy`: off / empty / one member; pool miss vs hit; ignore legacy deny/gate/cap when enabled.
-- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`, `ClearUserResume`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); leftover `u:`/`w:` must not skip graduate; probe `and` mixed→cool; pause does not auto-probe; 调度→考察 zeros; no backfill.
+- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`, `ClearUserResume`, **never pin**); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); leftover `u:`/`w:` must not skip graduate; probe `and` mixed→cool; pause does not auto-probe or auto-pin; 调度→考察 zeros; no backfill. Pin: enter/leave; omit `state` ≠ pinned; N successes while pinned do not cool; leave to selectable can cool again.
 - Admin: reject enabled+empty; GET masks empty as disabled; copy omits accounts; copy probe settings as their own fields (not account-quality N); delete-last auto-disables.
 - Probe concurrency: omit → follow_n; follow_n + cap / no cap; custom 2 with cap 5 → 2; custom 10 with cap 3 → 3; custom 0 / missing number rejected.
 - Select/sticky: Anthropic, OpenAI advanced+fallback, WS, Gemini all go through `admitsScheduleUser` + injected cache.
@@ -238,6 +240,22 @@ return account.AdmitsScheduleUser(userID, live)
 **Cause**: treating omitted `state` = `resumed` as a pause-exit default, or writing the probe HASH when only the paused flag is cleared.
 
 **Prevention**: `paused` has no automatic exit. `ParsePairAdmissionState("")` stays `resumed` (豁免期 write default). Enter probing only from cooldown expiry or an explicit `state=probing`. Tests must cover pause → omitted state ≠ probing.
+
+## Common Mistake: reuse `resumed` for long-term exemption
+
+**Symptom**: a pair that should stay exempt forever starts evaluating after 15–30 minutes, or omit-`state` silently pins everyone.
+
+**Cause**: `pinned` was stored as `u:`/`w:` without TTL, or `ParsePairAdmissionState("")` was changed to `pinned`.
+
+**Prevention**: `pinned` is a separate Redis HASH with no TTL. `resumed` still writes the 15m/30m overlay. Empty `state` stays `resumed`. Tests must cover omit ≠ pinned and N successes while pinned do not cool.
+
+## Common Mistake: leftover probe mark clamps a pinned pair
+
+**Symptom**: a long-exempt pair is limited to `probe_cap` / window N even though the admin chose 长期豁免.
+
+**Cause**: `resolvePairSlotAcquire` checked `IsProbing` before `IsPinned`. Enter pin clears the probe mark, but a leftover probe field would still clamp the member cap.
+
+**Prevention**: check `IsPinned` first and return the member cap. Tests must cover leftover probe + pin.
 
 ## Common Mistake: leftover `u:`/`w:` blocks probe graduate
 

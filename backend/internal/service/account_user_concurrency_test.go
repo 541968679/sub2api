@@ -173,6 +173,37 @@ func TestResolvePairSlotAcquire_ProbingUsesPolicyN(t *testing.T) {
 	})
 }
 
+func TestResolvePairSlotAcquire_PinnedUsesMemberCap(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	acc := testPairAccount(7)
+
+	t.Run("member cap not probe cap", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 8, nil)),
+			pinned:  map[string]bool{smartPairKey(7, 16): true},
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 8, max)
+		require.True(t, track)
+	})
+
+	t.Run("leftover probe does not clamp uncapped pin", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil)),
+			pinned:  map[string]bool{smartPairKey(7, 16): true},
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 0, max, "pinned uses member cap, never probe N")
+		require.True(t, track)
+		require.False(t, isPairConcurrencyFull(ctx, acc, DefaultSmartScheduleWindowN, lookup))
+	})
+}
+
 func TestResolvePairSlotAcquire_ClosedPoolCapped(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))

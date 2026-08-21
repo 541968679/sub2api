@@ -394,6 +394,7 @@ export interface SmartScheduleAccountMember {
   cooldown_until?: string | null
   paused?: boolean
   probing?: boolean
+  pinned?: boolean
   admission?: string | null
   state?: string | null
   probe_cap?: number | null
@@ -486,6 +487,7 @@ export type SmartSchedulePairQualityEventType =
   | 'cooldown_end'
   | 'resumed'
   | 'selectable'
+  | 'pinned'
   | 'expiry_zero'
   | 'probe_enter'
   | 'probe_graduate'

@@ -21,6 +21,7 @@ import {
   pairAdmissionLiveState,
   PAIR_ADMISSION_LIVE_STATES,
   memberProbingFromApi,
+  memberPinnedFromApi,
   userQualityResumeActive,
   userQualityResumeChipActive
 } from '../smartSchedulePoolAdmission'
@@ -205,6 +206,26 @@ describe('pairOccupancyDisplayMaxForAdmission', () => {
     ).toBe(4)
   })
 
+  it('uses the full member cap for pinned, not probe_cap', () => {
+    expect(
+      pairOccupancyDisplayMaxForAdmission({
+        probing: true,
+        pinned: true,
+        pairCap: 8,
+        windowN: 10,
+        backendCap: 2
+      })
+    ).toBe(8)
+    expect(
+      pairOccupancyDisplayMaxForAdmission({
+        probing: false,
+        pinned: true,
+        pairCap: null,
+        windowN: 10
+      })
+    ).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+  })
+
   it('defaults unknown probe concurrency mode to follow_n', () => {
     expect(resolveProbeConcurrencyMode(undefined)).toBe('follow_n')
     expect(resolveProbeConcurrencyMode(null)).toBe('follow_n')
@@ -233,6 +254,18 @@ describe('memberProbingFromApi', () => {
     expect(memberProbingFromApi({ probing: true })).toBe(true)
     expect(memberProbingFromApi({ admission: 'probing' })).toBe(true)
     expect(memberProbingFromApi({ state: 'selectable' })).toBe(false)
+  })
+})
+
+describe('memberPinnedFromApi', () => {
+  it('reads GET pinned:true and does not invent pin from expired 豁免期', () => {
+    expect(memberPinnedFromApi(undefined)).toBe(false)
+    expect(memberPinnedFromApi({})).toBe(false)
+    expect(memberPinnedFromApi({ pinned: true })).toBe(true)
+    expect(memberPinnedFromApi({ admission: 'pinned' })).toBe(true)
+    expect(memberPinnedFromApi({ state: 'pinned' })).toBe(true)
+    expect(memberPinnedFromApi({ state: 'resumed' })).toBe(false)
+    expect(memberPinnedFromApi({ admission: 'resumed', pinned: false })).toBe(false)
   })
 })
 
@@ -326,6 +359,89 @@ describe('resolvePoolAdmission', () => {
         probing: true
       }).state
     ).toBe('paused')
+  })
+
+  it('keeps pinned above pair-full and will-cool, and pause still wins', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: 2,
+        pairCurrent: 2,
+        pinned: true,
+        qualityHint: 'will_cool'
+      }).state
+    ).toBe('pinned')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+        pinned: true
+      }).state
+    ).toBe('pinned')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        paused: true,
+        pinned: true
+      }).state
+    ).toBe('paused')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0
+      }).state
+    ).toBe('selectable')
+  })
+
+  it('shows pinned from GET and does not invent it from expired 豁免期', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: 1,
+        pairCurrent: 1,
+        pinned: true,
+        qualityHint: 'resumed'
+      }).state
+    ).toBe('pinned')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+        pinned: true
+      }).state
+    ).toBe('pinned')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        probing: true,
+        pinned: true
+      }).state
+    ).toBe('pinned')
+    expect(
+      resolvePoolAdmission({
+        account: { status: 'active', schedulable: false },
+        pairCap: null,
+        pairCurrent: 0,
+        pinned: true
+      }).state
+    ).toBe('stopped')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        qualityHint: 'resumed'
+      }).state
+    ).toBe('resumed')
   })
 
   it('keeps resume and preview below pair-full', () => {
@@ -503,12 +619,13 @@ describe('userQualityResumeActive', () => {
 })
 
 describe('pairAdmissionLiveState', () => {
-  it('maps display admission to the five writable live states', () => {
-    expect(PAIR_ADMISSION_LIVE_STATES).toEqual(['paused', 'cooling', 'probing', 'selectable', 'resumed'])
+  it('maps display admission to the six writable live states', () => {
+    expect(PAIR_ADMISSION_LIVE_STATES).toEqual(['paused', 'cooling', 'probing', 'selectable', 'resumed', 'pinned'])
     expect(pairAdmissionLiveState('paused')).toBe('paused')
     expect(pairAdmissionLiveState('cooling')).toBe('cooling')
     expect(pairAdmissionLiveState('probing')).toBe('probing')
     expect(pairAdmissionLiveState('resumed')).toBe('resumed')
+    expect(pairAdmissionLiveState('pinned')).toBe('pinned')
     expect(pairAdmissionLiveState('selectable')).toBe('selectable')
     expect(pairAdmissionLiveState('will_cool')).toBe('selectable')
     expect(pairAdmissionLiveState('unsaved_preview')).toBe('selectable')
@@ -517,6 +634,12 @@ describe('pairAdmissionLiveState', () => {
     expect(pairAdmissionLiveState('stopped', true)).toBe('paused')
     expect(pairAdmissionLiveState('selectable', true)).toBe('paused')
     expect(pairAdmissionLiveState('probing', true)).toBe('paused')
+    expect(pairAdmissionLiveState('selectable', false, true)).toBe('pinned')
+    expect(pairAdmissionLiveState('stopped', false, true)).toBe('pinned')
+    expect(pairAdmissionLiveState('cooling', false, true)).toBe('pinned')
+    expect(pairAdmissionLiveState('probing', false, true)).toBe('pinned')
+    expect(pairAdmissionLiveState('pair_full', false, true)).toBe('pinned')
+    expect(pairAdmissionLiveState('resumed', true, true)).toBe('paused')
   })
 })
 
@@ -526,6 +649,7 @@ describe('POOL_ADMISSION_FILTER_STATES', () => {
     expect(POOL_ADMISSION_FILTER_STATES).toContain('unsaved_preview')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('resumed')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('probing')
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('pinned')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('paused')
     expect(POOL_ADMISSION_FILTER_STATES as readonly string[]).not.toContain('quality_blocked')
   })

@@ -196,6 +196,9 @@ function eventLabel(type: string) {
   if (key === 'resumed' || key === 'enter_resumed' || key === 'exemption') {
     return t('admin.users.smartSchedule.pairEventResumed')
   }
+  if (key === 'pinned' || key === 'enter_pinned') {
+    return t('admin.users.smartSchedule.pairEventPinned')
+  }
   if (key === 'selectable') {
     return t('admin.users.smartSchedule.pairEventSelectable')
   }

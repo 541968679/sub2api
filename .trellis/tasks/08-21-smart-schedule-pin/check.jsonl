@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Check pin does not reuse resumed, does not backfill, and cooldown expiry stays probing."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check Redis / admit / GET / UI field names stay aligned (pinned, not resumed)."}
+{"file": ".trellis/tasks/08-21-smart-schedule-pin/research/pin-api-contract.md", "reason": "Check enter/leave, omit-state, ingest-without-cool, and pause≠pin tests exist."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality-check index for backend unit coverage."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Quality-check index for frontend i18n + switcher coverage."}

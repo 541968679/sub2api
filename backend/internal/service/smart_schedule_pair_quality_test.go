@@ -88,6 +88,7 @@ type observeCacheStub struct {
 	live      map[string]*PairQualityLive
 	cooling   map[string]bool
 	probing   map[string]bool
+	pinned    map[string]bool
 	ingested  []PairQualityObservation
 	starts    int
 	graduated int
@@ -133,6 +134,21 @@ func (s *observeCacheStub) GraduateProbing(ctx context.Context, accountID, userI
 		s.graduated++
 	}
 	s.ClearProbing(ctx, accountID, userID)
+}
+
+func (s *observeCacheStub) IsPinned(_ context.Context, accountID, userID int64) bool {
+	return s.pinned[smartPairKey(accountID, userID)]
+}
+
+func (s *observeCacheStub) MarkPinned(_ context.Context, accountID, userID int64) {
+	if s.pinned == nil {
+		s.pinned = map[string]bool{}
+	}
+	s.pinned[smartPairKey(accountID, userID)] = true
+}
+
+func (s *observeCacheStub) ClearPinned(_ context.Context, accountID, userID int64) {
+	delete(s.pinned, smartPairKey(accountID, userID))
 }
 
 func TestObservePairCompletion_SkipsPausedCoolingAndEvaluatesAfterN(t *testing.T) {

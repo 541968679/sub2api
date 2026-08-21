@@ -1,3 +1,49 @@
+## 2026-08-21 - feat: smart-schedule long-term exemption (`pinned`)
+
+### What
+- Sixth pair admission state: UI 长期豁免, API `pinned` (not `resumed`).
+- Manual only. Enter clears cooldown and probing, does not write `u:`/`w:` or `MarkUserResume`, keeps pair windows.
+- Redis HASH `smart-schedule:pinned:{accountID}` field `u:{userID}`, no TTL. GET hydrates `pinned: true`. Miss = not pinned (no backfill).
+- Hot path: pinned admits at full member cap, ingests windows, never evaluates / `StartCooldown` until admin leaves.
+- Cooldown expiry still enters `probing`, never `pinned`. Omit `state` still means `resumed`. Pause does not become pinned.
+
+### Why
+- Admins need a no-timeout exemption. Reusing `resumed` would expire in 15–30 minutes.
+
+### Check-fix
+- `resolvePairSlotAcquire` checks pin before leftover probe so 长期豁免 keeps the member cap.
+- Switcher `pairAdmissionLiveState` checkmarks 长期豁免 ahead of leftover cooling / probing.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Pinned|ParsePairAdmission|SetPairAdmission|AdmitsScheduleUser|ObservePairCompletion|ResolvePairSlotAcquire"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQualityCache_"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAdmissionSwitch.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/smart_schedule_pin_test.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/smart_schedule_pair_quality_cache_test.go`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/tasks/08-21-smart-schedule-pin/research/pin-api-contract.md`,
+`.trellis/tasks/08-21-smart-schedule-pin/research/frontend-pin-wiring.md`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-21 - fix: leftover u:/w: no longer blocks probe graduate
 
 ### What

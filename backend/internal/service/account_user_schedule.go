@@ -243,6 +243,9 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 		return false
 	}
 	now := time.Now().UTC()
+	if lookup != nil && lookup.IsPinned(ctx, account.ID, userID) {
+		return true
+	}
 	if lookup != nil && lookup.CooldownActive(ctx, account.ID, userID, now) {
 		return false
 	}

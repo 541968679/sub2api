@@ -15,6 +15,7 @@ const (
 	smartScheduleUserKeyPrefix     = "smart-schedule:user:"
 	smartScheduleCooldownKeyPrefix = "smart-schedule:cooldown:"
 	smartScheduleProbeKeyPrefix    = "smart-schedule:probe:"
+	smartSchedulePinnedKeyPrefix   = "smart-schedule:pinned:"
 	smartScheduleCooldownFieldPref = "u:"
 	smartScheduleCooldownTTLBuffer = 2 * time.Hour
 )
@@ -43,6 +44,10 @@ func smartScheduleCooldownField(userID int64) string {
 
 func smartScheduleProbeKey(accountID int64) string {
 	return smartScheduleProbeKeyPrefix + strconv.FormatInt(accountID, 10)
+}
+
+func smartSchedulePinnedKey(accountID int64) string {
+	return smartSchedulePinnedKeyPrefix + strconv.FormatInt(accountID, 10)
 }
 
 func (c *userSmartScheduleCache) Lookup(ctx context.Context, userID int64) *service.UserSmartScheduleBundle {
@@ -96,6 +101,9 @@ func (c *userSmartScheduleCache) CooldownActive(ctx context.Context, accountID, 
 
 func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	if c.IsPinned(ctx, accountID, userID) {
 		return
 	}
 	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
@@ -228,6 +236,9 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 		return
 	}
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
+	if c.IsPinned(ctx, accountID, userID) {
+		return
+	}
 	c.ZeroPairQuality(ctx, accountID, userID, service.PairQualityEventExpiryZero)
 	c.MarkProbing(ctx, accountID, userID)
 	c.clearPairResumeGrace(ctx, accountID, userID)
@@ -288,8 +299,45 @@ func (c *userSmartScheduleCache) GraduateProbing(ctx context.Context, accountID,
 }
 
 func (c *userSmartScheduleCache) IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool {
+	return c.hashMarkBatch(ctx, accountIDs, userID, smartScheduleProbeKey)
+}
+
+func (c *userSmartScheduleCache) IsPinned(ctx context.Context, accountID, userID int64) bool {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return false
+	}
+	raw, err := c.rdb.HGet(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID)).Result()
+	return err == nil && raw != ""
+}
+
+func (c *userSmartScheduleCache) MarkPinned(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	now := time.Now().UTC()
+	if err := c.rdb.HSet(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
+		return
+	}
+	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		Ts:   now.Unix(),
+		Type: service.PairQualityEventPinEnter,
+	})
+}
+
+func (c *userSmartScheduleCache) ClearPinned(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID)).Err()
+}
+
+func (c *userSmartScheduleCache) IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool {
+	return c.hashMarkBatch(ctx, accountIDs, userID, smartSchedulePinnedKey)
+}
+
+func (c *userSmartScheduleCache) hashMarkBatch(ctx context.Context, accountIDs []int64, userID int64, keyFn func(int64) string) map[int64]bool {
 	out := map[int64]bool{}
-	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
+	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 || keyFn == nil {
 		return out
 	}
 	ids := make([]int64, 0, len(accountIDs))
@@ -310,7 +358,7 @@ func (c *userSmartScheduleCache) IsProbingBatch(ctx context.Context, accountIDs 
 	pipe := c.rdb.Pipeline()
 	cmds := make([]*redis.StringCmd, len(ids))
 	for i, accountID := range ids {
-		cmds[i] = pipe.HGet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID))
+		cmds[i] = pipe.HGet(ctx, keyFn(accountID), smartScheduleCooldownField(userID))
 	}
 	_, _ = pipe.Exec(ctx)
 	for i, cmd := range cmds {

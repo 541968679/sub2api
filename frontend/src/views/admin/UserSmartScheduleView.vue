@@ -763,6 +763,7 @@
                   <SmartScheduleAdmissionSwitch
                     :admission="row.admission"
                     :paused="row.paused"
+                    :pinned="row.pinned"
                     :disabled="row.admission === 'unsaved_preview'"
                     @select="setPairAdmission(row.id, $event)"
                   />
@@ -1059,6 +1060,7 @@ const {
   memberCooldownUntil,
   memberPaused,
   memberProbing,
+  memberPinned,
   memberProbeCap,
   memberSortOrder,
   persistSortOrders,
@@ -1202,6 +1204,7 @@ const poolTableRows = computed(() =>
       cooldownUntil: memberCooldownUntil(account.id),
       paused: memberPaused(account.id),
       probing: memberProbing(account.id),
+      pinned: memberPinned(account.id),
       qualityHint: resolveQualityAdmissionHint({
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
@@ -1219,6 +1222,7 @@ const poolTableRows = computed(() =>
       sort_order: memberSortOrder(account.id),
       priority: liveAccountPriority(account),
       paused: memberPaused(account.id),
+      pinned: memberPinned(account.id),
       admission: admission.state
     }
   })
@@ -1253,6 +1257,8 @@ function admissionLabel(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreview')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumed')
+    case 'pinned':
+      return t('admin.users.smartSchedule.admissionPinned')
     case 'probing':
       return t('admin.users.smartSchedule.admissionProbing')
     default:
@@ -1268,6 +1274,8 @@ function admissionTitle(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreviewHint')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumedHint')
+    case 'pinned':
+      return t('admin.users.smartSchedule.admissionPinnedHint')
     case 'paused':
       return t('admin.users.smartSchedule.admissionPausedHint')
     case 'probing':
@@ -1293,6 +1301,8 @@ function admissionChipClass(state: PoolAdmissionState) {
       return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
     case 'resumed':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+    case 'pinned':
+      return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300'
     case 'probing':
       return 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
     default:
@@ -1314,6 +1324,7 @@ function liveAccountPriority(account: { id: number; priority?: number }): number
 function pairBadgeMax(accountId: number) {
   return pairOccupancyDisplayMaxForAdmission({
     probing: memberProbing(accountId),
+    pinned: memberPinned(accountId),
     pairCap: memberCapOrNull(accountId),
     windowN: currentDraft.value?.windowN,
     backendCap: memberProbeCap(accountId),
@@ -1323,7 +1334,7 @@ function pairBadgeMax(accountId: number) {
 }
 
 function pairBadgeTooltip(accountId: number) {
-  if (memberProbing(accountId)) {
+  if (memberProbing(accountId) && !memberPinned(accountId)) {
     return t('admin.users.smartSchedule.pairOccupancyProbingHint')
   }
   return memberCapOrNull(accountId) == null

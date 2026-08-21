@@ -19,6 +19,7 @@ const (
 	PairQualityEventExpiryZero    = "expiry_zero"
 	PairQualityEventProbeEnter    = "probe_enter"
 	PairQualityEventProbeGraduate = "probe_graduate"
+	PairQualityEventPinEnter      = "pin_enter"
 )
 
 // PairQualityLive is the smart-schedule pair window Q_{a,u}.
@@ -435,6 +436,9 @@ func clearLeftoverResumeIfProbing(ctx context.Context, cache AccountQualityLiveC
 // evaluateSmartSchedulePairQuality applies cooldown / probe graduate on the hot path
 // and after ingest. 豁免期 (no probe mark) must be checked by the caller (no evaluate).
 func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
+	if lookup != nil && lookup.IsPinned(ctx, accountID, userID) {
+		return true
+	}
 	probing := lookup != nil && lookup.IsProbing(ctx, accountID, userID)
 	minutes := DefaultSmartScheduleCooldownMinutes
 	if policy != nil && policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {

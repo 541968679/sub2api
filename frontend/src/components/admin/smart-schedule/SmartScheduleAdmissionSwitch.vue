@@ -59,9 +59,11 @@ import {
 const props = withDefaults(defineProps<{
   admission: PoolAdmissionState
   paused?: boolean
+  pinned?: boolean
   disabled?: boolean
 }>(), {
   paused: false,
+  pinned: false,
   disabled: false
 })
 
@@ -74,7 +76,7 @@ const open = ref(false)
 const triggerX = ref(0)
 const triggerY = ref(0)
 
-const current = computed(() => pairAdmissionLiveState(props.admission, props.paused))
+const current = computed(() => pairAdmissionLiveState(props.admission, props.paused, props.pinned))
 
 const triggerClass = computed(() => {
   if (props.disabled) return 'cursor-not-allowed text-gray-300 dark:text-gray-600'
@@ -86,6 +88,9 @@ const triggerClass = computed(() => {
   }
   if (props.admission === 'resumed') {
     return 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'
+  }
+  if (props.admission === 'pinned' || current.value === 'pinned') {
+    return 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300'
   }
   if (props.admission === 'probing') {
     return 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300'
@@ -103,6 +108,7 @@ function stateLabel(state: PairAdmissionLiveState) {
   if (state === 'cooling') return t('admin.users.smartSchedule.admissionCooling')
   if (state === 'probing') return t('admin.users.smartSchedule.admissionProbing')
   if (state === 'resumed') return t('admin.users.smartSchedule.admissionResumed')
+  if (state === 'pinned') return t('admin.users.smartSchedule.admissionPinned')
   return t('admin.users.smartSchedule.admissionSelectable')
 }
 
@@ -118,7 +124,7 @@ function toggle(event: MouseEvent) {
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   const menuWidth = 168
-  const menuHeight = 200
+  const menuHeight = 248
   triggerX.value = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
   triggerY.value = rect.bottom + 4
   if (triggerY.value + menuHeight > window.innerHeight - 8) {

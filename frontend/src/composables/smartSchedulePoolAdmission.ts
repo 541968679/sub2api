@@ -26,26 +26,36 @@ export type PoolAdmissionState =
   | 'will_cool'
   | 'unsaved_preview'
   | 'resumed'
+  | 'pinned'
   | 'selectable'
 
 export type PoolQualityHint = 'resumed' | 'will_cool' | 'unsaved_preview'
 
-export type PairAdmissionLiveState = 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
+export type PairAdmissionLiveState =
+  | 'paused'
+  | 'cooling'
+  | 'probing'
+  | 'resumed'
+  | 'selectable'
+  | 'pinned'
 
-/** Switcher order: 暂停 / 冷却 / 考察 / 调度 / 豁免期. No implicit unpause default. */
+/** Switcher order: 暂停 / 冷却 / 考察 / 调度 / 豁免期 / 长期豁免. No implicit unpause default. */
 export const PAIR_ADMISSION_LIVE_STATES = [
   'paused',
   'cooling',
   'probing',
   'selectable',
-  'resumed'
+  'resumed',
+  'pinned'
 ] as const satisfies readonly PairAdmissionLiveState[]
 
 export function pairAdmissionLiveState(
   admission: PoolAdmissionState,
-  paused = false
+  paused = false,
+  pinned = false
 ): PairAdmissionLiveState {
   if (paused || admission === 'paused') return 'paused'
+  if (pinned || admission === 'pinned') return 'pinned'
   if (admission === 'cooling') return 'cooling'
   if (admission === 'probing') return 'probing'
   if (admission === 'resumed') return 'resumed'
@@ -75,6 +85,7 @@ export const POOL_ADMISSION_FILTER_STATES = [
   'selectable',
   'probing',
   'resumed',
+  'pinned',
   'will_cool',
   'cooling',
   'paused',
@@ -130,6 +141,17 @@ export function memberProbingFromApi(member: {
   if (!member) return false
   if (member.probing === true) return true
   return member.admission === 'probing' || member.state === 'probing'
+}
+
+/** True only from GET `pinned: true` or admission/state `pinned`. Never invented from expired 豁免期. */
+export function memberPinnedFromApi(member: {
+  pinned?: boolean
+  admission?: string | null
+  state?: string | null
+} | null | undefined): boolean {
+  if (!member) return false
+  if (member.pinned === true) return true
+  return member.admission === 'pinned' || member.state === 'pinned'
 }
 
 export function resolveProbeConcurrencyMode(
@@ -204,12 +226,16 @@ export function resolveProbeConcurrency(input: {
 
 export function pairOccupancyDisplayMaxForAdmission(input: {
   probing: boolean
+  pinned?: boolean
   pairCap: number | null | undefined
   windowN: number | '' | null | undefined
   backendCap?: number | null
   mode?: string | null
   probeConcurrency?: number | '' | null
 }): number {
+  if (input.pinned) {
+    return pairOccupancyDisplayMax(input.pairCap)
+  }
   if (input.probing) {
     return resolveProbeConcurrency({
       windowN: input.windowN,
@@ -341,6 +367,8 @@ export function resolvePoolAdmission(input: {
   paused?: boolean
   /** Live probe mark. Missing / false is not probing (no backfill). */
   probing?: boolean
+  /** Live long-term exemption. Missing / false is not pinned (never invented from expired 豁免期). */
+  pinned?: boolean
   qualityHint?: PoolQualityHint | null
   now?: number
 }): PoolAdmission {
@@ -350,6 +378,9 @@ export function resolvePoolAdmission(input: {
   }
   if (input.paused) {
     return { state: 'paused' }
+  }
+  if (input.pinned) {
+    return { state: 'pinned' }
   }
   if (isPairCooldownActive(input.cooldownUntil, now)) {
     return { state: 'cooling', cooldownUntil: input.cooldownUntil ?? undefined }

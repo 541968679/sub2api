@@ -20,6 +20,7 @@ type memorySmartLookup struct {
 	cooldownUntil map[string]int64
 	pair          map[string]*PairQualityLive
 	probing       map[string]bool
+	pinned        map[string]bool
 	startCalls    int
 	lastUntilUnix int64
 	graduated     int
@@ -96,6 +97,30 @@ func (m *memorySmartLookup) GraduateProbing(ctx context.Context, accountID, user
 		m.graduated++
 	}
 	m.ClearProbing(ctx, accountID, userID)
+}
+
+func (m *memorySmartLookup) IsPinned(_ context.Context, accountID, userID int64) bool {
+	if m == nil || len(m.pinned) == 0 {
+		return false
+	}
+	return m.pinned[smartPairKey(accountID, userID)]
+}
+
+func (m *memorySmartLookup) MarkPinned(_ context.Context, accountID, userID int64) {
+	if m == nil {
+		return
+	}
+	if m.pinned == nil {
+		m.pinned = map[string]bool{}
+	}
+	m.pinned[smartPairKey(accountID, userID)] = true
+}
+
+func (m *memorySmartLookup) ClearPinned(_ context.Context, accountID, userID int64) {
+	if m == nil || len(m.pinned) == 0 {
+		return
+	}
+	delete(m.pinned, smartPairKey(accountID, userID))
 }
 
 func smartPairKey(accountID, userID int64) string {
@@ -722,9 +747,12 @@ type admissionCacheRecorder struct {
 	setMins      int
 	setErr       error
 	probing      map[string]bool
+	pinned       map[string]bool
 	zeros        []string
 	markedProbe  int
 	clearedProbe int
+	markedPin    int
+	clearedPin   int
 	graduated    int
 }
 
@@ -783,6 +811,33 @@ func (s *admissionCacheRecorder) IsProbingBatch(_ context.Context, accountIDs []
 	return out
 }
 
+func (s *admissionCacheRecorder) IsPinned(_ context.Context, accountID, userID int64) bool {
+	return s.pinned[smartPairKey(accountID, userID)]
+}
+
+func (s *admissionCacheRecorder) MarkPinned(_ context.Context, accountID, userID int64) {
+	s.markedPin++
+	if s.pinned == nil {
+		s.pinned = map[string]bool{}
+	}
+	s.pinned[smartPairKey(accountID, userID)] = true
+}
+
+func (s *admissionCacheRecorder) ClearPinned(_ context.Context, accountID, userID int64) {
+	s.clearedPin++
+	delete(s.pinned, smartPairKey(accountID, userID))
+}
+
+func (s *admissionCacheRecorder) IsPinnedBatch(_ context.Context, accountIDs []int64, userID int64) map[int64]bool {
+	out := map[int64]bool{}
+	for _, accountID := range accountIDs {
+		if s.IsPinned(context.Background(), accountID, userID) {
+			out[accountID] = true
+		}
+	}
+	return out
+}
+
 func TestParsePairAdmissionState(t *testing.T) {
 	t.Parallel()
 	got, err := ParsePairAdmissionState("")
@@ -803,10 +858,18 @@ func TestParsePairAdmissionState(t *testing.T) {
 	got, err = ParsePairAdmissionState("resumed")
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionResumed, got)
+	got, err = ParsePairAdmissionState("pinned")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionPinned, got)
 	_, err = ParsePairAdmissionState("nope")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "SMART_SCHEDULE_ADMISSION_INVALID")
 	_, err = ParsePairAdmissionState("unpause")
+	require.Error(t, err)
+	_, err = ParsePairAdmissionState("pin")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_ADMISSION_INVALID")
+	_, err = ParsePairAdmissionState("long_exempt")
 	require.Error(t, err)
 }
 
@@ -919,6 +982,12 @@ func (s stubSmartCache) MarkProbing(context.Context, int64, int64)              
 func (s stubSmartCache) ClearProbing(context.Context, int64, int64)                             {}
 func (s stubSmartCache) GraduateProbing(context.Context, int64, int64)                          {}
 func (s stubSmartCache) IsProbingBatch(context.Context, []int64, int64) map[int64]bool {
+	return map[int64]bool{}
+}
+func (s stubSmartCache) IsPinned(context.Context, int64, int64) bool  { return false }
+func (s stubSmartCache) MarkPinned(context.Context, int64, int64)     {}
+func (s stubSmartCache) ClearPinned(context.Context, int64, int64)    {}
+func (s stubSmartCache) IsPinnedBatch(context.Context, []int64, int64) map[int64]bool {
 	return map[int64]bool{}
 }
 

@@ -29,6 +29,7 @@ import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTe
 import {
   isCurrentlySchedulingAccount,
   isValidProbeConcurrencyWrite,
+  memberPinnedFromApi,
   memberProbingFromApi,
   pickDefaultSmartSchedulePlatform,
   probeConcurrencyWriteValue,
@@ -58,6 +59,7 @@ export type SmartSchedulePoolMemberDraft = {
   cooldown_until?: string | null
   paused?: boolean
   probing?: boolean
+  pinned?: boolean
   probe_cap?: number | null
 }
 
@@ -193,6 +195,7 @@ export function useUserSmartScheduleEditor(
   const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
   const localPausedByAccount = ref<Record<number, boolean>>({})
   const localProbingByAccount = ref<Record<number, boolean>>({})
+  const localPinnedByAccount = ref<Record<number, boolean>>({})
 
   const currentDraft = computed(() => drafts[activePlatform.value])
   const currentSavedDraft = computed(() => draftFromSavedSnapshot(savedSnapshots[activePlatform.value]))
@@ -235,6 +238,7 @@ export function useUserSmartScheduleEditor(
       cooldown_until: item.cooldown_until ?? null,
       paused: Boolean(item.paused),
       probing: memberProbingFromApi(item),
+      pinned: memberPinnedFromApi(item),
       probe_cap: readBackendProbeCap(item)
     }))
     return draft
@@ -278,6 +282,7 @@ export function useUserSmartScheduleEditor(
       member.sort_order = live.sort_order ?? null
       member.paused = Boolean(live.paused)
       member.probing = memberProbingFromApi(live)
+      member.pinned = memberPinnedFromApi(live)
       member.probe_cap = readBackendProbeCap(live)
     }
   }
@@ -328,6 +333,13 @@ export function useUserSmartScheduleEditor(
       return localProbingByAccount.value[accountId]
     }
     return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.probing)
+  }
+
+  function memberPinned(accountId: number): boolean {
+    if (Object.prototype.hasOwnProperty.call(localPinnedByAccount.value, accountId)) {
+      return localPinnedByAccount.value[accountId]
+    }
+    return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.pinned)
   }
 
   function memberProbeCap(accountId: number): number | null {
@@ -399,9 +411,11 @@ export function useUserSmartScheduleEditor(
     const nowSec = Math.floor(Date.now() / 1000)
     localPausedByAccount.value = { ...localPausedByAccount.value, [accountId]: state === 'paused' }
     localProbingByAccount.value = { ...localProbingByAccount.value, [accountId]: state === 'probing' }
+    localPinnedByAccount.value = { ...localPinnedByAccount.value, [accountId]: state === 'pinned' }
     if (member) {
       member.paused = state === 'paused'
       member.probing = state === 'probing'
+      member.pinned = state === 'pinned'
       member.probe_cap = state === 'probing' ? (probeCap ?? member.probe_cap ?? null) : null
     }
     if (state === 'paused') {
@@ -419,7 +433,7 @@ export function useUserSmartScheduleEditor(
       return
     }
     if (member) member.cooldown_until = null
-    if (state === 'probing' || state === 'selectable') {
+    if (state === 'probing' || state === 'selectable' || state === 'pinned') {
       patchLocalResume(accountId, null)
       return
     }
@@ -918,13 +932,15 @@ export function useUserSmartScheduleEditor(
     try {
       const result = await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value, state)
       const nextState =
-        result.state === 'cooling'
-        || result.state === 'selectable'
-        || result.state === 'resumed'
-        || result.state === 'paused'
-        || result.state === 'probing'
-          ? result.state
-          : state
+        result.pinned === true || result.state === 'pinned'
+          ? 'pinned'
+          : result.state === 'cooling'
+            || result.state === 'selectable'
+            || result.state === 'resumed'
+            || result.state === 'paused'
+            || result.state === 'probing'
+            ? result.state
+            : state
       applyLocalAdmission(
         accountId,
         nextState,
@@ -940,7 +956,9 @@ export function useUserSmartScheduleEditor(
               ? 'admin.users.smartSchedule.switchSuccessProbing'
               : nextState === 'selectable'
                 ? 'admin.users.smartSchedule.switchSuccessSelectable'
-                : 'admin.users.smartSchedule.resumeSuccess'
+                : nextState === 'pinned'
+                  ? 'admin.users.smartSchedule.switchSuccessPinned'
+                  : 'admin.users.smartSchedule.resumeSuccess'
       appStore.showSuccess(t(toast))
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.switchFailed')))
@@ -955,6 +973,7 @@ export function useUserSmartScheduleEditor(
       localResumeGraceByAccount.value = {}
       localPausedByAccount.value = {}
       localProbingByAccount.value = {}
+      localPinnedByAccount.value = {}
       if (id) {
         void loadAll({ pickPlatform: true })
       }
@@ -1019,6 +1038,7 @@ export function useUserSmartScheduleEditor(
     memberCooldownUntil,
     memberPaused,
     memberProbing,
+    memberPinned,
     memberProbeCap,
     memberSortOrder,
     persistSortOrders,
