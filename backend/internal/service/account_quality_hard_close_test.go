@@ -87,7 +87,7 @@ func TestEvaluateAccountQualityHardClose_OrAnyBreach(t *testing.T) {
 	cfg := qualityHardCloseCfg(func(cfg *QualityHardCloseSettings) {
 		cfg.Condition = QualityHardCloseConditionOr
 	})
-	stats := qualityStats(20, 0, 10, 3200, 1)
+	stats := qualityStats(20, 0, 20, 3200, 1)
 	shouldPause, reason := EvaluateAccountQualityHardClose(stats, cfg, false)
 	require.True(t, shouldPause)
 	require.True(t, strings.HasPrefix(reason, QualityHardCloseReasonPrefix))
@@ -119,7 +119,7 @@ func TestEvaluateAccountQualityHardClose_AndOneJudgedEqualsOr(t *testing.T) {
 		cfg.Condition = QualityHardCloseConditionAnd
 		cfg.MinSuccessRate = nil
 	})
-	stats := qualityStats(1, 0, 10, 3200, 1)
+	stats := qualityStats(1, 0, 20, 3200, 1)
 	shouldPause, reason := EvaluateAccountQualityHardClose(stats, cfg, false)
 	require.True(t, shouldPause)
 	require.True(t, strings.HasPrefix(reason, QualityHardCloseReasonPrefix+":"))
@@ -129,12 +129,12 @@ func TestEvaluateAccountQualityHardClose_AndRequiresAllJudgedBreaches(t *testing
 	cfg := qualityHardCloseCfg(func(cfg *QualityHardCloseSettings) {
 		cfg.Condition = QualityHardCloseConditionAnd
 	})
-	onlyP50 := qualityStats(20, 0, 10, 3200, 1)
+	onlyP50 := qualityStats(20, 0, 20, 3200, 1)
 	shouldPause, reason := EvaluateAccountQualityHardClose(onlyP50, cfg, false)
 	require.False(t, shouldPause)
 	require.Empty(t, reason)
 
-	both := qualityStats(16, 4, 10, 3200, 0.8)
+	both := qualityStats(16, 4, 20, 3200, 0.8)
 	shouldPause, reason = EvaluateAccountQualityHardClose(both, cfg, false)
 	require.True(t, shouldPause)
 	require.Equal(t, "quality_hard_close:p50=3200,success=0.8", reason)
@@ -188,6 +188,34 @@ func TestResolveAccountQualityHardClose_UseGlobalIgnoresOverrides(t *testing.T) 
 	require.Equal(t, DefaultQualityHardClosePauseMinutes, resolved.PauseMinutes)
 }
 
+func TestResolveAccountQualityHardClose_OverlayNDoesNotChangeWindow(t *testing.T) {
+	global := qualityHardCloseCfg(func(cfg *QualityHardCloseSettings) {
+		n := 20
+		cfg.AccountQualityWindowN = &n
+		echoQualityHardCloseWindowN(cfg)
+	})
+	overlayN := 7
+	overlaySuccess := 3
+	overlayTTFT := 4
+	overlay := AccountQualityHardCloseOverlay{
+		Enabled:               true,
+		UseGlobal:             false,
+		AccountQualityWindowN: &overlayN,
+		MinSuccessSamples:     &overlaySuccess,
+		MinTTFTSamples:        &overlayTTFT,
+	}
+	resolved := ResolveAccountQualityHardClose(global, overlay)
+	require.Equal(t, 20, resolved.ResolvedWindowN())
+	require.Equal(t, 20, resolved.MinSuccessSamples)
+	require.Equal(t, 20, resolved.MinTTFTSamples)
+	require.NotNil(t, resolved.AccountQualityWindowN)
+	require.Equal(t, 20, *resolved.AccountQualityWindowN)
+	require.NotNil(t, resolved.WindowN)
+	require.Equal(t, 20, *resolved.WindowN)
+	require.NotNil(t, resolved.N)
+	require.Equal(t, 20, *resolved.N)
+}
+
 func TestResolveAccountQualityHardClose_OverlayOverridesNullFallback(t *testing.T) {
 	global := qualityHardCloseCfg(nil)
 	p50 := 1500
@@ -239,7 +267,10 @@ func TestGetQualityHardCloseSettings_DefaultsWhenNotSet(t *testing.T) {
 	require.InDelta(t, 0.9, *settings.MinSuccessRate, 0.0001)
 	require.Equal(t, 30, settings.PauseMinutes)
 	require.Equal(t, 20, settings.MinSuccessSamples)
-	require.Equal(t, 10, settings.MinTTFTSamples)
+	require.Equal(t, 20, settings.MinTTFTSamples)
+	require.Equal(t, 20, settings.ResolvedWindowN())
+	require.NotNil(t, settings.AccountQualityWindowN)
+	require.Equal(t, 20, *settings.AccountQualityWindowN)
 	require.Equal(t, QualityHardCloseConditionOr, settings.Condition)
 	require.False(t, settings.ScheduleUseFailoverErrorRate)
 }
@@ -268,6 +299,9 @@ func TestSetQualityHardCloseSettings_RoundTripAndValidation(t *testing.T) {
 	require.InDelta(t, 0.85, *out.MinSuccessRate, 0.0001)
 	require.Equal(t, 45, out.PauseMinutes)
 	require.Equal(t, QualityHardCloseConditionAnd, out.Condition)
+	require.Equal(t, 15, out.MinSuccessSamples)
+	require.Equal(t, 15, out.MinTTFTSamples)
+	require.Equal(t, 15, out.ResolvedWindowN())
 
 	require.Error(t, svc.SetQualityHardCloseSettings(context.Background(), nil))
 	require.Error(t, svc.SetQualityHardCloseSettings(context.Background(), &QualityHardCloseSettings{
@@ -311,6 +345,9 @@ func TestSetQualityHardCloseSettings_AllowsNullMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, out.MaxP50TTFTMs)
 	require.Nil(t, out.MinSuccessRate)
+	require.Equal(t, 20, out.MinSuccessSamples)
+	require.Equal(t, 20, out.MinTTFTSamples)
+	require.Equal(t, 20, out.ResolvedWindowN())
 }
 
 type hardCloseAccountRepoStub struct {

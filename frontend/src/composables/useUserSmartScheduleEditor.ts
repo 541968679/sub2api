@@ -27,7 +27,9 @@ import {
 import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
 import {
   isCurrentlySchedulingAccount,
+  memberProbingFromApi,
   pickDefaultSmartSchedulePlatform,
+  readBackendProbeCap,
   resolvePairCap,
   userQualityResumeActive,
   userQualityResumeChipActive,
@@ -51,6 +53,8 @@ export type SmartSchedulePoolMemberDraft = {
   current_concurrency?: number
   cooldown_until?: string | null
   paused?: boolean
+  probing?: boolean
+  probe_cap?: number | null
 }
 
 export type SmartSchedulePlatformDraft = {
@@ -173,6 +177,7 @@ export function useUserSmartScheduleEditor(
   const refreshing = ref(false)
   const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
   const localPausedByAccount = ref<Record<number, boolean>>({})
+  const localProbingByAccount = ref<Record<number, boolean>>({})
 
   const currentDraft = computed(() => drafts[activePlatform.value])
   const currentSavedDraft = computed(() => draftFromSavedSnapshot(savedSnapshots[activePlatform.value]))
@@ -208,7 +213,9 @@ export function useUserSmartScheduleEditor(
       sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null,
-      paused: Boolean(item.paused)
+      paused: Boolean(item.paused),
+      probing: memberProbingFromApi(item),
+      probe_cap: readBackendProbeCap(item)
     }))
     return draft
   }
@@ -250,6 +257,8 @@ export function useUserSmartScheduleEditor(
       member.cooldown_until = live.cooldown_until ?? null
       member.sort_order = live.sort_order ?? null
       member.paused = Boolean(live.paused)
+      member.probing = memberProbingFromApi(live)
+      member.probe_cap = readBackendProbeCap(live)
     }
   }
 
@@ -296,6 +305,19 @@ export function useUserSmartScheduleEditor(
       return localPausedByAccount.value[accountId]
     }
     return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.paused)
+  }
+
+  function memberProbing(accountId: number): boolean {
+    if (Object.prototype.hasOwnProperty.call(localProbingByAccount.value, accountId)) {
+      return localProbingByAccount.value[accountId]
+    }
+    return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.probing)
+  }
+
+  function memberProbeCap(accountId: number): number | null {
+    return readBackendProbeCap({
+      probe_cap: currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.probe_cap
+    })
   }
 
   function memberSortOrder(accountId: number): number | null {
@@ -354,12 +376,18 @@ export function useUserSmartScheduleEditor(
   function applyLocalAdmission(
     accountId: number,
     state: PairAdmissionLiveState,
-    cooldownUntil?: string | null
+    cooldownUntil?: string | null,
+    probeCap?: number | null
   ) {
     const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
     const nowSec = Math.floor(Date.now() / 1000)
     localPausedByAccount.value = { ...localPausedByAccount.value, [accountId]: state === 'paused' }
-    if (member) member.paused = state === 'paused'
+    localProbingByAccount.value = { ...localProbingByAccount.value, [accountId]: state === 'probing' }
+    if (member) {
+      member.paused = state === 'paused'
+      member.probing = state === 'probing'
+      member.probe_cap = state === 'probing' ? (probeCap ?? member.probe_cap ?? null) : null
+    }
     if (state === 'paused') {
       if (member) member.cooldown_until = null
       patchLocalResume(accountId, null)
@@ -375,7 +403,7 @@ export function useUserSmartScheduleEditor(
       return
     }
     if (member) member.cooldown_until = null
-    if (state === 'selectable') {
+    if (state === 'probing' || state === 'selectable') {
       patchLocalResume(accountId, null)
       return
     }
@@ -859,18 +887,30 @@ export function useUserSmartScheduleEditor(
     if (!userId.value) return
     try {
       const result = await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value, state)
-      const nextState = result.state === 'cooling' || result.state === 'selectable' || result.state === 'resumed' || result.state === 'paused'
-        ? result.state
-        : state
-      applyLocalAdmission(accountId, nextState, result.cooldown_until)
+      const nextState =
+        result.state === 'cooling'
+        || result.state === 'selectable'
+        || result.state === 'resumed'
+        || result.state === 'paused'
+        || result.state === 'probing'
+          ? result.state
+          : state
+      applyLocalAdmission(
+        accountId,
+        nextState,
+        result.cooldown_until,
+        readBackendProbeCap(result)
+      )
       const toast =
         nextState === 'paused'
           ? 'admin.users.smartSchedule.switchSuccessPaused'
           : nextState === 'cooling'
             ? 'admin.users.smartSchedule.switchSuccessCooling'
-            : nextState === 'selectable'
-              ? 'admin.users.smartSchedule.switchSuccessSelectable'
-              : 'admin.users.smartSchedule.resumeSuccess'
+            : nextState === 'probing'
+              ? 'admin.users.smartSchedule.switchSuccessProbing'
+              : nextState === 'selectable'
+                ? 'admin.users.smartSchedule.switchSuccessSelectable'
+                : 'admin.users.smartSchedule.resumeSuccess'
       appStore.showSuccess(t(toast))
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.switchFailed')))
@@ -884,6 +924,7 @@ export function useUserSmartScheduleEditor(
     (id) => {
       localResumeGraceByAccount.value = {}
       localPausedByAccount.value = {}
+      localProbingByAccount.value = {}
       if (id) {
         void loadAll({ pickPlatform: true })
       }
@@ -947,6 +988,8 @@ export function useUserSmartScheduleEditor(
     memberCurrent,
     memberCooldownUntil,
     memberPaused,
+    memberProbing,
+    memberProbeCap,
     memberSortOrder,
     persistSortOrders,
     memberResumeActive,

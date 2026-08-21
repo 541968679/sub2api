@@ -19,8 +19,10 @@ type memorySmartLookup struct {
 	bundle        *UserSmartScheduleBundle
 	cooldownUntil map[string]int64
 	pair          map[string]*PairQualityLive
+	probing       map[string]bool
 	startCalls    int
 	lastUntilUnix int64
+	graduated     int
 }
 
 func (m *memorySmartLookup) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle {
@@ -60,6 +62,40 @@ func (m *memorySmartLookup) GetPairQuality(_ context.Context, accountID, userID 
 		return nil
 	}
 	return m.pair[smartPairKey(accountID, userID)]
+}
+
+func (m *memorySmartLookup) IsProbing(_ context.Context, accountID, userID int64) bool {
+	if m == nil || len(m.probing) == 0 {
+		return false
+	}
+	return m.probing[smartPairKey(accountID, userID)]
+}
+
+func (m *memorySmartLookup) MarkProbing(_ context.Context, accountID, userID int64) {
+	if m == nil {
+		return
+	}
+	if m.probing == nil {
+		m.probing = map[string]bool{}
+	}
+	m.probing[smartPairKey(accountID, userID)] = true
+}
+
+func (m *memorySmartLookup) ClearProbing(_ context.Context, accountID, userID int64) {
+	if m == nil || len(m.probing) == 0 {
+		return
+	}
+	delete(m.probing, smartPairKey(accountID, userID))
+}
+
+func (m *memorySmartLookup) GraduateProbing(ctx context.Context, accountID, userID int64) {
+	if m == nil {
+		return
+	}
+	if m.IsProbing(ctx, accountID, userID) {
+		m.graduated++
+	}
+	m.ClearProbing(ctx, accountID, userID)
 }
 
 func smartPairKey(accountID, userID int64) string {
@@ -653,10 +689,15 @@ func (s stubSmartCache) ApplyMemberPaused(context.Context, int64, int64, bool) e
 
 type admissionCacheRecorder struct {
 	stubSmartCache
-	bundle  *UserSmartScheduleBundle
-	cleared int
-	setMins int
-	setErr  error
+	bundle       *UserSmartScheduleBundle
+	cleared      int
+	setMins      int
+	setErr       error
+	probing      map[string]bool
+	zeros        []string
+	markedProbe  int
+	clearedProbe int
+	graduated    int
 }
 
 func (s *admissionCacheRecorder) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle {
@@ -676,6 +717,44 @@ func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64
 	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
 
+func (s *admissionCacheRecorder) ZeroPairQuality(_ context.Context, _ int64, _ int64, eventType string) {
+	s.zeros = append(s.zeros, eventType)
+}
+
+func (s *admissionCacheRecorder) IsProbing(_ context.Context, accountID, userID int64) bool {
+	return s.probing[smartPairKey(accountID, userID)]
+}
+
+func (s *admissionCacheRecorder) MarkProbing(_ context.Context, accountID, userID int64) {
+	s.markedProbe++
+	if s.probing == nil {
+		s.probing = map[string]bool{}
+	}
+	s.probing[smartPairKey(accountID, userID)] = true
+}
+
+func (s *admissionCacheRecorder) ClearProbing(_ context.Context, accountID, userID int64) {
+	s.clearedProbe++
+	delete(s.probing, smartPairKey(accountID, userID))
+}
+
+func (s *admissionCacheRecorder) GraduateProbing(ctx context.Context, accountID, userID int64) {
+	if s.IsProbing(ctx, accountID, userID) {
+		s.graduated++
+	}
+	s.ClearProbing(ctx, accountID, userID)
+}
+
+func (s *admissionCacheRecorder) IsProbingBatch(_ context.Context, accountIDs []int64, userID int64) map[int64]bool {
+	out := map[int64]bool{}
+	for _, accountID := range accountIDs {
+		if s.IsProbing(context.Background(), accountID, userID) {
+			out[accountID] = true
+		}
+	}
+	return out
+}
+
 func TestParsePairAdmissionState(t *testing.T) {
 	t.Parallel()
 	got, err := ParsePairAdmissionState("")
@@ -687,9 +766,20 @@ func TestParsePairAdmissionState(t *testing.T) {
 	got, err = ParsePairAdmissionState("paused")
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionPaused, got)
+	got, err = ParsePairAdmissionState("probing")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionProbing, got)
+	got, err = ParsePairAdmissionState("cooling")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionCooling, got)
+	got, err = ParsePairAdmissionState("resumed")
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionResumed, got)
 	_, err = ParsePairAdmissionState("nope")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "SMART_SCHEDULE_ADMISSION_INVALID")
+	_, err = ParsePairAdmissionState("unpause")
+	require.Error(t, err)
 }
 
 func TestUserSmartScheduleService_SetPairAdmission(t *testing.T) {
@@ -796,6 +886,13 @@ func (s stubSmartCache) ListPairQualityEvents(context.Context, int64, int64, int
 	return nil
 }
 func (s stubSmartCache) AppendPairQualityEvent(context.Context, int64, int64, PairQualityEvent) {}
+func (s stubSmartCache) IsProbing(context.Context, int64, int64) bool                           { return false }
+func (s stubSmartCache) MarkProbing(context.Context, int64, int64)                              {}
+func (s stubSmartCache) ClearProbing(context.Context, int64, int64)                             {}
+func (s stubSmartCache) GraduateProbing(context.Context, int64, int64)                          {}
+func (s stubSmartCache) IsProbingBatch(context.Context, []int64, int64) map[int64]bool {
+	return map[int64]bool{}
+}
 
 func breachedPairLive(p50 int) *PairQualityLive {
 	n := DefaultSmartScheduleWindowN

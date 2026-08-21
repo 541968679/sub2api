@@ -502,9 +502,13 @@ export async function getBatchTodayStats(accountIds: number[]): Promise<BatchTod
   return data
 }
 
-/** Rolling-window TTFT / success-rate snapshot for admin account list columns. */
+/** Rolling last-N TTFT / success-rate snapshot for admin account list columns. */
 export interface AccountQualityStats {
-  window_seconds: number
+  window_seconds?: number
+  /** Account-global last-N window (Q_a). Aliases: n, account_quality_window_n. */
+  window_n?: number
+  n?: number
+  account_quality_window_n?: number
   success_count: number
   error_count: number
   success_rate: number | null
@@ -542,7 +546,7 @@ export interface BatchQualityStatsResponse {
 }
 
 /**
- * Batch fetch account quality metrics (last 15 minutes rolling window).
+ * Batch fetch account quality metrics (last-N window).
  */
 export async function getBatchQualityStats(accountIds: number[]): Promise<BatchQualityStatsResponse> {
   const { data } = await apiClient.post<BatchQualityStatsResponse>('/admin/accounts/quality-stats/batch', {
@@ -551,7 +555,7 @@ export async function getBatchQualityStats(accountIds: number[]): Promise<BatchQ
   return data
 }
 
-/** One persisted 15-minute rolling-window snapshot for the stability chart. */
+/** One persisted last-N window snapshot for the stability chart. */
 export interface AccountQualityHistoryItem extends AccountQualityStats {
   captured_at: string
 }
@@ -570,6 +574,7 @@ export interface AccountQualityHardCloseOverlay {
   max_p50_ttft_ms: number | null
   min_success_rate: number | null
   pause_minutes: number | null
+  account_quality_window_n?: number | null
   min_success_samples: number | null
   min_ttft_samples: number | null
   condition: QualityHardCloseCondition | null
@@ -580,6 +585,7 @@ export interface AccountQualityHardCloseResolved {
   max_p50_ttft_ms: number | null
   min_success_rate: number | null
   pause_minutes: number
+  account_quality_window_n?: number
   min_success_samples: number
   min_ttft_samples: number
   condition: QualityHardCloseCondition
@@ -629,16 +635,21 @@ export async function updateQualityHardClose(
   return data
 }
 
-export type SmartScheduleAdmissionState = 'paused' | 'cooling' | 'resumed' | 'selectable'
+export type SmartScheduleAdmissionState = 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
 
 export interface SmartScheduleAdmissionResult {
   account_id: number
   user_id: number
   state: SmartScheduleAdmissionState
   cooldown_until?: string | null
+  probing?: boolean
+  probe_cap?: number | null
+  probing_cap?: number | null
+  in_flight_cap?: number | null
+  pair_probe_cap?: number | null
 }
 
-/** Switch one user×account pair among paused / cooling / resumed / selectable. Omitted state is resumed. */
+/** Switch one user×account pair among paused / cooling / probing / resumed / selectable. Omitted state is resumed (exemption), never probing. */
 export async function resumeSmartSchedule(
   accountId: number,
   userId: number,

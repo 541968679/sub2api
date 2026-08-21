@@ -73,6 +73,15 @@
             })
           }}
         </p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-test="stability-live-window-counts">
+          {{
+            t('admin.accounts.quality.windowCounts', {
+              ttft: liveQualityStats?.ttft_samples ?? 0,
+              ok: qualityRateWindowK(liveQualityStats),
+              n: liveWindowN
+            })
+          }}
+        </p>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.accounts.stability.failoverSchedule') }}:
           {{ scheduleUseFailover ? t('admin.accounts.stability.failoverInclusive') : t('admin.accounts.stability.failoverTerminal') }}
@@ -269,27 +278,21 @@
           </div>
           <div>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {{ t('admin.accounts.stability.minSuccessSamples') }}
+              {{ t('admin.accounts.stability.windowN') }}
             </label>
             <input
-              v-model="form.min_success_samples"
+              :value="siteWindowN"
               type="number"
               min="1"
+              max="100"
               class="input w-full"
-              :placeholder="resolvedPlaceholder(resolved?.min_success_samples)"
+              data-test="stability-window-n"
+              disabled
+              readonly
             />
-          </div>
-          <div>
-            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {{ t('admin.accounts.stability.minTtftSamples') }}
-            </label>
-            <input
-              v-model="form.min_ttft_samples"
-              type="number"
-              min="1"
-              class="input w-full"
-              :placeholder="resolvedPlaceholder(resolved?.min_ttft_samples)"
-            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stability.windowNHint') }}
+            </p>
           </div>
           <div>
             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -360,6 +363,12 @@ import {
   successRateToPercent
 } from '@/utils/accountQualityHardClose'
 import {
+  ACCOUNT_QUALITY_WINDOW_N_DEFAULT,
+  echoAccountQualityWindowN,
+  qualityRateWindowK,
+  resolveAccountQualityWindowN
+} from '@/utils/accountQualityWindowN'
+import {
   formatQualityBridgeErrorRate,
   formatQualityFailoverErrorRate,
   formatQualityTerminalErrorRate,
@@ -405,10 +414,9 @@ const form = reactive({
   max_p50_ttft_ms: '' as number | string,
   min_success_rate_percent: '' as number | string,
   pause_minutes: '' as number | string,
-  min_success_samples: '' as number | string,
-  min_ttft_samples: '' as number | string,
   condition: 'or' as QualityHardCloseCondition
 })
+const globalWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
 
 const dialogTitle = computed(() =>
   t('admin.accounts.stability.title', { name: props.account?.name || '—' })
@@ -563,13 +571,35 @@ function setShowP95(value: boolean) {
   writeShowP95Preference(value)
 }
 
+const resolvedWindowN = computed(() =>
+  resolved.value ? resolveAccountQualityWindowN(resolved.value) : undefined
+)
+
+const siteWindowN = computed(() =>
+  resolvedWindowN.value ?? globalWindowN.value
+)
+
+const liveWindowN = computed(() =>
+  resolveAccountQualityWindowN({
+    ...liveQualityStats.value,
+    account_quality_window_n:
+      liveQualityStats.value?.account_quality_window_n ?? siteWindowN.value
+  })
+)
+
 const samplesSummary = computed(() => {
   const last = historyItems.value[historyItems.value.length - 1]
   if (!last) return ''
+  const n = resolveAccountQualityWindowN({
+    ...last,
+    account_quality_window_n: last.account_quality_window_n ?? resolvedWindowN.value
+  })
   return t('admin.accounts.stability.samplesSummary', {
     success: last.success_count ?? 0,
     error: last.error_count ?? 0,
-    ttft: last.ttft_samples ?? 0
+    ok: qualityRateWindowK(last),
+    ttft: last.ttft_samples ?? 0,
+    n
   })
 })
 
@@ -612,8 +642,6 @@ function resetForm() {
   form.max_p50_ttft_ms = ''
   form.min_success_rate_percent = ''
   form.pause_minutes = ''
-  form.min_success_samples = ''
-  form.min_ttft_samples = ''
   form.condition = 'or'
 }
 
@@ -622,8 +650,6 @@ function overlayHasOwnThresholds(overlay: AccountQualityHardCloseOverlay): boole
     || overlay.max_p50_ttft_ms != null
     || overlay.min_success_rate != null
     || overlay.pause_minutes != null
-    || overlay.min_success_samples != null
-    || overlay.min_ttft_samples != null
     || overlay.condition != null
 }
 
@@ -631,15 +657,11 @@ function applyThresholds(source: {
   max_p50_ttft_ms?: number | null
   min_success_rate?: number | null
   pause_minutes?: number | null
-  min_success_samples?: number | null
-  min_ttft_samples?: number | null
   condition?: QualityHardCloseCondition | string | null
 }) {
   form.max_p50_ttft_ms = source.max_p50_ttft_ms ?? ''
   form.min_success_rate_percent = successRateToPercent(source.min_success_rate) ?? ''
   form.pause_minutes = source.pause_minutes ?? ''
-  form.min_success_samples = source.min_success_samples ?? ''
-  form.min_ttft_samples = source.min_ttft_samples ?? ''
   form.condition = source.condition === 'and' ? 'and' : 'or'
 }
 
@@ -665,8 +687,9 @@ function buildOverlayPayload(): AccountQualityHardCloseOverlay {
     max_p50_ttft_ms: optionalNumber(form.max_p50_ttft_ms),
     min_success_rate: percentToSuccessRate(form.min_success_rate_percent),
     pause_minutes: optionalNumber(form.pause_minutes),
-    min_success_samples: optionalNumber(form.min_success_samples),
-    min_ttft_samples: optionalNumber(form.min_ttft_samples),
+    account_quality_window_n: null,
+    min_success_samples: null,
+    min_ttft_samples: null,
     condition
   }
 }
@@ -677,8 +700,7 @@ function buildTemplatePayload(current: QualityHardCloseSettings): QualityHardClo
     max_p50_ttft_ms: optionalNumber(form.max_p50_ttft_ms),
     min_success_rate: percentToSuccessRate(form.min_success_rate_percent),
     pause_minutes: optionalNumber(form.pause_minutes) ?? current.pause_minutes,
-    min_success_samples: optionalNumber(form.min_success_samples) ?? current.min_success_samples,
-    min_ttft_samples: optionalNumber(form.min_ttft_samples) ?? current.min_ttft_samples,
+    ...echoAccountQualityWindowN(resolveAccountQualityWindowN(current)),
     condition: form.condition === 'and' ? 'and' : 'or',
     schedule_use_failover_error_rate: scheduleUseFailover.value
   }
@@ -702,6 +724,7 @@ async function load() {
     historyItems.value = history.items ?? []
     liveQualityStats.value = qualityBatch.stats?.[String(props.account.id)] ?? null
     scheduleUseFailover.value = template.schedule_use_failover_error_rate === true
+    globalWindowN.value = resolveAccountQualityWindowN(template)
     globalEnabled.value = hardClose.global_enabled
     resolved.value = hardClose.resolved
     applyOverlay(hardClose.overlay, hardClose.resolved)

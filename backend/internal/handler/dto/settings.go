@@ -373,6 +373,9 @@ type QualityHardCloseSettings struct {
 	PauseMinutes                 int      `json:"pause_minutes"`
 	MinSuccessSamples            int      `json:"min_success_samples"`
 	MinTTFTSamples               int      `json:"min_ttft_samples"`
+	AccountQualityWindowN        int      `json:"account_quality_window_n"`
+	WindowN                      int      `json:"window_n,omitempty"`
+	N                            int      `json:"n,omitempty"`
 	Condition                    string   `json:"condition"`
 	ScheduleUseFailoverErrorRate bool     `json:"schedule_use_failover_error_rate"`
 }

@@ -594,6 +594,7 @@
                   clickable
                   mode="combined"
                   :stats="qualityStatsById[String(row.id)] ?? null"
+                  :window-n="accountQualityWindowN"
                   :loading="statsLoading"
                   @click="openStabilityDialog(row)"
                 />
@@ -876,7 +877,7 @@ import {
   cooldownRemainingMinutes,
   EMPTY_SMART_SCHEDULE_POOL_FILTERS,
   matchesPoolFilters,
-  pairOccupancyDisplayMax,
+  pairOccupancyDisplayMaxForAdmission,
   resolvePoolAdmission,
   resolveQualityAdmissionHint,
   type PoolAdmissionState,
@@ -906,6 +907,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import SmartSchedulePairQualityCell from '@/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue'
 import SmartSchedulePairQualityDialog from '@/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
@@ -938,6 +940,7 @@ const appStore = useAppStore()
 
 const user = ref<AdminUser | null>(null)
 const scheduleUseFailover = ref(false)
+const accountQualityWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
 const userLoading = ref(false)
 const userQualityStats = ref<AccountQualityStats | null>(null)
 const userQualityLoading = ref(false)
@@ -1022,6 +1025,8 @@ const {
   memberCurrent,
   memberCooldownUntil,
   memberPaused,
+  memberProbing,
+  memberProbeCap,
   memberSortOrder,
   persistSortOrders,
   memberResumeActive,
@@ -1163,6 +1168,7 @@ const poolTableRows = computed(() =>
       pairCurrent: memberCurrent(account.id),
       cooldownUntil: memberCooldownUntil(account.id),
       paused: memberPaused(account.id),
+      probing: memberProbing(account.id),
       qualityHint: resolveQualityAdmissionHint({
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
@@ -1214,6 +1220,8 @@ function admissionLabel(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreview')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumed')
+    case 'probing':
+      return t('admin.users.smartSchedule.admissionProbing')
     default:
       return t('admin.users.smartSchedule.admissionSelectable')
   }
@@ -1229,6 +1237,8 @@ function admissionTitle(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionResumedHint')
     case 'paused':
       return t('admin.users.smartSchedule.admissionPausedHint')
+    case 'probing':
+      return t('admin.users.smartSchedule.admissionProbingHint')
     default:
       return ''
   }
@@ -1250,6 +1260,8 @@ function admissionChipClass(state: PoolAdmissionState) {
       return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
     case 'resumed':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+    case 'probing':
+      return 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
     default:
       return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
   }
@@ -1267,10 +1279,18 @@ function liveAccountPriority(account: { id: number; priority?: number }): number
 }
 
 function pairBadgeMax(accountId: number) {
-  return pairOccupancyDisplayMax(memberCapOrNull(accountId))
+  return pairOccupancyDisplayMaxForAdmission({
+    probing: memberProbing(accountId),
+    pairCap: memberCapOrNull(accountId),
+    windowN: currentDraft.value?.windowN,
+    backendCap: memberProbeCap(accountId)
+  })
 }
 
 function pairBadgeTooltip(accountId: number) {
+  if (memberProbing(accountId)) {
+    return t('admin.users.smartSchedule.pairOccupancyProbingHint')
+  }
   return memberCapOrNull(accountId) == null
     ? t('admin.users.smartSchedule.pairOccupancyUncappedHint')
     : t('admin.users.smartSchedule.pairCapHint')
@@ -1642,6 +1662,7 @@ async function saveFailoverToggle(on: boolean) {
       schedule_use_failover_error_rate: on
     })
     scheduleUseFailover.value = updated.schedule_use_failover_error_rate === true
+    accountQualityWindowN.value = resolveAccountQualityWindowN(updated)
     appStore.showSuccess(t('admin.settings.qualityHardClose.saved'))
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.settings.qualityHardClose.saveFailed')))
@@ -1655,6 +1676,7 @@ onMounted(() => {
   void loadUser()
   void adminAPI.settings.getQualityHardCloseSettings().then((settings) => {
     scheduleUseFailover.value = settings.schedule_use_failover_error_rate === true
+    accountQualityWindowN.value = resolveAccountQualityWindowN(settings)
   }).catch(() => undefined)
 })
 

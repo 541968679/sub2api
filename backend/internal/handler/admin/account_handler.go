@@ -2523,12 +2523,12 @@ func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
 		return
 	}
 
-	if h.accountUsageService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Account usage service unavailable")
+	if h.qualityMaintenance == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account quality service unavailable")
 		return
 	}
 
-	stats, err := h.accountUsageService.GetQualityStatsBatch(c.Request.Context(), accountIDs)
+	stats, err := h.qualityMaintenance.GetLastNStatsBatch(c.Request.Context(), accountIDs)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

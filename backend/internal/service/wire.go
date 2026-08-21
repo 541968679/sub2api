@@ -250,6 +250,7 @@ func ProvideGatewayService(
 	antigravitySampler *AntigravityCreditSampler,
 	liveCache AccountQualityLiveCache,
 	smartSchedule SmartScheduleLookup,
+	accountQuality AccountQualityObserver,
 ) *GatewayService {
 	svc := NewGatewayService(
 		accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -259,6 +260,7 @@ func ProvideGatewayService(
 	)
 	svc.SetQualityLiveCache(liveCache)
 	svc.SetSmartScheduleCache(smartSchedule)
+	svc.SetAccountQualityObserver(accountQuality)
 	return svc
 }
 
@@ -286,6 +288,7 @@ func ProvideOpenAIGatewayService(
 	settingService *SettingService,
 	liveCache AccountQualityLiveCache,
 	smartSchedule SmartScheduleLookup,
+	accountQuality AccountQualityObserver,
 ) *OpenAIGatewayService {
 	svc := NewOpenAIGatewayService(
 		accountRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -295,6 +298,7 @@ func ProvideOpenAIGatewayService(
 	)
 	svc.SetQualityLiveCache(liveCache)
 	svc.SetSmartScheduleCache(smartSchedule)
+	svc.SetAccountQualityObserver(accountQuality)
 	return svc
 }
 
@@ -592,6 +596,7 @@ func ProvideOpsService(
 	systemLogSink *OpsSystemLogSink,
 	settingService *SettingService,
 	smartSchedule *UserSmartScheduleService,
+	accountQuality AccountQualityObserver,
 ) *OpsService {
 	svc := NewOpsService(
 		opsRepo, settingRepo, cfg, accountRepo, userRepo, concurrencyService,
@@ -603,6 +608,7 @@ func ProvideOpsService(
 		settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
 	}
 	svc.SetPairQualityObserver(smartSchedule)
+	svc.SetAccountQualityObserver(accountQuality)
 	return svc
 }
 

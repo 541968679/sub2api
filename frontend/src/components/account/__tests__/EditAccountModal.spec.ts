@@ -918,6 +918,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.applyTemplateSuccess')
     expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-p50-16"]').element.value).toBe('1800')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-window-n-16"]').element.value).toBe('8')
 
     await wrapper.get('[data-testid="user-schedule-quality-save-template-16"]').trigger('click')
     await flushPromises()
@@ -926,8 +927,9 @@ describe('EditAccountModal', () => {
       max_p50_ttft_ms: 1800,
       min_success_rate: 0.95,
       pause_minutes: 15,
+      account_quality_window_n: 8,
       min_success_samples: 8,
-      min_ttft_samples: 6,
+      min_ttft_samples: 8,
       condition: 'and',
       schedule_use_failover_error_rate: false
     })

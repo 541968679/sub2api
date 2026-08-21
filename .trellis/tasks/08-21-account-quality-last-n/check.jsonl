@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/account-quality-hard-close.md", "reason": "验收硬关闭读 last-N、未满 N 不关、resume 豁免仍在"}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "验收 tick 不再 SQL Replace live"}
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "验收智能调度冷却不得再读账号 live 当配对窗"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/prd.md", "reason": "对照 AC1–AC5"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/design.md", "reason": "核对两窗入样、全局 N、用户维 batch 未改"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/research/account-quality-api-contract.md", "reason": "核对 GET 回填与 quality-stats/batch 字段"}

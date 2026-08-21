@@ -3025,6 +3025,9 @@ func qualityHardCloseSettingsDTO(settings *service.QualityHardCloseSettings) dto
 		PauseMinutes:                 settings.PauseMinutes,
 		MinSuccessSamples:            settings.MinSuccessSamples,
 		MinTTFTSamples:               settings.MinTTFTSamples,
+		AccountQualityWindowN:        settings.ResolvedWindowN(),
+		WindowN:                      settings.ResolvedWindowN(),
+		N:                            settings.ResolvedWindowN(),
 		Condition:                    settings.Condition,
 		ScheduleUseFailoverErrorRate: settings.ScheduleUseFailoverErrorRate,
 	}
@@ -3049,6 +3052,9 @@ type UpdateQualityHardCloseSettingsRequest struct {
 	PauseMinutes                 int      `json:"pause_minutes"`
 	MinSuccessSamples            int      `json:"min_success_samples"`
 	MinTTFTSamples               int      `json:"min_ttft_samples"`
+	AccountQualityWindowN        *int     `json:"account_quality_window_n"`
+	WindowN                      *int     `json:"window_n"`
+	N                            *int     `json:"n"`
 	Condition                    string   `json:"condition"`
 	ScheduleUseFailoverErrorRate bool     `json:"schedule_use_failover_error_rate"`
 }
@@ -3069,6 +3075,9 @@ func (h *SettingHandler) UpdateQualityHardCloseSettings(c *gin.Context) {
 		PauseMinutes:                 req.PauseMinutes,
 		MinSuccessSamples:            req.MinSuccessSamples,
 		MinTTFTSamples:               req.MinTTFTSamples,
+		AccountQualityWindowN:        req.AccountQualityWindowN,
+		WindowN:                      req.WindowN,
+		N:                            req.N,
 		Condition:                    req.Condition,
 		ScheduleUseFailoverErrorRate: req.ScheduleUseFailoverErrorRate,
 	}

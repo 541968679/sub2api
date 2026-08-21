@@ -57,9 +57,15 @@ func (c *accountQualityLiveCache) Get(ctx context.Context, accountID int64) (*se
 	if c == nil || c.rdb == nil || accountID <= 0 {
 		return nil, nil
 	}
-	live, err := c.getLiveJSON(ctx, accountID)
-	if err != nil {
-		return nil, err
+	var live *service.AccountQualityStats
+	if lastN := c.GetLastN(ctx, accountID); lastN != nil {
+		live = lastN.ToAccountQualityStats()
+	} else {
+		var err error
+		live, err = c.getLiveJSON(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	overlay, err := c.getResumeOverlay(ctx, accountID)
 	if err != nil {

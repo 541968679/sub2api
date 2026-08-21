@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,8 @@ const (
 	PairQualityEventResumed       = "resumed"
 	PairQualityEventSelectable    = "selectable"
 	PairQualityEventExpiryZero    = "expiry_zero"
+	PairQualityEventProbeEnter    = "probe_enter"
+	PairQualityEventProbeGraduate = "probe_graduate"
 )
 
 // PairQualityLive is the smart-schedule pair window Q_{a,u}.
@@ -346,4 +349,97 @@ func pairQualityBlocks(live *PairQualityLive, policy *SmartSchedulePlatformPolic
 	}
 	blocked, _ := EvaluateAccountQualityHardClose(live.ToAccountQualityStats(), policy.QualityGate(), false)
 	return blocked
+}
+
+// ProbeInFlightCap is the probing in-flight pair slot cap.
+// N is the smart-schedule policy window (1–100, default 10), not account-quality N.
+// Member cap >= 1 → min(N, cap). No cap → N (never unlimited / never 999).
+func ProbeInFlightCap(windowN, memberCap int) int {
+	n := ClampSmartScheduleWindowN(windowN)
+	if memberCap >= 1 && memberCap < n {
+		return memberCap
+	}
+	return n
+}
+
+func pairQualityProbeGraduates(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) bool {
+	if live == nil {
+		return false
+	}
+	n := DefaultSmartScheduleWindowN
+	if policy != nil {
+		n = policy.WindowN()
+	}
+	if live.OKCount < n {
+		return false
+	}
+	if policy == nil || !policy.HasQualityMetrics() {
+		return true
+	}
+	gate := policy.QualityGate()
+	if gate.MinSuccessRate != nil {
+		if live.SuccessRate == nil || *live.SuccessRate < *gate.MinSuccessRate {
+			return false
+		}
+	}
+	if live.TTFTCount < n {
+		return true
+	}
+	if gate.MaxP50TTFTMs != nil {
+		if live.P50TTFTMs == nil || *live.P50TTFTMs > *gate.MaxP50TTFTMs {
+			return false
+		}
+	}
+	return true
+}
+
+// pairQualityProbeAndMixed is the probing-only anti-deadlock override:
+// and + both windows full + one pass one fail → cool. Selectable does not use this.
+func pairQualityProbeAndMixed(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) bool {
+	if live == nil || policy == nil || !policy.HasQualityMetrics() {
+		return false
+	}
+	gate := policy.QualityGate()
+	if strings.ToLower(strings.TrimSpace(gate.Condition)) != QualityHardCloseConditionAnd {
+		return false
+	}
+	n := policy.WindowN()
+	if live.OKCount < n || live.TTFTCount < n {
+		return false
+	}
+	if gate.MaxP50TTFTMs == nil || gate.MinSuccessRate == nil {
+		return false
+	}
+	if pairQualityBlocks(live, policy) || pairQualityProbeGraduates(live, policy) {
+		return false
+	}
+	return true
+}
+
+// evaluateSmartSchedulePairQuality applies cooldown / probe graduate on the hot path
+// and after ingest. Resume grace must be checked by the caller (no evaluate).
+func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
+	probing := lookup != nil && lookup.IsProbing(ctx, accountID, userID)
+	minutes := DefaultSmartScheduleCooldownMinutes
+	if policy != nil && policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
+		minutes = policy.CooldownMinutes
+	}
+	if probing {
+		if pairQualityBlocks(live, policy) || pairQualityProbeAndMixed(live, policy) {
+			lookup.ClearProbing(ctx, accountID, userID)
+			lookup.StartCooldown(ctx, accountID, userID, minutes, now)
+			return false
+		}
+		if pairQualityProbeGraduates(live, policy) {
+			lookup.GraduateProbing(ctx, accountID, userID)
+		}
+		return true
+	}
+	if pairQualityBlocks(live, policy) {
+		if lookup != nil {
+			lookup.StartCooldown(ctx, accountID, userID, minutes, now)
+		}
+		return false
+	}
+	return true
 }

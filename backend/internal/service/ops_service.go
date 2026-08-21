@@ -56,6 +56,7 @@ type OpsService struct {
 	systemLogSink             *OpsSystemLogSink
 	quotaAutoPauseSink        func(OpsOpenAIAccountQuotaAutoPauseSettings)
 	pairQuality               PairQualityObserver
+	accountQuality            AccountQualityObserver
 }
 
 func (s *OpsService) SetOpenAIQuotaAutoPauseSettingsSink(sink func(OpsOpenAIAccountQuotaAutoPauseSettings)) {
@@ -67,6 +68,12 @@ func (s *OpsService) SetOpenAIQuotaAutoPauseSettingsSink(sink func(OpsOpenAIAcco
 func (s *OpsService) SetPairQualityObserver(observer PairQualityObserver) {
 	if s != nil {
 		s.pairQuality = observer
+	}
+}
+
+func (s *OpsService) SetAccountQualityObserver(observer AccountQualityObserver) {
+	if s != nil {
+		s.accountQuality = observer
 	}
 }
 
@@ -150,6 +157,7 @@ func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogIn
 		return err
 	}
 	s.observePairQualityErrors(ctx, []*OpsInsertErrorLogInput{prepared})
+	s.observeAccountQualityErrors(ctx, []*OpsInsertErrorLogInput{prepared})
 	return nil
 }
 
@@ -178,6 +186,7 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 			return err
 		}
 		s.observePairQualityErrors(ctx, prepared)
+		s.observeAccountQualityErrors(ctx, prepared)
 		return nil
 	}
 
@@ -197,6 +206,7 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 		}
 	}
 	s.observePairQualityErrors(ctx, prepared)
+	s.observeAccountQualityErrors(ctx, prepared)
 	return nil
 }
 
@@ -228,6 +238,35 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 		s.pairQuality.ObservePairCompletion(ctx, PairQualityObservation{
 			AccountID: *entry.AccountID,
 			UserID:    *entry.UserID,
+			Success:   false,
+		})
+	}
+}
+
+func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []*OpsInsertErrorLogInput) {
+	if s == nil || s.accountQuality == nil || len(entries) == 0 {
+		return
+	}
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	for _, entry := range entries {
+		if entry == nil || entry.IsCountTokens || entry.AccountID == nil || *entry.AccountID <= 0 {
+			continue
+		}
+		cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+			ClientStatus:  entry.StatusCode,
+			Phase:         entry.ErrorPhase,
+			Type:          entry.ErrorType,
+			Message:       entry.ErrorMessage,
+			ErrorBody:     entry.ErrorBody,
+			Platform:      entry.Platform,
+			UpstreamModel: entry.UpstreamModel,
+			UseFailover:   useFailover,
+		})
+		if !cals.CountedInAccountScheduleRate {
+			continue
+		}
+		s.accountQuality.ObserveAccountCompletion(ctx, AccountQualityObservation{
+			AccountID: *entry.AccountID,
 			Success:   false,
 		})
 	}

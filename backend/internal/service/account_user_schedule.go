@@ -246,26 +246,22 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 	if lookup != nil && lookup.CooldownActive(ctx, account.ID, userID, now) {
 		return false
 	}
-	if !policy.HasQualityMetrics() {
-		return true
-	}
 	// Resume overlay still lives on account-quality:resume. Only the chip/grace
 	// fields are used here; live 15-minute Q_a numbers must not decide cooldown.
+	// 豁免期 (resumed) is fail-open: ingest happens elsewhere, no evaluate / no graduate.
 	stats := loadLiveQualityForAdmission(ctx, cache, account, true)
 	if UserQualityResumeActive(stats, userID, now) {
+		return true
+	}
+	probing := lookup != nil && lookup.IsProbing(ctx, account.ID, userID)
+	if !policy.HasQualityMetrics() && !probing {
 		return true
 	}
 	var pair *PairQualityLive
 	if lookup != nil {
 		pair = lookup.GetPairQuality(ctx, account.ID, userID)
 	}
-	if !pairQualityBlocks(pair, policy) {
-		return true
-	}
-	if lookup != nil {
-		lookup.StartCooldown(ctx, account.ID, userID, policy.CooldownMinutes, now)
-	}
-	return false
+	return evaluateSmartSchedulePairQuality(ctx, lookup, account.ID, userID, policy, pair, now)
 }
 
 func containsScheduleUserID(ids []int64, userID int64) bool {

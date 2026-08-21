@@ -400,29 +400,19 @@
                     <label
                       class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >
-                      {{
-                        t("admin.settings.qualityHardClose.minSuccessSamples")
-                      }}
+                      {{ t("admin.settings.qualityHardClose.windowN") }}
                     </label>
                     <input
-                      v-model.number="qualityHardCloseForm.min_success_samples"
+                      v-model.number="qualityHardCloseForm.account_quality_window_n"
                       type="number"
                       min="1"
+                      max="100"
                       class="input w-full"
+                      data-test="quality-hard-close-window-n"
                     />
-                  </div>
-                  <div>
-                    <label
-                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{ t("admin.settings.qualityHardClose.minTtftSamples") }}
-                    </label>
-                    <input
-                      v-model.number="qualityHardCloseForm.min_ttft_samples"
-                      type="number"
-                      min="1"
-                      class="input w-full"
-                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.qualityHardClose.windowNHint") }}
+                    </p>
                   </div>
                   <div>
                     <label
@@ -6420,6 +6410,11 @@ import {
   percentToSuccessRate,
   successRateToPercent,
 } from "@/utils/accountQualityHardClose";
+import {
+  ACCOUNT_QUALITY_WINDOW_N_DEFAULT,
+  echoAccountQualityWindowN,
+  resolveAccountQualityWindowN,
+} from "@/utils/accountQualityWindowN";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
@@ -6515,8 +6510,7 @@ const qualityHardCloseForm = reactive({
   max_p50_ttft_ms: 3000 as number | string,
   min_success_rate_percent: 90 as number | string,
   pause_minutes: 30,
-  min_success_samples: 20,
-  min_ttft_samples: 10,
+  account_quality_window_n: ACCOUNT_QUALITY_WINDOW_N_DEFAULT,
   condition: "or" as "or" | "and",
   schedule_use_failover_error_rate: false,
 });
@@ -8272,8 +8266,8 @@ async function loadQualityHardCloseSettings() {
     qualityHardCloseForm.min_success_rate_percent =
       successRateToPercent(settings.min_success_rate) ?? "";
     qualityHardCloseForm.pause_minutes = settings.pause_minutes;
-    qualityHardCloseForm.min_success_samples = settings.min_success_samples;
-    qualityHardCloseForm.min_ttft_samples = settings.min_ttft_samples;
+    qualityHardCloseForm.account_quality_window_n =
+      resolveAccountQualityWindowN(settings);
     qualityHardCloseForm.condition =
       settings.condition === "and" ? "and" : "or";
     qualityHardCloseForm.schedule_use_failover_error_rate =
@@ -8288,6 +8282,9 @@ async function loadQualityHardCloseSettings() {
 async function saveQualityHardCloseSettings() {
   qualityHardCloseSaving.value = true;
   try {
+    const windowFields = echoAccountQualityWindowN(
+      qualityHardCloseForm.account_quality_window_n,
+    );
     const updated = await adminAPI.settings.updateQualityHardCloseSettings({
       enabled: qualityHardCloseForm.enabled,
       max_p50_ttft_ms: optionalNumber(qualityHardCloseForm.max_p50_ttft_ms),
@@ -8295,8 +8292,7 @@ async function saveQualityHardCloseSettings() {
         qualityHardCloseForm.min_success_rate_percent,
       ),
       pause_minutes: qualityHardCloseForm.pause_minutes,
-      min_success_samples: qualityHardCloseForm.min_success_samples,
-      min_ttft_samples: qualityHardCloseForm.min_ttft_samples,
+      ...windowFields,
       condition: qualityHardCloseForm.condition,
       schedule_use_failover_error_rate:
         qualityHardCloseForm.schedule_use_failover_error_rate,
@@ -8306,8 +8302,8 @@ async function saveQualityHardCloseSettings() {
     qualityHardCloseForm.min_success_rate_percent =
       successRateToPercent(updated.min_success_rate) ?? "";
     qualityHardCloseForm.pause_minutes = updated.pause_minutes;
-    qualityHardCloseForm.min_success_samples = updated.min_success_samples;
-    qualityHardCloseForm.min_ttft_samples = updated.min_ttft_samples;
+    qualityHardCloseForm.account_quality_window_n =
+      resolveAccountQualityWindowN(updated);
     qualityHardCloseForm.condition =
       updated.condition === "and" ? "and" : "or";
     qualityHardCloseForm.schedule_use_failover_error_rate =

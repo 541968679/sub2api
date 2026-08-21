@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/account-quality-hard-close.md", "reason": "硬关闭与全局 N、样本不足不判、live 与格子同口径"}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "tick 不再用 15m SQL 写 live；历史快照改为 last-N"}
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "轨 A 改为账号 last-N；配对冷却仍只读 Q_a,u"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/prd.md", "reason": "锁定合同：全站 N=20、两窗、格+硬关闭同口径"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/design.md", "reason": "Redis last-n、完成挂钩、tick 与设置收敛"}
+{"file": ".trellis/tasks/08-21-account-quality-last-n/research/account-quality-api-contract.md", "reason": "前端字段：account_quality_window_n 与 batch JSON"}

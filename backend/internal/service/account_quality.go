@@ -71,6 +71,11 @@ type AccountQualityStats struct {
 	P95TTFTMs   *int  `json:"p95_ttft_ms"`
 	MaxTTFTMs   *int  `json:"max_ttft_ms"`
 	TTFTSamples int64 `json:"ttft_samples"`
+	// N / WindowN / AccountQualityWindowN are the site-wide last-N size for Q_a.
+	// Aliases exist so the account cell can show k/N without a settings round-trip.
+	N                      int `json:"n,omitempty"`
+	WindowN                int `json:"window_n,omitempty"`
+	AccountQualityWindowN  int `json:"account_quality_window_n,omitempty"`
 	// ResumeUsers is live-cache only: user_id -> unix until. After 立即恢复,
 	// the chip stays 已恢复 until this timestamp.
 	ResumeUsers map[string]int64 `json:"resume_users,omitempty"`

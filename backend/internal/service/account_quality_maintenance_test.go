@@ -65,18 +65,86 @@ func (s *qualitySnapshotRepoStub) ListRecentTrafficAccountIDs(_ context.Context,
 	return append([]int64(nil), s.candidates...), nil
 }
 
+type lastNCacheStub struct {
+	byID       map[int64]*AccountQualityLastN
+	ids        []int64
+	batchCalls [][]int64
+}
+
+func (s *lastNCacheStub) GetLastN(_ context.Context, accountID int64) *AccountQualityLastN {
+	if s == nil || s.byID == nil {
+		return nil
+	}
+	return s.byID[accountID]
+}
+
+func (s *lastNCacheStub) GetLastNBatch(_ context.Context, accountIDs []int64) map[int64]*AccountQualityLastN {
+	s.batchCalls = append(s.batchCalls, append([]int64(nil), accountIDs...))
+	out := map[int64]*AccountQualityLastN{}
+	if s == nil || s.byID == nil {
+		return out
+	}
+	for _, id := range accountIDs {
+		if live := s.byID[id]; live != nil {
+			out[id] = live
+		}
+	}
+	return out
+}
+
+func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN {
+	if s.byID == nil {
+		s.byID = map[int64]*AccountQualityLastN{}
+	}
+	live := ApplyAccountQualityLastNIngest(s.byID[accountID], n, success, firstTokenMs)
+	live.UseFailover = useFailover
+	s.byID[accountID] = live
+	return live
+}
+
+func (s *lastNCacheStub) ListLastNAccountIDs(_ context.Context) []int64 {
+	if s.ids != nil {
+		return append([]int64(nil), s.ids...)
+	}
+	out := make([]int64, 0, len(s.byID))
+	for id := range s.byID {
+		out = append(out, id)
+	}
+	return out
+}
+
+func lastNFromStats(success, errors, ttft int64, p50 int, rate float64) *AccountQualityLastN {
+	ok := make([]bool, 0, success+errors)
+	for i := int64(0); i < success; i++ {
+		ok = append(ok, true)
+	}
+	for i := int64(0); i < errors; i++ {
+		ok = append(ok, false)
+	}
+	ttftMs := make([]int, 0, ttft)
+	for i := int64(0); i < ttft; i++ {
+		ttftMs = append(ttftMs, p50)
+	}
+	live := &AccountQualityLastN{N: DefaultAccountQualityWindowN, OK: ok, TTFTMs: ttftMs}
+	RecomputeAccountQualityLastN(live)
+	if ttft == 0 {
+		live.P50TTFTMs = nil
+	}
+	rateCopy := rate
+	live.SuccessRate = &rateCopy
+	return live
+}
+
 func TestAccountQualityMaintenance_SkipEmptySamples(t *testing.T) {
-	rate := 1.0
-	ttft := 120
-	repo := &qualitySnapshotRepoStub{candidates: []int64{1, 2, 3}}
-	statsRepo := &qualityStatsBatchRepoStub{
-		result: map[int64]*AccountQualityStats{
-			1: {WindowSeconds: AccountQualityWindowSeconds, SuccessCount: 2, SuccessRate: &rate, AvgTTFTMs: &ttft, TTFTSamples: 2},
-			2: {WindowSeconds: AccountQualityWindowSeconds},
-			3: {WindowSeconds: AccountQualityWindowSeconds, ErrorCount: 1, SuccessRate: new(float64)},
+	repo := &qualitySnapshotRepoStub{}
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
+	svc.lastN = &lastNCacheStub{
+		ids: []int64{1, 2, 3},
+		byID: map[int64]*AccountQualityLastN{
+			1: lastNFromStats(2, 0, 2, 120, 1),
+			3: lastNFromStats(0, 1, 0, 0, 0),
 		},
 	}
-	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
 
 	now := time.Date(2026, 8, 14, 12, 7, 30, 0, time.UTC)
 	require.NoError(t, svc.RunTick(context.Background(), now))
@@ -97,18 +165,17 @@ func TestAccountQualityMaintenance_SkipEmptySamples(t *testing.T) {
 }
 
 func TestAccountQualityMaintenance_UpsertIdempotent(t *testing.T) {
-	rate := 0.8
-	repo := &qualitySnapshotRepoStub{candidates: []int64{9}}
-	statsRepo := &qualityStatsBatchRepoStub{
-		result: map[int64]*AccountQualityStats{
-			9: {WindowSeconds: AccountQualityWindowSeconds, SuccessCount: 4, ErrorCount: 1, SuccessRate: &rate, TTFTSamples: 4},
-		},
+	repo := &qualitySnapshotRepoStub{}
+	lastN := &lastNCacheStub{
+		ids:  []int64{9},
+		byID: map[int64]*AccountQualityLastN{9: lastNFromStats(4, 1, 4, 100, 0.8)},
 	}
-	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
+	svc.lastN = lastN
 	now := time.Date(2026, 8, 14, 12, 10, 1, 0, time.UTC)
 
 	require.NoError(t, svc.RunTick(context.Background(), now))
-	statsRepo.result[9].SuccessCount = 6
+	lastN.byID[9] = lastNFromStats(6, 1, 4, 100, 6.0/7.0)
 	require.NoError(t, svc.RunTick(context.Background(), now))
 
 	require.Len(t, repo.rows, 1)
@@ -122,14 +189,15 @@ func TestAccountQualityMaintenance_BatchesBy200(t *testing.T) {
 	for i := range ids {
 		ids[i] = int64(i + 1)
 	}
-	repo := &qualitySnapshotRepoStub{candidates: ids}
-	statsRepo := &qualityStatsBatchRepoStub{result: map[int64]*AccountQualityStats{}}
-	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
+	repo := &qualitySnapshotRepoStub{}
+	lastN := &lastNCacheStub{ids: ids, byID: map[int64]*AccountQualityLastN{}}
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
+	svc.lastN = lastN
 
 	require.NoError(t, svc.RunTick(context.Background(), time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)))
-	require.Len(t, statsRepo.batchCalls, 2)
-	require.Len(t, statsRepo.batchCalls[0], AccountQualityMaxBatchSize)
-	require.Len(t, statsRepo.batchCalls[1], 3)
+	require.Len(t, lastN.batchCalls, 2)
+	require.Len(t, lastN.batchCalls[0], AccountQualityMaxBatchSize)
+	require.Len(t, lastN.batchCalls[1], 3)
 	require.Empty(t, repo.rows)
 }
 
@@ -144,7 +212,7 @@ func TestAccountQualityMaintenance_RetentionDelete(t *testing.T) {
 			{accountID: 1, capturedAt: keepAt}: {AccountID: 1, CapturedAt: keepAt, SuccessCount: 2},
 		},
 	}
-	svc := NewAccountQualityMaintenanceService(repo, &qualityStatsBatchRepoStub{result: map[int64]*AccountQualityStats{}}, nil)
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
 	require.NoError(t, svc.RunTick(context.Background(), now))
 
 	require.NotEmpty(t, repo.deleteCutoffs)
@@ -207,14 +275,13 @@ func (h *hardCloseHookStub) EvaluateHardClose(_ context.Context, stats map[int64
 }
 
 func TestAccountQualityMaintenance_HardCloseHookReceivesLiveStats(t *testing.T) {
-	repo := &qualitySnapshotRepoStub{candidates: []int64{1}}
-	statsRepo := &qualityStatsBatchRepoStub{
-		result: map[int64]*AccountQualityStats{
-			1: {WindowSeconds: AccountQualityWindowSeconds, SuccessCount: 3, TTFTSamples: 3},
-		},
-	}
+	repo := &qualitySnapshotRepoStub{}
 	hook := &hardCloseHookStub{}
-	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
+	svc.lastN = &lastNCacheStub{
+		ids:  []int64{1},
+		byID: map[int64]*AccountQualityLastN{1: lastNFromStats(3, 0, 3, 100, 1)},
+	}
 	svc.SetHardCloseEvaluator(hook)
 
 	require.NoError(t, svc.RunTick(context.Background(), time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)))
@@ -287,25 +354,47 @@ func (s *liveQualityCacheCapture) MarkAccountResume(_ context.Context, accountID
 	return nil
 }
 
-func TestAccountQualityMaintenance_WritesLiveQualityCache(t *testing.T) {
-	rate := 1.0
-	ttft := 120
-	repo := &qualitySnapshotRepoStub{candidates: []int64{1, 2}}
-	statsRepo := &qualityStatsBatchRepoStub{
-		result: map[int64]*AccountQualityStats{
-			1: {WindowSeconds: AccountQualityWindowSeconds, SuccessCount: 2, SuccessRate: &rate, AvgTTFTMs: &ttft, P50TTFTMs: &ttft, TTFTSamples: 2},
-			2: {WindowSeconds: AccountQualityWindowSeconds},
-		},
-	}
+func TestAccountQualityMaintenance_TickDoesNotReplaceLiveCache(t *testing.T) {
+	repo := &qualitySnapshotRepoStub{}
 	live := &liveQualityCacheCapture{}
-	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
+	svc := NewAccountQualityMaintenanceService(repo, nil, nil)
+	svc.lastN = &lastNCacheStub{
+		ids:  []int64{1},
+		byID: map[int64]*AccountQualityLastN{1: lastNFromStats(2, 0, 2, 120, 1)},
+	}
 	svc.SetLiveQualityCache(live)
 
 	require.NoError(t, svc.RunTick(context.Background(), time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)))
-	require.Equal(t, 1, live.calls)
-	require.NotNil(t, live.last[1])
-	require.Equal(t, int64(2), live.last[1].SuccessCount)
-	require.True(t, HasAccountQualitySamples(live.last[1]))
-	require.NotNil(t, live.last[2])
-	require.False(t, HasAccountQualitySamples(live.last[2]))
+	require.Equal(t, 0, live.calls)
+	require.Contains(t, repo.rows, snapshotKey{accountID: 1, capturedAt: time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)})
+}
+
+func TestAccountQualityMaintenance_GetLastNStatsBatch_MissingStampsN(t *testing.T) {
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.lastN = &lastNCacheStub{
+		byID: map[int64]*AccountQualityLastN{1: lastNFromStats(2, 0, 2, 40, 1)},
+	}
+	out, err := svc.GetLastNStatsBatch(context.Background(), []int64{1, 2})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), out[1].SuccessCount)
+	require.Equal(t, DefaultAccountQualityWindowN, out[1].AccountQualityWindowN)
+	require.Equal(t, int64(0), out[2].SuccessCount)
+	require.Equal(t, DefaultAccountQualityWindowN, out[2].AccountQualityWindowN)
+}
+
+func TestAccountQualityMaintenance_ObserveAccountCompletion_AllUsersShareWindow(t *testing.T) {
+	hook := &hardCloseHookStub{}
+	lastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.lastN = lastN
+	svc.SetHardCloseEvaluator(hook)
+
+	ttft := 40
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{AccountID: 7, Success: true, FirstTokenMs: &ttft})
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{AccountID: 7, Success: false})
+	require.Equal(t, 2, lastN.byID[7].OKCount)
+	require.Equal(t, 1, lastN.byID[7].TTFTCount)
+	require.True(t, hook.called)
+	require.Equal(t, int64(1), hook.stats[7].SuccessCount)
+	require.Equal(t, int64(1), hook.stats[7].ErrorCount)
 }

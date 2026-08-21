@@ -18,8 +18,8 @@
 - `Account.AdmitsScheduleUser(userID int64, stats *AccountQualityStats) bool` — identity plus quality gate.
 - `Account.PairMaxConcurrency(userID int64) int` — `0` means no pair cap.
 - Redis pair slot: `concurrency:account_user:{accountID}:{userID}` (zset, same Lua as account/user slots).
-- Redis live quality: `account-quality:live:{accountID}` (JSON `AccountQualityStats` without resume fields, TTL 20m). Writer = maintenance `RunTick` → `Replace`. Reader = selection `Get`. Cache miss / nil stats fail open.
-- Redis resume overlay: `account-quality:resume:{accountID}` (HASH, TTL 20m). `MarkUserResume` / `MarkAccountResume` write HASH fields only (`u:{userID}`, `a`). `Get` / `Replace` merge the overlay onto live stats. `Replace` SCAN may DEL departed live keys; it must not delete this HASH. Legacy live JSON `resume_users` / `account_resume_until` is migrated with `HSETNX` then stripped from the live key.
+- Redis live quality: `account-quality:last-n:{accountID}` is the \(Q_a\) source of truth (site-wide N, all users; TTL 7d). Completions ingest and project JSON to `account-quality:live:{accountID}` (no resume fields). Reader = selection `Get` (prefers last-N, then legacy live JSON). Cache miss / nil stats fail open. The 5-minute tick must not `Replace` live from a 15-minute SQL window. Pair cooldown stays on \(Q_{a,u}\), not this account cell.
+- Redis resume overlay: `account-quality:resume:{accountID}` (HASH, TTL 20m). `MarkUserResume` / `MarkAccountResume` write HASH fields only (`u:{userID}`, `a`). `Get` merges the overlay onto last-N / live stats. Do not SCAN-delete last-N keys. Resume HASH must survive even when an account has no last-N key. Legacy live JSON `resume_users` / `account_resume_until` is migrated with `HSETNX` then stripped from the live key.
 - Admin update JSON fields: `allow_user_ids`, `deny_user_ids`, `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, `user_quality_gate_patch`.
 - Legacy write still accepted: `user_schedule_mode` + `schedule_user_ids` (replaces one list, does not clear caps or gates).
 - Admin UI may save/apply the site-wide quality threshold template (`GET/PUT /admin/settings/quality-hard-close` metric fields). The template is not stored per user and must not include `user_id`. Apply fills the current gate form only; persist still goes through `user_quality_gates` / `user_quality_gate_patch`. User-gate forms expose p50 / success rate / two sample floors / condition. They do not have `pause_minutes`. **立即恢复** (`POST /admin/accounts/:id/quality-resume` `{user_id}`) keeps the gate and writes a 15-minute resume-HASH grace (`u:{userID}`). While the grace is active, `QualityGateBlocksUser` does not block that pair. Account hard-close **立即恢复调度** / `recover-state` writes HASH field `a` (`account_resume_until` after merge) so the next tick does not re-pause on the same window.
@@ -39,11 +39,11 @@ Write (pointers; omitted = no write; empty slice = clear that set):
 | `user_quality_gates` | Replace-all gates; empty array clears all gates |
 | `user_quality_gate_patch` | Merge one user; all quality fields null/omitted deletes that gate |
 
-Defaults when a gate is enabled: condition `or`, success samples 20, TTFT samples 10. Unconfigured metrics are not judged; under-sampled metrics are not judged. Reuse `EvaluateAccountQualityHardClose` breach rules with `Enabled=true` (no pause).
+Defaults when a gate is enabled: condition `or`, success samples 20, TTFT samples 10 (independent floors; this is not `account_quality_window_n`). Unconfigured metrics are not judged; under-sampled metrics are not judged. Reuse `EvaluateAccountQualityHardClose` breach rules with `Enabled=true` (no pause). User gates still read live \(Q_a\); they do not use pair `quality_window_n`.
 
 Bulk may send allow/deny (or legacy mode+ids). Bulk must not send `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, or `user_quality_gate_patch`. Bulk allow/deny must keep existing caps and gates.
 
-Snapshot meta must copy `AllowUserIDs`, `DenyUserIDs`, `UserConcurrency`, `UserQualityGates`. A missing field unmarshals empty for that field only: old snapshots without `UserQualityGates` have no gates (fail open), and still honor allow/deny/caps. Until `account_changed`, do not treat a missing gate map as unrestricted identity. A gate map entry requires at least one judged metric (p50 or success rate); samples/condition are modifiers. Live `Replace` must DEL empty-sample live keys and live keys that left the candidate set (not only rely on TTL). Active resume HASH keys must survive that DEL, including when `allStats` is empty. `Replace` must merge resume into the in-memory stats map so `EvaluateHardClose` sees `account_resume_until`.
+Snapshot meta must copy `AllowUserIDs`, `DenyUserIDs`, `UserConcurrency`, `UserQualityGates`. A missing field unmarshals empty for that field only: old snapshots without `UserQualityGates` have no gates (fail open), and still honor allow/deny/caps. Until `account_changed`, do not treat a missing gate map as unrestricted identity. A gate map entry requires at least one judged metric (p50 or success rate); samples/condition are modifiers. last-N ingest is the live write path; do not `Replace`+SCAN-delete last-N. Active resume HASH keys must survive, including when no last-N keys exist. `Get` / ingest-time hard-close must merge resume so `EvaluateHardClose` sees `account_resume_until`.
 
 ### 4. Validation & Error Matrix
 
@@ -139,22 +139,24 @@ if pairFull {
 - Redis user cache: `smart-schedule:user:{userID}` JSON of all platforms; invalidate on PUT/copy.
 - Redis cooldown: `smart-schedule:cooldown:{accountID}` HASH `u:{userID}=untilUnix`. Hot-path `StartCooldown` is `HSETNX` only (no extend). Admin switcher `SetCooldown` uses `HSET` overwrite. TTL may only be lengthened, never shortened (other users share the key).
 - Redis pair quality: `smart-schedule:pair-quality:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{accountID}:{userID}` (TTL 7d).
-- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|resumed|selectable`; omitted `state` is `resumed`. Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`.
+- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable`; omitted `state` is `resumed` (豁免期 write default, **not** a pause-lift default and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{accountID}` field `u:{userID}`. Miss / no mark = not probing (no deploy backfill).
 - Pool account details: existing `GET /admin/accounts?platform=&ids=`.
 
 ### 3. Contracts
 
 PUT body: `{enabled, quality_*, quality_window_samples|quality_window_n, cooldown_minutes, accounts:[{account_id, max_concurrency?}]}`. Copy copies enabled/thresholds/N/cooldown only, never members or caps. GET shows `enabled=false` when the stored row is enabled but the pool is empty. GET echoes `quality_window_samples`, `quality_window_n`, and both old sample fields as the same N.
 
-Resume (`state=resumed` / 豁免期) `HDEL`s that pair’s cooldown field, **zeros both pair windows**, clears `paused`, and writes `account-quality:resume` `u:`+`w:` grace. Completions during grace **do enter** the windows; evaluate is skipped until `u:`/`w:` expire. After grace, a full N of in-grace samples may cooldown immediately.
+Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’s cooldown field, **zeros both pair windows**, clears `paused` and the probe mark, and writes `account-quality:resume` `u:`+`w:` grace. Completions during grace **do enter** the windows; evaluate is skipped until `u:`/`w:` expire. After grace the pair is 调度 (`selectable`): **keep** in-grace windows, then evaluate with selectable rules (may cool immediately). Grace end does **not** enter 考察.
 
-`selectable` (可调度) clears `paused`, `HDEL`s cooldown, **zeros both windows**, and `ClearUserResume` (deletes `u:` **and** `w:`). There is **no** 15-minute watching fail-open. Re-accumulate N before cooldown.
+`selectable` (调度) clears `paused`, `HDEL`s cooldown, **zeros both windows**, `ClearUserResume` (deletes `u:` **and** `w:`), and clears the probe mark. There is **no** 15-minute watching fail-open. Re-accumulate N before cooldown.
 
-`cooling` clears `paused`, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry is the same as 可调度: `HDEL` + zero windows + re-accumulate, no time grace.
+`probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearUserResume` (no `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(N, member cap)` or N if unset. N is the smart-schedule policy window (1–100, default 10), **not** account-quality global N. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
 
-`paused` sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, and deletes `u:`/`w:`.
+`cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark, no time grace.
 
-Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate); otherwise judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Breach → `HSETNX` cooldown then reject. Pair cap uses pool member N + existing `concurrency:account_user` slot. Otherwise the legacy scenario in this file. Do not fold pause into `IsSchedulable()`.
+`paused` is **long-lived manual only**. Sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, deletes `u:`/`w:`, and **clears** the probe mark. **No implicit unpause** and **no default next state**. Leaving pause requires an explicit `state` ∈ {`probing`,`selectable`,`resumed`,`cooling`} (or write `paused` again). Clearing the paused flag must not write `probing`.
+
+Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). Otherwise the legacy scenario in this file. Do not fold pause or probing into `IsSchedulable()`. Do not backfill existing selectable pairs on deploy.
 
 Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`). `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells.
 
@@ -179,7 +181,7 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 ### 6. Tests Required
 
 - `EnabledPolicy`: off / empty / one member; pool miss vs hit; ignore legacy deny/gate/cap when enabled.
-- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then re-accumulates (no `w:`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`.
+- Cooldown: `HSETNX` no-extend; expiry zeros pair windows then enters probing (no `w:`); resume deletes only that pair and zeros windows; HASH TTL never shortens another user. `selectable` must not `MarkUserQualityWindow`. Probe: expiry→probe; graduate `W_ok`-only (sync, no TTFT); probe `and` mixed→cool; pause does not auto-probe; 调度→考察 zeros; no backfill.
 - Admin: reject enabled+empty; GET masks empty as disabled; copy omits accounts; delete-last auto-disables.
 - Select/sticky: Anthropic, OpenAI advanced+fallback, WS, Gemini all go through `admitsScheduleUser` + injected cache.
 
@@ -227,6 +229,14 @@ return account.AdmitsScheduleUser(userID, live)
 **Cause**: cooldown lives in one HASH per account (`smart-schedule:cooldown:{accountID}`). A naive `Expire(key, B.cooldown)` cuts the key TTL for every field.
 
 **Prevention**: `HSETNX` the field; set/extend key TTL only when the new expiry is later than the current TTL. Tests must cover two users on one HASH.
+
+## Common Mistake: pause lift defaults to probing
+
+**Symptom**: clearing `paused` (or omitting `state` on the resume endpoint) drops the pair into 考察 and clamps cap to N.
+
+**Cause**: treating omitted `state` = `resumed` as a pause-exit default, or writing the probe HASH when only the paused flag is cleared.
+
+**Prevention**: `paused` has no automatic exit. `ParsePairAdmissionState("")` stays `resumed` (豁免期 write default). Enter probing only from cooldown expiry or an explicit `state=probing`. Tests must cover pause → omitted state ≠ probing.
 
 ## Common Mistake: leftover `AllowsScheduleUser` on a select path
 

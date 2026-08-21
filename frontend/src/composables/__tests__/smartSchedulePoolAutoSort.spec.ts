@@ -56,12 +56,14 @@ describe('comparePoolAutoSort', () => {
       item({ id: 6, admission: 'unsaved_preview' }),
       item({ id: 4, admission: 'will_cool' }),
       item({ id: 7, admission: 'resumed' }),
+      item({ id: 8, admission: 'probing' }),
       item({ id: 2, admission: 'pair_full' }),
       item({ id: 3, admission: 'cooling' })
     ]
     expect(sortSmartSchedulePoolMembers(rows).map((row) => row.admission)).toEqual([
       'selectable',
       'resumed',
+      'probing',
       'will_cool',
       'unsaved_preview',
       'pair_full',

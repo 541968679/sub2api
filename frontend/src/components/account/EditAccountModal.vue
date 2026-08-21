@@ -2833,26 +2833,16 @@
                           @input="setUserQualityField(userId, 'quality_min_success_rate_percent', ($event.target as HTMLInputElement).value)"
                         />
                       </label>
-                      <label class="space-y-1">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
+                      <label class="space-y-1 col-span-2">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityWindowN') }}</span>
                         <input
-                          :value="form.user_quality_gates[userId]?.quality_min_success_samples ?? ''"
+                          :value="userQualityWindowN(userId)"
                           type="number"
                           min="1"
+                          max="100"
                           class="input input-sm w-full"
-                          :data-testid="`user-schedule-quality-success-samples-${userId}`"
-                          @input="setUserQualityField(userId, 'quality_min_success_samples', ($event.target as HTMLInputElement).value)"
-                        />
-                      </label>
-                      <label class="space-y-1">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
-                        <input
-                          :value="form.user_quality_gates[userId]?.quality_min_ttft_samples ?? ''"
-                          type="number"
-                          min="1"
-                          class="input input-sm w-full"
-                          :data-testid="`user-schedule-quality-ttft-samples-${userId}`"
-                          @input="setUserQualityField(userId, 'quality_min_ttft_samples', ($event.target as HTMLInputElement).value)"
+                          :data-testid="`user-schedule-quality-window-n-${userId}`"
+                          @input="setUserQualityWindowN(userId, ($event.target as HTMLInputElement).value)"
                         />
                       </label>
                     </div>
@@ -3027,6 +3017,7 @@ import {
   successRateToPercent,
   type ScheduleUserQualityChipInput
 } from '@/utils/accountQualityHardClose'
+import { optionalAccountQualityWindowN, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
@@ -3581,6 +3572,19 @@ const setUserQualityField = (
 ) => {
   const gate = ensureUserQualityGate(userId)
   gate[field] = optionalNumber(raw)
+}
+
+const userQualityWindowN = (userId: number): number | string => {
+  const gate = form.user_quality_gates[userId]
+  if (gate?.quality_min_success_samples == null && gate?.quality_min_ttft_samples == null) return ''
+  return resolveAccountQualityWindowN(gate)
+}
+
+const setUserQualityWindowN = (userId: number, raw: string) => {
+  const gate = ensureUserQualityGate(userId)
+  const n = optionalAccountQualityWindowN(raw)
+  gate.quality_min_success_samples = n
+  gate.quality_min_ttft_samples = n
 }
 
 const setUserQualityCondition = (userId: number, raw: string) => {

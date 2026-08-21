@@ -39,7 +39,11 @@ func resolvePairSlotAcquire(ctx context.Context, account *Account, lookup SmartS
 		if !policy.HasAccount(account.ID) {
 			return 0, false
 		}
-		return policy.PairCap(account.ID), true
+		memberCap := policy.PairCap(account.ID)
+		if lookup != nil && lookup.IsProbing(ctx, account.ID, userID) {
+			return ProbeInFlightCap(policy.WindowN(), memberCap), true
+		}
+		return memberCap, true
 	}
 	return account.PairMaxConcurrency(userID), false
 }

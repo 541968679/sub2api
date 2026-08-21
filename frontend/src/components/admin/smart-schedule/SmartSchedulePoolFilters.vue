@@ -75,6 +75,7 @@ const schedulableOptions = computed(() => [
 
 const admissionLabelKey: Record<(typeof POOL_ADMISSION_FILTER_STATES)[number], string> = {
   selectable: 'admin.users.smartSchedule.admissionSelectable',
+  probing: 'admin.users.smartSchedule.admissionProbing',
   resumed: 'admin.users.smartSchedule.admissionResumed',
   will_cool: 'admin.users.smartSchedule.admissionWillCool',
   cooling: 'admin.users.smartSchedule.admissionCooling',

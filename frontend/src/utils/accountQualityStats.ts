@@ -15,7 +15,7 @@ export type QualityRateStats = Pick<
   | 'failover_error_rate'
 >
 
-/** success + error rows in the 15-minute window. */
+/** success + error rows in the last-N account-quality window. */
 export function qualityRateSampleCount(stats: QualityRateStats | null | undefined): number {
   if (!stats) return 0
   return Math.max(0, (stats.success_count ?? 0) + (stats.error_count ?? 0))

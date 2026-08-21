@@ -522,6 +522,7 @@
               clickable
               mode="combined"
               :stats="qualityStatsByAccountId[String(row.id)] ?? null"
+              :window-n="accountQualityWindowN"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
               @click="openStabilityDialog(row)"
@@ -809,6 +810,7 @@ import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { AccountQualityStats, OpenAIOauthFleetUsageSummary } from '@/api/admin/accounts'
 import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
+import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { accountMatchesListFilters } from '@/utils/accountListFilters'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
@@ -1126,6 +1128,7 @@ const qualityStatsByAccountId = ref<Record<string, AccountQualityStats>>({})
 const qualityStatsLoading = ref(false)
 const qualityStatsError = ref<string | null>(null)
 const qualityStatsReqSeq = ref(0)
+const accountQualityWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
 const usageManualRefreshToken = ref(0)
 
 function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown>; parent_email?: string }): string | undefined {
@@ -1313,8 +1316,16 @@ const refreshQualityStatsBatch = async () => {
   qualityStatsError.value = null
 
   try {
-    const result = await adminAPI.accounts.getBatchQualityStats(accountIDs)
+    const [result, settings] = await Promise.all([
+      adminAPI.accounts.getBatchQualityStats(accountIDs),
+      adminAPI.settings?.getQualityHardCloseSettings
+        ? adminAPI.settings.getQualityHardCloseSettings().catch(() => null)
+        : Promise.resolve(null)
+    ])
     if (reqSeq !== qualityStatsReqSeq.value) return
+    if (settings) {
+      accountQualityWindowN.value = resolveAccountQualityWindowN(settings)
+    }
     const serverStats = result.stats ?? {}
     const nextStats: Record<string, AccountQualityStats> = {}
     for (const accountID of accountIDs) {

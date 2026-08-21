@@ -71,6 +71,9 @@ describe('AccountQualityCell', () => {
     expect(wrapper.text()).not.toContain('66.7%')
     expect(wrapper.text()).toContain('admin.accounts.quality.successShort')
     expect(wrapper.text()).toContain('admin.accounts.quality.failoverShort')
+    expect(wrapper.get('[data-test="account-quality-window-counts"]').text()).toContain(
+      'admin.accounts.quality.windowCounts'
+    )
     const failoverRow = wrapper.get('[data-test="account-quality-failover-rate"]')
     expect(failoverRow.text()).toContain('33.3%')
     expect(failoverRow.classes().join(' ')).toContain('text-red-600')
@@ -222,5 +225,17 @@ describe('AccountQualityCell', () => {
 
     expect(wrapper.text()).toContain('—')
     expect(wrapper.text()).not.toContain('91.0%')
+  })
+
+  it('shows last-N counts from stats.window_n', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: { ...stats, window_n: 20, success_count: 10, error_count: 1, ttft_samples: 10 }
+      }
+    })
+
+    expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
   })
 })

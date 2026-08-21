@@ -1,0 +1,258 @@
+package service
+
+import (
+	"context"
+	"sort"
+	"time"
+)
+
+const (
+	DefaultAccountQualityWindowN = 20
+	MinAccountQualityWindowN     = 1
+	MaxAccountQualityWindowN     = 100
+)
+
+// AccountQualityLastN is the account-global last-N windows Q_a (all users).
+// It is not the smart-schedule pair window Q_{a,u}.
+type AccountQualityLastN struct {
+	N           int       `json:"n"`
+	UseFailover bool      `json:"use_failover,omitempty"`
+	TTFTMs      []int     `json:"ttft_ms,omitempty"`
+	OK          []bool    `json:"ok,omitempty"`
+	P50TTFTMs   *int      `json:"p50_ttft_ms,omitempty"`
+	SuccessRate *float64  `json:"success_rate,omitempty"`
+	TTFTCount   int       `json:"ttft_count"`
+	OKCount     int       `json:"ok_count"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+}
+
+// AccountQualityObservation is one completed request for the account window.
+type AccountQualityObservation struct {
+	AccountID    int64
+	Success      bool
+	FirstTokenMs *int
+}
+
+// AccountQualityObserver is the completion-path hook for Q_a (all users).
+type AccountQualityObserver interface {
+	ObserveAccountCompletion(ctx context.Context, obs AccountQualityObservation)
+}
+
+// AccountQualityLastNCache stores account-global FIFO windows.
+type AccountQualityLastNCache interface {
+	GetLastN(ctx context.Context, accountID int64) *AccountQualityLastN
+	GetLastNBatch(ctx context.Context, accountIDs []int64) map[int64]*AccountQualityLastN
+	IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN
+	ListLastNAccountIDs(ctx context.Context) []int64
+}
+
+// ClampAccountQualityWindowN clamps an explicit N to 1–100.
+func ClampAccountQualityWindowN(n int) int {
+	if n < MinAccountQualityWindowN {
+		return MinAccountQualityWindowN
+	}
+	if n > MaxAccountQualityWindowN {
+		return MaxAccountQualityWindowN
+	}
+	return n
+}
+
+// NormalizeAccountQualityWindowN matches frontend resolveAccountQualityWindowN:
+// explicit N, then min_success_samples, then min_ttft_samples, else 20.
+func NormalizeAccountQualityWindowN(window, minSuccess, minTTFT *int) int {
+	if window != nil {
+		return ClampAccountQualityWindowN(*window)
+	}
+	if minSuccess != nil {
+		return ClampAccountQualityWindowN(*minSuccess)
+	}
+	if minTTFT != nil {
+		return ClampAccountQualityWindowN(*minTTFT)
+	}
+	return DefaultAccountQualityWindowN
+}
+
+func EchoAccountQualityWindowN(n int) (window, minSuccess, minTTFT int) {
+	n = ClampAccountQualityWindowN(n)
+	return n, n, n
+}
+
+func (s *QualityHardCloseSettings) explicitWindowN() *int {
+	if s == nil {
+		return nil
+	}
+	if s.AccountQualityWindowN != nil {
+		return s.AccountQualityWindowN
+	}
+	if s.WindowN != nil {
+		return s.WindowN
+	}
+	return s.N
+}
+
+func (s *QualityHardCloseSettings) ResolvedWindowN() int {
+	if s == nil {
+		return DefaultAccountQualityWindowN
+	}
+	return NormalizeAccountQualityWindowN(s.explicitWindowN(), intPtrIfPositive(s.MinSuccessSamples), intPtrIfPositive(s.MinTTFTSamples))
+}
+
+func intPtrIfPositive(n int) *int {
+	if n < 1 {
+		return nil
+	}
+	copied := n
+	return &copied
+}
+
+func (s QualityHardCloseSettings) sampleFloors() (minSuccess, minTTFT int) {
+	if s.explicitWindowN() != nil {
+		n := s.ResolvedWindowN()
+		return n, n
+	}
+	minSuccess = s.MinSuccessSamples
+	if minSuccess < 1 {
+		minSuccess = DefaultQualityHardCloseMinSuccessSamples
+	}
+	minTTFT = s.MinTTFTSamples
+	if minTTFT < 1 {
+		minTTFT = DefaultQualityHardCloseMinTTFTSamples
+	}
+	return minSuccess, minTTFT
+}
+
+func echoQualityHardCloseWindowN(settings *QualityHardCloseSettings) {
+	if settings == nil {
+		return
+	}
+	n, success, ttft := EchoAccountQualityWindowN(settings.ResolvedWindowN())
+	settings.AccountQualityWindowN = &n
+	settings.WindowN = &n
+	settings.N = &n
+	settings.MinSuccessSamples = success
+	settings.MinTTFTSamples = ttft
+}
+
+func StampAccountQualityWindowN(stats *AccountQualityStats, n int) {
+	if stats == nil {
+		return
+	}
+	n = ClampAccountQualityWindowN(n)
+	stats.N = n
+	stats.WindowN = n
+	stats.AccountQualityWindowN = n
+}
+
+func ApplyAccountQualityLastNIngest(live *AccountQualityLastN, n int, success bool, firstTokenMs *int) *AccountQualityLastN {
+	if live == nil {
+		live = &AccountQualityLastN{}
+	}
+	n = ClampAccountQualityWindowN(n)
+	live.N = n
+	if success && firstTokenMs != nil && *firstTokenMs >= 0 {
+		live.TTFTMs = appendFIFOInt(live.TTFTMs, *firstTokenMs, n)
+	}
+	live.OK = appendFIFOBool(live.OK, success, n)
+	RecomputeAccountQualityLastN(live)
+	return live
+}
+
+func RecomputeAccountQualityLastN(live *AccountQualityLastN) {
+	if live == nil {
+		return
+	}
+	if live.N < MinAccountQualityWindowN {
+		live.N = DefaultAccountQualityWindowN
+	}
+	live.TTFTMs = trimFIFOInt(live.TTFTMs, live.N)
+	live.OK = trimFIFOBool(live.OK, live.N)
+	live.TTFTCount = len(live.TTFTMs)
+	live.OKCount = len(live.OK)
+	live.P50TTFTMs = pairQualityP50(live.TTFTMs)
+	live.SuccessRate = pairQualitySuccessRate(live.OK)
+	live.UpdatedAt = time.Now().UTC()
+}
+
+// ToAccountQualityStats projects last-N windows onto the existing grid / hard-close DTO.
+func (l *AccountQualityLastN) ToAccountQualityStats() *AccountQualityStats {
+	if l == nil {
+		stats := BuildAccountQualityStats(0, 0, TTFTAggregate{})
+		StampAccountQualityWindowN(stats, DefaultAccountQualityWindowN)
+		return stats
+	}
+	success := 0
+	for _, ok := range l.OK {
+		if ok {
+			success++
+		}
+	}
+	errorCount := int64(l.OKCount - success)
+	stats := BuildAccountQualityStats(int64(success), errorCount, lastNTTFTAggregate(l.TTFTMs))
+	stats.P50TTFTMs = l.P50TTFTMs
+	if l.SuccessRate != nil {
+		rate := *l.SuccessRate
+		stats.SuccessRate = &rate
+	}
+	stats.ScheduleUseFailoverErrorRate = l.UseFailover
+	// last-N stores one W_ok caliber (the ingest-time switch). Keep both
+	// display counts equal so ApplyAccountQualityScheduleCaliber cannot
+	// zero ErrorCount when the site toggle later flips.
+	stats.TerminalErrorCount = errorCount
+	stats.FailoverErrorCount = errorCount
+	stats.TerminalErrorRate = nil
+	stats.FailoverErrorRate = nil
+	NormalizeAccountQualityRates(stats)
+	StampAccountQualityWindowN(stats, l.N)
+	return stats
+}
+
+func lastNTTFTAggregate(samples []int) TTFTAggregate {
+	out := TTFTAggregate{Samples: int64(len(samples))}
+	if len(samples) == 0 {
+		return out
+	}
+	sorted := append([]int(nil), samples...)
+	sort.Ints(sorted)
+	sum := 0
+	max := sorted[0]
+	for _, v := range sorted {
+		sum += v
+		if v > max {
+			max = v
+		}
+	}
+	avg := float64(sum) / float64(len(sorted))
+	out.Avg = &avg
+	p50 := float64(*pairQualityP50(samples))
+	out.P50 = &p50
+	p95 := float64(sorted[p95Index(len(sorted))])
+	out.P95 = &p95
+	maxF := float64(max)
+	out.Max = &maxF
+	return out
+}
+
+func p95Index(n int) int {
+	if n <= 1 {
+		return n - 1
+	}
+	idx := (n*95 + 99) / 100
+	if idx >= n {
+		return n - 1
+	}
+	if idx < 0 {
+		return 0
+	}
+	return idx
+}
+
+func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Context, accountID int64, trueMs, firstMs *int) {
+	if obs == nil || accountID <= 0 {
+		return
+	}
+	obs.ObserveAccountCompletion(ctx, AccountQualityObservation{
+		AccountID:    accountID,
+		Success:      true,
+		FirstTokenMs: pairQualityTTFTMs(trueMs, firstMs),
+	})
+}

@@ -20,6 +20,7 @@ export type PoolAdmissionState =
   | 'stopped'
   | 'paused'
   | 'cooling'
+  | 'probing'
   | 'pair_full'
   | 'will_cool'
   | 'unsaved_preview'
@@ -28,13 +29,15 @@ export type PoolAdmissionState =
 
 export type PoolQualityHint = 'resumed' | 'will_cool' | 'unsaved_preview'
 
-export type PairAdmissionLiveState = 'paused' | 'cooling' | 'resumed' | 'selectable'
+export type PairAdmissionLiveState = 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
 
+/** Switcher order: 暂停 / 冷却 / 考察 / 调度 / 豁免期. No implicit unpause default. */
 export const PAIR_ADMISSION_LIVE_STATES = [
   'paused',
   'cooling',
-  'resumed',
-  'selectable'
+  'probing',
+  'selectable',
+  'resumed'
 ] as const satisfies readonly PairAdmissionLiveState[]
 
 export function pairAdmissionLiveState(
@@ -43,6 +46,7 @@ export function pairAdmissionLiveState(
 ): PairAdmissionLiveState {
   if (paused || admission === 'paused') return 'paused'
   if (admission === 'cooling') return 'cooling'
+  if (admission === 'probing') return 'probing'
   if (admission === 'resumed') return 'resumed'
   return 'selectable'
 }
@@ -68,6 +72,7 @@ export const EMPTY_SMART_SCHEDULE_POOL_FILTERS: SmartSchedulePoolFilters = {
 
 export const POOL_ADMISSION_FILTER_STATES = [
   'selectable',
+  'probing',
   'resumed',
   'will_cool',
   'cooling',
@@ -94,6 +99,69 @@ export const UNCAPPED_PAIR_DISPLAY_MAX = 999
 
 export function pairOccupancyDisplayMax(pairCap: number | null | undefined): number {
   return resolvePairCap(pairCap) ?? UNCAPPED_PAIR_DISPLAY_MAX
+}
+
+/** Backend field is `probe_cap`. Other keys are read aliases only. */
+export type BackendProbeCapFields = {
+  probe_cap?: number | null
+  probing_cap?: number | null
+  in_flight_cap?: number | null
+  pair_probe_cap?: number | null
+}
+
+export function readBackendProbeCap(
+  source: BackendProbeCapFields | null | undefined
+): number | null {
+  if (!source) return null
+  const raw =
+    source.probe_cap
+    ?? source.probing_cap
+    ?? source.in_flight_cap
+    ?? source.pair_probe_cap
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 1 ? Math.round(raw) : null
+}
+
+export function memberProbingFromApi(member: {
+  probing?: boolean
+  admission?: string | null
+  state?: string | null
+} | null | undefined): boolean {
+  if (!member) return false
+  if (member.probing === true) return true
+  return member.admission === 'probing' || member.state === 'probing'
+}
+
+/**
+ * Probe in-flight cap: backend field if present, else min(N, member cap) or N.
+ * Never 999 — uncapped probe is still N.
+ */
+export function resolveProbeConcurrency(input: {
+  windowN: number | '' | null | undefined
+  pairCap: number | null | undefined
+  backendCap?: number | null
+}): number {
+  if (input.backendCap != null && Number.isFinite(input.backendCap) && input.backendCap >= 1) {
+    return Math.round(input.backendCap)
+  }
+  const n = clampSmartScheduleWindowN(input.windowN === '' ? null : input.windowN)
+  const cap = resolvePairCap(input.pairCap)
+  return cap != null ? Math.min(n, cap) : n
+}
+
+export function pairOccupancyDisplayMaxForAdmission(input: {
+  probing: boolean
+  pairCap: number | null | undefined
+  windowN: number | '' | null | undefined
+  backendCap?: number | null
+}): number {
+  if (input.probing) {
+    return resolveProbeConcurrency({
+      windowN: input.windowN,
+      pairCap: input.pairCap,
+      backendCap: input.backendCap
+    })
+  }
+  return pairOccupancyDisplayMax(input.pairCap)
 }
 
 export function isPairCooldownActive(cooldownUntil?: string | null, now = Date.now()): boolean {
@@ -213,6 +281,8 @@ export function resolvePoolAdmission(input: {
   pairCurrent: number
   cooldownUntil?: string | null
   paused?: boolean
+  /** Live probe mark. Missing / false is not probing (no backfill). */
+  probing?: boolean
   qualityHint?: PoolQualityHint | null
   now?: number
 }): PoolAdmission {
@@ -225,6 +295,9 @@ export function resolvePoolAdmission(input: {
   }
   if (isPairCooldownActive(input.cooldownUntil, now)) {
     return { state: 'cooling', cooldownUntil: input.cooldownUntil ?? undefined }
+  }
+  if (input.probing) {
+    return { state: 'probing' }
   }
   if (input.pairCap != null && input.pairCap >= 1 && input.pairCurrent >= input.pairCap) {
     return { state: 'pair_full' }

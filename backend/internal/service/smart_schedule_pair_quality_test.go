@@ -84,11 +84,13 @@ func TestPairQualityToStats_CrossUserIsolationShape(t *testing.T) {
 
 type observeCacheStub struct {
 	stubSmartCache
-	bundle   *UserSmartScheduleBundle
-	live     map[string]*PairQualityLive
-	cooling  map[string]bool
-	ingested []PairQualityObservation
-	starts   int
+	bundle    *UserSmartScheduleBundle
+	live      map[string]*PairQualityLive
+	cooling   map[string]bool
+	probing   map[string]bool
+	ingested  []PairQualityObservation
+	starts    int
+	graduated int
 }
 
 func (s *observeCacheStub) Lookup(context.Context, int64) *UserSmartScheduleBundle { return s.bundle }
@@ -104,8 +106,33 @@ func (s *observeCacheStub) GetPairQuality(_ context.Context, accountID, userID i
 func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userID int64, n int, success bool, firstTokenMs *int) *PairQualityLive {
 	s.ingested = append(s.ingested, PairQualityObservation{AccountID: accountID, UserID: userID, Success: success, FirstTokenMs: firstTokenMs})
 	key := smartPairKey(accountID, userID)
+	if s.live == nil {
+		s.live = map[string]*PairQualityLive{}
+	}
 	s.live[key] = ApplyPairQualityIngest(s.live[key], n, success, firstTokenMs)
 	return s.live[key]
+}
+
+func (s *observeCacheStub) IsProbing(_ context.Context, accountID, userID int64) bool {
+	return s.probing[smartPairKey(accountID, userID)]
+}
+
+func (s *observeCacheStub) MarkProbing(_ context.Context, accountID, userID int64) {
+	if s.probing == nil {
+		s.probing = map[string]bool{}
+	}
+	s.probing[smartPairKey(accountID, userID)] = true
+}
+
+func (s *observeCacheStub) ClearProbing(_ context.Context, accountID, userID int64) {
+	delete(s.probing, smartPairKey(accountID, userID))
+}
+
+func (s *observeCacheStub) GraduateProbing(ctx context.Context, accountID, userID int64) {
+	if s.IsProbing(ctx, accountID, userID) {
+		s.graduated++
+	}
+	s.ClearProbing(ctx, accountID, userID)
 }
 
 func TestObservePairCompletion_SkipsPausedCoolingAndEvaluatesAfterN(t *testing.T) {

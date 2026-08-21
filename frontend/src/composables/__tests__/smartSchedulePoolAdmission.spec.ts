@@ -7,12 +7,17 @@ import {
   matchesPoolFilters,
   pickDefaultSmartSchedulePlatform,
   pairOccupancyDisplayMax,
+  pairOccupancyDisplayMaxForAdmission,
   pairQualityGateBreached,
+  readBackendProbeCap,
   resolvePairCap,
   resolvePoolAdmission,
+  resolveProbeConcurrency,
   UNCAPPED_PAIR_DISPLAY_MAX,
   resolveQualityAdmissionHint,
   pairAdmissionLiveState,
+  PAIR_ADMISSION_LIVE_STATES,
+  memberProbingFromApi,
   userQualityResumeActive,
   userQualityResumeChipActive
 } from '../smartSchedulePoolAdmission'
@@ -136,6 +141,42 @@ describe('pairOccupancyDisplayMax', () => {
   })
 })
 
+describe('resolveProbeConcurrency', () => {
+  it('uses the backend field when present, else min(N, cap) or N', () => {
+    expect(resolveProbeConcurrency({ windowN: 10, pairCap: 3, backendCap: 2 })).toBe(2)
+    expect(resolveProbeConcurrency({ windowN: 10, pairCap: 3 })).toBe(3)
+    expect(resolveProbeConcurrency({ windowN: 10, pairCap: 20 })).toBe(10)
+    expect(resolveProbeConcurrency({ windowN: 10, pairCap: null })).toBe(10)
+    expect(resolveProbeConcurrency({ windowN: 10, pairCap: 0 })).toBe(10)
+    expect(readBackendProbeCap({ probing_cap: 4 })).toBe(4)
+    expect(readBackendProbeCap({ in_flight_cap: 6, probe_cap: 5 })).toBe(5)
+  })
+})
+
+describe('pairOccupancyDisplayMaxForAdmission', () => {
+  it('never uses 999 as the probe denominator', () => {
+    expect(
+      pairOccupancyDisplayMaxForAdmission({ probing: true, pairCap: null, windowN: 10 })
+    ).toBe(10)
+    expect(
+      pairOccupancyDisplayMaxForAdmission({ probing: true, pairCap: 3, windowN: 10 })
+    ).toBe(3)
+    expect(
+      pairOccupancyDisplayMaxForAdmission({ probing: false, pairCap: null, windowN: 10 })
+    ).toBe(UNCAPPED_PAIR_DISPLAY_MAX)
+  })
+})
+
+describe('memberProbingFromApi', () => {
+  it('treats a missing mark as not probing (no backfill)', () => {
+    expect(memberProbingFromApi(undefined)).toBe(false)
+    expect(memberProbingFromApi({})).toBe(false)
+    expect(memberProbingFromApi({ probing: true })).toBe(true)
+    expect(memberProbingFromApi({ admission: 'probing' })).toBe(true)
+    expect(memberProbingFromApi({ state: 'selectable' })).toBe(false)
+  })
+})
+
 describe('resolvePoolAdmission', () => {
   it('marks account-level stopped scheduling first', () => {
     expect(
@@ -197,6 +238,35 @@ describe('resolvePoolAdmission', () => {
   it('marks pair-full only when a real pair cap exists', () => {
     expect(resolvePoolAdmission({ account: live, pairCap: null, pairCurrent: 9 }).state).toBe('selectable')
     expect(resolvePoolAdmission({ account: live, pairCap: 2, pairCurrent: 2 }).state).toBe('pair_full')
+  })
+
+  it('keeps probing after cooldown expires, and does not invent it from a missing mark', () => {
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: 2,
+        pairCurrent: 2,
+        probing: true,
+        qualityHint: 'will_cool'
+      }).state
+    ).toBe('probing')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        cooldownUntil: new Date(Date.now() - 60_000).toISOString()
+      }).state
+    ).toBe('selectable')
+    expect(
+      resolvePoolAdmission({
+        account: live,
+        pairCap: null,
+        pairCurrent: 0,
+        paused: true,
+        probing: true
+      }).state
+    ).toBe('paused')
   })
 
   it('keeps resume and preview below pair-full', () => {
@@ -374,9 +444,11 @@ describe('userQualityResumeActive', () => {
 })
 
 describe('pairAdmissionLiveState', () => {
-  it('maps display admission to the four writable live states', () => {
+  it('maps display admission to the five writable live states', () => {
+    expect(PAIR_ADMISSION_LIVE_STATES).toEqual(['paused', 'cooling', 'probing', 'selectable', 'resumed'])
     expect(pairAdmissionLiveState('paused')).toBe('paused')
     expect(pairAdmissionLiveState('cooling')).toBe('cooling')
+    expect(pairAdmissionLiveState('probing')).toBe('probing')
     expect(pairAdmissionLiveState('resumed')).toBe('resumed')
     expect(pairAdmissionLiveState('selectable')).toBe('selectable')
     expect(pairAdmissionLiveState('will_cool')).toBe('selectable')
@@ -385,6 +457,7 @@ describe('pairAdmissionLiveState', () => {
     expect(pairAdmissionLiveState('stopped')).toBe('selectable')
     expect(pairAdmissionLiveState('stopped', true)).toBe('paused')
     expect(pairAdmissionLiveState('selectable', true)).toBe('paused')
+    expect(pairAdmissionLiveState('probing', true)).toBe('paused')
   })
 })
 
@@ -393,6 +466,7 @@ describe('POOL_ADMISSION_FILTER_STATES', () => {
     expect(POOL_ADMISSION_FILTER_STATES).toContain('will_cool')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('unsaved_preview')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('resumed')
+    expect(POOL_ADMISSION_FILTER_STATES).toContain('probing')
     expect(POOL_ADMISSION_FILTER_STATES).toContain('paused')
     expect(POOL_ADMISSION_FILTER_STATES as readonly string[]).not.toContain('quality_blocked')
   })

@@ -15,6 +15,8 @@ describe('SmartScheduleAdmissionSwitch', () => {
     await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
     await flushPromises()
     expect(document.querySelector('[data-testid="smart-schedule-admission-paused"]')).toBeTruthy()
+    expect(document.querySelector('[data-testid="smart-schedule-admission-probing"]')).toBeTruthy()
+    expect(document.querySelector('[data-testid="smart-schedule-admission-unpause"]')).toBeNull()
     const resumed = document.querySelector('[data-testid="smart-schedule-admission-resumed"]') as HTMLButtonElement
     expect(resumed).toBeTruthy()
     resumed.click()
@@ -32,6 +34,21 @@ describe('SmartScheduleAdmissionSwitch', () => {
     await flushPromises()
     const paused = document.querySelector('[data-testid="smart-schedule-admission-paused"]') as HTMLButtonElement
     expect(paused?.textContent).toContain('✓')
+    w.unmount()
+  })
+
+  it('lets selectable pick probing without waiting for cooldown', async () => {
+    const w = mount(SmartScheduleAdmissionSwitch, {
+      props: { admission: 'selectable' },
+      attachTo: document.body
+    })
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    const probing = document.querySelector('[data-testid="smart-schedule-admission-probing"]') as HTMLButtonElement
+    expect(probing).toBeTruthy()
+    probing.click()
+    await flushPromises()
+    expect(w.emitted('select')?.[0]).toEqual(['probing'])
     w.unmount()
   })
 

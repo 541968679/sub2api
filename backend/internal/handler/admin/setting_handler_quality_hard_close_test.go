@@ -37,6 +37,14 @@ func TestSettingHandler_GetQualityHardCloseSettings_Defaults(t *testing.T) {
 	require.False(t, body.Data.ScheduleUseFailoverErrorRate)
 	require.Equal(t, 30, body.Data.PauseMinutes)
 	require.Equal(t, service.QualityHardCloseConditionOr, body.Data.Condition)
+	require.Equal(t, 20, body.Data.MinSuccessSamples)
+	require.Equal(t, 20, body.Data.MinTTFTSamples)
+	require.NotNil(t, body.Data.AccountQualityWindowN)
+	require.Equal(t, 20, *body.Data.AccountQualityWindowN)
+	require.NotNil(t, body.Data.WindowN)
+	require.Equal(t, 20, *body.Data.WindowN)
+	require.NotNil(t, body.Data.N)
+	require.Equal(t, 20, *body.Data.N)
 }
 
 func TestSettingHandler_UpdateQualityHardCloseSettings_RoundTrip(t *testing.T) {
@@ -70,6 +78,68 @@ func TestSettingHandler_UpdateQualityHardCloseSettings_RoundTrip(t *testing.T) {
 	require.True(t, body.Data.ScheduleUseFailoverErrorRate)
 	require.Equal(t, 40, body.Data.PauseMinutes)
 	require.Equal(t, "and", body.Data.Condition)
+	require.Equal(t, 12, body.Data.MinSuccessSamples)
+	require.Equal(t, 12, body.Data.MinTTFTSamples)
+	require.NotNil(t, body.Data.AccountQualityWindowN)
+	require.Equal(t, 12, *body.Data.AccountQualityWindowN)
+	require.NotNil(t, body.Data.WindowN)
+	require.Equal(t, 12, *body.Data.WindowN)
+	require.NotNil(t, body.Data.N)
+	require.Equal(t, 12, *body.Data.N)
+}
+
+func TestSettingHandler_UpdateQualityHardCloseSettings_WindowNAliasAndClamp(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := newQualityHardCloseSettingHandler()
+
+	put := func(body map[string]any) service.QualityHardCloseSettings {
+		payload, err := json.Marshal(body)
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings/quality-hard-close", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		handler.UpdateQualityHardCloseSettings(c)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var resp struct {
+			Data service.QualityHardCloseSettings `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+		return resp.Data
+	}
+
+	viaAlias := put(map[string]any{
+		"enabled":       false,
+		"pause_minutes": 30,
+		"window_n":      7,
+		"condition":     "or",
+	})
+	require.Equal(t, 7, viaAlias.MinSuccessSamples)
+	require.Equal(t, 7, viaAlias.MinTTFTSamples)
+	require.NotNil(t, viaAlias.AccountQualityWindowN)
+	require.Equal(t, 7, *viaAlias.AccountQualityWindowN)
+	require.NotNil(t, viaAlias.N)
+	require.Equal(t, 7, *viaAlias.N)
+
+	clampedLow := put(map[string]any{
+		"enabled":                 false,
+		"pause_minutes":           30,
+		"account_quality_window_n": 0,
+		"condition":               "or",
+	})
+	require.Equal(t, 1, *clampedLow.AccountQualityWindowN)
+	require.Equal(t, 1, clampedLow.MinSuccessSamples)
+	require.Equal(t, 1, clampedLow.MinTTFTSamples)
+
+	clampedHigh := put(map[string]any{
+		"enabled": false,
+		"pause_minutes": 30,
+		"n":             101,
+		"condition":     "or",
+	})
+	require.Equal(t, 100, *clampedHigh.AccountQualityWindowN)
+	require.Equal(t, 100, clampedHigh.MinSuccessSamples)
+	require.Equal(t, 100, clampedHigh.MinTTFTSamples)
 }
 
 func TestSettingHandler_UpdateQualityHardCloseSettings_RejectsInvalid(t *testing.T) {

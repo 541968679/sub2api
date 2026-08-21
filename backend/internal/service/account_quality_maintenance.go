@@ -35,6 +35,7 @@ type AccountQualityMaintenanceService struct {
 	instanceID  string
 	hardClose   AccountQualityHardCloseEvaluator
 	liveCache   AccountQualityLiveCache
+	lastN       AccountQualityLastNCache
 	settings    *SettingService
 	running     int32
 	stopped     int32
@@ -76,6 +77,62 @@ func (s *AccountQualityMaintenanceService) SetLiveQualityCache(cache AccountQual
 		return
 	}
 	s.liveCache = cache
+	if lastN, ok := cache.(AccountQualityLastNCache); ok {
+		s.lastN = lastN
+	}
+}
+
+func (s *AccountQualityMaintenanceService) windowN(ctx context.Context) int {
+	if s == nil || s.settings == nil {
+		return DefaultAccountQualityWindowN
+	}
+	cfg, err := s.settings.GetQualityHardCloseSettings(ctx)
+	if err != nil || cfg == nil {
+		return DefaultAccountQualityWindowN
+	}
+	return cfg.ResolvedWindowN()
+}
+
+func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.Context, obs AccountQualityObservation) {
+	if s == nil || s.lastN == nil || obs.AccountID <= 0 {
+		return
+	}
+	n := s.windowN(ctx)
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, useFailover)
+	if live == nil {
+		return
+	}
+	stats := live.ToAccountQualityStats()
+	if s.liveCache != nil {
+		if merged, err := s.liveCache.Get(ctx, obs.AccountID); err == nil && merged != nil {
+			stats = merged
+		}
+	}
+	s.EvaluateHardClose(ctx, map[int64]*AccountQualityStats{obs.AccountID: stats})
+}
+
+// GetLastNStatsBatch returns last-N Q_a for account list cells. Missing keys are empty stats with N stamped.
+func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Context, accountIDs []int64) (map[int64]*AccountQualityStats, error) {
+	ids := normalizeQualityBatchIDs(accountIDs)
+	n := s.windowN(ctx)
+	byID := map[int64]*AccountQualityLastN{}
+	if s != nil && s.lastN != nil {
+		byID = s.lastN.GetLastNBatch(ctx, ids)
+	}
+	out := make(map[int64]*AccountQualityStats, len(ids))
+	for _, id := range ids {
+		if live := byID[id]; live != nil {
+			st := live.ToAccountQualityStats()
+			StampAccountQualityWindowN(st, n)
+			out[id] = st
+			continue
+		}
+		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
+		StampAccountQualityWindowN(st, n)
+		out[id] = st
+	}
+	return out, nil
 }
 
 // SetQualitySettings lets the tick apply the failover-as-schedule toggle
@@ -172,8 +229,8 @@ func (s *AccountQualityMaintenanceService) tick() {
 	}
 }
 
-// RunTick captures live 15-minute stats for recent-traffic accounts, upserts non-empty
-// snapshots, deletes rows older than 7 days, then invokes the hard-close hook.
+// RunTick snapshots last-N live Q_a, deletes expired history rows, then
+// re-evaluates hard-close. It does not recompute from a 15-minute SQL window.
 func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time.Time) error {
 	if s == nil || s.repo == nil {
 		return nil
@@ -185,36 +242,35 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 	}
 
 	capturedAt := TruncateToAccountQualitySnapshotTime(now)
-	windowStart := now.Add(-AccountQualityWindow)
-
-	ids, err := s.repo.ListRecentTrafficAccountIDs(ctx, windowStart)
-	if err != nil {
-		return err
+	n := s.windowN(ctx)
+	var ids []int64
+	if s.lastN != nil {
+		ids = s.lastN.ListLastNAccountIDs(ctx)
 	}
-
-	reader, _ := s.usageLogs.(AccountQualityStatsBatchReader)
-	useFailover := s.scheduleUseFailoverErrorRate(ctx)
-	allStats := make(map[int64]*AccountQualityStats, len(ids))
-	for _, chunk := range chunkInt64IDs(ids, AccountQualityMaxBatchSize) {
-		var stats map[int64]*AccountQualityStats
-		if reader != nil {
-			stats, err = reader.GetAccountQualityStatsBatch(ctx, chunk, windowStart)
-			if err != nil {
-				return err
-			}
-		}
-		for _, id := range chunk {
-			st := stats[id]
-			if st == nil {
-				st = BuildAccountQualityStats(0, 0, TTFTAggregate{})
-			}
-			ApplyAccountQualityScheduleCaliber(st, useFailover)
-			allStats[id] = st
-			if !HasAccountQualitySamples(st) {
-				continue
-			}
-			if err := s.repo.Upsert(ctx, SnapshotFromAccountQualityStats(id, capturedAt, st)); err != nil {
-				return err
+	allStats := make(map[int64]*AccountQualityStats)
+	if s.lastN != nil && len(ids) > 0 {
+		for _, chunk := range chunkInt64IDs(ids, AccountQualityMaxBatchSize) {
+			lives := s.lastN.GetLastNBatch(ctx, chunk)
+			for _, id := range chunk {
+				live := lives[id]
+				if live == nil {
+					continue
+				}
+				st := live.ToAccountQualityStats()
+				StampAccountQualityWindowN(st, n)
+				if s.liveCache != nil {
+					if merged, err := s.liveCache.Get(ctx, id); err == nil && merged != nil {
+						st = merged
+						StampAccountQualityWindowN(st, n)
+					}
+				}
+				allStats[id] = st
+				if !HasAccountQualitySamples(st) {
+					continue
+				}
+				if err := s.repo.Upsert(ctx, SnapshotFromAccountQualityStats(id, capturedAt, st)); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -227,12 +283,6 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 		}
 		if deleted == 0 {
 			break
-		}
-	}
-
-	if s.liveCache != nil {
-		if err := s.liveCache.Replace(ctx, allStats); err != nil {
-			slog.Warn("account_quality_live: persist failed", "err", err)
 		}
 	}
 

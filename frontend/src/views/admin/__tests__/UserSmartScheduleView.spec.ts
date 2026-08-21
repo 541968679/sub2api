@@ -390,12 +390,13 @@ async function mountPage() {
 
 async function pickAdmissionState(
   w: Awaited<ReturnType<typeof mountPage>>,
-  state: 'paused' | 'cooling' | 'resumed' | 'selectable'
+  state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
 ) {
   await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
   await flushPromises()
-  const item = document.querySelector(`[data-testid="smart-schedule-admission-${state}"]`) as HTMLButtonElement | null
-  expect(item).not.toBeNull()
+  const items = document.querySelectorAll(`[data-testid="smart-schedule-admission-${state}"]`)
+  const item = items[items.length - 1] as HTMLButtonElement | undefined
+  expect(item).toBeTruthy()
   item!.click()
   await flushPromises()
 }
@@ -470,11 +471,13 @@ beforeEach(() => {
   apiMocks.moveAccountToTop.mockReset()
   apiMocks.resumeSmartSchedule.mockReset()
   apiMocks.resumeSmartSchedule.mockImplementation(
-    (accountId: number, userId: number, state: 'paused' | 'cooling' | 'resumed' | 'selectable' = 'resumed') =>
+    (accountId: number, userId: number, state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable' = 'resumed') =>
       Promise.resolve({
         account_id: accountId,
         user_id: userId,
         state,
+        probing: state === 'probing',
+        probe_cap: state === 'probing' ? 4 : undefined,
         cooldown_until: state === 'cooling' ? new Date(Date.now() + 15 * 60_000).toISOString() : null
       })
   )
@@ -1707,6 +1710,149 @@ describe('UserSmartScheduleView', () => {
       'admin.users.smartSchedule.admissionUnsavedPreview'
     )
     expect(w.get('[data-testid="smart-schedule-admission-switch"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('hydrates probing from GET and uses probe_cap on the occupancy badge', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: 8,
+            probing: true,
+            probe_cap: 2
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('probing')
+    expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
+      'admin.users.smartSchedule.admissionProbing'
+    )
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/2')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
+  })
+
+  it('uses N as the probe badge denominator when uncapped', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null, probing: true }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/10')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
+  })
+
+  it('does not invent probing from an expired cooldown_until', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: null,
+            probing: false,
+            cooldown_until: new Date(Date.now() - 60_000).toISOString()
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/999')
+  })
+
+  it('can pull selectable back to probing without a cooldown wait', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
+    await pickAdmissionState(w, 'probing')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'probing')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('probing')
+  })
+
+  it('does not auto-enter probing when leaving pause for selectable', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null, paused: true }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
+    await pickAdmissionState(w, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).not.toBe('probing')
   })
 
   it('does not fetch candidates on first paint', async () => {

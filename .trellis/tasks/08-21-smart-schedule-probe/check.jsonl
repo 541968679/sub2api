@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "核对闭池、冷却、豁免期现网不变量未被考察期破坏"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/prd.md", "reason": "按 AC1–AC10 验收；Q1 无自动解除；禁止再发明「取消暂停→默认考察」"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/probe-logic.md", "reason": "逐条核对毕业/回冷/并发/手动快路径/反死锁/暂停无自动出口"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/pause-no-auto-unpause.md", "reason": "验收不得出现 implicit unpause 或默认下一态"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/research/pair-quality-n-window.md", "reason": "配对窗入窗规则与未满不参加必须保持"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/probe-api-contract.md", "reason": "核对 state/probing/probe_cap 合同与暂停无默认下一态"}

@@ -87,6 +87,9 @@ const triggerClass = computed(() => {
   if (props.admission === 'resumed') {
     return 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'
   }
+  if (props.admission === 'probing') {
+    return 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300'
+  }
   return 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700'
 })
 
@@ -98,6 +101,7 @@ const menuStyle = computed(() => ({
 function stateLabel(state: PairAdmissionLiveState) {
   if (state === 'paused') return t('admin.users.smartSchedule.admissionPaused')
   if (state === 'cooling') return t('admin.users.smartSchedule.admissionCooling')
+  if (state === 'probing') return t('admin.users.smartSchedule.admissionProbing')
   if (state === 'resumed') return t('admin.users.smartSchedule.admissionResumed')
   return t('admin.users.smartSchedule.admissionSelectable')
 }
@@ -114,7 +118,7 @@ function toggle(event: MouseEvent) {
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   const menuWidth = 168
-  const menuHeight = 168
+  const menuHeight = 200
   triggerX.value = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8))
   triggerY.value = rect.bottom + 4
   if (triggerY.value + menuHeight > window.innerHeight - 8) {

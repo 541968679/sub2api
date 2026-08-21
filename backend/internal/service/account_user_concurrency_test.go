@@ -94,6 +94,55 @@ func TestResolvePairSlotAcquire_ClosedPoolTracksUncapped(t *testing.T) {
 	require.False(t, isPairConcurrencyFull(ctx, acc, 999, lookup), "999 is UI-only and must never pair_full")
 }
 
+func TestResolvePairSlotAcquire_ProbingUsesPolicyN(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	acc := testPairAccount(7)
+
+	t.Run("no member cap uses N", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, nil)),
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, DefaultSmartScheduleWindowN, max)
+		require.True(t, track)
+		require.NotEqual(t, 999, max)
+		require.True(t, isPairConcurrencyFull(ctx, acc, DefaultSmartScheduleWindowN, lookup))
+	})
+
+	t.Run("member cap smaller than N", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 2, nil)),
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 2, max)
+		require.True(t, track)
+	})
+
+	t.Run("member cap larger than N", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 20, nil)),
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, DefaultSmartScheduleWindowN, max)
+		require.True(t, track)
+	})
+
+	t.Run("not probing keeps member cap", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 2, nil))}
+		max, track := resolvePairSlotAcquire(ctx, acc, lookup)
+		require.Equal(t, 2, max)
+		require.True(t, track)
+	})
+}
+
 func TestResolvePairSlotAcquire_ClosedPoolCapped(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))

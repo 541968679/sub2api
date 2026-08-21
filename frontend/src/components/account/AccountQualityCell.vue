@@ -32,6 +32,9 @@
         <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.failoverShort') }}</span>
         <span class="text-sm font-medium">{{ failoverDisplay || '—' }}</span>
       </div>
+      <div class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-test="account-quality-window-counts">
+        {{ t('admin.accounts.quality.windowCounts', { ttft: stats!.ttft_samples ?? 0, ok: okSamples, n: windowN }) }}
+      </div>
     </div>
     <div
       v-else-if="mode === 'ttft' && hasTtft"
@@ -77,6 +80,7 @@ import {
   hasDisplayableQualityRate,
   qualityFailoverSuccessRateValue
 } from '@/utils/accountQualityStats'
+import { qualityRateWindowK, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 
 const props = withDefaults(
   defineProps<{
@@ -86,13 +90,15 @@ const props = withDefaults(
     error?: string | null
     clickable?: boolean
     minSamples?: number
+    windowN?: number | null
   }>(),
   {
     stats: null,
     loading: false,
     error: null,
     clickable: false,
-    minSamples: 1
+    minSamples: 1,
+    windowN: null
   }
 )
 
@@ -103,6 +109,16 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const hasStats = computed(() => props.stats != null)
+
+const windowN = computed(() =>
+  resolveAccountQualityWindowN({
+    account_quality_window_n: props.stats?.account_quality_window_n ?? props.windowN,
+    window_n: props.stats?.window_n,
+    n: props.stats?.n
+  })
+)
+
+const okSamples = computed(() => qualityRateWindowK(props.stats))
 
 const hasTtft = computed(() => {
   const s = props.stats
@@ -174,7 +190,7 @@ const tooltipText = computed(() => {
   if (props.mode === 'combined') {
     const parts = [
       t('admin.accounts.quality.ttftTooltip', {
-        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        n: windowN.value,
         samples: stats.ttft_samples ?? 0,
         p50: stats.p50_ttft_ms ?? '—',
         p95: stats.p95_ttft_ms ?? '—',
@@ -182,20 +198,20 @@ const tooltipText = computed(() => {
         max: stats.max_ttft_ms ?? '—'
       }),
       t('admin.accounts.quality.tooltip', {
-        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        n: windowN.value,
         success: stats.success_count ?? 0,
         error: stats.error_count ?? 0,
         ttftSamples: stats.ttft_samples ?? 0
       }),
       t('admin.accounts.quality.failoverTooltip', {
-        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        n: windowN.value,
         error: stats.failover_error_count ?? '—'
       })
     ]
     base = parts.join('\n')
   } else if (props.mode === 'ttft') {
     base = t('admin.accounts.quality.ttftTooltip', {
-      windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+      n: windowN.value,
       samples: stats.ttft_samples ?? 0,
       p50: stats.p50_ttft_ms ?? '—',
       p95: stats.p95_ttft_ms ?? '—',
@@ -204,7 +220,7 @@ const tooltipText = computed(() => {
     })
   } else {
     base = t('admin.accounts.quality.tooltip', {
-      windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+      n: windowN.value,
       success: stats.success_count ?? 0,
       error: stats.error_count ?? 0,
       ttftSamples: stats.ttft_samples ?? 0

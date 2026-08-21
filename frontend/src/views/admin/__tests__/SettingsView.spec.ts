@@ -1471,6 +1471,10 @@ describe("admin SettingsView quality hard-close card", () => {
 
     const card = wrapper.get('[data-test="quality-hard-close-card"]');
     expect(card.text()).toContain("admin.settings.qualityHardClose.templateHint");
+    expect(card.text()).toContain("admin.settings.qualityHardClose.windowN");
+    expect(card.text()).not.toContain("admin.settings.qualityHardClose.minSuccessSamples");
+    expect(card.text()).not.toContain("admin.settings.qualityHardClose.minTtftSamples");
+    expect(wrapper.get('[data-test="quality-hard-close-window-n"]').exists()).toBe(true);
 
     const toggles = card.findAll(".toggle-stub");
     expect(toggles.length).toBeGreaterThanOrEqual(1);
@@ -1478,6 +1482,7 @@ describe("admin SettingsView quality hard-close card", () => {
 
     const percentInput = card.find('input[type="number"][step="0.1"]');
     await percentInput.setValue("85");
+    await wrapper.get('[data-test="quality-hard-close-window-n"]').setValue("14");
     await wrapper.get('[data-test="quality-hard-close-save"]').trigger("click");
     await flushPromises();
 
@@ -1487,8 +1492,9 @@ describe("admin SettingsView quality hard-close card", () => {
       max_p50_ttft_ms: 3000,
       min_success_rate: 0.85,
       pause_minutes: 30,
-      min_success_samples: 20,
-      min_ttft_samples: 10,
+      account_quality_window_n: 14,
+      min_success_samples: 14,
+      min_ttft_samples: 14,
       condition: "or",
       schedule_use_failover_error_rate: false,
     });

@@ -23,7 +23,7 @@ describe('accountQualityHardClose template helpers', () => {
       quality_max_p50_ttft_ms: 1800,
       quality_min_success_rate_percent: 95,
       quality_min_success_samples: 8,
-      quality_min_ttft_samples: 6,
+      quality_min_ttft_samples: 8,
       quality_condition: 'and'
     })
   })
@@ -40,8 +40,9 @@ describe('accountQualityHardClose template helpers', () => {
       max_p50_ttft_ms: 2500,
       min_success_rate: 0.85,
       pause_minutes: 15,
+      account_quality_window_n: 8,
       min_success_samples: 8,
-      min_ttft_samples: 9,
+      min_ttft_samples: 8,
       condition: 'or',
       schedule_use_failover_error_rate: false
     })
@@ -51,15 +52,14 @@ describe('accountQualityHardClose template helpers', () => {
     const draft = {
       maxP50: '1600',
       successPercent: '90',
-      minSuccessSamples: '',
-      minTtftSamples: '10',
+      windowN: '10',
       condition: 'or' as const
     }
     const fields = qualityGateFormFromDraft(draft)
     expect(fields).toEqual({
       quality_max_p50_ttft_ms: 1600,
       quality_min_success_rate_percent: 90,
-      quality_min_success_samples: null,
+      quality_min_success_samples: 10,
       quality_min_ttft_samples: 10,
       quality_condition: 'or'
     })
@@ -67,8 +67,7 @@ describe('accountQualityHardClose template helpers', () => {
     expect(draft).toEqual({
       maxP50: 1800,
       successPercent: 95,
-      minSuccessSamples: 8,
-      minTtftSamples: 6,
+      windowN: 8,
       condition: 'and'
     })
   })

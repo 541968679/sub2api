@@ -199,6 +199,12 @@ function eventLabel(type: string) {
   if (key === 'selectable') {
     return t('admin.users.smartSchedule.pairEventSelectable')
   }
+  if (key === 'probe_enter' || key === 'probing' || key === 'enter_probing') {
+    return t('admin.users.smartSchedule.pairEventProbeEnter')
+  }
+  if (key === 'probe_graduate' || key === 'graduate') {
+    return t('admin.users.smartSchedule.pairEventProbeGraduate')
+  }
   if (key === 'expiry_zero' || key === 'window_cleared' || key === 'zero') {
     return t('admin.users.smartSchedule.pairEventExpiryZero')
   }

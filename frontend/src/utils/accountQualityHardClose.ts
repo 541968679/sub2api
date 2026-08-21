@@ -1,3 +1,8 @@
+import {
+  echoAccountQualityWindowN,
+  resolveAccountQualityWindowN
+} from '@/utils/accountQualityWindowN'
+
 export const QUALITY_HARD_CLOSE_REASON_PREFIX = 'quality_hard_close'
 
 export function isQualityHardCloseReason(reason: string | null | undefined): boolean {
@@ -46,7 +51,7 @@ export function scheduleUserHasQualityGate(user: {
 
 export const ACCOUNT_QUALITY_WINDOW_SECONDS = 900
 export const DEFAULT_USER_QUALITY_MIN_SUCCESS_SAMPLES = 20
-export const DEFAULT_USER_QUALITY_MIN_TTFT_SAMPLES = 10
+export const DEFAULT_USER_QUALITY_MIN_TTFT_SAMPLES = 20
 
 export type ScheduleUserQualityChipState = 'none' | 'configured' | 'blocked' | 'resumed'
 
@@ -69,25 +74,20 @@ export type AccountQualityChipStats = {
   ttft_samples?: number
 }
 
-function positiveOrDefault(value: number | null | undefined, fallback: number): number {
-  return value != null && value >= 1 ? value : fallback
-}
-
 /** Same judged-metric rules as backend EvaluateAccountQualityHardClose (user gates always enabled). */
 export function userQualityGateBreached(
   user: ScheduleUserQualityChipInput,
   stats: AccountQualityChipStats | null | undefined
 ): boolean {
   if (!scheduleUserHasQualityGate(user) || !stats) return false
-  const minSuccess = positiveOrDefault(user.quality_min_success_samples, DEFAULT_USER_QUALITY_MIN_SUCCESS_SAMPLES)
-  const minTtft = positiveOrDefault(user.quality_min_ttft_samples, DEFAULT_USER_QUALITY_MIN_TTFT_SAMPLES)
+  const windowN = resolveAccountQualityWindowN(user)
   const judged: boolean[] = []
-  if (user.quality_max_p50_ttft_ms != null && (stats.ttft_samples ?? 0) >= minTtft && stats.p50_ttft_ms != null) {
+  if (user.quality_max_p50_ttft_ms != null && (stats.ttft_samples ?? 0) >= windowN && stats.p50_ttft_ms != null) {
     judged.push(stats.p50_ttft_ms > user.quality_max_p50_ttft_ms)
   }
   if (user.quality_min_success_rate != null) {
     const samples = (stats.success_count ?? 0) + (stats.error_count ?? 0)
-    if (samples >= minSuccess) {
+    if (samples >= windowN) {
       const rate = stats.success_rate != null && Number.isFinite(stats.success_rate)
         ? stats.success_rate
         : samples > 0
@@ -110,7 +110,7 @@ export function scheduleUserQualityChipState(
   if (user.quality_resumed_until != null && user.quality_resumed_until * 1000 > nowMs) {
     return 'resumed'
   }
-  // 点已恢复，或已恢复满 15 分钟：芯片回质量，并累计新窗口；窗口内不用旧数据打已停。
+  // 点已恢复，或已恢复期满：芯片回质量，并累计新 last-N 窗口；窗口内不用旧数据打已停。
   if (user.quality_window_until != null && user.quality_window_until * 1000 > nowMs) {
     return 'configured'
   }
@@ -133,6 +133,7 @@ export type QualityThresholdTemplate = {
   max_p50_ttft_ms: number | null
   min_success_rate: number | null
   pause_minutes: number
+  account_quality_window_n?: number
   min_success_samples: number
   min_ttft_samples: number
   condition: 'or' | 'and'
@@ -141,27 +142,30 @@ export type QualityThresholdTemplate = {
 }
 
 export function qualityGateFormFromTemplate(template: QualityThresholdTemplate): QualityGateFormFields {
+  const n = resolveAccountQualityWindowN(template)
   return {
     quality_max_p50_ttft_ms: template.max_p50_ttft_ms,
     quality_min_success_rate_percent: successRateToPercent(template.min_success_rate),
-    quality_min_success_samples: template.min_success_samples,
-    quality_min_ttft_samples: template.min_ttft_samples,
+    quality_min_success_samples: n,
+    quality_min_ttft_samples: n,
     quality_condition: template.condition === 'and' ? 'and' : 'or'
   }
 }
 
-/** Overwrite shared threshold fields; keep master switch and pause minutes. */
+/** Overwrite shared threshold fields; keep master switch, pause minutes, and site-wide N. */
 export function mergeQualityTemplateFromGate(
   current: QualityThresholdTemplate,
   gate: QualityGateFormFields
 ): QualityThresholdTemplate {
+  const echoed = echoAccountQualityWindowN(resolveAccountQualityWindowN(current))
   return {
     enabled: current.enabled,
     max_p50_ttft_ms: gate.quality_max_p50_ttft_ms,
     min_success_rate: percentToSuccessRate(gate.quality_min_success_rate_percent),
     pause_minutes: current.pause_minutes,
-    min_success_samples: gate.quality_min_success_samples ?? current.min_success_samples,
-    min_ttft_samples: gate.quality_min_ttft_samples ?? current.min_ttft_samples,
+    account_quality_window_n: echoed.account_quality_window_n,
+    min_success_samples: echoed.min_success_samples,
+    min_ttft_samples: echoed.min_ttft_samples,
     condition: gate.quality_condition === 'and' ? 'and' : 'or',
     schedule_use_failover_error_rate: current.schedule_use_failover_error_rate === true
   }
@@ -170,15 +174,20 @@ export function mergeQualityTemplateFromGate(
 export function qualityGateFormFromDraft(draft: {
   maxP50: string | number
   successPercent: string | number
-  minSuccessSamples: string | number
-  minTtftSamples: string | number
+  minSuccessSamples?: string | number
+  minTtftSamples?: string | number
+  windowN?: string | number
   condition: string
 }): QualityGateFormFields {
+  const rawN = optionalNumber(draft.windowN)
+    ?? optionalNumber(draft.minSuccessSamples)
+    ?? optionalNumber(draft.minTtftSamples)
+  const n = rawN == null ? null : resolveAccountQualityWindowN({ account_quality_window_n: rawN })
   return {
     quality_max_p50_ttft_ms: optionalNumber(draft.maxP50),
     quality_min_success_rate_percent: optionalNumber(draft.successPercent),
-    quality_min_success_samples: optionalNumber(draft.minSuccessSamples),
-    quality_min_ttft_samples: optionalNumber(draft.minTtftSamples),
+    quality_min_success_samples: n,
+    quality_min_ttft_samples: n,
     quality_condition: draft.condition === 'and' ? 'and' : 'or'
   }
 }
@@ -187,15 +196,21 @@ export function applyQualityGateFormToDraft(
   draft: {
     maxP50: string | number
     successPercent: string | number
-    minSuccessSamples: string | number
-    minTtftSamples: string | number
+    minSuccessSamples?: string | number
+    minTtftSamples?: string | number
+    windowN?: string | number
     condition: 'or' | 'and'
   },
   fields: QualityGateFormFields
 ) {
+  const n = resolveAccountQualityWindowN({
+    min_success_samples: fields.quality_min_success_samples,
+    min_ttft_samples: fields.quality_min_ttft_samples
+  })
   draft.maxP50 = fields.quality_max_p50_ttft_ms ?? ''
   draft.successPercent = fields.quality_min_success_rate_percent ?? ''
-  draft.minSuccessSamples = fields.quality_min_success_samples ?? ''
-  draft.minTtftSamples = fields.quality_min_ttft_samples ?? ''
+  if ('windowN' in draft) draft.windowN = n
+  if ('minSuccessSamples' in draft) draft.minSuccessSamples = n
+  if ('minTtftSamples' in draft) draft.minTtftSamples = n
   draft.condition = fields.quality_condition
 }

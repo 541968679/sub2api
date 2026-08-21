@@ -27,8 +27,10 @@ const (
 	DefaultQualityHardCloseMaxP50TTFTMs      = 3000
 	DefaultQualityHardCloseMinSuccessRate    = 0.9
 	DefaultQualityHardClosePauseMinutes      = 30
-	DefaultQualityHardCloseMinSuccessSamples = 20
-	DefaultQualityHardCloseMinTTFTSamples    = 10
+	DefaultQualityHardCloseMinSuccessSamples = DefaultAccountQualityWindowN
+	// User-quality-gate fill default only. Account last-N GET echoes both
+	// sample fields to WindowN() (default 20).
+	DefaultQualityHardCloseMinTTFTSamples = 10
 )
 
 // QualityHardCloseSettings is the global Settings KV template plus master switch.
@@ -40,7 +42,12 @@ type QualityHardCloseSettings struct {
 	PauseMinutes      int      `json:"pause_minutes"`
 	MinSuccessSamples int      `json:"min_success_samples"`
 	MinTTFTSamples    int      `json:"min_ttft_samples"`
-	Condition         string   `json:"condition"`
+	// AccountQualityWindowN is the site-wide last-N window for Q_a.
+	// GET echoes this value into min_success_samples / min_ttft_samples.
+	AccountQualityWindowN *int `json:"account_quality_window_n,omitempty"`
+	WindowN               *int `json:"window_n,omitempty"`
+	N                     *int `json:"n,omitempty"`
+	Condition             string `json:"condition"`
 	// ScheduleUseFailoverErrorRate, when true, uses the Recovered-inclusive
 	// account error caliber as ErrorCount for hard-close and smart-schedule.
 	// Default false: keep the current client status>=400 caliber.
@@ -57,6 +64,7 @@ type AccountQualityHardCloseOverlay struct {
 	PauseMinutes      *int     `json:"pause_minutes"`
 	MinSuccessSamples *int     `json:"min_success_samples"`
 	MinTTFTSamples    *int     `json:"min_ttft_samples"`
+	AccountQualityWindowN *int `json:"account_quality_window_n,omitempty"`
 	Condition         *string  `json:"condition"`
 }
 
@@ -76,6 +84,7 @@ func (o *AccountQualityHardCloseOverlay) UnmarshalJSON(data []byte) error {
 		PauseMinutes      *int     `json:"pause_minutes"`
 		MinSuccessSamples *int     `json:"min_success_samples"`
 		MinTTFTSamples    *int     `json:"min_ttft_samples"`
+		AccountQualityWindowN *int `json:"account_quality_window_n"`
 		Condition         *string  `json:"condition"`
 	}{}
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -88,6 +97,7 @@ func (o *AccountQualityHardCloseOverlay) UnmarshalJSON(data []byte) error {
 	o.PauseMinutes = aux.PauseMinutes
 	o.MinSuccessSamples = aux.MinSuccessSamples
 	o.MinTTFTSamples = aux.MinTTFTSamples
+	o.AccountQualityWindowN = aux.AccountQualityWindowN
 	o.Condition = aux.Condition
 	return nil
 }
@@ -96,7 +106,7 @@ func (o *AccountQualityHardCloseOverlay) UnmarshalJSON(data []byte) error {
 func DefaultQualityHardCloseSettings() *QualityHardCloseSettings {
 	p50 := DefaultQualityHardCloseMaxP50TTFTMs
 	rate := DefaultQualityHardCloseMinSuccessRate
-	return &QualityHardCloseSettings{
+	settings := &QualityHardCloseSettings{
 		Enabled:           false,
 		MaxP50TTFTMs:      &p50,
 		MinSuccessRate:    &rate,
@@ -105,6 +115,8 @@ func DefaultQualityHardCloseSettings() *QualityHardCloseSettings {
 		MinTTFTSamples:    DefaultQualityHardCloseMinTTFTSamples,
 		Condition:         QualityHardCloseConditionOr,
 	}
+	echoQualityHardCloseWindowN(settings)
+	return settings
 }
 
 // DefaultAccountQualityHardCloseOverlay returns the off-by-default account overlay.
@@ -189,12 +201,6 @@ func normalizeQualityHardCloseSettings(settings *QualityHardCloseSettings) {
 	if settings.PauseMinutes > QualityHardCloseMaxPauseMinutes {
 		settings.PauseMinutes = QualityHardCloseMaxPauseMinutes
 	}
-	if settings.MinSuccessSamples < 1 {
-		settings.MinSuccessSamples = DefaultQualityHardCloseMinSuccessSamples
-	}
-	if settings.MinTTFTSamples < 1 {
-		settings.MinTTFTSamples = DefaultQualityHardCloseMinTTFTSamples
-	}
 	cond := strings.ToLower(strings.TrimSpace(settings.Condition))
 	if cond != QualityHardCloseConditionOr && cond != QualityHardCloseConditionAnd {
 		settings.Condition = QualityHardCloseConditionOr
@@ -207,6 +213,7 @@ func normalizeQualityHardCloseSettings(settings *QualityHardCloseSettings) {
 	if settings.MinSuccessRate != nil && (*settings.MinSuccessRate <= 0 || *settings.MinSuccessRate > 1) {
 		settings.MinSuccessRate = nil
 	}
+	echoQualityHardCloseWindowN(settings)
 }
 
 // GetQualityHardCloseSettings returns the global template. Missing/invalid JSON yields defaults.
@@ -237,6 +244,7 @@ func (s *SettingService) SetQualityHardCloseSettings(ctx context.Context, settin
 	if s == nil || s.settingRepo == nil {
 		return fmt.Errorf("settings service not ready")
 	}
+	echoQualityHardCloseWindowN(settings)
 	if err := ValidateQualityHardCloseSettings(settings); err != nil {
 		return err
 	}
@@ -271,10 +279,12 @@ func ParseAccountQualityHardCloseOverlay(extra map[string]any) AccountQualityHar
 // ResolveAccountQualityHardClose merges global + overlay.
 // Evaluation is allowed only when both enabled flags are true.
 // use_global=true takes all thresholds from global; otherwise non-null overlay fields override.
+// Overlay N / min_*_samples never change the site-wide last-N window.
 func ResolveAccountQualityHardClose(global QualityHardCloseSettings, overlay AccountQualityHardCloseOverlay) QualityHardCloseSettings {
 	resolved := global
 	resolved.Enabled = global.Enabled && overlay.Enabled
 	if overlay.UseGlobal {
+		echoQualityHardCloseWindowN(&resolved)
 		return resolved
 	}
 	if overlay.MaxP50TTFTMs != nil {
@@ -286,15 +296,10 @@ func ResolveAccountQualityHardClose(global QualityHardCloseSettings, overlay Acc
 	if overlay.PauseMinutes != nil {
 		resolved.PauseMinutes = *overlay.PauseMinutes
 	}
-	if overlay.MinSuccessSamples != nil {
-		resolved.MinSuccessSamples = *overlay.MinSuccessSamples
-	}
-	if overlay.MinTTFTSamples != nil {
-		resolved.MinTTFTSamples = *overlay.MinTTFTSamples
-	}
 	if overlay.Condition != nil && strings.TrimSpace(*overlay.Condition) != "" {
 		resolved.Condition = *overlay.Condition
 	}
+	echoQualityHardCloseWindowN(&resolved)
 	return resolved
 }
 
@@ -331,14 +336,7 @@ func EvaluateAccountQualityHardClose(stats *AccountQualityStats, resolvedCfg Qua
 		return false, ""
 	}
 
-	minSuccessSamples := resolvedCfg.MinSuccessSamples
-	if minSuccessSamples < 1 {
-		minSuccessSamples = 1
-	}
-	minTTFTSamples := resolvedCfg.MinTTFTSamples
-	if minTTFTSamples < 1 {
-		minTTFTSamples = 1
-	}
+	minSuccessSamples, minTTFTSamples := resolvedCfg.sampleFloors()
 
 	type judgedMetric struct {
 		breached bool

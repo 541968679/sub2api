@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "闭池准入、冷却 HASH、resumed/selectable 与配对窗现网合同；实现时把「到期同可调度」改成到期进考察"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/prd.md", "reason": "已锁需求：五态、毕业/回冷、Q1–Q4、反死锁"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/design.md", "reason": "考察标记、到期挂钩、cap、and 混窗专则、不回填"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/probe-logic.md", "reason": "同一合同的勾选清单；Q1 无自动 unpause；Q2–Q4 已决"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/pause-no-auto-unpause.md", "reason": "Q1 更正：paused 长期手选，无解除默认进考察"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/research/pair-quality-n-window.md", "reason": "已交付配对 N 条双窗；只读不覆盖"}
+{"file": ".trellis/tasks/08-21-smart-schedule-recovery-probe/prd.md", "reason": "已交付配对冷却范围，避免把考察期做回上一阶段"}
+{"file": ".trellis/tasks/08-21-smart-schedule-probe/research/probe-api-contract.md", "reason": "考察态字符串、GET probing/probe_cap、切换器响应与 Redis 标记"}

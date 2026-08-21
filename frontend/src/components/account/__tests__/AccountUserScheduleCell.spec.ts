@@ -184,7 +184,7 @@ describe('AccountUserScheduleCell', () => {
       quality_max_p50_ttft_ms: 1800,
       quality_min_success_rate: 0.9,
       quality_min_success_samples: 20,
-      quality_min_ttft_samples: 10,
+      quality_min_ttft_samples: 20,
       quality_condition: 'or'
     })
 
@@ -296,6 +296,7 @@ describe('AccountUserScheduleCell', () => {
     expect(getQualityHardCloseSettings).toHaveBeenCalled()
     expect(wrapper.emitted('saveQuality')).toBeUndefined()
     expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-p50"]').element.value).toBe('1800')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-window-n"]').element.value).toBe('8')
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.applyTemplateSuccess')
 
     await wrapper.get('[data-testid="user-schedule-quality-save"]').trigger('click')
@@ -304,7 +305,7 @@ describe('AccountUserScheduleCell', () => {
       quality_max_p50_ttft_ms: 1800,
       quality_min_success_rate: 0.95,
       quality_min_success_samples: 8,
-      quality_min_ttft_samples: 6,
+      quality_min_ttft_samples: 8,
       quality_condition: 'and'
     })
   })
@@ -358,9 +359,11 @@ describe('AccountUserScheduleCell', () => {
       max_p50_ttft_ms: 1600,
       min_success_rate: 0.91,
       pause_minutes: 20,
+      account_quality_window_n: 20,
       min_success_samples: 20,
-      min_ttft_samples: 10,
-      condition: 'or'
+      min_ttft_samples: 20,
+      condition: 'or',
+      schedule_use_failover_error_rate: false
     })
     expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty('user_id')
     expect(wrapper.emitted('saveQuality')).toBeUndefined()

@@ -76,24 +76,15 @@
             data-testid="user-schedule-quality-success"
           />
         </label>
-        <label class="space-y-0.5">
-          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
+        <label class="space-y-0.5 col-span-2">
+          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityWindowN') }}</span>
           <input
-            v-model="qualityDraft.minSuccessSamples"
+            v-model="qualityDraft.windowN"
             type="number"
             min="1"
+            max="100"
             class="input input-sm w-full"
-            data-testid="user-schedule-quality-success-samples"
-          />
-        </label>
-        <label class="space-y-0.5">
-          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
-          <input
-            v-model="qualityDraft.minTtftSamples"
-            type="number"
-            min="1"
-            class="input input-sm w-full"
-            data-testid="user-schedule-quality-ttft-samples"
+            data-testid="user-schedule-quality-window-n"
           />
         </label>
         <select v-model="qualityDraft.condition" class="input input-sm col-span-2">
@@ -249,6 +240,7 @@ import {
   qualityGateFormFromDraft,
   successRateToPercent
 } from '@/utils/accountQualityHardClose'
+import { optionalAccountQualityWindowN, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 
 const props = withDefaults(defineProps<{
   account: Account
@@ -324,8 +316,7 @@ const editingQualityUserId = ref<number | null>(null)
 const qualityDraft = reactive({
   maxP50: '' as string | number,
   successPercent: '' as string | number,
-  minSuccessSamples: '' as string | number,
-  minTtftSamples: '' as string | number,
+  windowN: '' as string | number,
   condition: 'or' as 'or' | 'and'
 })
 
@@ -337,8 +328,9 @@ function toggleQualityEditor(userId: number) {
   const user = users.value.find((item) => item.id === userId)
   qualityDraft.maxP50 = user?.quality_max_p50_ttft_ms ?? ''
   qualityDraft.successPercent = successRateToPercent(user?.quality_min_success_rate) ?? ''
-  qualityDraft.minSuccessSamples = user?.quality_min_success_samples ?? ''
-  qualityDraft.minTtftSamples = user?.quality_min_ttft_samples ?? ''
+  qualityDraft.windowN = user && (user.quality_min_success_samples != null || user.quality_min_ttft_samples != null)
+    ? resolveAccountQualityWindowN(user)
+    : ''
   qualityDraft.condition = user?.quality_condition === 'and' ? 'and' : 'or'
   editingQualityUserId.value = userId
 }
@@ -354,8 +346,8 @@ function emitQualitySave(userId: number) {
     user_id: userId,
     quality_max_p50_ttft_ms: maxP50,
     quality_min_success_rate: minSuccessRate,
-    quality_min_success_samples: optionalNumber(qualityDraft.minSuccessSamples),
-    quality_min_ttft_samples: optionalNumber(qualityDraft.minTtftSamples),
+    quality_min_success_samples: optionalAccountQualityWindowN(qualityDraft.windowN),
+    quality_min_ttft_samples: optionalAccountQualityWindowN(qualityDraft.windowN),
     quality_condition: qualityDraft.condition
   })
   editingQualityUserId.value = null

@@ -609,6 +609,7 @@ type GatewayService struct {
 	antigravitySampler    *AntigravityCreditSampler
 	qualityLiveCache      AccountQualityLiveCache
 	smartScheduleCache    SmartScheduleLookup
+	accountQuality        AccountQualityObserver
 }
 
 func (s *GatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -623,6 +624,13 @@ func (s *GatewayService) SetSmartScheduleCache(lookup SmartScheduleLookup) {
 		return
 	}
 	s.smartScheduleCache = lookup
+}
+
+func (s *GatewayService) SetAccountQualityObserver(observer AccountQualityObserver) {
+	if s == nil {
+		return
+	}
+	s.accountQuality = observer
 }
 
 func (s *GatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
@@ -9017,6 +9025,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 		if wroteUsage {
 			observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
+			observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, nil, result.FirstTokenMs)
 		}
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
@@ -9045,6 +9054,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	if wroteUsage {
 		observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
+		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, nil, result.FirstTokenMs)
 	}
 
 	return nil

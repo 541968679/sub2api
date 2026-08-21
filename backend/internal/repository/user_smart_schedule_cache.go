@@ -14,6 +14,7 @@ import (
 const (
 	smartScheduleUserKeyPrefix     = "smart-schedule:user:"
 	smartScheduleCooldownKeyPrefix = "smart-schedule:cooldown:"
+	smartScheduleProbeKeyPrefix    = "smart-schedule:probe:"
 	smartScheduleCooldownFieldPref = "u:"
 	smartScheduleCooldownTTLBuffer = 2 * time.Hour
 )
@@ -38,6 +39,10 @@ func smartScheduleCooldownKey(accountID int64) string {
 
 func smartScheduleCooldownField(userID int64) string {
 	return smartScheduleCooldownFieldPref + strconv.FormatInt(userID, 10)
+}
+
+func smartScheduleProbeKey(accountID int64) string {
+	return smartScheduleProbeKeyPrefix + strconv.FormatInt(accountID, 10)
 }
 
 func (c *userSmartScheduleCache) Lookup(ctx context.Context, userID int64) *service.UserSmartScheduleBundle {
@@ -224,6 +229,86 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 	}
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
 	c.ZeroPairQuality(ctx, accountID, userID, service.PairQualityEventExpiryZero)
+	c.MarkProbing(ctx, accountID, userID)
+}
+
+func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64) bool {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return false
+	}
+	raw, err := c.rdb.HGet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID)).Result()
+	return err == nil && raw != ""
+}
+
+func (c *userSmartScheduleCache) MarkProbing(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	now := time.Now().UTC()
+	if err := c.rdb.HSet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
+		return
+	}
+	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		Ts:   now.Unix(),
+		Type: service.PairQualityEventProbeEnter,
+	})
+}
+
+func (c *userSmartScheduleCache) ClearProbing(ctx context.Context, accountID, userID int64) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID)).Err()
+}
+
+func (c *userSmartScheduleCache) GraduateProbing(ctx context.Context, accountID, userID int64) {
+	if c == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	if !c.IsProbing(ctx, accountID, userID) {
+		return
+	}
+	c.ClearProbing(ctx, accountID, userID)
+	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		Ts:   time.Now().UTC().Unix(),
+		Type: service.PairQualityEventProbeGraduate,
+	})
+}
+
+func (c *userSmartScheduleCache) IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool {
+	out := map[int64]bool{}
+	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
+		return out
+	}
+	ids := make([]int64, 0, len(accountIDs))
+	seen := map[int64]struct{}{}
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, ok := seen[accountID]; ok {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		ids = append(ids, accountID)
+	}
+	if len(ids) == 0 {
+		return out
+	}
+	pipe := c.rdb.Pipeline()
+	cmds := make([]*redis.StringCmd, len(ids))
+	for i, accountID := range ids {
+		cmds[i] = pipe.HGet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID))
+	}
+	_, _ = pipe.Exec(ctx)
+	for i, cmd := range cmds {
+		raw, err := cmd.Result()
+		if err != nil || raw == "" {
+			continue
+		}
+		out[ids[i]] = true
+	}
+	return out
 }
 
 func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time {

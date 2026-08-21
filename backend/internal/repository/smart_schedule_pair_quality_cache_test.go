@@ -70,6 +70,35 @@ func TestPairQualityCache_ExpiryZerosWindows(t *testing.T) {
 		}
 	}
 	require.True(t, found)
+	require.True(t, cache.IsProbing(ctx, 7, 16), "expiry must enter probing, not selectable")
+	require.False(t, cache.IsProbing(ctx, 7, 17), "other user is not backfilled")
+	foundEnter := false
+	for _, event := range cache.ListPairQualityEvents(ctx, 7, 16, 20) {
+		if event.Type == service.PairQualityEventProbeEnter {
+			foundEnter = true
+		}
+	}
+	require.True(t, foundEnter)
+}
+
+func TestPairQualityCache_NoBackfillWithoutMark(t *testing.T) {
+	cache, _ := newPairQualityTestCache(t)
+	ctx := context.Background()
+	require.False(t, cache.IsProbing(ctx, 7, 16), "Redis miss is not probing")
+	require.Empty(t, cache.IsProbingBatch(ctx, []int64{7, 8}, 16))
+	cache.MarkProbing(ctx, 7, 16)
+	require.True(t, cache.IsProbing(ctx, 7, 16))
+	require.True(t, cache.IsProbingBatch(ctx, []int64{7, 8}, 16)[7])
+	require.False(t, cache.IsProbingBatch(ctx, []int64{7, 8}, 16)[8])
+	cache.GraduateProbing(ctx, 7, 16)
+	require.False(t, cache.IsProbing(ctx, 7, 16))
+	foundGrad := false
+	for _, event := range cache.ListPairQualityEvents(ctx, 7, 16, 20) {
+		if event.Type == service.PairQualityEventProbeGraduate {
+			foundGrad = true
+		}
+	}
+	require.True(t, foundGrad)
 }
 
 func TestPairQualityCache_ZeroClearsAndKeepsIsolation(t *testing.T) {

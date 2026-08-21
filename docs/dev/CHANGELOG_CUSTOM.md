@@ -1,3 +1,150 @@
+## 2026-08-21 - fix: probe wiring aligned with landed backend
+
+### What
+- Frontend probe notes now treat GET/POST `probing` + `probe_cap` as landed. Occupancy tests use the backend field (not a 999 fallback, not inventing probe from expired cooldown).
+- GET hydrate unit test covers `probing` / `probe_cap` and leftover probe bits ignored while paused.
+
+### Why
+- Parallel siblings left stale “backend pending” wiring text after the API actually accepted `state=probing`.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "ParsePairAdmission|SetPairAdmission|Probe|GetHydratesProbing|AdmitsScheduleUser_Probing|ObservePairCompletion|ResolvePairSlotAcquire|PairQuality"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQualityCache|UserSmartScheduleCache"`
+- `pnpm --dir frontend exec vitest run` on smart-schedule admission / view / editor / switch / pair-quality specs.
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`backend/internal/service/smart_schedule_probe_test.go`,
+`.trellis/tasks/08-21-smart-schedule-probe/research/frontend-probe-wiring.md`,
+`.trellis/tasks/08-21-smart-schedule-probe/research/probe-api-contract.md`,
+`docs/dev/codebase/account.md`.
+
+## 2026-08-21 - fix: account quality overlay N is not the window
+
+### What
+- Account stability dialog now shows site-wide \(Q_a\) N read-only. Overlay save writes N / min-sample fields as null; “Save template” keeps the current global N.
+- Shared template merge no longer copies a per-account or pair judging N into `account_quality_window_n`.
+
+### Why
+- Backend overlay JSON can store N, but resolved samples / the FIFO window are always the global N. The cheaper correct product is: global N is the window; overlay must not pretend otherwise.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "AccountQuality|QualityHardClose|QualityStats|ObserveAccount"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "QualityHardClose|QualityStats|QualityHistory"`
+- `pnpm --dir frontend exec vitest run` on account-quality / stability / settings specs.
+
+### Affected files
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/utils/accountQualityHardClose.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/service/account_quality_hard_close_test.go`,
+`backend/internal/handler/admin/setting_handler_quality_hard_close_test.go`,
+`.trellis/spec/backend/account-quality-hard-close.md`.
+
+## 2026-08-21 - feat: smart-schedule probing (backend)
+
+### What
+- Closed-pool pairs now enter `probing` (考察) after cooldown expiry instead of becoming selectable. Admin can jump among `paused` / `cooling` / `probing` / `selectable` / `resumed`. Auto chain is only expiry → probing → selectable. 豁免期 stays manual; pause has no implicit unpause.
+- While probing, in-flight pair cap is `min(N, member cap)` or N. N is the smart-schedule policy window (1–100, default 10), not account-quality global N. Graduate keeps windows; manual selectable zeros them. Probe-only `and` mixed windows cool to avoid deadlock.
+- GET pool rows expose `probing` + `probe_cap`. Redis miss / no mark is not probing (no backfill). Account-quality last-N / hard-close is unchanged.
+
+### Why
+- Cooldown expiry used to restore full member cap immediately. Probe clamps concurrency and re-accumulates \(Q_{a,u}\) before 调度.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "ParsePairAdmission|SetPairAdmission|Probe|AdmitsScheduleUser_Smart|AdmitsScheduleUser_Probing|ObservePairCompletion|ResolvePairSlotAcquire|PairQuality"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQualityCache|UserSmartScheduleCache"`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/tasks/08-21-smart-schedule-probe/research/probe-api-contract.md`.
+
+## 2026-08-21 - feat: smart-schedule probe admission (frontend)
+
+### What
+- Pool admission switcher is now five live states: 暂停 / 冷却 / 考察 (`probing`) / 调度 / 豁免期. Pause stays long-lived; leaving it requires an explicit next pick and never defaults to probe.
+- Probe occupancy badge uses backend `probe_cap` (aliases are read-only fallbacks) when present, otherwise `min(N, member cap)` or `N` — never 999.
+- Copy: cooldown expiry enters probe then selectable; exemption is manual-only.
+
+### Why
+- Backend now emits `probing` + `probe_cap`. The admin surface must show and switch that state without inventing an unpause default.
+
+### Verification
+- `pnpm --dir frontend exec vitest run` on the smart-schedule admission / view / editor / switch / pair-quality specs touched in this change.
+
+### Affected files
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/tasks/08-21-smart-schedule-probe/research/frontend-probe-wiring.md`.
+
+## 2026-08-21 - feat: account quality last-N (frontend)
+
+### What
+- Account-global quality (Q_a) admin UI now uses one last-N window (1–100, default 20) instead of 15 minutes / dual min-sample floors. Grid, hard-close, and account-side user gates share that口径.
+- Settings and stability overlay write `account_quality_window_n` and echo both legacy sample fields as the same N. Cells show k/N, p50, and success rate.
+- Smart-schedule pair N / 豁免期 column is unchanged. Pair contrast copy no longer says “账号 15 分钟质量”.
+
+### Why
+- Backend is moving Q_a from a 15m+5min rolling window to last-N; the admin surface must not keep two sample floors or minute-window assumptions.
+
+### Verification
+- `pnpm --dir frontend exec vitest run` on the settings / account-quality specs touched in this change.
+
+### Affected files
+`frontend/src/utils/accountQualityWindowN.ts`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/tasks/08-21-account-quality-last-n/research/frontend-account-quality-wiring.md`.
+
+## 2026-08-21 - feat: account quality last-N (grid + hard-close)
+
+### What
+- Account quality \(Q_a\) (all users on that account) is now a site-wide last-N pair of FIFO windows (default **20**, clamp 1–100), not a 15-minute SQL window refreshed every 5 minutes.
+- Admin account cells (`quality-stats/batch`) and hard-close / temp unschedulable read the same live last-N stats. Unfilled windows do not judge that metric.
+- Settings KV `account_quality_window_n` (aliases `window_n` / `n`); GET echoes `min_success_samples` / `min_ttft_samples` to the same N. This is not smart-schedule `quality_window_n`. Pair cooldown stays on \(Q_{a,u}\).
+- Completions ingest immediately; the 5-minute tick only snapshots history and may re-evaluate hard-close. It no longer `Replace`s live from 15-minute SQL.
+
+### Why
+- Grid and hard-close must share one caliber, and last-N matches the already-shipped pair-quality ingest rules.
+
+### Verification
+- Focused unit tests: AccountQuality / QualityHardClose / QualityStats / ObserveAccount (service), AccountQuality (repository), QualityHardClose / QualityStats / QualityHistory (admin handlers).
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`,
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`backend/internal/repository/account_quality_last_n_cache.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`.trellis/spec/backend/account-quality-hard-close.md`,
+`.trellis/spec/backend/account-quality-snapshots.md`,
+`.trellis/tasks/08-21-account-quality-last-n/research/account-quality-api-contract.md`.
+
 ## 2026-08-21 - chore: pair-quality API alias check-pass
 
 ### What

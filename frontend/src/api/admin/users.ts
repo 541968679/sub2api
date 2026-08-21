@@ -389,6 +389,13 @@ export interface SmartScheduleAccountMember {
   current_concurrency?: number
   cooldown_until?: string | null
   paused?: boolean
+  probing?: boolean
+  admission?: string | null
+  state?: string | null
+  probe_cap?: number | null
+  probing_cap?: number | null
+  in_flight_cap?: number | null
+  pair_probe_cap?: number | null
 }
 
 export interface SmartScheduleSortAssignment {
@@ -467,6 +474,8 @@ export type SmartSchedulePairQualityEventType =
   | 'resumed'
   | 'selectable'
   | 'expiry_zero'
+  | 'probe_enter'
+  | 'probe_graduate'
 
 export type SmartSchedulePairQualityEvent = {
   at: string

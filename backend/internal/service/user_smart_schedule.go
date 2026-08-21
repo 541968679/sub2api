@@ -26,6 +26,8 @@ type SmartScheduleAccountMember struct {
 	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
+	Probing            bool                          `json:"probing"`
+	ProbeCap           *int                          `json:"probe_cap,omitempty"`
 	PairQuality        *SmartSchedulePairQualityView `json:"pair_quality,omitempty"`
 	WillCool           bool                          `json:"will_cool"`
 }
@@ -133,11 +135,16 @@ func (b *UserSmartScheduleBundle) EnabledPolicy(platform string) *SmartScheduleP
 
 // SmartScheduleLookup is the hot-path reader for user smart-schedule policy + cooldown.
 // Cache miss / lookup error fail open to legacy AdmitsScheduleUser.
+// Redis miss / no probe mark = not probing (no backfill).
 type SmartScheduleLookup interface {
 	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
 	CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool
 	StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time)
 	GetPairQuality(ctx context.Context, accountID, userID int64) *PairQualityLive
+	IsProbing(ctx context.Context, accountID, userID int64) bool
+	MarkProbing(ctx context.Context, accountID, userID int64)
+	ClearProbing(ctx context.Context, accountID, userID int64)
+	GraduateProbing(ctx context.Context, accountID, userID int64)
 }
 
 // UserSmartScheduleCache is the admin + hot-path cache (invalidate on save).
@@ -154,6 +161,7 @@ type UserSmartScheduleCache interface {
 	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, limit int) []PairQualitySnapshot
 	ListPairQualityEvents(ctx context.Context, accountID, userID int64, limit int) []PairQualityEvent
 	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, event PairQualityEvent)
+	IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool
 }
 
 // UserSmartScheduleRepository persists policies and pool members.
@@ -210,6 +218,7 @@ type UserSmartScheduleView struct {
 const (
 	PairAdmissionPaused     = "paused"
 	PairAdmissionCooling    = "cooling"
+	PairAdmissionProbing    = "probing"
 	PairAdmissionResumed    = "resumed"
 	PairAdmissionSelectable = "selectable"
 )
@@ -220,6 +229,8 @@ type PairAdmissionResult struct {
 	UserID        int64      `json:"user_id"`
 	State         string     `json:"state"`
 	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
+	Probing       bool       `json:"probing"`
+	ProbeCap      *int       `json:"probe_cap,omitempty"`
 }
 
 func ClampSmartScheduleCooldownMinutes(minutes int) int {

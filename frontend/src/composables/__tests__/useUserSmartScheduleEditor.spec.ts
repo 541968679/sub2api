@@ -13,7 +13,8 @@ const apiMocks = vi.hoisted(() => ({
   getBatchQualityStats: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getSmartSchedulePnlPairs: vi.fn(),
-  getSmartSchedulePairQualityBatch: vi.fn()
+  getSmartSchedulePairQualityBatch: vi.fn(),
+  resumeSmartSchedule: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -28,7 +29,8 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       list: apiMocks.listAccounts,
       getBatchQualityStats: apiMocks.getBatchQualityStats,
-      getBatchTodayStats: apiMocks.getBatchTodayStats
+      getBatchTodayStats: apiMocks.getBatchTodayStats,
+      resumeSmartSchedule: apiMocks.resumeSmartSchedule
     }
   }
 }))
@@ -141,6 +143,17 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
     apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
     apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
+    apiMocks.resumeSmartSchedule.mockImplementation(
+      (accountId: number, userId: number, state = 'resumed') =>
+        Promise.resolve({
+          account_id: accountId,
+          user_id: userId,
+          state,
+          probing: state === 'probing',
+          probe_cap: state === 'probing' ? 2 : undefined,
+          cooldown_until: null
+        })
+    )
   })
 
   it('does not wait for candidates and skips the default-platform watch reload', async () => {
@@ -350,5 +363,77 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     const w = mountEditor()
     await flushPromises()
     expect(w.vm.currentDraft.windowN).toBe(14)
+  })
+
+  it('hydrates probing from GET and only enters it when the next state is explicit', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            max_concurrency: 8,
+            paused: true,
+            probing: false
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberPaused(21)).toBe(true)
+    expect(w.vm.memberProbing(21)).toBe(false)
+    expect(w.vm.memberProbeCap(21)).toBeNull()
+
+    await w.vm.setPairAdmission(21, 'selectable')
+    await flushPromises()
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'selectable')
+    expect(w.vm.memberPaused(21)).toBe(false)
+    expect(w.vm.memberProbing(21)).toBe(false)
+
+    await w.vm.setPairAdmission(21, 'probing')
+    await flushPromises()
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'probing')
+    expect(w.vm.memberProbing(21)).toBe(true)
+    expect(w.vm.memberProbeCap(21)).toBe(2)
+    expect(w.vm.memberResumeActive(21)).toBe(false)
+  })
+
+  it('hydrates probing and probe_cap from GET without inventing them', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            max_concurrency: 8,
+            probing: true,
+            probe_cap: 3
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberProbing(21)).toBe(true)
+    expect(w.vm.memberProbeCap(21)).toBe(3)
   })
 })

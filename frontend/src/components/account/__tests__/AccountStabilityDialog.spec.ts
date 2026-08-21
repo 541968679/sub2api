@@ -282,6 +282,13 @@ describe('AccountStabilityDialog', () => {
     expect(wrapper.get('[data-test="stability-bridge-empty"]').text()).toContain('admin.accounts.stability.bridgeEmpty')
     expect(wrapper.find('[data-test="line-chart"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="global-disabled-hint"]').exists()).toBe(true)
+    const windowInput = wrapper.get<HTMLInputElement>('[data-test="stability-window-n"]')
+    expect(windowInput.exists()).toBe(true)
+    expect(windowInput.element.disabled).toBe(true)
+    expect(windowInput.element.value).toBe('20')
+    expect(wrapper.text()).toContain('admin.accounts.stability.windowN')
+    expect(wrapper.text()).not.toContain('admin.accounts.stability.minSuccessSamples')
+    expect(wrapper.text()).not.toContain('admin.accounts.stability.minTtftSamples')
   })
 
   it('plots overlapping quality-history window points on the chart', async () => {
@@ -374,8 +381,9 @@ describe('AccountStabilityDialog', () => {
       max_p50_ttft_ms: 2500,
       min_success_rate: 0.85,
       pause_minutes: 30,
-      min_success_samples: 20,
-      min_ttft_samples: 10,
+      account_quality_window_n: null,
+      min_success_samples: null,
+      min_ttft_samples: null,
       condition: 'or'
     })
     expect(payload.overlay).toBeUndefined()
@@ -445,9 +453,56 @@ describe('AccountStabilityDialog', () => {
       max_p50_ttft_ms: 1800,
       min_success_rate: 0.95,
       pause_minutes: 15,
-      min_success_samples: 8,
-      min_ttft_samples: 6,
+      account_quality_window_n: null,
+      min_success_samples: null,
+      min_ttft_samples: null,
       condition: 'and'
+    })
+  })
+
+  it('does not treat overlay-stored N as a per-account window', async () => {
+    getQualityHardClose.mockResolvedValue({
+      ...defaultHardClose,
+      overlay: {
+        ...defaultHardClose.overlay,
+        use_global: false,
+        max_p50_ttft_ms: 2500,
+        min_success_rate: 0.9,
+        pause_minutes: 30,
+        account_quality_window_n: 7,
+        min_success_samples: 7,
+        min_ttft_samples: 7,
+        condition: 'or'
+      },
+      resolved: {
+        ...defaultHardClose.resolved,
+        account_quality_window_n: 20,
+        min_success_samples: 20,
+        min_ttft_samples: 20
+      },
+      global_enabled: true
+    })
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      account_quality_window_n: 20,
+      min_success_samples: 20,
+      min_ttft_samples: 20,
+      condition: 'or'
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(wrapper.get<HTMLInputElement>('[data-test="stability-window-n"]').element.value).toBe('20')
+    await wrapper.get('[data-test="stability-save"]').trigger('click')
+    await flushPromises()
+    expect(updateQualityHardClose.mock.calls[0][1]).toMatchObject({
+      account_quality_window_n: null,
+      min_success_samples: null,
+      min_ttft_samples: null
     })
   })
 
@@ -477,8 +532,9 @@ describe('AccountStabilityDialog', () => {
       max_p50_ttft_ms: 2500,
       min_success_rate: 0.85,
       pause_minutes: 40,
-      min_success_samples: 12,
-      min_ttft_samples: 9,
+      account_quality_window_n: 20,
+      min_success_samples: 20,
+      min_ttft_samples: 20,
       condition: 'or',
       schedule_use_failover_error_rate: false
     })
@@ -486,7 +542,7 @@ describe('AccountStabilityDialog', () => {
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
   })
 
-  it('shows the live 15-minute bridge error rate and sample counts', async () => {
+  it('shows the live last-N bridge error rate and sample counts', async () => {
     getBatchQualityStats.mockResolvedValue({
       stats: {
         '12': {

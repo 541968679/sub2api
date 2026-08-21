@@ -1134,7 +1134,13 @@ export interface QualityHardCloseSettings {
   max_p50_ttft_ms: number | null;
   min_success_rate: number | null;
   pause_minutes: number;
+  /** Account-global last-N window (Q_a). Grid and hard-close share this N. */
+  account_quality_window_n?: number;
+  window_n?: number;
+  n?: number;
+  /** Legacy floor; same value as account_quality_window_n after last-N. */
   min_success_samples: number;
+  /** Legacy floor; same value as account_quality_window_n after last-N. */
   min_ttft_samples: number;
   condition: QualityHardCloseCondition;
   /** When true, smart-schedule / hard-close ErrorCount includes Recovered failover. Default false. */
