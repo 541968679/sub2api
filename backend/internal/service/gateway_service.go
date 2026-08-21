@@ -9025,7 +9025,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 		if wroteUsage {
 			observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
-			observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, nil, result.FirstTokenMs)
+			observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
 		}
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
@@ -9054,7 +9054,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	if wroteUsage {
 		observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
-		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, nil, result.FirstTokenMs)
+		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
 	}
 
 	return nil

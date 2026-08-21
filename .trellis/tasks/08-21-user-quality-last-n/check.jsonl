@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "user list must not use 15m SQL"}
+{"file": ".trellis/tasks/08-21-user-quality-last-n/prd.md", "reason": "AC1 isolation AC2 failover AC3 last-N AC4 global N AC5 history"}
+{"file": ".trellis/tasks/08-21-user-quality-last-n/research/user-quality-api-contract.md", "reason": "batch shape and history endpoint"}

@@ -280,6 +280,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.POST("/quality-stats/batch", h.Admin.User.GetBatchQualityStats)
 		users.POST("/smart-schedule/summaries", h.Admin.User.GetBatchSmartScheduleSummaries)
 		users.POST("/smart-schedule/pnl/summaries", h.Admin.User.GetBatchSmartSchedulePnlSummaries)
+		users.GET("/:id/quality-history", h.Admin.User.GetQualityHistory)
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("/:id/auth-identities", h.Admin.User.BindAuthIdentity)
 		users.POST("", h.Admin.User.Create)

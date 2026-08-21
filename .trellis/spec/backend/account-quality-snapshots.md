@@ -6,7 +6,7 @@
 
 - Trigger: admin needs a time series of the **same** last-N TTFT / success-rate window shown on the account list (\(Q_a\), all users on that account).
 - Source of truth is Redis `account-quality:last-n:{accountID}` (two FIFO windows, site-wide N default 20). Completions (usage success + counted ops errors) ingest and recompute immediately. The 5-minute tick only snapshots current last-N into history and may re-run hard-close. It must **not** recompute from a 15-minute SQL window or `Replace` live keys from `GetAccountQualityStatsBatch`.
-- User-dimension `users/quality-stats/batch` still uses the 15-minute SQL path. Pair cooldown stays on \(Q_{a,u}\).
+- User-dimension `users/quality-stats/batch` is last-N \(Q_u\) (this user, all accounts; same site-wide N). Pair cooldown stays on \(Q_{a,u}\). Do not feed the user list from 15-minute SQL.
 - Adjacent snapshot points may look similar when traffic is quiet. Empty windows (no success, no error, no TTFT) are not stored. last-N does not maintain `bridge_*`.
 - Hard-close evaluation must use the **live** last-N stats (ingest path or tick fallback), not snapshot rows. Attach via `SetHardCloseEvaluator`.
 - Account overlay writes go through `UpdateAccountExtra` (JSONB merge of `extra.quality_hard_close` only). `UpdateAccount` must preserve that key when the edit form replaces Extra, same as `quota_used`.

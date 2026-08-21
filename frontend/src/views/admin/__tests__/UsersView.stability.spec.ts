@@ -10,6 +10,8 @@ const {
   getBatchUsersUsage,
   getBatchUsersBurnRate,
   getBatchQualityStats,
+  getQualityHistory,
+  getQualityHardCloseSettings,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
@@ -18,9 +20,13 @@ const {
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
   getBatchQualityStats: vi.fn(),
+  getQualityHistory: vi.fn(),
+  getQualityHardCloseSettings: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
 }))
+
+const accountsGetQualityHistory = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -28,7 +34,8 @@ vi.mock('@/api/admin', () => ({
       list: listUsers,
       toggleStatus: vi.fn(),
       delete: vi.fn(),
-      getBatchQualityStats
+      getBatchQualityStats,
+      getQualityHistory
     },
     groups: {
       getAll: getAllGroups
@@ -42,8 +49,12 @@ vi.mock('@/api/admin', () => ({
       getBatchUserAttributes
     },
     accounts: {
-      getQualityHistory: vi.fn(),
-      getQualityHardClose: vi.fn()
+      getQualityHistory: accountsGetQualityHistory,
+      getQualityHardClose: vi.fn(),
+      getBatchQualityStats: vi.fn()
+    },
+    settings: {
+      getQualityHardCloseSettings
     }
   }
 }))
@@ -90,11 +101,8 @@ const DataTableStub = {
   template: `
     <div data-test="data-table">
       <div v-for="row in data" :key="row.id" :data-test="'user-row-' + row.id">
-        <div data-test="quality-ttft">
+        <div data-test="quality-cell">
           <slot name="cell-quality_ttft" :row="row" />
-        </div>
-        <div data-test="quality-success">
-          <slot name="cell-quality_success_rate" :row="row" />
         </div>
       </div>
     </div>
@@ -129,6 +137,13 @@ function mountView() {
         UserBalanceHistoryManageModal: true,
         GroupReplaceModal: true,
         UsageErrorInspectDialog: true,
+        UserSchedulePnlCell: true,
+        SchedulePnlTrendDialog: true,
+        UserQualityDialog: {
+          props: ['show', 'userId', 'title'],
+          template:
+            '<div v-if="show" data-test="user-quality-dialog" :data-user-id="userId">{{ title }}</div>'
+        },
         Icon: true,
         Teleport: true
       }
@@ -136,7 +151,7 @@ function mountView() {
   })
 }
 
-describe('admin UsersView quality cells stay read-only', () => {
+describe('admin UsersView user quality cell opens a user-scoped dialog', () => {
   beforeEach(() => {
     localStorage.clear()
     listUsers.mockReset()
@@ -144,8 +159,11 @@ describe('admin UsersView quality cells stay read-only', () => {
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
     getBatchQualityStats.mockReset()
+    getQualityHistory.mockReset()
+    getQualityHardCloseSettings.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
+    accountsGetQualityHistory.mockReset()
 
     listUsers.mockResolvedValue({
       items: [createAdminUser()],
@@ -157,24 +175,45 @@ describe('admin UsersView quality cells stay read-only', () => {
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
-    getBatchQualityStats.mockResolvedValue({ stats: {} })
+    getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '42': {
+          window_n: 20,
+          account_quality_window_n: 20,
+          success_count: 10,
+          error_count: 1,
+          success_rate: 0.91,
+          failover_error_count: 2,
+          failover_error_rate: 0.1,
+          avg_ttft_ms: 400,
+          p50_ttft_ms: 300,
+          p95_ttft_ms: 900,
+          max_ttft_ms: 1200,
+          ttft_samples: 10
+        }
+      }
+    })
+    getQualityHistory.mockResolvedValue({ items: [], from: '2026-08-20T00:00:00Z', to: '2026-08-21T00:00:00Z' })
+    getQualityHardCloseSettings.mockResolvedValue({ account_quality_window_n: 20 })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
 
-  it('does not make first-token or success-rate cells open a stability window', async () => {
+  it('renders one combined clickable quality cell and opens the user dialog', async () => {
     const wrapper = mountView()
     await flushPromises()
-
-    expect(wrapper.findAll('[data-test="account-quality-cell"]')).toHaveLength(2)
-    expect(wrapper.find('[data-test="account-quality-cell-button"]').exists()).toBe(false)
-    expect(wrapper.find('button[aria-label="admin.accounts.stability.openAria"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="stability-dialog"]').exists()).toBe(false)
-
-    await wrapper.get('[data-test="account-quality-cell"]').trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 60))
     await flushPromises()
 
+    expect(wrapper.findAll('[data-test="user-quality-cell-button"]')).toHaveLength(1)
+    expect(wrapper.find('[data-test="account-quality-cell"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="user-quality-dialog"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="user-quality-cell-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="user-quality-dialog"]').attributes('data-user-id')).toBe('42')
+    expect(accountsGetQualityHistory).not.toHaveBeenCalled()
     expect(wrapper.find('[data-test="stability-dialog"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="account-quality-cell-button"]').exists()).toBe(false)
   })
 })

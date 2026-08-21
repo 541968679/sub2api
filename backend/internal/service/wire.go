@@ -203,6 +203,7 @@ func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiToke
 // ProvideAccountQualityMaintenanceService creates and starts the 5-minute quality snapshot job.
 func ProvideAccountQualityMaintenanceService(
 	repo AccountQualitySnapshotRepository,
+	userSnapshots UserQualitySnapshotRepository,
 	usageLogs UsageLogRepository,
 	timingWheel *TimingWheelService,
 	lockCache LeaderLockCache,
@@ -215,6 +216,7 @@ func ProvideAccountQualityMaintenanceService(
 	svc.SetLeaderLock(lockCache, db)
 	svc.SetHardCloseEvaluator(NewAccountQualityHardCloseEvaluator(accountRepo, settings))
 	svc.SetLiveQualityCache(liveCache)
+	svc.SetUserSnapshotRepo(userSnapshots)
 	svc.SetQualitySettings(settings)
 	svc.Start()
 	return svc

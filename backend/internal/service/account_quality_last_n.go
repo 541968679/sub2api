@@ -27,8 +27,10 @@ type AccountQualityLastN struct {
 }
 
 // AccountQualityObservation is one completed request for the account window.
+// UserID, when set, also appends the same sample to the user-global window Q_u.
 type AccountQualityObservation struct {
 	AccountID    int64
+	UserID       int64
 	Success      bool
 	FirstTokenMs *int
 }
@@ -44,6 +46,15 @@ type AccountQualityLastNCache interface {
 	GetLastNBatch(ctx context.Context, accountIDs []int64) map[int64]*AccountQualityLastN
 	IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN
 	ListLastNAccountIDs(ctx context.Context) []int64
+}
+
+// UserQualityLastNCache stores user-global FIFO windows Q_u (this user, all accounts).
+// It reuses the same last-N math and site-wide N as Q_a.
+type UserQualityLastNCache interface {
+	GetUserLastN(ctx context.Context, userID int64) *AccountQualityLastN
+	GetUserLastNBatch(ctx context.Context, userIDs []int64) map[int64]*AccountQualityLastN
+	IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN
+	ListUserLastNIDs(ctx context.Context) []int64
 }
 
 // ClampAccountQualityWindowN clamps an explicit N to 1–100.
@@ -246,12 +257,13 @@ func p95Index(n int) int {
 	return idx
 }
 
-func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Context, accountID int64, trueMs, firstMs *int) {
-	if obs == nil || accountID <= 0 {
+func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Context, accountID, userID int64, trueMs, firstMs *int) {
+	if obs == nil || (accountID <= 0 && userID <= 0) {
 		return
 	}
 	obs.ObserveAccountCompletion(ctx, AccountQualityObservation{
 		AccountID:    accountID,
+		UserID:       userID,
 		Success:      true,
 		FirstTokenMs: pairQualityTTFTMs(trueMs, firstMs),
 	})

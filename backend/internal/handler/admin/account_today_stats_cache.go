@@ -45,13 +45,16 @@ func buildAccountQualityStatsBatchCacheKey(accountIDs []int64, useFailover bool)
 	return b.String()
 }
 
-func buildUserQualityStatsBatchCacheKey(userIDs []int64) string {
+func buildUserQualityStatsBatchCacheKey(userIDs []int64, useFailover bool) string {
 	if len(userIDs) == 0 {
 		return "users_quality_stats_empty"
 	}
 	var b strings.Builder
-	b.Grow(len(userIDs)*6 + 32)
-	_, _ = b.WriteString("users_quality_stats:15m:")
+	b.Grow(len(userIDs)*6 + 40)
+	_, _ = b.WriteString("users_quality_stats:last-n:")
+	if useFailover {
+		_, _ = b.WriteString("failover:")
+	}
 	for i, id := range userIDs {
 		if i > 0 {
 			_ = b.WriteByte(',')

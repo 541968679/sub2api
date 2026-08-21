@@ -7375,7 +7375,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 		observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
-		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
+		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -7401,7 +7401,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 	observePairQualitySuccess(s.smartScheduleCache, ctx, account.ID, user.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
-	observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
+	observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, result.TrueFirstTokenMs, result.FirstTokenMs)
 
 	return nil
 }

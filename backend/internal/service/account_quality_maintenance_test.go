@@ -102,6 +102,22 @@ func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, 
 	return live
 }
 
+func (s *lastNCacheStub) GetUserLastN(ctx context.Context, userID int64) *AccountQualityLastN {
+	return s.GetLastN(ctx, userID)
+}
+
+func (s *lastNCacheStub) GetUserLastNBatch(ctx context.Context, userIDs []int64) map[int64]*AccountQualityLastN {
+	return s.GetLastNBatch(ctx, userIDs)
+}
+
+func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN {
+	return s.IngestLastN(ctx, userID, n, success, firstTokenMs, useFailover)
+}
+
+func (s *lastNCacheStub) ListUserLastNIDs(ctx context.Context) []int64 {
+	return s.ListLastNAccountIDs(ctx)
+}
+
 func (s *lastNCacheStub) ListLastNAccountIDs(_ context.Context) []int64 {
 	if s.ids != nil {
 		return append([]int64(nil), s.ids...)
@@ -397,4 +413,105 @@ func TestAccountQualityMaintenance_ObserveAccountCompletion_AllUsersShareWindow(
 	require.True(t, hook.called)
 	require.Equal(t, int64(1), hook.stats[7].SuccessCount)
 	require.Equal(t, int64(1), hook.stats[7].ErrorCount)
+}
+
+type userSnapshotRepoStub struct {
+	rows    map[userSnapshotKey]UserQualitySnapshotRow
+	upserts []UserQualitySnapshotRow
+	listID  int64
+}
+
+type userSnapshotKey struct {
+	userID     int64
+	capturedAt time.Time
+}
+
+func (s *userSnapshotRepoStub) Upsert(_ context.Context, row UserQualitySnapshotRow) error {
+	if s.rows == nil {
+		s.rows = map[userSnapshotKey]UserQualitySnapshotRow{}
+	}
+	s.rows[userSnapshotKey{userID: row.UserID, capturedAt: row.CapturedAt.UTC()}] = row
+	s.upserts = append(s.upserts, row)
+	return nil
+}
+
+func (s *userSnapshotRepoStub) ListByUser(_ context.Context, userID int64, from, to time.Time) ([]UserQualitySnapshotRow, error) {
+	s.listID = userID
+	out := make([]UserQualitySnapshotRow, 0, len(s.rows))
+	for _, row := range s.rows {
+		if row.UserID == userID && !row.CapturedAt.Before(from) && !row.CapturedAt.After(to) {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+func (s *userSnapshotRepoStub) DeleteExpired(_ context.Context, _ time.Time, _ int) (int64, error) {
+	return 0, nil
+}
+
+func TestAccountQualityMaintenance_ObserveUserCompletion_IsolatesUsers(t *testing.T) {
+	userLastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserLastNCache(userLastN)
+
+	ttft := 40
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{AccountID: 7, UserID: 16, Success: true, FirstTokenMs: &ttft})
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{AccountID: 8, UserID: 16, Success: false})
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{AccountID: 7, UserID: 17, Success: true, FirstTokenMs: &ttft})
+
+	require.Equal(t, 2, userLastN.byID[16].OKCount)
+	require.Equal(t, 1, userLastN.byID[16].TTFTCount)
+	require.Equal(t, 1, userLastN.byID[17].OKCount)
+	require.Equal(t, 1, userLastN.byID[17].TTFTCount)
+	require.Nil(t, userLastN.byID[7])
+}
+
+func TestAccountQualityMaintenance_GetUserLastNStatsBatch_StampsGlobalNAndFailover(t *testing.T) {
+	userLastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserLastNCache(userLastN)
+
+	live := userLastN.IngestUserLastN(context.Background(), 16, DefaultAccountQualityWindowN, false, nil, true)
+	require.True(t, live.UseFailover)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(1), stats.ErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+	require.NotEqual(t, int64(0), stats.FailoverErrorCount)
+
+	out, err := svc.GetUserLastNStatsBatch(context.Background(), []int64{16, 17})
+	require.NoError(t, err)
+	require.Equal(t, DefaultAccountQualityWindowN, out[16].AccountQualityWindowN)
+	require.Equal(t, DefaultAccountQualityWindowN, out[16].N)
+	require.Equal(t, int64(1), out[16].ErrorCount)
+	require.Equal(t, int64(1), out[16].FailoverErrorCount)
+	require.Equal(t, int64(0), out[17].SuccessCount)
+	require.Equal(t, DefaultAccountQualityWindowN, out[17].AccountQualityWindowN)
+}
+
+func TestAccountQualityMaintenance_ListUserHistory_Empty(t *testing.T) {
+	repo := &userSnapshotRepoStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserSnapshotRepo(repo)
+
+	items, err := svc.ListUserHistory(context.Background(), 16, time.Time{}, time.Time{})
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, int64(16), repo.listID)
+}
+
+func TestAccountQualityMaintenance_RunTick_SnapshotsUserLastN(t *testing.T) {
+	userRepo := &userSnapshotRepoStub{}
+	userLastN := &lastNCacheStub{
+		ids:  []int64{16},
+		byID: map[int64]*AccountQualityLastN{16: lastNFromStats(2, 1, 2, 80, 2.0/3.0)},
+	}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserLastNCache(userLastN)
+	svc.SetUserSnapshotRepo(userRepo)
+
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, svc.RunTick(context.Background(), now))
+	require.Contains(t, userRepo.rows, userSnapshotKey{userID: 16, capturedAt: now})
+	require.Equal(t, int64(2), userRepo.rows[userSnapshotKey{userID: 16, capturedAt: now}].SuccessCount)
 }

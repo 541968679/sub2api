@@ -28,6 +28,7 @@
           :quality-stats="userQualityStats"
           :quality-loading="userQualityLoading"
           :quality-error="userQualityError"
+          :window-n="accountQualityWindowN"
           :usage-stats="userUsageStats"
           :burn-rate-stats="userBurnRateStats"
           :smart-schedule="userSmartScheduleSummary"
@@ -37,6 +38,7 @@
           @updated="loadUser({ silent: true })"
           @deleted="goBack"
           @open-schedule-pnl="openUserSchedulePnl"
+          @open-user-quality="openUserQuality"
         />
       </div>
         <div
@@ -841,6 +843,12 @@
       :account="pairQualityAcc"
       @close="pairQualityAcc = null"
     />
+    <UserQualityDialog
+      :show="userQualityDialogOpen"
+      :user-id="userQualityDialogOpen ? userId : null"
+      :title="user?.email || user?.username || String(userId)"
+      @close="userQualityDialogOpen = false"
+    />
     <SchedulePnlTrendDialog
       :show="schedulePnlDialog != null"
       :user-id="userId"
@@ -937,6 +945,7 @@ import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vu
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import SmartSchedulePnlCell from '@/components/admin/user/SmartSchedulePnlCell.vue'
 import SchedulePnlTrendDialog from '@/components/admin/user/SchedulePnlTrendDialog.vue'
+import UserQualityDialog from '@/components/admin/user/UserQualityDialog.vue'
 import AccountInlineNumberCell from '@/components/account/AccountInlineNumberCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import CapacityBadge from '@/components/account/CapacityBadge.vue'
@@ -973,6 +982,7 @@ const userBurnRateStats = ref<BatchUserBurnRateStats | null>(null)
 const userSchedulePnl = ref<SchedulePnlSummary | null>(null)
 const userSchedulePnlLoading = ref(false)
 const schedulePnlDialog = ref<{ accountId?: number; title: string } | null>(null)
+const userQualityDialogOpen = ref(false)
 const pairQualityAcc = ref<Account | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
@@ -1467,6 +1477,10 @@ function goBack() {
 
 function openUserSchedulePnl() {
   schedulePnlDialog.value = { title: t('admin.users.schedulePnl.dialogTitle') }
+}
+
+function openUserQuality() {
+  userQualityDialogOpen.value = true
 }
 
 function openPairSchedulePnl(account: Account) {

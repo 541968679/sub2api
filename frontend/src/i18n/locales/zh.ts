@@ -2104,6 +2104,7 @@ const zhBase = {
         concurrency: '并发数',
         smartSchedule: '智能调度',
         schedulePnl: '调度利润',
+        quality: '质量',
         qualityTtft: '首字',
         qualitySuccessRate: '成功率',
         status: '状态',
@@ -2113,10 +2114,18 @@ const zhBase = {
         actions: '操作'
       },
       quality: {
-        ttftHint:
-          '最近 15 分钟内该用户真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
-        successRateHint:
-          '最近 15 分钟内该用户调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens 与 Claude→GPT 桥接失败）。无样本显示 —。'
+        combinedHint:
+          '用户 last-N 质量（该用户、全部账号）：上行 p50 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 与账号质量共用全站 account_quality_window_n。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线与两套错误率。不是智能调度配对质量，也不是单账号质量。',
+        clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
+        openShort: '打开',
+        openAria: '打开用户质量窗口',
+        title: '用户质量 · {name}',
+        chartHint: '每个点都是当时该用户、全部账号的 last-N 窗口快照（相邻点会重叠），不是互斥时间桶。',
+        noDataHint: '该时段没有已落库的用户质量快照。无流量用户不会写入空点。',
+        windowScope: '最近 {n} 条（该用户、全部账号）',
+        failoverTitle: '用户错误率对照',
+        bridgeHint: '当前 last-N live 窗口（该用户、全部账号）。只展示，不进智能调度门槛或硬关闭。',
+        loadFailed: '加载用户质量数据失败'
       },
       schedulePnl: {
         columnHint: '已开启智能调度的用户：合计当前 enabled 池内本用户×账号的收入/成本/利润。未开启显示 —。点击查看趋势。',

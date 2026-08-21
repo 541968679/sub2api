@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "tick/history last-N; user batch must leave 15m SQL"}
+{"file": ".trellis/spec/backend/account-quality-hard-close.md", "reason": "reuse global N; do not change hard-close"}
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Q_a vs Q_a,u vs new Q_u"}
+{"file": ".trellis/spec/frontend/account-stability-window.md", "reason": "user cells become clickable; no hard-close form"}
+{"file": ".trellis/tasks/08-21-user-quality-last-n/prd.md", "reason": "R1-R6 / AC1-AC5 locked contract"}
+{"file": ".trellis/tasks/08-21-user-quality-last-n/design.md", "reason": "Redis user-quality:last-n, hooks, tick, batch"}
+{"file": ".trellis/tasks/08-21-user-quality-last-n/research/user-quality-api-contract.md", "reason": "batch + quality-history field contract"}

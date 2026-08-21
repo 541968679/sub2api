@@ -34,6 +34,8 @@ type UserHandler struct {
 	accountUsageService   *service.AccountUsageService
 	smartSchedule         *service.UserSmartScheduleService
 	schedulePnl           *service.SchedulePnlService
+	qualityMaintenance    *service.AccountQualityMaintenanceService
+	settingService        *service.SettingService
 }
 
 // NewUserHandler creates a new admin user handler.
@@ -44,6 +46,8 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 	var accountUsageService *service.AccountUsageService
 	var smartSchedule *service.UserSmartScheduleService
 	var schedulePnl *service.SchedulePnlService
+	var qualityMaintenance *service.AccountQualityMaintenanceService
+	var settingService *service.SettingService
 	for _, dep := range quotaDeps {
 		switch v := dep.(type) {
 		case service.UserPlatformQuotaRepository:
@@ -56,6 +60,10 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 			smartSchedule = v
 		case *service.SchedulePnlService:
 			schedulePnl = v
+		case *service.AccountQualityMaintenanceService:
+			qualityMaintenance = v
+		case *service.SettingService:
+			settingService = v
 		}
 	}
 	return &UserHandler{
@@ -66,7 +74,25 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 		accountUsageService:   accountUsageService,
 		smartSchedule:         smartSchedule,
 		schedulePnl:           schedulePnl,
+		qualityMaintenance:    qualityMaintenance,
+		settingService:        settingService,
 	}
+}
+
+// SetQualityMaintenance attaches last-N user quality (batch + history).
+func (h *UserHandler) SetQualityMaintenance(svc *service.AccountQualityMaintenanceService) {
+	if h == nil {
+		return
+	}
+	h.qualityMaintenance = svc
+}
+
+// SetSettingService lets the user quality batch cache key echo the failover toggle.
+func (h *UserHandler) SetSettingService(svc *service.SettingService) {
+	if h == nil {
+		return
+	}
+	h.settingService = svc
 }
 
 // CreateUserRequest represents admin create user request
@@ -649,7 +675,7 @@ type BatchUserQualityStatsRequest struct {
 	UserIDs []int64 `json:"user_ids" binding:"required"`
 }
 
-// GetBatchQualityStats returns rolling-window TTFT and success-rate for user list columns.
+// GetBatchQualityStats returns last-N TTFT and success-rate for user list columns.
 // POST /api/v1/admin/users/quality-stats/batch
 func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
 	var req BatchUserQualityStatsRequest
@@ -664,7 +690,13 @@ func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
 		return
 	}
 
-	cacheKey := buildUserQualityStatsBatchCacheKey(userIDs)
+	useFailover := false
+	if h.settingService != nil {
+		if cfg, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context()); err == nil && cfg != nil {
+			useFailover = cfg.ScheduleUseFailoverErrorRate
+		}
+	}
+	cacheKey := buildUserQualityStatsBatchCacheKey(userIDs, useFailover)
 	if cached, ok := userQualityStatsBatchCache.Get(cacheKey); ok {
 		if cached.ETag != "" {
 			c.Header("ETag", cached.ETag)
@@ -679,12 +711,12 @@ func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
 		return
 	}
 
-	if h.accountUsageService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Account usage service unavailable")
+	if h.qualityMaintenance == nil {
+		response.Error(c, http.StatusServiceUnavailable, "User quality service unavailable")
 		return
 	}
 
-	stats, err := h.accountUsageService.GetUserQualityStatsBatch(c.Request.Context(), userIDs)
+	stats, err := h.qualityMaintenance.GetUserLastNStatsBatch(c.Request.Context(), userIDs)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -698,4 +730,51 @@ func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
 	}
 	c.Header("X-Snapshot-Cache", "miss")
 	response.Success(c, payload)
+}
+
+// GetQualityHistory returns persisted last-N quality snapshots for one user.
+// GET /api/v1/admin/users/:id/quality-history?from=&to=
+func (h *UserHandler) GetQualityHistory(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	from, err := parseAccountQualityHistoryTime(c.Query("from"))
+	if err != nil {
+		response.BadRequest(c, "Invalid from")
+		return
+	}
+	to, err := parseAccountQualityHistoryTime(c.Query("to"))
+	if err != nil {
+		response.BadRequest(c, "Invalid to")
+		return
+	}
+
+	normalizedFrom, normalizedTo, err := service.NormalizeAccountQualityHistoryRange(from, to, time.Now().UTC())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if h.qualityMaintenance == nil {
+		response.Error(c, http.StatusServiceUnavailable, "User quality history unavailable")
+		return
+	}
+
+	items, err := h.qualityMaintenance.ListUserHistory(c.Request.Context(), userID, normalizedFrom, normalizedTo)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if items == nil {
+		items = []service.AccountQualityHistoryItem{}
+	}
+
+	response.Success(c, gin.H{
+		"items": items,
+		"from":  normalizedFrom.Format(time.RFC3339),
+		"to":    normalizedTo.Format(time.RFC3339),
+	})
 }

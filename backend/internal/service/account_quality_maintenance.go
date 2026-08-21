@@ -33,10 +33,12 @@ type AccountQualityMaintenanceService struct {
 	lockCache   LeaderLockCache
 	db          *sql.DB
 	instanceID  string
-	hardClose   AccountQualityHardCloseEvaluator
-	liveCache   AccountQualityLiveCache
-	lastN       AccountQualityLastNCache
-	settings    *SettingService
+	hardClose      AccountQualityHardCloseEvaluator
+	liveCache      AccountQualityLiveCache
+	lastN          AccountQualityLastNCache
+	userLastN      UserQualityLastNCache
+	userSnapshots  UserQualitySnapshotRepository
+	settings       *SettingService
 	running     int32
 	stopped     int32
 }
@@ -80,6 +82,25 @@ func (s *AccountQualityMaintenanceService) SetLiveQualityCache(cache AccountQual
 	if lastN, ok := cache.(AccountQualityLastNCache); ok {
 		s.lastN = lastN
 	}
+	if userLastN, ok := cache.(UserQualityLastNCache); ok {
+		s.userLastN = userLastN
+	}
+}
+
+// SetUserLastNCache attaches the user-global last-N window (tests / explicit wiring).
+func (s *AccountQualityMaintenanceService) SetUserLastNCache(cache UserQualityLastNCache) {
+	if s == nil {
+		return
+	}
+	s.userLastN = cache
+}
+
+// SetUserSnapshotRepo persists 5-minute user last-N history points.
+func (s *AccountQualityMaintenanceService) SetUserSnapshotRepo(repo UserQualitySnapshotRepository) {
+	if s == nil {
+		return
+	}
+	s.userSnapshots = repo
 }
 
 func (s *AccountQualityMaintenanceService) windowN(ctx context.Context) int {
@@ -94,11 +115,17 @@ func (s *AccountQualityMaintenanceService) windowN(ctx context.Context) int {
 }
 
 func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.Context, obs AccountQualityObservation) {
-	if s == nil || s.lastN == nil || obs.AccountID <= 0 {
+	if s == nil {
 		return
 	}
 	n := s.windowN(ctx)
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	if s.userLastN != nil && obs.UserID > 0 {
+		s.userLastN.IngestUserLastN(ctx, obs.UserID, n, obs.Success, obs.FirstTokenMs, useFailover)
+	}
+	if s.lastN == nil || obs.AccountID <= 0 {
+		return
+	}
 	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, useFailover)
 	if live == nil {
 		return
@@ -130,6 +157,32 @@ func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Contex
 		}
 		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
 		StampAccountQualityWindowN(st, n)
+		out[id] = st
+	}
+	return out, nil
+}
+
+// GetUserLastNStatsBatch returns last-N Q_u for user list cells. Missing keys are empty stats with N stamped.
+func (s *AccountQualityMaintenanceService) GetUserLastNStatsBatch(ctx context.Context, userIDs []int64) (map[int64]*AccountQualityStats, error) {
+	ids := normalizeQualityBatchIDs(userIDs)
+	n := s.windowN(ctx)
+	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	byID := map[int64]*AccountQualityLastN{}
+	if s != nil && s.userLastN != nil {
+		byID = s.userLastN.GetUserLastNBatch(ctx, ids)
+	}
+	out := make(map[int64]*AccountQualityStats, len(ids))
+	for _, id := range ids {
+		if live := byID[id]; live != nil {
+			st := live.ToAccountQualityStats()
+			StampAccountQualityWindowN(st, n)
+			ApplyAccountQualityScheduleCaliber(st, useFailover)
+			out[id] = st
+			continue
+		}
+		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
+		StampAccountQualityWindowN(st, n)
+		ApplyAccountQualityScheduleCaliber(st, useFailover)
 		out[id] = st
 	}
 	return out, nil
@@ -232,7 +285,7 @@ func (s *AccountQualityMaintenanceService) tick() {
 // RunTick snapshots last-N live Q_a, deletes expired history rows, then
 // re-evaluates hard-close. It does not recompute from a 15-minute SQL window.
 func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time.Time) error {
-	if s == nil || s.repo == nil {
+	if s == nil {
 		return nil
 	}
 	if now.IsZero() {
@@ -248,7 +301,7 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 		ids = s.lastN.ListLastNAccountIDs(ctx)
 	}
 	allStats := make(map[int64]*AccountQualityStats)
-	if s.lastN != nil && len(ids) > 0 {
+	if s.repo != nil && s.lastN != nil && len(ids) > 0 {
 		for _, chunk := range chunkInt64IDs(ids, AccountQualityMaxBatchSize) {
 			lives := s.lastN.GetLastNBatch(ctx, chunk)
 			for _, id := range chunk {
@@ -276,14 +329,20 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 	}
 
 	cutoff := now.Add(-AccountQualitySnapshotRetention)
-	for {
-		deleted, delErr := s.repo.DeleteExpired(ctx, cutoff, AccountQualitySnapshotDeleteBatchSize)
-		if delErr != nil {
-			return delErr
+	if s.repo != nil {
+		for {
+			deleted, delErr := s.repo.DeleteExpired(ctx, cutoff, AccountQualitySnapshotDeleteBatchSize)
+			if delErr != nil {
+				return delErr
+			}
+			if deleted == 0 {
+				break
+			}
 		}
-		if deleted == 0 {
-			break
-		}
+	}
+
+	if err := s.snapshotUserLastN(ctx, capturedAt, n, cutoff); err != nil {
+		return err
 	}
 
 	s.EvaluateHardClose(ctx, allStats)
@@ -312,6 +371,62 @@ func (s *AccountQualityMaintenanceService) ListHistory(ctx context.Context, acco
 		items = append(items, row.ToHistoryItem())
 	}
 	return items, nil
+}
+
+// ListUserHistory returns last-N snapshot points for one user across all accounts.
+func (s *AccountQualityMaintenanceService) ListUserHistory(ctx context.Context, userID int64, from, to time.Time) ([]AccountQualityHistoryItem, error) {
+	normalizedFrom, normalizedTo, err := NormalizeAccountQualityHistoryRange(from, to, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	if s == nil || s.userSnapshots == nil {
+		return []AccountQualityHistoryItem{}, nil
+	}
+	rows, err := s.userSnapshots.ListByUser(ctx, userID, normalizedFrom, normalizedTo)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]AccountQualityHistoryItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, row.ToHistoryItem())
+	}
+	return items, nil
+}
+
+func (s *AccountQualityMaintenanceService) snapshotUserLastN(ctx context.Context, capturedAt time.Time, n int, cutoff time.Time) error {
+	if s == nil || s.userSnapshots == nil || s.userLastN == nil {
+		return nil
+	}
+	ids := s.userLastN.ListUserLastNIDs(ctx)
+	if len(ids) > 0 {
+		for _, chunk := range chunkInt64IDs(ids, AccountQualityMaxBatchSize) {
+			lives := s.userLastN.GetUserLastNBatch(ctx, chunk)
+			for _, id := range chunk {
+				live := lives[id]
+				if live == nil {
+					continue
+				}
+				st := live.ToAccountQualityStats()
+				StampAccountQualityWindowN(st, n)
+				if !HasAccountQualitySamples(st) {
+					continue
+				}
+				if err := s.userSnapshots.Upsert(ctx, SnapshotFromUserQualityStats(id, capturedAt, st)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for {
+		deleted, delErr := s.userSnapshots.DeleteExpired(ctx, cutoff, AccountQualitySnapshotDeleteBatchSize)
+		if delErr != nil {
+			return delErr
+		}
+		if deleted == 0 {
+			break
+		}
+	}
+	return nil
 }
 
 func chunkInt64IDs(ids []int64, size int) [][]int64 {

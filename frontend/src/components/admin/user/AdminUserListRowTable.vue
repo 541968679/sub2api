@@ -185,29 +185,19 @@
       <template #header-quality_ttft="{ column }">
         <div class="flex items-center">
           <span>{{ column.label }}</span>
-          <HelpTooltip :content="t('admin.users.quality.ttftHint')" width-class="w-72" />
+          <HelpTooltip :content="t('admin.users.quality.combinedHint')" width-class="w-80" />
         </div>
       </template>
       <template #cell-quality_ttft>
         <AccountQualityCell
-          mode="ttft"
+          clickable
+          subject="user"
+          mode="combined"
           :stats="qualityStats"
+          :window-n="windowN"
           :loading="qualityLoading"
           :error="qualityError"
-        />
-      </template>
-      <template #header-quality_success_rate="{ column }">
-        <div class="flex items-center">
-          <span>{{ column.label }}</span>
-          <HelpTooltip :content="t('admin.users.quality.successRateHint')" width-class="w-80" />
-        </div>
-      </template>
-      <template #cell-quality_success_rate>
-        <AccountQualityCell
-          mode="success_rate"
-          :stats="qualityStats"
-          :loading="qualityLoading"
-          :error="qualityError"
+          @click="emit('open-user-quality')"
         />
       </template>
 
@@ -275,6 +265,7 @@ const props = defineProps<{
   qualityStats?: AccountQualityStats | null
   qualityLoading?: boolean
   qualityError?: string | null
+  windowN?: number | null
   usageStats?: BatchUserUsageStats | null
   burnRateStats?: BatchUserBurnRateStats | null
   smartSchedule?: SmartScheduleSummary | null
@@ -287,6 +278,7 @@ const emit = defineEmits<{
   updated: []
   deleted: []
   'open-schedule-pnl': []
+  'open-user-quality': []
 }>()
 
 const { t } = useI18n()

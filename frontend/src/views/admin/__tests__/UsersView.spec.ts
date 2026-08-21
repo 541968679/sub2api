@@ -172,6 +172,7 @@ const mountUsersView = () => {
         UserAttributesConfigModal: true,
         UserConcurrencyCell: true,
         AccountQualityCell: true,
+        UserQualityDialog: true,
         HelpTooltip: true,
         UserCreateModal: true,
         UserEditModal: true,
@@ -209,7 +210,7 @@ const mountUsersView = () => {
     expect(visibleColumns[concurrencyIdx + 1]).toBe('smart_schedule')
     expect(visibleColumns[concurrencyIdx + 2]).toBe('schedule_pnl')
     expect(visibleColumns[concurrencyIdx + 3]).toBe('quality_ttft')
-    expect(visibleColumns[concurrencyIdx + 4]).toBe('quality_success_rate')
+    expect(visibleColumns).not.toContain('quality_success_rate')
 
     await wrapper.get('[data-test="sort-last-used"]').trigger('click')
     await flushPromises()
@@ -324,7 +325,7 @@ const mountUsersView = () => {
     await flushPromises()
   }
 
-  it('fetches quality stats by default and skips when both quality columns are hidden', async () => {
+  it('fetches quality stats by default and skips when the quality column is hidden', async () => {
     const wrapper = mountUsersView()
     await flushPromises()
     await vi.waitFor(() => {
@@ -338,23 +339,18 @@ const mountUsersView = () => {
     await columnButton!.trigger('click')
     await flushPromises()
 
-    const ttftToggle = wrapper
+    const qualityToggle = wrapper
       .findAll('button')
-      .find((btn) => btn.text().includes('admin.users.columns.qualityTtft'))
-    const successToggle = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('admin.users.columns.qualitySuccessRate'))
-    expect(ttftToggle).toBeTruthy()
-    expect(successToggle).toBeTruthy()
-    await ttftToggle!.trigger('click')
-    await successToggle!.trigger('click')
+      .find((btn) => btn.text().includes('admin.users.columns.quality'))
+    expect(qualityToggle).toBeTruthy()
+    await qualityToggle!.trigger('click')
     await flushPromises()
 
     const callsAfterHide = getBatchQualityStats.mock.calls.length
     expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('quality_ttft')
     expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('quality_success_rate')
 
-    await ttftToggle!.trigger('click')
+    await qualityToggle!.trigger('click')
     await flushPromises()
     await vi.waitFor(() => {
       expect(getBatchQualityStats.mock.calls.length).toBeGreaterThan(callsAfterHide)
@@ -362,7 +358,7 @@ const mountUsersView = () => {
     expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('quality_ttft')
   })
 
-  it('does not fetch quality stats when both columns start hidden', async () => {
+  it('does not fetch quality stats when the quality column starts hidden', async () => {
     localStorage.setItem(
       'user-hidden-columns',
       JSON.stringify(['notes', 'groups', 'subscriptions', 'usage', 'quality_ttft', 'quality_success_rate'])

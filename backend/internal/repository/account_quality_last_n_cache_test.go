@@ -58,3 +58,23 @@ func TestAccountQualityLastN_BatchAndAllUsersShareWindow(t *testing.T) {
 	require.Equal(t, 1, batch[8].OKCount)
 	require.Nil(t, batch[9])
 }
+
+func TestUserQualityLastN_IngestIsolatesUsersAndSharesAccounts(t *testing.T) {
+	cache := newLastNCache(t)
+	ctx := context.Background()
+	ttft := 40
+
+	cache.IngestUserLastN(ctx, 16, 4, true, &ttft, true)
+	cache.IngestUserLastN(ctx, 16, 4, false, nil, true)
+	cache.IngestUserLastN(ctx, 17, 4, true, &ttft, true)
+
+	batch := cache.GetUserLastNBatch(ctx, []int64{16, 17, 18})
+	require.Equal(t, 2, batch[16].OKCount)
+	require.Equal(t, 1, batch[16].TTFTCount)
+	require.True(t, batch[16].UseFailover)
+	require.Equal(t, 1, batch[17].OKCount)
+	require.Nil(t, batch[18])
+	require.Nil(t, cache.GetLastN(ctx, 16))
+	ids := cache.ListUserLastNIDs(ctx)
+	require.ElementsMatch(t, []int64{16, 17}, ids)
+}

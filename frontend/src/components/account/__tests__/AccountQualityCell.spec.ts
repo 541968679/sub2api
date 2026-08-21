@@ -37,6 +37,20 @@ describe('AccountQualityCell', () => {
     expect(wrapper.emitted('click')).toBeFalsy()
   })
 
+  it('subject=user uses user-scoped test id and aria copy', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: { mode: 'combined', stats, clickable: true, subject: 'user', windowN: 20 }
+    })
+
+    expect(wrapper.get('[data-test="user-quality-cell-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="account-quality-cell-button"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="user-quality-cell-button"]').attributes('aria-label')).toBe(
+      'admin.users.quality.openAria'
+    )
+    expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').exists()).toBe(true)
+  })
+
   it('clickable emits click even when the cell is empty', async () => {
     const wrapper = mount(AccountQualityCell, {
       props: { mode: 'ttft', clickable: true }

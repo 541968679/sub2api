@@ -5,7 +5,10 @@
 
 import { apiClient } from '../client'
 import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, DownstreamUsageTokenMode, UserStatus } from '@/types'
-import type { BatchQualityStatsResponse } from './accounts'
+import type {
+  AccountQualityHistoryResponse,
+  BatchQualityStatsResponse
+} from './accounts'
 import { normalizeSmartSchedulePairQuality } from '@/utils/smartScheduleWindowN'
 
 export interface AdminBindAuthIdentityChannelRequest {
@@ -376,7 +379,8 @@ export async function resetPlatformQuotaWindow(
 }
 
 /**
- * Batch fetch user quality metrics (last 15 minutes rolling window).
+ * Batch fetch user last-N quality metrics (this user, all accounts).
+ * Window N is the site-wide `account_quality_window_n`.
  */
 export type SmartSchedulePlatform = PlatformQuotaPlatform
 
@@ -701,6 +705,22 @@ export async function getBatchQualityStats(userIds: number[]): Promise<BatchQual
   return data
 }
 
+/**
+ * Fetch persisted last-N quality snapshots for one user (all accounts).
+ * Do not call account quality-history with a user id.
+ * Omit from/to to use the server default (last 24 hours).
+ */
+export async function getQualityHistory(
+  id: number,
+  params?: { from?: string; to?: string }
+): Promise<AccountQualityHistoryResponse> {
+  const { data } = await apiClient.get<AccountQualityHistoryResponse>(
+    `/admin/users/${id}/quality-history`,
+    { params }
+  )
+  return data
+}
+
 export const usersAPI = {
   list,
   getById,
@@ -729,6 +749,7 @@ export const usersAPI = {
   getSmartSchedulePairQualityBatch,
   getSmartSchedulePairQualityDetail,
   getBatchQualityStats,
+  getQualityHistory,
 }
 
 export default usersAPI

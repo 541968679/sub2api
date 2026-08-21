@@ -27,6 +27,9 @@ describe('buildAdminUserListRowColumns', () => {
     expect(keys.indexOf('burn_rate')).toBe(keys.indexOf('balance') + 1)
     expect(keys.at(-1)).toBe('actions')
     expect(keys.indexOf('schedule_pnl')).toBe(keys.indexOf('smart_schedule') + 1)
+    expect(keys).toContain('quality_ttft')
+    expect(keys).not.toContain('quality_success_rate')
+    expect(keys.indexOf('quality_ttft')).toBe(keys.indexOf('schedule_pnl') + 1)
   })
 
   it('maps toggle status the same way as UsersView', () => {

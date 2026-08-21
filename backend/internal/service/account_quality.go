@@ -50,7 +50,9 @@ type AccountQualityStats struct {
 	// Bridge* is display-only Claude→GPT bridge traffic. It must not feed
 	// scheduling gates or hard-close. ErrorCount above excludes these rows.
 	// Account-dimension ErrorCount also excludes client/routing
-	// model-not-found misses; user-dimension ErrorCount still counts them.
+	// model-not-found misses. User last-N Q_u uses the same counted-ops
+	// hooks as Q_a (not the legacy 15-minute user SQL that still counted
+	// client/routing model-not-found).
 	BridgeSuccessCount int64    `json:"bridge_success_count"`
 	BridgeErrorCount   int64    `json:"bridge_error_count"`
 	BridgeErrorRate    *float64 `json:"bridge_error_rate"`
@@ -529,6 +531,62 @@ type AccountQualitySnapshotRepository interface {
 	ListByAccount(ctx context.Context, accountID int64, from, to time.Time) ([]AccountQualitySnapshotRow, error)
 	DeleteExpired(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	ListRecentTrafficAccountIDs(ctx context.Context, startTime time.Time) ([]int64, error)
+}
+
+// UserQualitySnapshotRow is the persisted user-global last-N snapshot.
+type UserQualitySnapshotRow struct {
+	UserID        int64
+	CapturedAt    time.Time
+	WindowSeconds int
+	SuccessCount  int64
+	ErrorCount    int64
+	TTFTSamples   int64
+	SuccessRate   *float64
+	AvgTTFTMs     *int
+	P50TTFTMs     *int
+	P95TTFTMs     *int
+	MaxTTFTMs     *int
+}
+
+// SnapshotFromUserQualityStats copies live user last-N stats into a snapshot row.
+func SnapshotFromUserQualityStats(userID int64, capturedAt time.Time, stats *AccountQualityStats) UserQualitySnapshotRow {
+	base := SnapshotFromAccountQualityStats(userID, capturedAt, stats)
+	return UserQualitySnapshotRow{
+		UserID:        userID,
+		CapturedAt:    base.CapturedAt,
+		WindowSeconds: base.WindowSeconds,
+		SuccessCount:  base.SuccessCount,
+		ErrorCount:    base.ErrorCount,
+		TTFTSamples:   base.TTFTSamples,
+		SuccessRate:   base.SuccessRate,
+		AvgTTFTMs:     base.AvgTTFTMs,
+		P50TTFTMs:     base.P50TTFTMs,
+		P95TTFTMs:     base.P95TTFTMs,
+		MaxTTFTMs:     base.MaxTTFTMs,
+	}
+}
+
+func (r UserQualitySnapshotRow) ToHistoryItem() AccountQualityHistoryItem {
+	return AccountQualitySnapshotRow{
+		AccountID:     r.UserID,
+		CapturedAt:    r.CapturedAt,
+		WindowSeconds: r.WindowSeconds,
+		SuccessCount:  r.SuccessCount,
+		ErrorCount:    r.ErrorCount,
+		TTFTSamples:   r.TTFTSamples,
+		SuccessRate:   r.SuccessRate,
+		AvgTTFTMs:     r.AvgTTFTMs,
+		P50TTFTMs:     r.P50TTFTMs,
+		P95TTFTMs:     r.P95TTFTMs,
+		MaxTTFTMs:     r.MaxTTFTMs,
+	}.ToHistoryItem()
+}
+
+// UserQualitySnapshotRepository persists user-global last-N history points.
+type UserQualitySnapshotRepository interface {
+	Upsert(ctx context.Context, row UserQualitySnapshotRow) error
+	ListByUser(ctx context.Context, userID int64, from, to time.Time) ([]UserQualitySnapshotRow, error)
+	DeleteExpired(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 }
 
 // NormalizeAccountQualityHistoryRange applies default to=now, from=to-24h, and rejects ranges over 7 days.

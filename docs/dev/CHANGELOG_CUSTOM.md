@@ -1,3 +1,77 @@
+## 2026-08-21 - check: user quality last-N grid + dialog
+
+### What
+- Quality-check of user last-N: batch fields match `AccountQualityCell` (`p50_ttft_ms`, `success_rate`, `failover_error_*`, `n`/`window_n`/`account_quality_window_n`); history is `GET /admin/users/:id/quality-history`; dialog never calls account history.
+- Tightened handler assertions (`n`/`window_n` aliases + invalid user id 400), list-row spec (failover 90% + k/N), and `account.md` snapshot/hard-close rows that still said 15-minute SQL.
+
+### Why
+- Lock the user-cell contract to the account cell and keep docs from reintroducing 15-minute list truth.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "UserQuality|ObserveUser|GetUserLastN|ObserveAccountCompletion|ListUserHistory|RunTick_SnapshotsUser|AccountQualityMaintenance|HardClose|PairQuality"`
+- `go test -tags=unit ./internal/repository -count=1 -run "UserQuality|AccountQualityLastN"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "UserHandler_GetBatchQuality|UserQualityHistory|GetUserQualityHistory"`
+- `pnpm --dir frontend exec vitest run` on AccountQualityCell, UserQualityDialog, AdminUserListRowTable, adminUserListRow, UsersView, UsersView.stability, UserSmartScheduleView (75 passed)
+
+### Affected files
+`backend/internal/handler/admin/user_handler_quality_stats_test.go`,
+`frontend/src/components/admin/user/__tests__/AdminUserListRowTable.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-21 - feat: user quality last-N batch + history (same windows as account)
+
+### What
+- Admin `POST /admin/users/quality-stats/batch` now reads Redis last-N \(Q_u\) (`user-quality:last-n:{userID}`), same FIFO math and site-wide `account_quality_window_n` as account \(Q_a\). Population is this user across all accounts.
+- Completions (gateway / OpenAI usage + counted ops errors) ingest \(Q_u\) when `user_id` is set. Failover follows `schedule_use_failover_error_rate`; `failover_error_count` is no longer pinned to 0.
+- 5-minute tick upserts `user_quality_snapshots`. `GET /admin/users/:id/quality-history` serves the click dialog. User list no longer uses 15-minute SQL as truth.
+
+### Why
+- User list cells must match the account quality cell except the population. 15-minute SQL hid failover and used a different window.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "UserQuality|ObserveUser|GetUserLastN|ObserveAccountCompletion_Isolates|GetUserLastNStatsBatch|ListUserHistory|RunTick_SnapshotsUser"`
+- `go test -tags=unit ./internal/repository -count=1 -run "UserQuality"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "UserHandler_GetBatchQuality|UserQualityHistory"`
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`backend/internal/repository/user_quality_last_n_cache.go`,
+`backend/internal/repository/user_quality_snapshot_repo.go`,
+`backend/migrations/209_user_quality_snapshots.sql`,
+`backend/internal/handler/admin/user_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/ops_service.go`,
+`.trellis/spec/backend/user-quality-last-n.md`.
+
+## 2026-08-21 - feat: admin user quality cell uses last-N like account quality
+
+### What
+- Admin user list and smart-schedule header user row replace 首字 + 成功率 with one clickable combined quality cell (`AccountQualityCell` `subject=user`).
+- Click opens `UserQualityDialog` (user-scoped last-N curve + failover/bridge rates). It calls `GET /admin/users/:id/quality-history` and `POST /admin/users/quality-stats/batch`, never account quality-history.
+- Window copy is 最近 N 条（该用户、全部账号）; N is site-wide `account_quality_window_n`. Pair-quality and account quality columns are unchanged.
+
+### Why
+- User quality was a 15-minute read-only split. Operators need the same last-N cell + dialog as accounts, scoped to the user across all accounts.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/admin/user/__tests__/UserQualityDialog.spec.ts src/components/admin/user/__tests__/AdminUserListRowTable.spec.ts src/composables/__tests__/adminUserListRow.spec.ts src/views/admin/__tests__/UsersView.spec.ts src/views/admin/__tests__/UsersView.stability.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/api/admin/users.ts`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/admin/user/UserQualityDialog.vue`,
+`frontend/src/components/admin/user/AdminUserListRowTable.vue`,
+`frontend/src/composables/adminUserListRow.ts`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`.
+
 ## 2026-08-21 - docs: standing upstream-sync hard rules
 
 ### What

@@ -4,9 +4,9 @@
     :type="clickable ? 'button' : undefined"
     class="min-w-[5.5rem]"
     :class="clickable ? 'w-full rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-dark-700' : undefined"
-    :data-test="clickable ? 'account-quality-cell-button' : 'account-quality-cell'"
-    :aria-label="clickable ? t('admin.accounts.stability.openAria') : undefined"
-    :title="clickable && !tooltipText ? t('admin.accounts.stability.clickToOpen') : undefined"
+    :data-test="cellTestId"
+    :aria-label="clickable ? openAria : undefined"
+    :title="clickable && !tooltipText ? clickToOpen : undefined"
     @click="onClick"
   >
     <div v-if="loading && !hasStats" class="h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -64,7 +64,7 @@
         v-if="clickable"
         class="text-[10px] font-medium text-primary-600 dark:text-primary-400"
       >
-        {{ t('admin.accounts.stability.openShort') }}
+        {{ openShort }}
       </span>
     </div>
   </component>
@@ -91,6 +91,7 @@ const props = withDefaults(
     clickable?: boolean
     minSamples?: number
     windowN?: number | null
+    subject?: 'account' | 'user'
   }>(),
   {
     stats: null,
@@ -98,7 +99,8 @@ const props = withDefaults(
     error: null,
     clickable: false,
     minSamples: 1,
-    windowN: null
+    windowN: null,
+    subject: 'account'
   }
 )
 
@@ -107,6 +109,27 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const isUserSubject = computed(() => props.subject === 'user')
+
+const cellTestId = computed(() => {
+  if (props.clickable) {
+    return isUserSubject.value ? 'user-quality-cell-button' : 'account-quality-cell-button'
+  }
+  return isUserSubject.value ? 'user-quality-cell' : 'account-quality-cell'
+})
+
+const openAria = computed(() =>
+  isUserSubject.value ? t('admin.users.quality.openAria') : t('admin.accounts.stability.openAria')
+)
+
+const clickToOpen = computed(() =>
+  isUserSubject.value ? t('admin.users.quality.clickToOpen') : t('admin.accounts.stability.clickToOpen')
+)
+
+const openShort = computed(() =>
+  isUserSubject.value ? t('admin.users.quality.openShort') : t('admin.accounts.stability.openShort')
+)
 
 const hasStats = computed(() => props.stats != null)
 
@@ -185,7 +208,7 @@ const failoverToneClass = computed(() => {
 const tooltipText = computed(() => {
   const stats = props.stats
   if (!stats) return ''
-  const clickHint = props.clickable ? t('admin.accounts.stability.clickToOpen') : ''
+  const clickHint = props.clickable ? clickToOpen.value : ''
   let base = ''
   if (props.mode === 'combined') {
     const parts = [

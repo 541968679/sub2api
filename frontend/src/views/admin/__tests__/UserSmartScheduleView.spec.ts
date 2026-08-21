@@ -53,6 +53,7 @@ vi.mock('@/api/admin', () => ({
       getById: apiMocks.getById,
       list: apiMocks.listUsers,
       getBatchQualityStats: apiMocks.getUserBatchQualityStats,
+      getQualityHistory: vi.fn().mockResolvedValue({ items: [], from: '', to: '' }),
       getSmartSchedule: apiMocks.getSmartSchedule,
       updateSmartSchedule: apiMocks.updateSmartSchedule,
       updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
@@ -124,7 +125,7 @@ vi.mock('@/components/common/DataTable.vue', () => ({
     props: ['columns', 'data', 'loading'],
     computed: {
       isUserRow(): boolean {
-        return (this.columns ?? []).some((col: { key: string }) => col.key === 'quality_success_rate')
+        return (this.columns ?? []).some((col: { key: string }) => col.key === 'email')
       }
     },
     methods: {
@@ -174,13 +175,13 @@ vi.mock('@/components/common/PlatformTypeBadge.vue', () => ({ default: { templat
 vi.mock('@/components/account/AccountStatusIndicator.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/account/AccountQualityCell.vue', () => ({
   default: {
-    props: ['clickable', 'mode', 'stats', 'loading', 'error'],
+    props: ['clickable', 'mode', 'stats', 'loading', 'error', 'subject', 'windowN'],
     template: `
       <button
-        v-if="mode === 'combined'"
-        data-testid="account-quality-cell-button"
+        v-if="clickable || mode === 'combined'"
+        :data-testid="subject === 'user' ? 'user-quality-cell-button' : 'account-quality-cell-button'"
         @click="$emit('click')"
-      />
+      >{{ stats?.p50_ttft_ms ?? '' }} {{ stats?.success_rate ?? '' }}</button>
       <div
         v-else
         :data-testid="'user-quality-' + mode"
@@ -285,6 +286,12 @@ vi.mock('@/components/account/AccountStabilityDialog.vue', () => ({
   default: {
     props: ['show', 'account'],
     template: '<div v-if="show" data-testid="account-stability-dialog" />'
+  }
+}))
+vi.mock('@/components/admin/user/UserQualityDialog.vue', () => ({
+  default: {
+    props: ['show', 'userId', 'title'],
+    template: '<div v-if="show" data-testid="user-quality-dialog" :data-user-id="userId" />'
   }
 }))
 vi.mock('@/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue', () => ({
@@ -880,7 +887,7 @@ describe('UserSmartScheduleView', () => {
     expect(candidateCalls).toHaveLength(0)
   })
 
-  it('renders the users-list row including TTFT and success rate', async () => {
+  it('renders the users-list row including one combined user quality cell', async () => {
     apiMocks.getUserBatchQualityStats.mockResolvedValue({
       stats: {
         '99': {
@@ -920,14 +927,18 @@ describe('UserSmartScheduleView', () => {
     expect(headers.find('[data-column="username"]').exists()).toBe(false)
     expect(headers.get('[data-column="burn_rate"]').exists()).toBe(true)
     expect(headers.get('[data-column="quality_ttft"]').exists()).toBe(true)
-    expect(headers.get('[data-column="quality_success_rate"]').exists()).toBe(true)
+    expect(headers.find('[data-column="quality_success_rate"]').exists()).toBe(false)
     expect(headers.get('[data-column="usage"]').exists()).toBe(true)
     expect(headers.get('[data-column="schedule_pnl"]').exists()).toBe(true)
     expect(headers.get('[data-column="concurrency"]').exists()).toBe(true)
     expect(headers.get('[data-column="actions"]').exists()).toBe(true)
     expect(row.get('[data-testid="admin-user-list-row-actions"]').exists()).toBe(true)
-    expect(row.get('[data-testid="user-quality-ttft"]').text()).toContain('320')
-    expect(row.get('[data-testid="user-quality-success_rate"]').text()).toContain('0.97')
+    expect(row.get('[data-testid="user-quality-cell-button"]').text()).toContain('320')
+    expect(row.get('[data-testid="user-quality-cell-button"]').text()).toContain('0.97')
+    await row.get('[data-testid="user-quality-cell-button"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="user-quality-dialog"]').exists()).toBe(true)
+    expect(w.find('[data-testid="account-stability-dialog"]').exists()).toBe(false)
     expect(row.get('[data-testid="user-concurrency-cell"]').text()).toContain('8')
     expect(row.get('[data-testid="user-burn-rate-cell"]').text()).toContain('$1.20/h')
     expect(row.text()).toContain('1.2345')

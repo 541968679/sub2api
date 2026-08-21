@@ -47,8 +47,12 @@ func ProvideAdminHandlers(
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
 	smartSchedule *service.UserSmartScheduleService,
+	qualityMaintenance *service.AccountQualityMaintenanceService,
+	settingService *service.SettingService,
 ) *AdminHandlers {
 	accountHandler.SetSmartScheduleService(smartSchedule)
+	userHandler.SetQualityMaintenance(qualityMaintenance)
+	userHandler.SetSettingService(settingService)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,

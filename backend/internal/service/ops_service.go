@@ -249,7 +249,18 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 	}
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	for _, entry := range entries {
-		if entry == nil || entry.IsCountTokens || entry.AccountID == nil || *entry.AccountID <= 0 {
+		if entry == nil || entry.IsCountTokens {
+			continue
+		}
+		accountID := int64(0)
+		if entry.AccountID != nil {
+			accountID = *entry.AccountID
+		}
+		userID := int64(0)
+		if entry.UserID != nil {
+			userID = *entry.UserID
+		}
+		if accountID <= 0 && userID <= 0 {
 			continue
 		}
 		cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
@@ -266,7 +277,8 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 			continue
 		}
 		s.accountQuality.ObserveAccountCompletion(ctx, AccountQualityObservation{
-			AccountID: *entry.AccountID,
+			AccountID: accountID,
+			UserID:    userID,
 			Success:   false,
 		})
 	}

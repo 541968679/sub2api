@@ -2254,6 +2254,7 @@ const enBase = {
         concurrency: 'Concurrency',
         smartSchedule: 'Smart schedule',
         schedulePnl: 'Schedule PnL',
+        quality: 'Quality',
         qualityTtft: 'TTFT',
         qualitySuccessRate: 'Success Rate',
         status: 'Status',
@@ -2263,10 +2264,18 @@ const enBase = {
         actions: 'Actions'
       },
       quality: {
-        ttftHint:
-          'True first-token latency for this user over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
-        successRateHint:
-          'Scheduling success rate for this user over the last 15 minutes: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens and Claude→GPT bridge failures). Shows — when empty.'
+        combinedHint:
+          'User last-N quality (this user, all accounts): p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is the site-wide account_quality_window_n shared with account quality. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
+        clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
+        openShort: 'Open',
+        openAria: 'Open user quality window',
+        title: 'User quality · {name}',
+        chartHint: 'Each point is this user’s all-account last-N window at that time (adjacent points overlap), not a disjoint bucket.',
+        noDataHint: 'No persisted user-quality snapshots in this range. Idle users do not write empty points.',
+        windowScope: 'Last {n} completions (this user, all accounts)',
+        failoverTitle: 'User error-rate comparison',
+        bridgeHint: 'Live last-N window for this user across all accounts. Display-only; not used by smart-schedule gates or hard-close.',
+        loadFailed: 'Failed to load user quality data'
       },
       schedulePnl: {
         columnHint: 'Enabled smart-schedule users: sum of this-user × pool-account revenue/cost/profit. Off shows —. Click for the trend.',

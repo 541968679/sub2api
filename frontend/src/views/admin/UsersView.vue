@@ -620,29 +620,19 @@
           <template #header-quality_ttft="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.users.quality.ttftHint')" width-class="w-72" />
+              <HelpTooltip :content="t('admin.users.quality.combinedHint')" width-class="w-80" />
             </div>
           </template>
           <template #cell-quality_ttft="{ row }">
             <AccountQualityCell
-              mode="ttft"
+              clickable
+              subject="user"
+              mode="combined"
               :stats="qualityStatsByUserId[String(row.id)] ?? null"
+              :window-n="accountQualityWindowN"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
-            />
-          </template>
-          <template #header-quality_success_rate="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.users.quality.successRateHint')" width-class="w-80" />
-            </div>
-          </template>
-          <template #cell-quality_success_rate="{ row }">
-            <AccountQualityCell
-              mode="success_rate"
-              :stats="qualityStatsByUserId[String(row.id)] ?? null"
-              :loading="qualityStatsLoading"
-              :error="qualityStatsError"
+              @click="openUserQuality(row)"
             />
           </template>
 
@@ -889,6 +879,12 @@
       :title="schedulePnlDialog?.title"
       @close="schedulePnlDialog = null"
     />
+    <UserQualityDialog
+      :show="userQualityDialog != null"
+      :user-id="userQualityDialog?.userId ?? null"
+      :title="userQualityDialog?.title"
+      @close="userQualityDialog = null"
+    />
   </AppLayout>
 </template>
 
@@ -935,6 +931,8 @@ import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
 import UserSchedulePnlCell from '@/components/admin/user/UserSchedulePnlCell.vue'
 import SchedulePnlTrendDialog from '@/components/admin/user/SchedulePnlTrendDialog.vue'
+import UserQualityDialog from '@/components/admin/user/UserQualityDialog.vue'
+import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 
 const appStore = useAppStore()
 const router = useRouter()
@@ -1063,12 +1061,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
   { key: 'schedule_pnl', label: t('admin.users.columns.schedulePnl'), sortable: false },
-  { key: 'quality_ttft', label: t('admin.users.columns.qualityTtft'), sortable: false },
-  {
-    key: 'quality_success_rate',
-    label: t('admin.users.columns.qualitySuccessRate'),
-    sortable: false
-  },
+  { key: 'quality_ttft', label: t('admin.users.columns.quality'), sortable: false },
   { key: 'status', label: t('admin.users.columns.status'), sortable: true },
   { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: true },
   { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: true },
@@ -1091,6 +1084,7 @@ const hiddenColumns = reactive<Set<string>>(new Set())
 // concurrency is visible by default so default sort-by-concurrency is meaningful.
 const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions', 'usage']
 const REMOVED_COLUMNS = new Set(['last_login_at'])
+const MERGED_AWAY_COLUMNS = new Set(['quality_success_rate'])
 const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at', 'concurrency'])
 
 // localStorage key for column settings
@@ -1103,7 +1097,7 @@ const loadSavedColumns = () => {
     if (saved) {
       const parsed = JSON.parse(saved) as string[]
       parsed
-        .filter(key => !REMOVED_COLUMNS.has(key) && !FORCED_VISIBLE_COLUMNS.has(key))
+        .filter(key => !REMOVED_COLUMNS.has(key) && !MERGED_AWAY_COLUMNS.has(key) && !FORCED_VISIBLE_COLUMNS.has(key))
         .forEach(key => hiddenColumns.add(key))
     } else {
       // Use default hidden columns on first load
@@ -1136,7 +1130,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key === 'smart_schedule' || key === 'schedule_pnl' || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'smart_schedule' || key === 'schedule_pnl' || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -1150,9 +1144,7 @@ const toggleColumn = (key: string) => {
 // Check if column is visible (not in hidden set)
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const hasVisibleUsageColumn = computed(() => !hiddenColumns.has('usage'))
-const hasVisibleQualityColumns = computed(
-  () => !hiddenColumns.has('quality_ttft') || !hiddenColumns.has('quality_success_rate')
-)
+const hasVisibleQualityColumns = computed(() => !hiddenColumns.has('quality_ttft'))
 const hasVisibleSmartScheduleColumn = computed(() => !hiddenColumns.has('smart_schedule'))
 const hasVisibleSchedulePnlColumn = computed(() => !hiddenColumns.has('schedule_pnl'))
 const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
@@ -1483,11 +1475,20 @@ const smartScheduleLoading = ref(false)
 const schedulePnlSummaries = ref<Record<string, SchedulePnlSummary>>({})
 const schedulePnlLoading = ref(false)
 const schedulePnlDialog = ref<{ userId: number; title: string } | null>(null)
+const userQualityDialog = ref<{ userId: number; title: string } | null>(null)
+const accountQualityWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
 
 function openSchedulePnl(row: AdminUser) {
   schedulePnlDialog.value = {
     userId: row.id,
     title: t('admin.users.schedulePnl.dialogTitle')
+  }
+}
+
+function openUserQuality(row: AdminUser) {
+  userQualityDialog.value = {
+    userId: row.id,
+    title: row.email || row.username || String(row.id)
   }
 }
 // User attribute definitions and values
@@ -1584,9 +1585,17 @@ const loadUsersSecondaryData = async (
         qualityStatsLoading.value = true
         qualityStatsError.value = null
         try {
-          const qualityResponse = await adminAPI.users.getBatchQualityStats(userIds)
+          const [qualityResponse, settings] = await Promise.all([
+            adminAPI.users.getBatchQualityStats(userIds),
+            adminAPI.settings?.getQualityHardCloseSettings
+              ? adminAPI.settings.getQualityHardCloseSettings().catch(() => null)
+              : Promise.resolve(null)
+          ])
           if (signal?.aborted) return
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+          if (settings) {
+            accountQualityWindowN.value = resolveAccountQualityWindowN(settings)
+          }
           const serverStats = qualityResponse.stats ?? {}
           const nextStats: Record<string, AccountQualityStats> = {}
           for (const userId of userIds) {
