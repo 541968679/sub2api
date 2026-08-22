@@ -6583,6 +6583,7 @@ const enBase = {
         caliberCompareExcluded: 'Not in comparison caliber',
         caliberScheduleIncluded: 'In account error rate (scheduling)',
         caliberScheduleExcluded: 'Not in account error rate (scheduling)',
+        caliberNeedsOpsAttention: 'Needs ops',
         typeRecovered: 'Recovered',
         typeRequest: 'Request',
         typeAuth: 'Auth',
@@ -6605,6 +6606,9 @@ const enBase = {
         resolved: 'Resolved',
         viewErrors: 'Errors',
         viewExcluded: 'Excluded',
+        attentionAll: 'All calibers',
+        attentionYes: 'Needs ops',
+        attentionNo: 'Not ops-attention',
         statusCodeOther: 'Other',
         owner: {
           provider: 'Provider',
@@ -6796,6 +6800,7 @@ const enBase = {
           silenceFailed: 'Failed to silence alert',
           viewRule: 'View Rule',
           viewLogs: 'View Logs',
+          viewAttentionErrors: 'Open ops-attention errors',
           firedAt: 'Fired At',
           resolvedAt: 'Resolved At',
           ruleId: 'Rule ID',
@@ -6839,7 +6844,8 @@ const enBase = {
         metricGroups: {
           system: 'System Metrics',
           group: 'Group-level Metrics (requires group_id)',
-          account: 'Account-level Metrics'
+          account: 'Account-level Metrics',
+          routing: 'Routing / group model'
         },
         metrics: {
           successRate: 'Success Rate (%)',
@@ -6857,7 +6863,8 @@ const enBase = {
           accountErrorCount: 'Error Accounts (excluding temporarily unschedulable)',
           accountErrorRatio: 'Error Account Ratio (%)',
           accountTempUnscheduledCount: 'Temporarily Unschedulable Accounts',
-          overloadAccountCount: 'Overloaded Accounts'
+          overloadAccountCount: 'Overloaded Accounts',
+          opsAttentionCount: 'Ops-attention errors'
         },
         metricDescriptions: {
           successRate: 'Percentage of successful requests in the window (0-100).',
@@ -6875,7 +6882,8 @@ const enBase = {
           accountErrorCount: 'Number of error accounts within the window (excluding temporarily unschedulable).',
           accountErrorRatio: 'Error account ratio within the window (0-100).',
           accountTempUnscheduledCount: 'Number of accounts currently temporarily unschedulable (for example proxy or credential failure auto-eviction).',
-          overloadAccountCount: 'Number of overloaded accounts within the window.'
+          overloadAccountCount: 'Number of overloaded accounts within the window.',
+          opsAttentionCount: 'Count of group-model gaps, routing 503s, and protocol mismatches that need an operator. These rows do not enter pair cooldown.'
         },
         hints: {
           recommended: 'Recommended: operator {operator}, threshold {threshold}{unit}',

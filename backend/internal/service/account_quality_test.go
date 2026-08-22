@@ -191,6 +191,7 @@ func TestClassifyOpsErrorRateCalibers(t *testing.T) {
 	require.False(t, recovered.CountedInUserErrorRate)
 	require.True(t, recovered.CountedInAccountCompareRate)
 	require.False(t, recovered.CountedInAccountScheduleRate)
+	require.False(t, recovered.NeedsOpsAttention)
 
 	recoveredOn := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 200,
@@ -201,6 +202,7 @@ func TestClassifyOpsErrorRateCalibers(t *testing.T) {
 	})
 	require.True(t, recoveredOn.CountedInAccountScheduleRate)
 	require.False(t, recoveredOn.CountedInUserErrorRate)
+	require.False(t, recoveredOn.NeedsOpsAttention)
 
 	modelMiss := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 404,
@@ -212,6 +214,7 @@ func TestClassifyOpsErrorRateCalibers(t *testing.T) {
 	require.True(t, modelMiss.CountedInUserErrorRate)
 	require.False(t, modelMiss.CountedInAccountCompareRate)
 	require.False(t, modelMiss.CountedInAccountScheduleRate)
+	require.True(t, modelMiss.NeedsOpsAttention)
 
 	terminal := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 502,
@@ -222,6 +225,132 @@ func TestClassifyOpsErrorRateCalibers(t *testing.T) {
 	require.True(t, terminal.CountedInUserErrorRate)
 	require.True(t, terminal.CountedInAccountCompareRate)
 	require.True(t, terminal.CountedInAccountScheduleRate)
+	require.False(t, terminal.NeedsOpsAttention)
+}
+
+func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		in        OpsErrorCaliberInput
+		schedule  bool
+		attention bool
+	}{
+		{
+			name: "invalid_request_400",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
+				Message: "missing required parameter",
+			},
+		},
+		{
+			name: "upstream_request_failed_400",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "internal", Type: "api_error",
+				Message: "Upstream request failed",
+			},
+		},
+		{
+			name: "prompt_too_long",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
+				Message: "prompt is too long",
+			},
+		},
+		{
+			name: "pair_concurrency_429",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 429, Phase: "request", Type: "rate_limit_error",
+				Message: "Concurrency limit exceeded for account",
+			},
+		},
+		{
+			name: "group_no_account_404",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 404, Phase: "internal", Type: "api_error",
+				Message: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
+			},
+			attention: true,
+		},
+		{
+			name: "group_no_account_502",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
+				Message: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
+			},
+			attention: true,
+		},
+		{
+			name: "routing_503",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 503, Phase: "routing", Type: "api_error",
+				Message: "Service temporarily unavailable",
+			},
+			attention: true,
+		},
+		{
+			name: "chat_completions_endpoint",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
+				Message: "not supported on the Chat Completions endpoint",
+			},
+			attention: true,
+		},
+		{
+			name: "unsupported_content_type",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
+				Message: "Unsupported content type",
+			},
+			attention: true,
+		},
+		{
+			name: "invalid_url",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
+				Message: "Invalid URL",
+			},
+			attention: true,
+		},
+		{
+			name: "upstream_request_failed_502",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
+				Message: "Upstream request failed",
+			},
+			schedule: true,
+		},
+		{
+			name: "true_upstream_429",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 429, Phase: "upstream", Type: "rate_limit_error",
+				Message: "Rate limit reached for gpt-5.2",
+			},
+			schedule: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ClassifyOpsErrorRateCalibers(tc.in)
+			require.Equal(t, tc.schedule, got.CountedInAccountScheduleRate)
+			require.Equal(t, tc.attention, got.NeedsOpsAttention)
+			on := tc.in
+			on.UseFailover = true
+			gotOn := ClassifyOpsErrorRateCalibers(on)
+			require.Equal(t, tc.schedule, gotOn.CountedInAccountScheduleRate)
+			require.Equal(t, tc.attention, gotOn.NeedsOpsAttention)
+		})
+	}
+}
+
+func TestSQLScheduleQualityExcludedPredicate_Covers502GroupGap(t *testing.T) {
+	pred := SQLScheduleQualityExcludedPredicate("")
+	require.Contains(t, pred, "%not supported by any configured account%")
+	groupPred := SQLGroupNoAccountForModelPredicate("")
+	require.NotContains(t, groupPred, "<> 'upstream'")
+	require.NotContains(t, groupPred, "IN (400, 403, 404, 503)")
+	require.Contains(t, SQLOpsAttentionPredicate("e."), "e.error_message")
+	require.Contains(t, SQLExcludeAccountQualityScheduleNoise(""), "NOT (")
 }
 
 func TestSQLAccountQualityRoutingModelMissPredicate(t *testing.T) {

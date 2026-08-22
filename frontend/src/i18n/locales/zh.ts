@@ -6230,6 +6230,7 @@ const zhBase = {
         caliberCompareExcluded: '未计入对照口径',
         caliberScheduleIncluded: '计入账号错误率（调度）',
         caliberScheduleExcluded: '未计入账号错误率（调度）',
+        caliberNeedsOpsAttention: '需运维',
         typeRecovered: '已救回',
         typeRequest: '请求',
         typeAuth: '认证',
@@ -6252,6 +6253,9 @@ const zhBase = {
         resolved: '已解决',
         viewErrors: '错误',
         viewExcluded: '排除项',
+        attentionAll: '全部口径',
+        attentionYes: '需运维',
+        attentionNo: '非需运维',
         statusCodeOther: '其他',
         owner: {
           provider: '服务商',
@@ -6443,6 +6447,7 @@ const zhBase = {
           silenceFailed: '静默失败',
           viewRule: '查看规则',
           viewLogs: '查看相关日志',
+          viewAttentionErrors: '查看需运维错误',
           firedAt: '触发时间',
           resolvedAt: '解决时间',
           ruleId: '规则 ID',
@@ -6486,7 +6491,8 @@ const zhBase = {
         metricGroups: {
           system: '系统指标',
           group: '分组级别指标（需 group_id）',
-          account: '账号级别指标'
+          account: '账号级别指标',
+          routing: '路由 / 组模型'
         },
         metrics: {
           successRate: '成功率 (%)',
@@ -6504,7 +6510,8 @@ const zhBase = {
           accountErrorCount: '错误账号数（不含临时不可调度）',
           accountErrorRatio: '错误账号比例 (%)',
           accountTempUnscheduledCount: '临时不可调度账号数',
-          overloadAccountCount: '过载账号数'
+          overloadAccountCount: '过载账号数',
+          opsAttentionCount: '需运维错误数'
         },
         metricDescriptions: {
           successRate: '统计窗口内成功请求占比（0~100）。',
@@ -6522,7 +6529,8 @@ const zhBase = {
           accountErrorCount: '统计窗口内产生错误的账号数量（不含临时不可调度）。',
           accountErrorRatio: '统计窗口内错误账号占比（0~100）。',
           accountTempUnscheduledCount: '当前处于临时不可调度状态的账号数量（如代理或凭据故障被自动摘除）。',
-          overloadAccountCount: '统计窗口内过载账号数量。'
+          overloadAccountCount: '统计窗口内过载账号数量。',
+          opsAttentionCount: '窗口内组模型缺口、路由 503、协议错配等需人工处理的错误行数。不计入配对冷却。'
         },
         hints: {
           recommended: '推荐：运算符 {operator}，阈值 {threshold}{unit}',

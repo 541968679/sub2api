@@ -121,7 +121,8 @@ describe('OpsErrorLogTable', () => {
       message: 'model_not_found: claude-bad',
       counted_in_user_error_rate: true,
       counted_in_account_compare_rate: false,
-      counted_in_account_schedule_rate: false
+      counted_in_account_schedule_rate: false,
+      needs_ops_attention: true
     }
     const wrapper = mount(OpsErrorLogTable, {
       props: { rows: [miss], total: 1, loading: false, page: 1, pageSize: 20 },
@@ -130,5 +131,6 @@ describe('OpsErrorLogTable', () => {
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberUserIncluded')
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberCompareExcluded')
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberScheduleExcluded')
+    expect(wrapper.text()).toContain('admin.ops.errorLog.caliberNeedsOpsAttention')
   })
 })

@@ -1,3 +1,40 @@
+## 2026-08-22 - fix: exclude false pair-cooldown errors + dedicated ops-attention alert
+
+### What
+- Pair and account schedule ErrorCount no longer ingest client 400 / context / pairing concurrency 429, group-no-account (any phase/status, including the production 502 leak), routing 503, or protocol mismatches.
+- `Upstream request failed` is excluded only at status 400; 502 still cools the pair.
+- New list flag `needs_ops_attention` plus error-list filter. Seeded alert metric `ops_attention_count` (default rule `需运维：组模型/路由/协议`, `> 0` / 15m / 5m sustain / P2 / 30m cooldown). Event carries top group+model.
+
+### Why
+- About a quarter of pair-failure window rows were not hop health. Excluding them without a dedicated pager would hide group-model leaks such as `gpt-5.6-terra`.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|RoutingModelMiss|ScheduleQuality|OpsAttention|Alert|ObservePairQuality"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "Alert"`
+- `go test -tags=unit ./internal/repository -count=1 -run "NeedsOpsAttention|ErrorLogsWhere"`
+- `pnpm --dir frontend exec vitest run src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/ops_port.go`,
+`backend/internal/service/ops_alert_evaluator_service.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/handler/admin/ops_handler.go`,
+`backend/internal/handler/admin/ops_alerts_handler.go`,
+`backend/migrations/210_ops_attention_alert.sql`,
+`frontend/src/views/admin/ops/components/errorLogCaliberBadges.ts`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailsModal.vue`,
+`frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue`,
+`frontend/src/views/admin/ops/components/OpsAlertEventsCard.vue`,
+`frontend/src/views/admin/ops/OpsDashboard.vue`,
+`frontend/src/api/admin/ops.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
 ## 2026-08-21 - feat: smart-schedule long-term exemption (`pinned`)
 
 ### What

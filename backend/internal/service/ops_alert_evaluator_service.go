@@ -280,6 +280,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 				FiredAt:        now,
 				CreatedAt:      now,
 			}
+			s.enrichOpsAttentionAlert(ctx, rule, firedEvent, windowStart, windowEnd, scopePlatform, scopeGroupID)
 
 			created, err := s.opsRepo.CreateAlertEvent(ctx, firedEvent)
 			if err != nil {
@@ -549,6 +550,21 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 			return acc.HasError && acc.TempUnschedulableUntil == nil
 		})
 		return (float64(errorCount) / float64(total)) * 100, true
+	case "ops_attention_count":
+		if s == nil || s.opsRepo == nil {
+			return 0, false
+		}
+		n, err := s.opsRepo.CountOpsAttentionErrors(ctx, &OpsErrorLogFilter{
+			StartTime: &start,
+			EndTime:   &end,
+			Platform:  platform,
+			GroupID:   groupID,
+			View:      "all",
+		})
+		if err != nil {
+			return 0, false
+		}
+		return float64(n), true
 	case "overload_account_count":
 		if s == nil || s.opsService == nil {
 			return 0, false
@@ -613,6 +629,50 @@ func compareMetric(value float64, operator string, threshold float64) bool {
 		return value != threshold
 	default:
 		return false
+	}
+}
+
+func (s *OpsAlertEvaluatorService) enrichOpsAttentionAlert(
+	ctx context.Context,
+	rule *OpsAlertRule,
+	event *OpsAlertEvent,
+	start, end time.Time,
+	platform string,
+	groupID *int64,
+) {
+	if s == nil || s.opsRepo == nil || rule == nil || event == nil {
+		return
+	}
+	if strings.TrimSpace(rule.MetricType) != "ops_attention_count" {
+		return
+	}
+	if event.Dimensions == nil {
+		event.Dimensions = map[string]any{}
+	}
+	event.Dimensions["error_list_filter"] = "needs_ops_attention=true"
+	top, err := s.opsRepo.ListOpsAttentionBreakdown(ctx, &OpsErrorLogFilter{
+		StartTime: &start,
+		EndTime:   &end,
+		Platform:  platform,
+		GroupID:   groupID,
+		View:      "all",
+	}, 5)
+	if err != nil || len(top) == 0 {
+		return
+	}
+	event.Dimensions["top"] = top
+	parts := make([]string, 0, len(top))
+	for _, row := range top {
+		model := strings.TrimSpace(row.Model)
+		if model == "" {
+			model = "-"
+		}
+		parts = append(parts, fmt.Sprintf("g%d:%s×%d", row.GroupID, model, row.Count))
+	}
+	if event.Description != "" {
+		event.Description += "; top: " + strings.Join(parts, ", ")
+	} else {
+		event.Description = "top: " + strings.Join(parts, ", ")
 	}
 }
 

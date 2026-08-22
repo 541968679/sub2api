@@ -1246,6 +1246,14 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 		args = append(args, crid)
 		clauses = append(clauses, "COALESCE(e.client_request_id,'') = $"+itoa(len(args)))
 	}
+	if filter.NeedsOpsAttention != nil {
+		pred := service.SQLOpsAttentionPredicate("e.")
+		if *filter.NeedsOpsAttention {
+			clauses = append(clauses, pred)
+		} else {
+			clauses = append(clauses, "NOT ("+pred+")")
+		}
+	}
 
 	if q := strings.TrimSpace(filter.Query); q != "" {
 		like := "%" + q + "%"
@@ -1409,4 +1417,63 @@ func opsNullInt16(v *int16) any {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: int64(*v), Valid: true}
+}
+
+func opsAttentionListFilter(filter *service.OpsErrorLogFilter) *service.OpsErrorLogFilter {
+	out := service.OpsErrorLogFilter{View: "all"}
+	if filter != nil {
+		out = *filter
+		out.View = "all"
+	}
+	yes := true
+	out.NeedsOpsAttention = &yes
+	return &out
+}
+
+func (r *opsRepository) CountOpsAttentionErrors(ctx context.Context, filter *service.OpsErrorLogFilter) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, fmt.Errorf("nil ops repository")
+	}
+	where, args := buildOpsErrorLogsWhere(opsAttentionListFilter(filter))
+	var total int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ops_error_logs e "+where, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *opsRepository) ListOpsAttentionBreakdown(ctx context.Context, filter *service.OpsErrorLogFilter, limit int) ([]service.OpsAttentionBreakdown, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("nil ops repository")
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+	where, args := buildOpsErrorLogsWhere(opsAttentionListFilter(filter))
+	args = append(args, limit)
+	query := `
+SELECT COALESCE(e.group_id, 0),
+       COALESCE(NULLIF(TRIM(e.requested_model), ''), NULLIF(TRIM(e.model), ''), ''),
+       COUNT(*)
+FROM ops_error_logs e ` + where + `
+GROUP BY 1, 2
+ORDER BY COUNT(*) DESC
+LIMIT $` + itoa(len(args))
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]service.OpsAttentionBreakdown, 0, limit)
+	for rows.Next() {
+		var row service.OpsAttentionBreakdown
+		if err := rows.Scan(&row.GroupID, &row.Model, &row.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }

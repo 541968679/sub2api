@@ -12,6 +12,7 @@ interface Props {
   platform?: string
   groupId?: number | null
   errorType: 'request' | 'upstream'
+  needsOpsAttention?: boolean | null
 }
 
 const props = defineProps<Props>()
@@ -35,6 +36,7 @@ const phase = ref<string>('')
 const errorOwner = ref<string>('')
 const viewMode = ref<'errors' | 'excluded' | 'all'>('errors')
 const includeRecovered = ref(true)
+const attentionFilter = ref<'' | 'true' | 'false'>('')
 
 
 const modalTitle = computed(() => {
@@ -59,6 +61,14 @@ const ownerSelectOptions = computed(() => {
   ]
 })
 
+
+const attentionSelectOptions = computed(() => {
+  return [
+    { value: '', label: t('admin.ops.errorDetails.attentionAll') },
+    { value: 'true', label: t('admin.ops.errorDetails.attentionYes') },
+    { value: 'false', label: t('admin.ops.errorDetails.attentionNo') }
+  ]
+})
 
 const viewModeSelectOptions = computed(() => {
   return [
@@ -114,6 +124,7 @@ async function fetchErrorLogs() {
     if (props.errorType === 'request') {
       params.include_recovered = includeRecovered.value ? 'true' : 'false'
     }
+    if (attentionFilter.value) params.needs_ops_attention = attentionFilter.value
 
     const res = props.errorType === 'upstream'
       ? await opsAPI.listUpstreamErrors(params)
@@ -136,6 +147,7 @@ async function fetchErrorLogs() {
     errorOwner.value = ''
     viewMode.value = 'errors'
     includeRecovered.value = true
+    attentionFilter.value = props.needsOpsAttention === true ? 'true' : props.needsOpsAttention === false ? 'false' : ''
     page.value = 1
     fetchErrorLogs()
   }
@@ -182,7 +194,7 @@ watch(
 )
 
 watch(
-  () => [statusCode.value, phase.value, errorOwner.value, viewMode.value, includeRecovered.value] as const,
+  () => [statusCode.value, phase.value, errorOwner.value, viewMode.value, includeRecovered.value, attentionFilter.value] as const,
   () => {
     if (!props.show) return
     page.value = 1
@@ -234,6 +246,10 @@ watch(
 
           <div class="compact-select">
             <Select :model-value="viewMode" :options="viewModeSelectOptions" @update:model-value="viewMode = $event as any" />
+          </div>
+
+          <div class="compact-select">
+            <Select :model-value="attentionFilter" :options="attentionSelectOptions" @update:model-value="attentionFilter = String($event ?? '') as '' | 'true' | 'false'" />
           </div>
 
           <div class="flex items-center justify-end">

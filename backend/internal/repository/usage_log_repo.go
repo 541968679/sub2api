@@ -2483,7 +2483,7 @@ func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int
 	// list and smart-schedule header TTFT/success cells.
 	failoverCountExpr := "FALSE"
 	if idColumn == qualityStatsIDColumnAccount {
-		routingModelMissGuard = "\n\t\t  AND " + service.SQLExcludeAccountQualityRoutingModelMiss()
+		routingModelMissGuard = "\n\t\t  AND " + service.SQLExcludeAccountQualityScheduleNoise("")
 		statusPredicate = "(" + statusPredicate + " OR " + service.SQLAccountQualityFailoverErrorPredicate() + ")"
 		nativePred := service.SQLExcludeClaudeGPTBridgeError("platform", "upstream_model")
 		errorCountExpr = nativePred + " AND COALESCE(status_code, 0) >= 400"

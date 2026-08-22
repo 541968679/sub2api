@@ -23,6 +23,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [OpenAI API-Key Upstream Routing](./openai-apikey-upstream-routing.md) | `(inbound, extra)` → Responses vs CC; passthrough; dual probe | Active |
 | [Anthropic Messages SSE](./anthropic-messages-sse.md) | Responses→Anthropic SSE: `message_start` before `content_block_*`; empty compact 502 / `event: error` | Active |
 | [Account User Schedule](./account-user-schedule.md) | Independent allow/deny/pair-cap/quality-gate plus user×platform smart-schedule composition | Active |
+| [Ops Schedule Error Caliber](./ops-schedule-error-caliber.md) | Pair/account schedule exclude vs `needs_ops_attention` + `ops_attention_count` | Active |
 | [Account Quality Snapshots](./account-quality-snapshots.md) | last-N \(Q_a\) (site-wide N, default 20) persisted every 5m + history API | Active |
 | [User Quality Last-N](./user-quality-last-n.md) | last-N \(Q_u\) (same N, this user all accounts) + user history API | Active |
 | [Account Quality Hard Close](./account-quality-hard-close.md) | Opt-in last-N pause via TempUnschedulableUntil (same stats as the grid) | Active |

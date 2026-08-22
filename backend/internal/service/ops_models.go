@@ -82,6 +82,7 @@ type OpsErrorLog struct {
 	CountedInUserErrorRate       bool `json:"counted_in_user_error_rate"`
 	CountedInAccountCompareRate  bool `json:"counted_in_account_compare_rate"`
 	CountedInAccountScheduleRate bool `json:"counted_in_account_schedule_rate"`
+	NeedsOpsAttention            bool `json:"needs_ops_attention"`
 }
 
 type OpsErrorLogDetail struct {
@@ -139,6 +140,9 @@ type OpsErrorLogFilter struct {
 	// Bridge: ""|"all" = no filter, "bridge" = Claude-GPT bridge heuristic, "non_bridge" = inverse.
 	Bridge string
 
+	// NeedsOpsAttention filters list/stats/alert counts in SQL (not in memory).
+	NeedsOpsAttention *bool
+
 	// Optional correlation keys for exact matching.
 	RequestID       string
 	ClientRequestID string
@@ -157,6 +161,12 @@ type OpsErrorLogFilter struct {
 
 	Page     int
 	PageSize int
+}
+
+type OpsAttentionBreakdown struct {
+	GroupID int64  `json:"group_id"`
+	Model   string `json:"model"`
+	Count   int64  `json:"count"`
 }
 
 type OpsErrorLogList struct {

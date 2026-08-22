@@ -240,6 +240,63 @@ func TestObservePairQualityErrors_FailoverSwitch(t *testing.T) {
 	require.Len(t, observer.obs, 1, "recovered hop enters W_ok when failover toggle is on")
 }
 
+func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
+	t.Parallel()
+	accountID, userID := int64(1719), int64(9)
+	cases := []struct {
+		name    string
+		entry   *OpsInsertErrorLogInput
+		observe bool
+	}{
+		{
+			name: "group_no_account_502",
+			entry: &OpsInsertErrorLogInput{
+				AccountID: &accountID, UserID: &userID,
+				StatusCode: 502, ErrorPhase: "upstream", ErrorType: "upstream_error",
+				ErrorMessage: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
+			},
+		},
+		{
+			name: "client_400",
+			entry: &OpsInsertErrorLogInput{
+				AccountID: &accountID, UserID: &userID,
+				StatusCode: 400, ErrorPhase: "request", ErrorType: "invalid_request_error",
+				ErrorMessage: "missing required parameter",
+			},
+		},
+		{
+			name: "pair_concurrency",
+			entry: &OpsInsertErrorLogInput{
+				AccountID: &accountID, UserID: &userID,
+				StatusCode: 429, ErrorPhase: "request", ErrorType: "rate_limit_error",
+				ErrorMessage: "Concurrency limit exceeded for account",
+			},
+		},
+		{
+			name: "upstream_request_failed_502",
+			entry: &OpsInsertErrorLogInput{
+				AccountID: &accountID, UserID: &userID,
+				StatusCode: 502, ErrorPhase: "upstream", ErrorType: "upstream_error",
+				ErrorMessage: "Upstream request failed",
+			},
+			observe: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			observer := &pairObserverStub{}
+			svc := &OpsService{pairQuality: observer}
+			svc.observePairQualityErrors(context.Background(), []*OpsInsertErrorLogInput{tc.entry})
+			if tc.observe {
+				require.Len(t, observer.obs, 1)
+				require.False(t, observer.obs[0].Success)
+				return
+			}
+			require.Empty(t, observer.obs)
+		})
+	}
+}
+
 type pairObserverStub struct {
 	obs []PairQualityObservation
 }

@@ -14,8 +14,24 @@ var _ OpsRepository = (*stubOpsRepo)(nil)
 
 type stubOpsRepo struct {
 	OpsRepository
-	overview *OpsDashboardOverview
-	err      error
+	overview       *OpsDashboardOverview
+	err            error
+	attentionCount int64
+	attentionTop   []OpsAttentionBreakdown
+}
+
+func (s *stubOpsRepo) CountOpsAttentionErrors(ctx context.Context, filter *OpsErrorLogFilter) (int64, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	return s.attentionCount, nil
+}
+
+func (s *stubOpsRepo) ListOpsAttentionBreakdown(ctx context.Context, filter *OpsErrorLogFilter, limit int) ([]OpsAttentionBreakdown, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.attentionTop, nil
 }
 
 func (s *stubOpsRepo) GetDashboardOverview(ctx context.Context, filter *OpsDashboardFilter) (*OpsDashboardOverview, error) {
@@ -243,4 +259,29 @@ func TestComputeRuleMetricNewIndicators(t *testing.T) {
 			require.InDelta(t, tt.wantValue, gotValue, 0.0001)
 		})
 	}
+}
+
+func TestComputeRuleMetric_OpsAttentionCount(t *testing.T) {
+	t.Parallel()
+	svc := &OpsAlertEvaluatorService{
+		opsRepo: &stubOpsRepo{attentionCount: 7},
+	}
+	now := time.Now().UTC()
+	val, ok := svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "ops_attention_count"}, nil, now.Add(-15*time.Minute), now, "", nil)
+	require.True(t, ok)
+	require.InDelta(t, 7.0, val, 0.0001)
+}
+
+func TestEnrichOpsAttentionAlert(t *testing.T) {
+	t.Parallel()
+	svc := &OpsAlertEvaluatorService{
+		opsRepo: &stubOpsRepo{
+			attentionTop: []OpsAttentionBreakdown{{GroupID: 3, Model: "gpt-5.6-terra", Count: 12}},
+		},
+	}
+	event := &OpsAlertEvent{Description: "ops_attention_count > 0.00 (current 12.00) over last 15m (overall)"}
+	now := time.Now().UTC()
+	svc.enrichOpsAttentionAlert(context.Background(), &OpsAlertRule{MetricType: "ops_attention_count"}, event, now.Add(-15*time.Minute), now, "", nil)
+	require.Equal(t, "needs_ops_attention=true", event.Dimensions["error_list_filter"])
+	require.Contains(t, event.Description, "g3:gpt-5.6-terra×12")
 }

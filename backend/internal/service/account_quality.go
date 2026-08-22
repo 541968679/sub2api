@@ -626,22 +626,7 @@ func NormalizeAccountQualityHistoryRange(from, to, now time.Time) (time.Time, ti
 // upstream/rate-limit class. Account-dimension scheduling ErrorCount uses the
 // complementary SQLExcludeAccountQualityRoutingModelMiss; user quality does not.
 func SQLAccountQualityRoutingModelMissPredicate() string {
-	return `COALESCE(status_code, 0) IN (400, 403, 404, 503)` +
-		` AND COALESCE(error_phase, '') <> 'upstream'` +
-		` AND LOWER(COALESCE(error_type, '')) NOT IN ('upstream_error','overloaded_error','rate_limit_error')` +
-		` AND (` +
-		`LOWER(COALESCE(error_type, '')) = 'model_not_found'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%model_not_found%'` +
-		` OR LOWER(COALESCE(error_body, '')) LIKE '%model_not_found%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%unknown model%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%model not found%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%unsupported model%'` +
-		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%does not exist%')` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%not supported by any configured account%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%supporting model:%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%no account supports%'` +
-		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%not in whitelist%')` +
-		`)`
+	return SQLAccountQualityRoutingModelMissPredicatePrefixed("")
 }
 
 // SQLExcludeAccountQualityRoutingModelMiss is the scheduling ErrorCount filter
@@ -721,28 +706,35 @@ type OpsErrorRateCalibers struct {
 	CountedInUserErrorRate       bool
 	CountedInAccountCompareRate  bool
 	CountedInAccountScheduleRate bool
+	NeedsOpsAttention            bool
 }
 
 // ClassifyOpsErrorRateCalibers uses the same predicates as quality SQL / SLA.
 // User rate = client status>=400. Compare account rate = this hop failed
 // (terminal >=400 or Recovered), excluding model-not-found and bridge.
-// Schedule account rate follows the site-wide failover toggle.
+// Schedule account rate follows the site-wide failover toggle, then drops
+// client noise and ops-attention families (group/model gap, routing 503,
+// protocol mismatch). Those families still land in ops_error_logs.
 func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers {
 	recovered := IsRecoveredOpsError(in.Phase, in.ClientStatus, in.Message)
 	user := in.ClientStatus >= 400
 	routingMiss := IsAccountQualityRoutingModelMiss(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
 	bridge := IsClaudeGPTBridgeError(in.Platform, in.UpstreamModel)
-	terminalAccount := user && !routingMiss && !bridge
+	attention := IsOpsAttentionError(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
+	noise := IsScheduleClientNoise(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
+	scheduleSkip := routingMiss || bridge || attention || noise
+	terminalAccount := user && !routingMiss && !bridge && !attention && !noise
 	compareAccount := !routingMiss && !bridge && (user || recovered)
 	schedule := terminalAccount
 	if in.UseFailover {
-		schedule = compareAccount
+		schedule = compareAccount && !scheduleSkip
 	}
 	return OpsErrorRateCalibers{
 		IsRecovered:                  recovered,
 		CountedInUserErrorRate:       user,
 		CountedInAccountCompareRate:  compareAccount,
 		CountedInAccountScheduleRate: schedule,
+		NeedsOpsAttention:            attention,
 	}
 }
 
@@ -765,4 +757,5 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 	item.CountedInUserErrorRate = cals.CountedInUserErrorRate
 	item.CountedInAccountCompareRate = cals.CountedInAccountCompareRate
 	item.CountedInAccountScheduleRate = cals.CountedInAccountScheduleRate
+	item.NeedsOpsAttention = cals.NeedsOpsAttention
 }

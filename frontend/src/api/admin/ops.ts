@@ -688,6 +688,7 @@ export type MetricType =
   | 'account_error_ratio'
   | 'account_temp_unscheduled_count'
   | 'overload_account_count'
+  | 'ops_attention_count'
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
 export interface AlertRule {
@@ -927,6 +928,7 @@ export interface OpsErrorLog {
   counted_in_user_error_rate?: boolean
   counted_in_account_compare_rate?: boolean
   counted_in_account_schedule_rate?: boolean
+  needs_ops_attention?: boolean
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {
