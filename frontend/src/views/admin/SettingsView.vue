@@ -475,105 +475,6 @@
             </div>
           </div>
 
-          <!-- Schedule Error Whitelist -->
-          <div class="card" data-test="schedule-error-whitelist-card">
-            <div
-              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
-            >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ t("admin.settings.scheduleErrorWhitelist.title") }}
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t("admin.settings.scheduleErrorWhitelist.description") }}
-              </p>
-            </div>
-            <div class="space-y-5 p-6">
-              <div
-                v-if="scheduleErrorWhitelistLoading"
-                class="flex items-center gap-2 text-gray-500"
-              >
-                <div
-                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
-                ></div>
-                {{ t("common.loading") }}
-              </div>
-
-              <template v-else>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.scheduleErrorWhitelist.checkedHint") }}
-                </p>
-                <div class="space-y-3">
-                  <label
-                    v-for="id in scheduleErrorWhitelistFamilyIds"
-                    :key="id"
-                    class="flex items-start gap-3 rounded-lg border border-gray-100 p-3 dark:border-dark-700"
-                    :data-test="`schedule-error-whitelist-${id}`"
-                  >
-                    <input
-                      v-model="scheduleErrorWhitelistForm.families[id]"
-                      type="checkbox"
-                      class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span>
-                      <span
-                        class="font-medium text-gray-900 dark:text-white"
-                      >{{
-                        t(
-                          `admin.settings.scheduleErrorWhitelist.families.${id}.label`,
-                        )
-                      }}</span>
-                      <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                        {{
-                          t(
-                            `admin.settings.scheduleErrorWhitelist.families.${id}.hint`,
-                          )
-                        }}
-                      </p>
-                    </span>
-                  </label>
-                </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    data-test="schedule-error-whitelist-save"
-                    @click="saveScheduleErrorWhitelist"
-                    :disabled="scheduleErrorWhitelistSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="scheduleErrorWhitelistSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      scheduleErrorWhitelistSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
-                </div>
-              </template>
-            </div>
-          </div>
-
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -6471,8 +6372,6 @@ import {
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
   resolveWeChatConnectModeCapabilities,
-  SCHEDULE_ERROR_WHITELIST_FAMILY_IDS,
-  defaultScheduleErrorWhitelist,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
@@ -6487,7 +6386,6 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
-  ScheduleErrorWhitelistFamilyId,
 } from "@/api/admin/settings";
 import type { AdminGroup, Proxy, NotifyEmailEntry } from "@/types";
 import type { ProviderInstance } from "@/types/payment";
@@ -6616,23 +6514,6 @@ const qualityHardCloseForm = reactive({
   condition: "or" as "or" | "and",
   schedule_use_failover_error_rate: false,
 });
-
-const scheduleErrorWhitelistLoading = ref(true);
-const scheduleErrorWhitelistSaving = ref(false);
-const scheduleErrorWhitelistFamilyIds = SCHEDULE_ERROR_WHITELIST_FAMILY_IDS;
-const scheduleErrorWhitelistForm = reactive(defaultScheduleErrorWhitelist());
-
-function applyScheduleErrorWhitelist(
-  settings: { families?: Record<string, boolean> } | null | undefined,
-) {
-  const next = defaultScheduleErrorWhitelist();
-  for (const id of SCHEDULE_ERROR_WHITELIST_FAMILY_IDS) {
-    if (settings?.families && typeof settings.families[id] === "boolean") {
-      next.families[id] = settings.families[id];
-    }
-    scheduleErrorWhitelistForm.families[id] = next.families[id];
-  }
-}
 
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
@@ -8440,42 +8321,6 @@ async function saveQualityHardCloseSettings() {
   }
 }
 
-async function loadScheduleErrorWhitelist() {
-  scheduleErrorWhitelistLoading.value = true;
-  try {
-    const settings = await adminAPI.settings.getScheduleErrorWhitelist();
-    applyScheduleErrorWhitelist(settings);
-  } catch (_error: unknown) {
-    applyScheduleErrorWhitelist(defaultScheduleErrorWhitelist());
-  } finally {
-    scheduleErrorWhitelistLoading.value = false;
-  }
-}
-
-async function saveScheduleErrorWhitelist() {
-  scheduleErrorWhitelistSaving.value = true;
-  try {
-    const families = {} as Record<ScheduleErrorWhitelistFamilyId, boolean>;
-    for (const id of SCHEDULE_ERROR_WHITELIST_FAMILY_IDS) {
-      families[id] = scheduleErrorWhitelistForm.families[id] === true;
-    }
-    const updated = await adminAPI.settings.updateScheduleErrorWhitelist({
-      families,
-    });
-    applyScheduleErrorWhitelist(updated);
-    appStore.showSuccess(t("admin.settings.scheduleErrorWhitelist.saved"));
-  } catch (error: unknown) {
-    appStore.showError(
-      extractApiErrorMessage(
-        error,
-        t("admin.settings.scheduleErrorWhitelist.saveFailed"),
-      ),
-    );
-  } finally {
-    scheduleErrorWhitelistSaving.value = false;
-  }
-}
-
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -9106,7 +8951,6 @@ onMounted(() => {
   loadAdminApiKey();
   loadOverloadCooldownSettings();
   loadQualityHardCloseSettings();
-  loadScheduleErrorWhitelist();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

@@ -33,9 +33,11 @@ func TestSettingHandler_GetScheduleErrorWhitelist_Defaults(t *testing.T) {
 		Data service.ScheduleErrorWhitelist `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-	require.True(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyClientInvalidRequest))
-	require.True(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyGroupNoAccount))
+	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyClientInvalidRequest))
+	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyGroupNoAccount))
 	require.Len(t, body.Data.Families, len(service.ScheduleErrorFamilyIDs))
+	_, hasLegacyMiss := body.Data.Families[service.ScheduleErrorFamilyRoutingModelMiss]
+	require.False(t, hasLegacyMiss)
 }
 
 func TestSettingHandler_UpdateScheduleErrorWhitelist_RoundTrip(t *testing.T) {
@@ -61,7 +63,7 @@ func TestSettingHandler_UpdateScheduleErrorWhitelist_RoundTrip(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyGroupNoAccount))
-	require.True(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyClientInvalidRequest))
+	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyClientInvalidRequest))
 }
 
 func TestSettingHandler_UpdateScheduleErrorWhitelist_RejectsUnknownFamily(t *testing.T) {

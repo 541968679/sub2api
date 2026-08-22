@@ -374,7 +374,8 @@ const (
 
 	// SettingKeyScheduleErrorWhitelist stores JSON of preset schedule-error
 	// families. true = in whitelist = exclude from pair cooldown / last-N /
-	// account 15m schedule ErrorCount. Missing or empty = factory defaults.
+	// account 15m schedule ErrorCount. Missing / {} / families:{} / all-false
+	// = no new excludes (legacy routing miss stays hardcoded).
 	SettingKeyScheduleErrorWhitelist = "schedule_error_whitelist"
 
 	// =========================

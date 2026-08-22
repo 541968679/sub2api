@@ -255,6 +255,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
 				Message: "missing required parameter",
 			},
+			schedule: true,
 		},
 		{
 			name: "hop_invalid_request_upstream_400",
@@ -270,6 +271,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "internal", Type: "api_error",
 				Message: "Upstream request failed",
 			},
+			schedule: true,
 		},
 		{
 			name: "prompt_too_long",
@@ -277,6 +279,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
 				Message: "prompt is too long",
 			},
+			schedule: true,
 		},
 		{
 			name: "pair_concurrency_429",
@@ -284,6 +287,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 429, Phase: "request", Type: "rate_limit_error",
 				Message: "Concurrency limit exceeded for account",
 			},
+			schedule: true,
 		},
 		{
 			name: "group_no_account_404",
@@ -299,6 +303,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
 				Message: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
 			},
+			schedule:  true,
 			attention: true,
 		},
 		{
@@ -307,6 +312,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 503, Phase: "routing", Type: "api_error",
 				Message: "Service temporarily unavailable",
 			},
+			schedule:  true,
 			attention: true,
 		},
 		{
@@ -315,6 +321,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
 				Message: "not supported on the Chat Completions endpoint",
 			},
+			schedule:  true,
 			attention: true,
 		},
 		{
@@ -323,6 +330,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
 				Message: "Unsupported content type",
 			},
+			schedule:  true,
 			attention: true,
 		},
 		{
@@ -331,6 +339,7 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
 				Message: "Invalid URL",
 			},
+			schedule:  true,
 			attention: true,
 		},
 		{
@@ -367,6 +376,8 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 func TestSQLScheduleQualityExcludedPredicate_Covers502GroupGap(t *testing.T) {
 	pred := SQLScheduleQualityExcludedPredicate("")
 	require.Contains(t, pred, "%not supported by any configured account%")
+	require.Contains(t, pred, "IN (400, 403, 404, 503)")
+	require.Contains(t, pred, "<> 'upstream'")
 	groupPred := SQLGroupNoAccountForModelPredicate("")
 	require.NotContains(t, groupPred, "<> 'upstream'")
 	require.NotContains(t, groupPred, "IN (400, 403, 404, 503)")

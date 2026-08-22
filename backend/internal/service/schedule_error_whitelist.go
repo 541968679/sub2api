@@ -23,28 +23,30 @@ const (
 	scheduleErrorWhitelistCacheTTL = 3 * time.Second
 )
 
-// ScheduleErrorFamilyIDs is the stable preset set. SQL needles are code
-// constants only — admins cannot add custom LIKE families.
+// ScheduleErrorFamilyIDs is the admin-toggleable set added by this feature.
+// SQL needles are code constants only — admins cannot add custom LIKE.
+// Legacy routing miss (IsAccountQualityRoutingModelMiss) is hardcoded and
+// is not in this list; empty config therefore matches pre-feature production.
 var ScheduleErrorFamilyIDs = []string{
 	ScheduleErrorFamilyClientInvalidRequest,
 	ScheduleErrorFamilyClientWrapped400URF,
 	ScheduleErrorFamilyClientContextTooLong,
 	ScheduleErrorFamilyPairConcurrency,
 	ScheduleErrorFamilyGroupNoAccount,
-	ScheduleErrorFamilyRoutingModelMiss,
 	ScheduleErrorFamilyRoutingPoolEmpty,
 	ScheduleErrorFamilyProtocolMismatch,
 }
 
+// defaultScheduleErrorFamilyEnabled is the factory preset: all new families
+// off. Missing key / {} / families:{} / all-false = no new excludes.
 var defaultScheduleErrorFamilyEnabled = map[string]bool{
-	ScheduleErrorFamilyClientInvalidRequest: true,
-	ScheduleErrorFamilyClientWrapped400URF:  true,
-	ScheduleErrorFamilyClientContextTooLong: true,
-	ScheduleErrorFamilyPairConcurrency:      true,
-	ScheduleErrorFamilyGroupNoAccount:       true,
-	ScheduleErrorFamilyRoutingModelMiss:     true,
-	ScheduleErrorFamilyRoutingPoolEmpty:     true,
-	ScheduleErrorFamilyProtocolMismatch:     true,
+	ScheduleErrorFamilyClientInvalidRequest: false,
+	ScheduleErrorFamilyClientWrapped400URF:  false,
+	ScheduleErrorFamilyClientContextTooLong: false,
+	ScheduleErrorFamilyPairConcurrency:      false,
+	ScheduleErrorFamilyGroupNoAccount:       false,
+	ScheduleErrorFamilyRoutingPoolEmpty:     false,
+	ScheduleErrorFamilyProtocolMismatch:     false,
 }
 
 // ScheduleErrorWhitelist is the Settings KV shape for schedule-error families.
@@ -54,11 +56,15 @@ type ScheduleErrorWhitelist struct {
 }
 
 func knownScheduleErrorFamily(id string) bool {
+	if id == ScheduleErrorFamilyRoutingModelMiss {
+		// Accepted on save for old payloads; ignored. Old miss is hardcoded.
+		return true
+	}
 	_, ok := defaultScheduleErrorFamilyEnabled[id]
 	return ok
 }
 
-// DefaultScheduleErrorWhitelist is the factory preset (all families on).
+// DefaultScheduleErrorWhitelist is the factory preset (all new families off).
 func DefaultScheduleErrorWhitelist() ScheduleErrorWhitelist {
 	families := make(map[string]bool, len(ScheduleErrorFamilyIDs))
 	for _, id := range ScheduleErrorFamilyIDs {
@@ -96,7 +102,8 @@ func (w ScheduleErrorWhitelist) FamilyEnabled(id string) bool {
 	return false
 }
 
-// ParseScheduleErrorWhitelistJSON treats empty / invalid JSON as factory default.
+// ParseScheduleErrorWhitelistJSON treats empty / invalid JSON as factory
+// default (all new families off).
 func ParseScheduleErrorWhitelistJSON(raw string) ScheduleErrorWhitelist {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

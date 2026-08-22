@@ -698,7 +698,8 @@ type OpsErrorCaliberInput struct {
 	Platform      string
 	UpstreamModel string
 	UseFailover   bool
-	// Whitelist is the current schedule-error family config. Nil = factory default.
+	// Whitelist is the current schedule-error family config. Nil = factory
+	// default (all new families off; legacy routing miss stays hardcoded).
 	Whitelist *ScheduleErrorWhitelist
 }
 
@@ -715,8 +716,9 @@ type OpsErrorRateCalibers struct {
 // User rate = client status>=400. Compare account rate = this hop failed
 // (terminal >=400 or Recovered), excluding model-not-found and bridge.
 // Schedule account rate follows the site-wide failover toggle, then drops
-// enabled schedule-error whitelist families. Attention does not follow the
-// whitelist. Those families still land in ops_error_logs.
+// the hardcoded pre-feature routing miss and any enabled new whitelist
+// families. Attention does not follow the whitelist. Those families still
+// land in ops_error_logs.
 func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers {
 	recovered := IsRecoveredOpsError(in.Phase, in.ClientStatus, in.Message)
 	user := in.ClientStatus >= 400

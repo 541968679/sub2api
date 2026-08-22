@@ -255,6 +255,7 @@ func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
 				StatusCode: 502, ErrorPhase: "upstream", ErrorType: "upstream_error",
 				ErrorMessage: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
 			},
+			observe: true,
 		},
 		{
 			name: "client_400",
@@ -263,6 +264,7 @@ func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
 				StatusCode: 400, ErrorPhase: "request", ErrorType: "invalid_request_error",
 				ErrorMessage: "missing required parameter",
 			},
+			observe: true,
 		},
 		{
 			name: "pair_concurrency",
@@ -270,6 +272,15 @@ func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
 				AccountID: &accountID, UserID: &userID,
 				StatusCode: 429, ErrorPhase: "request", ErrorType: "rate_limit_error",
 				ErrorMessage: "Concurrency limit exceeded for account",
+			},
+			observe: true,
+		},
+		{
+			name: "legacy_routing_miss_404",
+			entry: &OpsInsertErrorLogInput{
+				AccountID: &accountID, UserID: &userID,
+				StatusCode: 404, ErrorPhase: "internal", ErrorType: "model_not_found",
+				ErrorMessage: "model_not_found: claude-bad",
 			},
 		},
 		{
@@ -297,11 +308,10 @@ func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
 	}
 }
 
-func TestObservePairQualityErrors_GroupNoAccountWhitelistOff(t *testing.T) {
+func TestObservePairQualityErrors_GroupNoAccountWhitelistOn(t *testing.T) {
 	t.Parallel()
 	accountID, userID := int64(1719), int64(9)
-	wl := DefaultScheduleErrorWhitelist()
-	wl.Families[ScheduleErrorFamilyGroupNoAccount] = false
+	wl := whitelistAll(true)
 	raw, err := json.Marshal(wl)
 	require.NoError(t, err)
 	repo := newRuntimeSettingRepoStub()
@@ -313,8 +323,7 @@ func TestObservePairQualityErrors_GroupNoAccountWhitelistOff(t *testing.T) {
 		StatusCode: 502, ErrorPhase: "upstream", ErrorType: "upstream_error",
 		ErrorMessage: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
 	}})
-	require.Len(t, observer.obs, 1)
-	require.False(t, observer.obs[0].Success)
+	require.Empty(t, observer.obs)
 }
 
 type pairObserverStub struct {

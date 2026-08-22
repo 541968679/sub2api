@@ -1,3 +1,57 @@
+## 2026-08-22 - fix: schedule error whitelist defaults empty so ship matches live schedule
+
+### What
+- Factory `schedule_error_whitelist` is now all `false`. Missing key / `{}` / `families: {}` / all-false adds **no new** schedule excludes.
+- Legacy `IsAccountQualityRoutingModelMiss` (400/403/404/503, phase≠upstream, model-not-found rails) stays **hardcoded** and is removed from the checkbox UI, so 404 `model_not_found` does not start cooling accounts.
+- New families (client request 400, 400 URF, long context, pair concurrency, unrestricted group-no-account, routing 503, protocol mismatch) only exclude after an admin checks them.
+- 502 `Upstream request failed` still always counts. Recovered / Claude–GPT bridge unchanged.
+- Entry stays in the account/user 「错误」 modal, not Settings / Ops error modal.
+
+### Why
+- Shipping the previous all-true factory JSON would change production cooldown on day one.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|ScheduleError|ScheduleQuality|ObservePairQuality|HopInvalid|GroupNoAccount|UpstreamRequestFailed|ApplyOpsError|ApplyErrorLog|RoutingModelMiss"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "ScheduleErrorWhitelist"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/domain_constants.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`,
+`.trellis/spec/backend/account-user-schedule.md`
+
+## 2026-08-22 - move: schedule error whitelist into account/user error modal
+
+### What
+- Removed the Gateway settings checkbox group.
+- Added a third tab in `UsageErrorInspectDialog` (账号/用户列表操作栏「错误」按钮打开的弹窗): usage | errors | schedule error whitelist.
+- Account and user lists share that dialog, so both get the tab. Not in Ops `OpsErrorDetailsModal`.
+- Same GET/PUT `/api/v1/admin/settings/schedule-error-whitelist`. Missing config shows empty (all unchecked) factory defaults.
+
+### Why
+- Operators configure schedule-caliber excludes next to the account/user error list, not under system settings or the Ops dashboard error modal.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
 ## 2026-08-22 - feat: schedule error whitelist (preset families)
 
 ### What

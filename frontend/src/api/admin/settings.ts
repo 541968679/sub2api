@@ -1172,7 +1172,6 @@ export const SCHEDULE_ERROR_WHITELIST_FAMILY_IDS = [
   "client_context_too_long",
   "pair_concurrency",
   "group_no_account",
-  "routing_model_miss",
   "routing_pool_empty",
   "protocol_mismatch",
 ] as const;
@@ -1187,7 +1186,7 @@ export interface ScheduleErrorWhitelistSettings {
 export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings {
   return {
     families: Object.fromEntries(
-      SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, true]),
+      SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, false]),
     ) as ScheduleErrorWhitelistSettings["families"],
   };
 }

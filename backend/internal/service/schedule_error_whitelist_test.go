@@ -22,7 +22,7 @@ func whitelistAll(on bool) ScheduleErrorWhitelist {
 	return wl
 }
 
-func TestClassify_HopInvalidRequestCounts_RequestPhaseExcluded(t *testing.T) {
+func TestClassify_HopInvalidRequestCounts_RequestPhaseFollowsWhitelist(t *testing.T) {
 	t.Parallel()
 	hop := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
@@ -31,12 +31,21 @@ func TestClassify_HopInvalidRequestCounts_RequestPhaseExcluded(t *testing.T) {
 	require.True(t, hop.CountedInAccountScheduleRate)
 	require.False(t, hop.NeedsOpsAttention)
 
-	client := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+	clientDefault := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
 		Message: "invalid json from hop",
 	})
-	require.False(t, client.CountedInAccountScheduleRate)
-	require.False(t, client.NeedsOpsAttention)
+	require.True(t, clientDefault.CountedInAccountScheduleRate)
+	require.False(t, clientDefault.NeedsOpsAttention)
+
+	allOn := whitelistAll(true)
+	clientOn := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
+		Message: "invalid json from hop",
+		Whitelist:    &allOn,
+	})
+	require.False(t, clientOn.CountedInAccountScheduleRate)
+	require.False(t, clientOn.NeedsOpsAttention)
 }
 
 func TestClassify_GroupNoAccountWhitelistToggle(t *testing.T) {
@@ -46,9 +55,13 @@ func TestClassify_GroupNoAccountWhitelistToggle(t *testing.T) {
 		Message: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
 	}
 
+	gotDefault := ClassifyOpsErrorRateCalibers(in)
+	require.True(t, gotDefault.CountedInAccountScheduleRate)
+	require.True(t, gotDefault.NeedsOpsAttention)
+
 	on := in
-	def := DefaultScheduleErrorWhitelist()
-	on.Whitelist = &def
+	wlOn := whitelistAll(true)
+	on.Whitelist = &wlOn
 	gotOn := ClassifyOpsErrorRateCalibers(on)
 	require.False(t, gotOn.CountedInAccountScheduleRate)
 	require.True(t, gotOn.NeedsOpsAttention)
@@ -58,6 +71,23 @@ func TestClassify_GroupNoAccountWhitelistToggle(t *testing.T) {
 	off.Whitelist = &wl
 	gotOff := ClassifyOpsErrorRateCalibers(off)
 	require.True(t, gotOff.CountedInAccountScheduleRate)
+	require.True(t, gotOff.NeedsOpsAttention)
+}
+
+func TestClassify_RoutingModelMissAlwaysExcluded(t *testing.T) {
+	t.Parallel()
+	in := OpsErrorCaliberInput{
+		ClientStatus: 404, Phase: "internal", Type: "model_not_found",
+		Message: "model_not_found: claude-bad",
+	}
+	got := ClassifyOpsErrorRateCalibers(in)
+	require.False(t, got.CountedInAccountScheduleRate)
+	require.True(t, got.NeedsOpsAttention)
+
+	allOff := whitelistAll(false)
+	in.Whitelist = &allOff
+	gotOff := ClassifyOpsErrorRateCalibers(in)
+	require.False(t, gotOff.CountedInAccountScheduleRate)
 	require.True(t, gotOff.NeedsOpsAttention)
 }
 
@@ -85,14 +115,23 @@ func TestClassify_502UpstreamRequestFailedAlwaysCounted(t *testing.T) {
 	}
 }
 
-func TestClassify_400UpstreamRequestFailedDefaultExcluded(t *testing.T) {
+func TestClassify_400UpstreamRequestFailedDefaultCounted(t *testing.T) {
 	t.Parallel()
 	got := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 400, Phase: "internal", Type: "api_error",
 		Message: "Upstream request failed",
 	})
-	require.False(t, got.CountedInAccountScheduleRate)
+	require.True(t, got.CountedInAccountScheduleRate)
 	require.False(t, got.NeedsOpsAttention)
+
+	allOn := whitelistAll(true)
+	gotOn := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 400, Phase: "internal", Type: "api_error",
+		Message:   "Upstream request failed",
+		Whitelist: &allOn,
+	})
+	require.False(t, gotOn.CountedInAccountScheduleRate)
+	require.False(t, gotOn.NeedsOpsAttention)
 }
 
 func TestApplyOpsErrorRateCalibers_BodyOnlyGroupNoAccount(t *testing.T) {
@@ -106,7 +145,7 @@ func TestApplyOpsErrorRateCalibers_BodyOnlyGroupNoAccount(t *testing.T) {
 	}
 	ApplyOpsErrorRateCalibers(item, 502, item.ErrorBody, false)
 	require.True(t, item.NeedsOpsAttention)
-	require.False(t, item.CountedInAccountScheduleRate)
+	require.True(t, item.CountedInAccountScheduleRate)
 }
 
 func TestApplyErrorLogCalibers_KeepsErrorBody(t *testing.T) {
@@ -121,6 +160,19 @@ func TestApplyErrorLogCalibers_KeepsErrorBody(t *testing.T) {
 	}}}
 	svc.applyErrorLogCalibers(context.Background(), result)
 	require.True(t, result.Errors[0].NeedsOpsAttention)
+}
+
+func TestValidateScheduleErrorWhitelist_AcceptsLegacyRoutingModelMiss(t *testing.T) {
+	t.Parallel()
+	err := ValidateScheduleErrorWhitelist(&ScheduleErrorWhitelist{
+		Families: map[string]bool{ScheduleErrorFamilyRoutingModelMiss: true},
+	})
+	require.NoError(t, err)
+	normalized := NormalizeScheduleErrorWhitelist(ScheduleErrorWhitelist{
+		Families: map[string]bool{ScheduleErrorFamilyRoutingModelMiss: false},
+	})
+	_, present := normalized.Families[ScheduleErrorFamilyRoutingModelMiss]
+	require.False(t, present)
 }
 
 func TestValidateScheduleErrorWhitelist_RejectsUnknownFamily(t *testing.T) {
@@ -158,24 +210,29 @@ func TestGetScheduleErrorWhitelist_MissingAndPartial(t *testing.T) {
 	got, err = svc.GetScheduleErrorWhitelist(context.Background())
 	require.NoError(t, err)
 	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyGroupNoAccount))
-	require.True(t, got.FamilyEnabled(ScheduleErrorFamilyClientInvalidRequest))
+	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyClientInvalidRequest))
 
 	var stored ScheduleErrorWhitelist
 	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyScheduleErrorWhitelist]), &stored))
 	require.Len(t, stored.Families, len(ScheduleErrorFamilyIDs))
+	_, hasLegacyMiss := stored.Families[ScheduleErrorFamilyRoutingModelMiss]
+	require.False(t, hasLegacyMiss)
 }
 
 func TestSQLScheduleQualityExcludedPredicate_RespectsWhitelist(t *testing.T) {
 	t.Parallel()
 	def := SQLScheduleQualityExcludedPredicate("")
 	require.Contains(t, def, "%not supported by any configured account%")
-	require.Contains(t, def, "invalid_request_error")
-	require.Contains(t, def, "'request'")
+	require.Contains(t, def, "IN (400, 403, 404, 503)")
+	require.Contains(t, def, "<> 'upstream'")
 	require.Contains(t, def, "502")
 	require.Contains(t, def, "%upstream request failed%")
+	require.NotContains(t, def, "invalid_request_error")
 
 	allOff := SQLScheduleQualityExcludedPredicateWith("", whitelistAll(false))
-	require.Equal(t, "FALSE", allOff)
+	require.NotEqual(t, "FALSE", allOff)
+	require.Contains(t, allOff, "IN (400, 403, 404, 503)")
+	require.NotContains(t, allOff, "invalid_request_error")
 
 	onlyGroup := whitelistAll(false)
 	onlyGroup.Families[ScheduleErrorFamilyGroupNoAccount] = true
@@ -189,5 +246,7 @@ func TestParseScheduleErrorWhitelistJSON_EmptyIsDefault(t *testing.T) {
 	require.Equal(t, DefaultScheduleErrorWhitelist(), ParseScheduleErrorWhitelistJSON(""))
 	require.Equal(t, DefaultScheduleErrorWhitelist(), ParseScheduleErrorWhitelistJSON("not-json"))
 	got := ParseScheduleErrorWhitelistJSON(`{"families":{}}`)
-	require.True(t, got.FamilyEnabled(ScheduleErrorFamilyClientInvalidRequest))
+	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyClientInvalidRequest))
+	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyGroupNoAccount))
+	require.Equal(t, DefaultScheduleErrorWhitelist(), got)
 }

@@ -49,34 +49,34 @@ JSON shape:
 ```json
 {
   "families": {
-    "client_invalid_request": true,
-    "client_wrapped_400_urf": true,
-    "client_context_too_long": true,
-    "pair_concurrency": true,
-    "group_no_account": true,
-    "routing_model_miss": true,
-    "routing_pool_empty": true,
-    "protocol_mismatch": true
+    "client_invalid_request": false,
+    "client_wrapped_400_urf": false,
+    "client_context_too_long": false,
+    "pair_concurrency": false,
+    "group_no_account": false,
+    "routing_pool_empty": false,
+    "protocol_mismatch": false
   }
 }
 ```
 
 `true` = in whitelist = **exclude** from pair cooldown / account last-N / account 15m schedule `ErrorCount` (`CountedInAccountScheduleRate`).  
 Uncheck a family = that family counts toward schedule again.  
-Missing key / empty / invalid JSON = factory default (all families `true`).
+Missing key / `{}` / `families: {}` / invalid JSON / all `false` = **no new excludes**. Same schedule ingest as production before this feature.
 
-No free-text needles. No custom LIKE. No new admin page — checkbox group on the existing settings page. Save accepts only known family ids + bool.
+Legacy `IsAccountQualityRoutingModelMiss` (phase≠upstream, status∈400/403/404/503, model-not-found / whitelist wording) is **hardcoded** and is **not** a checkbox. Putting it on the whitelist with default false would let 404 `model_not_found` cool accounts again. Save may still accept `routing_model_miss` from old payloads; it is dropped on persist and has no effect.
+
+No free-text needles. No custom LIKE. No new admin page — checkbox group as a tab inside the account/user action-bar error modal (`UsageErrorInspectDialog`, opened by 「错误」). Not in `OpsErrorDetailsModal`. Save accepts only known family ids + bool. UI opens with every new family unchecked.
 
 | id | Default on | Match |
 | --- | --- | --- |
-| `client_invalid_request` | yes | `error_type=invalid_request_error` **and** `error_phase=request` |
-| `client_wrapped_400_urf` | yes | status=400 and message contains `upstream request failed` (must look at status) |
-| `client_context_too_long` | yes | 413 / prompt too long / context window / array too long |
-| `pair_concurrency` | yes | 429 + `Concurrency limit exceeded for account` |
-| `group_no_account` | yes | group-has-no-account wording, any phase/status |
-| `routing_model_miss` | yes | existing `IsAccountQualityRoutingModelMiss` safety rails unchanged |
-| `routing_pool_empty` | yes | `error_phase=routing` and status=503 |
-| `protocol_mismatch` | yes | Chat Completions endpoint / Unsupported content type / Invalid URL |
+| `client_invalid_request` | no | `error_type=invalid_request_error` **and** `error_phase=request` |
+| `client_wrapped_400_urf` | no | status=400 and message contains `upstream request failed` (must look at status) |
+| `client_context_too_long` | no | 413 / prompt too long / context window / array too long |
+| `pair_concurrency` | no | 429 + `Concurrency limit exceeded for account` |
+| `group_no_account` | no | group-has-no-account wording, any phase/status (502 group-gap is new; 404 group-gap is already covered by the hardcoded miss) |
+| `routing_pool_empty` | no | `error_phase=routing` and status=503 |
+| `protocol_mismatch` | no | Chat Completions endpoint / Unsupported content type / Invalid URL |
 
 Hot read: short cache or settings invalidation. `ClassifyOpsErrorRateCalibers` and `SQLScheduleQualityExcludedPredicateWith` must use the same snapshot. Account 15m `ErrorCount` uses the generated exclude; user-dimension quality SQL must not.
 
@@ -91,7 +91,7 @@ Hot read: short cache or settings invalidation. `ClassifyOpsErrorRateCalibers` a
 
 **Schedule ingest** (`observePairQualityErrors` / `observeAccountQualityErrors`): skip `Observe*(Success=false)` when `!CountedInAccountScheduleRate`.
 
-`CountedInAccountScheduleRate` is the previous terminal/compare/failover result **and not** `IsScheduleQualityExcludedWith` (enabled whitelist families + existing bridge). Recovered stays on the existing failover toggle. Compare default is unchanged (routing miss + bridge only).
+`CountedInAccountScheduleRate` is the previous terminal/compare/failover result **and not** `IsScheduleQualityExcludedWith` (hardcoded legacy routing miss + enabled new whitelist families + existing bridge). Recovered stays on the existing failover toggle. Compare default is unchanged (routing miss + bridge only).
 
 **Account 15m SQL `ErrorCount`**: `AND NOT (SQLScheduleQualityExcludedPredicateWith(current whitelist))` in addition to existing bridge/status guards. Do **not** apply this exclude to user-dimension quality SQL.
 
@@ -116,17 +116,18 @@ List badge re-apply (`applyErrorLogCalibers`) must pass `error_body` through so 
 
 ### 4. Validation & Error Matrix
 
-| Input | Schedule counted (default WL) | Attention | Notes |
+| Input | Schedule counted (default WL = empty) | Attention | Notes |
 | --- | --- | --- | --- |
-| 400 `invalid_request_error` `phase=request` | no | no | |
+| 400 `invalid_request_error` `phase=request` | **yes** | no | check family to exclude |
 | 400 `invalid_request_error` `phase=upstream` (no other family) | **yes** | no | narrower than whole-type exclude |
-| 400 `Upstream request failed` | no | no | |
+| 400 `Upstream request failed` | **yes** | no | check `client_wrapped_400_urf` to exclude |
 | 502 `Upstream request failed` | **yes** | no | default `mapUpstreamError`; any config |
-| 413 / prompt too long | no | no | |
-| 429 concurrency-for-account | no | no | |
-| 404 or 502 + not supported by any configured account | no | **yes** | off `group_no_account` → schedule **yes**, attention still yes |
-| routing 503 | no | **yes** | |
-| Chat Completions / Unsupported content type / Invalid URL | no | **yes** | |
+| 413 / prompt too long | **yes** | no | check family to exclude |
+| 429 concurrency-for-account | **yes** | no | check family to exclude |
+| 404 + not supported by any configured account | no | **yes** | hardcoded legacy miss |
+| 502 + not supported by any configured account | **yes** | **yes** | new unrestricted family; check `group_no_account` to exclude |
+| routing 503 | **yes** | **yes** | check `routing_pool_empty` to exclude |
+| Chat Completions / Unsupported content type / Invalid URL | **yes** | **yes** | check `protocol_mismatch` to exclude |
 | Recovered | existing | no | |
 | Claude–GPT bridge | no | no | |
 | unknown `ops_attention_count` on old binary | n/a | n/a | create/eval skip unknown metric |
@@ -143,9 +144,10 @@ Alert rule create: `ops_attention_count` allowed; threshold ≥ 0; not clamped t
 
 - `ClassifyOpsErrorRateCalibers` table: every row in §4.
 - hop `phase=upstream` + `invalid_request_error` + 400 **counts**; `phase=request` of the same type does **not**.
+- Empty / all-off whitelist still excludes 404 `model_not_found` (hardcoded miss) and does **not** exclude 400 request `invalid_request_error`.
 - `group_no_account` off → 502 group-no-account counts toward schedule; on → excluded. Attention stays true.
 - 502 `Upstream request failed` counts under any whitelist.
-- 400 `Upstream request failed` still excluded at factory default.
+- 400 `Upstream request failed` counts at factory default; excluded only when `client_wrapped_400_urf` is on.
 - List second `Apply` with body-only group-no-account text → `needs_ops_attention=true`.
 - Recovered / bridge / `UseFailover` unchanged.
 - Settings validate rejects unknown family ids.

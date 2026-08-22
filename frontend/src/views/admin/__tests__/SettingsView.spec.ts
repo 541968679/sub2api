@@ -1399,8 +1399,6 @@ describe("admin SettingsView quality hard-close card", () => {
     getOverloadCooldownSettings.mockReset();
     getQualityHardCloseSettings.mockReset();
     updateQualityHardCloseSettings.mockReset();
-    getScheduleErrorWhitelist.mockReset();
-    updateScheduleErrorWhitelist.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -1446,18 +1444,6 @@ describe("admin SettingsView quality hard-close card", () => {
       min_success_samples: 20,
       min_ttft_samples: 10,
       condition: "or",
-    });
-    getScheduleErrorWhitelist.mockResolvedValue({
-      families: {
-        client_invalid_request: true,
-        client_wrapped_400_urf: true,
-        client_context_too_long: true,
-        pair_concurrency: true,
-        group_no_account: true,
-        routing_model_miss: true,
-        routing_pool_empty: true,
-        protocol_mismatch: true,
-      },
     });
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
@@ -1536,7 +1522,7 @@ describe("admin SettingsView quality hard-close card", () => {
   });
 });
 
-describe("admin SettingsView schedule error whitelist card", () => {
+describe("admin SettingsView schedule error whitelist", () => {
   beforeEach(() => {
     getSettings.mockReset();
     updateSettings.mockReset();
@@ -1576,30 +1562,6 @@ describe("admin SettingsView schedule error whitelist card", () => {
       min_ttft_samples: 10,
       condition: "or",
     });
-    getScheduleErrorWhitelist.mockResolvedValue({
-      families: {
-        client_invalid_request: true,
-        client_wrapped_400_urf: true,
-        client_context_too_long: true,
-        pair_concurrency: true,
-        group_no_account: true,
-        routing_model_miss: true,
-        routing_pool_empty: true,
-        protocol_mismatch: true,
-      },
-    });
-    updateScheduleErrorWhitelist.mockResolvedValue({
-      families: {
-        client_invalid_request: true,
-        client_wrapped_400_urf: true,
-        client_context_too_long: true,
-        pair_concurrency: true,
-        group_no_account: false,
-        routing_model_miss: true,
-        routing_pool_empty: true,
-        protocol_mismatch: true,
-      },
-    });
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
       action: "temp_unsched",
@@ -1622,32 +1584,15 @@ describe("admin SettingsView schedule error whitelist card", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
-  it("saves preset family checkboxes on the existing settings page", async () => {
+  it("does not render the whitelist card on the gateway settings page", async () => {
     const wrapper = mountView();
     await flushPromises();
 
-    const card = wrapper.get('[data-test="schedule-error-whitelist-card"]');
-    expect(card.text()).toContain("admin.settings.scheduleErrorWhitelist.checkedHint");
-    const groupBox = wrapper.get(
-      '[data-test="schedule-error-whitelist-group_no_account"] input',
+    expect(wrapper.find('[data-test="schedule-error-whitelist-card"]').exists()).toBe(
+      false,
     );
-    await groupBox.setValue(false);
-    await wrapper.get('[data-test="schedule-error-whitelist-save"]').trigger("click");
-    await flushPromises();
-
-    expect(updateScheduleErrorWhitelist).toHaveBeenCalledTimes(1);
-    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith({
-      families: {
-        client_invalid_request: true,
-        client_wrapped_400_urf: true,
-        client_context_too_long: true,
-        pair_concurrency: true,
-        group_no_account: false,
-        routing_model_miss: true,
-        routing_pool_empty: true,
-        protocol_mismatch: true,
-      },
-    });
-    expect(updateSettings).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-test="quality-hard-close-card"]').exists()).toBe(true);
+    expect(getScheduleErrorWhitelist).not.toHaveBeenCalled();
+    expect(updateScheduleErrorWhitelist).not.toHaveBeenCalled();
   });
 });

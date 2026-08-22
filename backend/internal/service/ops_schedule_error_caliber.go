@@ -236,17 +236,23 @@ func sqlScheduleErrorFamilyPredicate(id, prefix string) string {
 	}
 }
 
-// IsScheduleQualityExcluded uses factory-default families (all on).
+// IsScheduleQualityExcluded uses factory-default families (all new families off)
+// plus the hardcoded pre-feature routing-miss exclude.
 func IsScheduleQualityExcluded(status int, phase, errorType, message, body string) bool {
 	return IsScheduleQualityExcludedWith(status, phase, errorType, message, body, DefaultScheduleErrorWhitelist())
 }
 
 // IsScheduleQualityExcludedWith excludes a row from schedule ErrorCount when
-// an enabled family matches. 502 "Upstream request failed" is never excluded.
+// the pre-feature routing miss matches or an enabled new family matches.
+// 502 "Upstream request failed" is never excluded.
 // Attention is independent of this whitelist.
 func IsScheduleQualityExcludedWith(status int, phase, errorType, message, body string, wl ScheduleErrorWhitelist) bool {
 	if isHardCountedUpstreamRequestFailed(status, message) {
 		return false
+	}
+	// Pre-68060fbfb safety rail: keep excluding regardless of whitelist.
+	if IsAccountQualityRoutingModelMiss(status, phase, errorType, message, body) {
+		return true
 	}
 	wl = NormalizeScheduleErrorWhitelist(wl)
 	for _, id := range ScheduleErrorFamilyIDs {
@@ -263,15 +269,12 @@ func SQLScheduleQualityExcludedPredicate(prefix string) string {
 
 func SQLScheduleQualityExcludedPredicateWith(prefix string, wl ScheduleErrorWhitelist) string {
 	wl = NormalizeScheduleErrorWhitelist(wl)
-	parts := make([]string, 0, len(ScheduleErrorFamilyIDs))
+	parts := []string{"(" + SQLAccountQualityRoutingModelMissPredicatePrefixed(prefix) + ")"}
 	for _, id := range ScheduleErrorFamilyIDs {
 		if !wl.FamilyEnabled(id) {
 			continue
 		}
 		parts = append(parts, sqlScheduleErrorFamilyPredicate(id, prefix))
-	}
-	if len(parts) == 0 {
-		return "FALSE"
 	}
 	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + ")"
 }

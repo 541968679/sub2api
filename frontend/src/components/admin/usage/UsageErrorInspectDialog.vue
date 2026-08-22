@@ -16,6 +16,7 @@
             :key="tab.key"
             type="button"
             data-testid="inspect-detail-tab"
+            :data-test="`inspect-tab-${tab.key}`"
             class="border-b-2 px-4 py-2 text-sm font-medium"
             :class="activeTab === tab.key ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500'"
             @click="switchTab(tab.key)"
@@ -24,6 +25,7 @@
           </button>
         </div>
         <button
+          v-if="activeTab !== 'whitelist'"
           type="button"
           data-testid="inspect-view-full"
           class="btn btn-secondary"
@@ -33,7 +35,7 @@
         </button>
       </div>
 
-      <div class="card p-4">
+      <div v-if="activeTab !== 'whitelist'" class="card p-4">
         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
@@ -135,7 +137,7 @@
         />
       </template>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'errors'">
         <ErrorRequestFilters
           v-model="errorFilters"
           :start-date="startDate"
@@ -160,6 +162,8 @@
           @update:pageSize="handleErrorPageSizeChange"
         />
       </template>
+
+      <ScheduleErrorWhitelistPanel v-else-if="activeTab === 'whitelist'" />
     </div>
   </BaseDialog>
 
@@ -208,6 +212,7 @@ import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
 import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawer.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
+import ScheduleErrorWhitelistPanel from '@/components/admin/usage/ScheduleErrorWhitelistPanel.vue'
 import {
   ALWAYS_VISIBLE_USAGE_COLUMNS,
   buildAdminUsageTableColumns,
@@ -217,7 +222,7 @@ import {
 import type { AdminUsageLog, AdminUser } from '@/types'
 
 export type UsageErrorInspectScope = 'account' | 'user'
-export type UsageErrorInspectTab = 'usage' | 'errors'
+export type UsageErrorInspectTab = 'usage' | 'errors' | 'whitelist'
 
 const props = withDefaults(defineProps<{
   show: boolean
@@ -238,7 +243,8 @@ const appStore = useAppStore()
 const activeTab = ref<UsageErrorInspectTab>('usage')
 const inspectTabs = computed(() => [
   { key: 'usage' as const, label: t('usage.tabs.usage') },
-  { key: 'errors' as const, label: t('usage.tabs.errors') }
+  { key: 'errors' as const, label: t('usage.tabs.errors') },
+  { key: 'whitelist' as const, label: t('admin.ops.scheduleErrorWhitelist.title') }
 ])
 
 const dialogTitle = computed(() => {
@@ -510,6 +516,7 @@ const resetFilters = () => {
 const onDateRangeChange = (range: { startDate: string; endDate: string }) => {
   startDate.value = range.startDate
   endDate.value = range.endDate
+  if (activeTab.value === 'whitelist') return
   if (activeTab.value === 'errors') {
     errorPage.value = 1
     void loadErrorLogs()
