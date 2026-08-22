@@ -79,6 +79,29 @@ func TestShouldEscapeSessionStickyForCheaperTier_PooledNoEscape(t *testing.T) {
 	))
 }
 
+func TestShouldEscapeSessionStickyForCheaperTier_AGOffBridgeUsesOpenAIPool(t *testing.T) {
+	sticky := &Account{ID: 7, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
+	cheap := &Account{ID: 8, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
+	load := map[int64]*AccountLoadInfo{7: {AccountID: 7, LoadRate: 0}, 8: {AccountID: 8, LoadRate: 0}}
+	lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, enabledSmartPolicy(7, 0, nil))}
+	require.False(t, shouldEscapeSessionStickyForCheaperTier(
+		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load,
+	), "AG off + openai closed pool must not treat bridge as unpooled")
+}
+
+func TestShouldEscapeSessionStickyForCheaperTier_AGOnBridgeUsesAGPool(t *testing.T) {
+	sticky := &Account{ID: 7, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
+	cheap := &Account{ID: 8, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
+	load := map[int64]*AccountLoadInfo{7: {AccountID: 7, LoadRate: 0}, 8: {AccountID: 8, LoadRate: 0}}
+	lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI:      enabledSmartPolicy(8, 0, nil),
+		PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
+	}}}
+	require.False(t, shouldEscapeSessionStickyForCheaperTier(
+		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load,
+	), "AG on must judge unpooled against antigravity, not openai")
+}
+
 func TestShouldEscapeSessionStickyForCheaperTier_MixedAGPoolUsesStickyPlatform(t *testing.T) {
 	// AC8b: group may be anthropic, but sticky is AG and AG pool is enabled.
 	sticky := &Account{ID: 20, Platform: PlatformAntigravity, UpstreamRateMultiplier: testRate(1.0)}

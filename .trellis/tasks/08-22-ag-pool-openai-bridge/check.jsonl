@@ -1,4 +1,4 @@
-{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Check that AG-tab OpenAI members, lookup platform, pause/PK, and empty-pool fail-open still match the smart-schedule contract."}
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Check that AG-tab OpenAI members, lookup platform (AG off=openai, AG on=antigravity only), pause/PK, and empty-pool=legacy still match the smart-schedule contract."}
 {"file": ".trellis/spec/backend/anthropic-messages-sse.md", "reason": "Empty-visible / NoAccountFailover must stay unchanged unless Brandon flips decision F."}
 {"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Reject any accidental billing/display/cache-read edits."}
 {"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality check conventions for backend changes."}

@@ -237,10 +237,14 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 		if !cals.CountedInAccountScheduleRate {
 			continue
 		}
+		var src smartScheduleBundleSource
+		if loader, ok := s.pairQuality.(smartScheduleBundleSource); ok {
+			src = loader
+		}
 		s.pairQuality.ObservePairCompletion(ctx, PairQualityObservation{
 			AccountID: *entry.AccountID,
 			UserID:    *entry.UserID,
-			Platform:  smartScheduleLookupPlatformFromCtx(ctx, &Account{ID: *entry.AccountID, Platform: entry.Platform}),
+			Platform:  smartScheduleLookupPlatformForUser(ctx, &Account{ID: *entry.AccountID, Platform: entry.Platform}, src, *entry.UserID),
 			Success:   false,
 		})
 	}

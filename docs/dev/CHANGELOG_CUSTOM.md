@@ -1,3 +1,29 @@
+## 2026-08-22 - fix: AG smart-schedule switch keeps openai lookup when AG is off
+
+### What
+- `SmartScheduleLookupPlatform` now reads the user policy bundle. OpenAI + bridge/AG-group looks up **antigravity** only while `EnabledPolicy(antigravity)` is active. AG nil / disabled / empty keeps today's **openai** closed pool.
+- Admission, pair slots, unpooled cheaper-tier, ObservePairCompletion, and Redis hydrate/stamp share that helper. Native OpenAI groups stay `openai`. No fail-open to account-side just because AG is off; no openai fallback once AG is on.
+
+### Why
+- The previous helper always returned antigravity for OAI+bridge/AG-group. `EnabledPolicy(antigravity)==nil` then fail-opened to account-side, so deploying with the switch off changed user 12.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform|PairResume|GetPairQualityBatch"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `go test -tags=unit ./internal/handler -count=1 -run "ClaudeGPTBridge|SmartSchedule"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_lookup_platform.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/service/account_unpooled_schedule.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/ops_service.go`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`
+
 ## 2026-08-22 - feat: admin Ops shows raw upstream errors without changing client mapping
 
 ### What

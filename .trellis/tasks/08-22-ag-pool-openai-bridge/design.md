@@ -45,9 +45,9 @@ Admin AG tab add OpenAI (bridge on or off)
 
 Group 15 bridge
   -> 选号平台仍是 openai（候选必须是 OpenAI 号 + ResolveClaudeGPTBridgeModel）
-  -> 智能调度 lookup 用 request/group=antigravity
+  -> 智能调度 lookup：AG 开且有成员 → antigravity；否则 openai
   -> 闭池命中 => 忽略账号侧 allow/deny/gate/cap
-  -> Redis 占用/冷却/probe/pin/quality 用 platform=antigravity
+  -> Redis 占用/冷却/probe/pin/quality 用同一 lookup platform
   -> 桥关 => Resolve 失败，选不中（R3）
 
 Group 15 native AG (not_configured only)
@@ -64,9 +64,11 @@ Group 19 native GPT
 单一 helper，避免漏改：
 
 ```text
-smartScheduleLookupPlatform(account, request) string
+smartScheduleLookupPlatform(account, request, bundle) string
   若 request.RequireClaudeGPTBridge || request.GroupPlatform==antigravity 且 account.IsOpenAI():
-      return antigravity
+      若 bundle.EnabledPolicy(antigravity) != nil:
+          return antigravity
+      return openai
   否则:
       return account.Platform
 ```
@@ -82,13 +84,13 @@ smartScheduleLookupPlatform(account, request) string
 
 `SelectAccountWithSchedulerForClaudeGPTBridge` **不要** 把 scheduler `platform` 改成 antigravity：`isOpenAIAccountEligibleForScheduleRequest` 要求 `account.Platform == platform`，改了会选不中任何号。变的是智能调度策略 key，不是选号平台。
 
-### C 未启用 AG 策略时（已锁定）
+### C 未启用 AG 策略时（Brandon 2026-08-22 改判）
 
 | 选项 | 分组 15 行为 | 分组 19 |
 |---|---|---|
-| Fail-open 账号侧（锁定） | 不再吃 openai 闭池；回到 allow/deny | 不变 |
+| 继续查 openai（锁定） | 与今天生产路径相同；关开关 = no-op | 不变 |
 
-与 `EnabledPolicy` 空池=disabled 一致。禁止回落 openai 池。
+AG 关 / 缺失 / 空池 **不是** fail-open 到账号侧。只有 AG `EnabledPolicy != nil` 时才切到 antigravity，且此后禁止回落 openai。独立性只在 AG 开着时成立。
 
 ## 主键 / 已在 openai 池（A + B，已锁定）
 
@@ -169,9 +171,10 @@ AG tab `loadCandidates`：
 
 ## Compatibility
 
-- 无 AG 池：分组 15 fail-open 账号侧（比现在 openai 闭池更宽）。上线应先建 AG 池。
+- 无 AG 池 / 开关关：分组 15 继续吃该用户的 openai 闭池（与今天一致）。关开关上线是 no-op。
+- AG 开且有成员：分组 15 只吃 AG 闭池；池未命中即拒，不回落 openai。
 - 只改 sanitize、不改 lookup：能写入但不生效。Lookup 必须同任务交付。
-- 原生 AG / 其它平台 tab：不变。
+- 原生 AG / 其它平台 tab：不变。原生 OpenAI 分组始终 `account.Platform=openai`。
 - 桥接预检不读智能调度池。
 
 ## Rollback

@@ -80,6 +80,42 @@ func testPairAccount(id int64) *Account {
 	}
 }
 
+func TestResolvePairSlotAcquire_AGLookupFollowsClosedPoolSwitch(t *testing.T) {
+	t.Parallel()
+	oai := &Account{ID: 7, Platform: PlatformOpenAI}
+	agOff := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI:      enabledSmartPolicy(7, 3, nil),
+		PlatformAntigravity: {Enabled: false, AccountIDs: map[int64]struct{}{7: {}}},
+	}}}
+	agOn := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI:      enabledSmartPolicy(7, 3, nil),
+		PlatformAntigravity: enabledSmartPolicy(7, 9, nil),
+	}}}
+	openaiOnly := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+		PlatformOpenAI:      enabledSmartPolicy(7, 3, nil),
+		PlatformAntigravity: enabledSmartPolicy(8, 9, nil),
+	}}}
+
+	agCtx := agGroupScheduleCtx(16)
+	nativeCtx := nativeOpenAIGroupScheduleCtx(16)
+
+	max, track := resolvePairSlotAcquire(agCtx, oai, agOff)
+	require.Equal(t, 3, max)
+	require.True(t, track, "AG off must use openai closed-pool occupancy")
+
+	max, track = resolvePairSlotAcquire(agCtx, oai, agOn)
+	require.Equal(t, 9, max)
+	require.True(t, track, "AG on must use antigravity closed-pool occupancy")
+
+	max, track = resolvePairSlotAcquire(agCtx, oai, openaiOnly)
+	require.Equal(t, 0, max)
+	require.False(t, track, "AG on must not fall back to openai pair cap")
+
+	max, track = resolvePairSlotAcquire(nativeCtx, oai, agOn)
+	require.Equal(t, 3, max)
+	require.True(t, track, "native GPT stays on openai pair shard")
+}
+
 func TestResolvePairSlotAcquire_ClosedPoolTracksUncapped(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))

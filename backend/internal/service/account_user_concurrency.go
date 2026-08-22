@@ -35,7 +35,7 @@ func resolvePairSlotAcquire(ctx context.Context, account *Account, lookup SmartS
 		return 0, false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account)
+	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account, lookup)
 	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, lookupPlatform); policy != nil {
 		if !policy.HasAccount(account.ID) {
 			return 0, false
@@ -78,7 +78,7 @@ func pairConcurrencyAccountIDs(ctx context.Context, accounts []*Account, userID 
 func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, accounts []*Account, userID int64, lookup SmartScheduleLookup) map[int64]int {
 	for _, acc := range accounts {
 		if acc != nil {
-			ctx = stampSmartScheduleLookupPlatform(ctx, acc)
+			ctx = stampSmartScheduleLookupPlatform(ctx, acc, lookup)
 			break
 		}
 	}
@@ -148,7 +148,7 @@ func (s *GatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, accou
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	ctx = stampSmartScheduleLookupPlatform(ctx, account)
+	ctx = stampSmartScheduleLookupPlatform(ctx, account, s.smartScheduleCache)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
 	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
@@ -157,7 +157,7 @@ func (s *OpenAIGatewayService) tryAcquireAccountAndPairSlot(ctx context.Context,
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
-	ctx = stampSmartScheduleLookupPlatform(ctx, account)
+	ctx = stampSmartScheduleLookupPlatform(ctx, account, s.smartScheduleCache)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
 	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
@@ -208,7 +208,7 @@ func attachPairSlotHoldingAccount(ctx context.Context, svc *ConcurrencyService, 
 		return accountRelease, false, nil
 	}
 
-	ctx = stampSmartScheduleLookupPlatform(ctx, account)
+	ctx = stampSmartScheduleLookupPlatform(ctx, account, lookup)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, lookup)
 	userID := scheduleUserIDFromContext(ctx, 0)
 	max := pairMax

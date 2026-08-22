@@ -1256,7 +1256,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	if hasMinRate {
 		for i := 0; i < len(candidates); i++ {
 			item := candidates[i]
-			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, smartScheduleLookupPlatformFromCtx(ctx, item.account)) {
+			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, smartScheduleLookupPlatformFromCtx(ctx, item.account, s.service.smartScheduleCache)) {
 				continue
 			}
 			if item.account.EffectiveUpstreamRate() <= minRate || !accountHasScheduleHeadroom(poolLoad, item.account.ID) {

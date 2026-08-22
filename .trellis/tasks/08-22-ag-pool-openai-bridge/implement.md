@@ -17,8 +17,8 @@ Review gate 已满足（2026-08-22）：Brandon 按推荐锁定 A–G + 两池�
 - [x] OpenAI → anthropic tab 仍 `SMART_SCHEDULE_PLATFORM_MISMATCH`。
 - [x] AG 号 → AG tab 仍允许。
 - [x] 桥关 OpenAI 号：`ResolveClaudeGPTBridgeModel` 仍 false。
-- [x] lookup helper：桥接/AG 分组 + OAI → antigravity；原生 GPT → openai。
-- [x] AG 策略 disabled / 空池：fail-open 账号侧，不回落 openai。
+- [x] lookup helper：AG 关/空/缺失时桥接/AG 分组 + OAI → openai；AG 开且有成员 → antigravity；原生 GPT → openai。
+- [x] AG 策略 disabled / 空池 / 缺失：继续走 openai 闭池，不 fail-open 账号侧。
 - [x] 双池 persist：同一 account 两行。
 - [x] 冷却/占用跨 platform 隔离。
 
@@ -38,11 +38,11 @@ Review gate 已满足（2026-08-22）：Brandon 按推荐锁定 A–G + 两池�
 
 ### 3. 热路径 lookup（R4 / C）
 
-- [x] `smartScheduleLookupPlatform`：桥接/AG 分组上的 OpenAI 号返回 `antigravity`。
-- [x] 接到 `admitsScheduleUser`、`resolvePairSlotAcquire`、unpooled cheaper-tier。
-- [x] `ObservePairCompletion` 按请求平台选策略。
+- [x] `SmartScheduleLookupPlatform`：读 `EnabledPolicy(antigravity)`；AG 未激活则 OAI+桥接/AG 分组 lookup 仍是 openai。
+- [x] 接到 `admitsScheduleUser`、`resolvePairSlotAcquire`、unpooled cheaper-tier、Observe、hydrate/stamp。
+- [x] `ObservePairCompletion` 按请求 lookup 平台选策略（与准入同一规则）。
 - [x] **不要** 把 `SelectAccountWithSchedulerForClaudeGPTBridge` 的 scheduler platform 改成 antigravity。
-- [x] sim 测试：双池时桥接只吃 AG、原生 GPT 只吃 openai；AG disabled fail-open。
+- [x] 测试：AG 关走 openai 闭池；AG 开只走 AG；原生 GPT 只吃 openai；pair/cooldown/resume 同分片。
 
 ### 4. Redis 完全独立
 

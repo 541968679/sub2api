@@ -232,7 +232,7 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 		return false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account)
+	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account, lookup)
 	policy := lookupEnabledSmartPolicy(ctx, lookup, userID, lookupPlatform)
 	if policy == nil {
 		return account.AdmitsScheduleUser(userID, loadLiveQualityForAdmission(ctx, cache, account, false))

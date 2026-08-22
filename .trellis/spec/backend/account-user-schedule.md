@@ -127,7 +127,7 @@ if pairFull {
 
 - Trigger: user-page per-platform closed pool + quality + pair cooldown + pool-member cap. Cross-layer: two SQL tables, user Redis cache, pair cooldown HASH, pair-quality windows, every `admitsScheduleUser` path, UsersView modal.
 - Independent of `account_schedule_users`. Do not write this policy onto shared account scheduler snapshots. Do not fold into `IsSchedulable()` or `SetTempUnschedulable`.
-- Lookup key is `SmartScheduleLookupPlatform(account, hint)`: OpenAI + (Claude-GPT bridge or AG-group) → `antigravity`; otherwise `account.Platform`. Never fall back across pools. Scheduler eligibility for bridge stays `account.Platform == openai`.
+- Lookup key is `SmartScheduleLookupPlatform(account, hint, bundle)`: OpenAI + (Claude-GPT bridge or AG-group) uses `antigravity` only while `bundle.EnabledPolicy(antigravity) != nil`; otherwise those requests keep `openai`. Native OpenAI groups always stay `account.Platform`. Once AG is on, never fall back across pools. Scheduler eligibility for bridge stays `account.Platform == openai`.
 - Track A account quality (`account-quality:live`, 15m / 5min cells, hard-close) is unchanged. Smart-schedule cooldown must not read that live quality number.
 - Track B pair quality `Q_{a,u,p}` is `(account_id, user_id, platform)` and feeds smart-schedule cooldown + the pool 配对质量 column. openai and antigravity pools are fully independent.
 
@@ -135,7 +135,7 @@ if pairFull {
 
 - DB `user_smart_schedule_policies`: unique `(user_id, platform)`; `enabled bool`; quality columns same shape as pair gates; one window size N stored in both `quality_min_success_samples` and `quality_min_ttft_samples` (default 10, clamp **1–100**). API field `quality_window_samples` (alias `quality_window_n`). Probe in-flight: `probe_concurrency_mode` (`follow_n` default / `custom`) + optional `probe_concurrency` (1–100, required when custom). This is **not** `account_quality_window_n`. `cooldown_minutes` 1–1440 default 15. Platforms: `anthropic|openai|gemini|antigravity|grok`.
 - DB `user_smart_schedule_accounts`: PK `(user_id, platform, account_id)` (migration 211; do not edit 202/204/207/208). Dual membership allowed. `max_concurrency` null or ≥1; `paused bool` default false (migration 207). AG tab may hold `account.IsOpenAI()` members; other tabs stay platform-locked. CASCADE from users/accounts. PUT replace-all is per-platform and must not delete the other pool's row. Client writes ignore `paused`.
-- Domain: `SmartSchedulePolicy` / `EnabledPolicy(userID, platform)` — nil when missing, disabled, or `MemberCount()==0`. AG nil/empty/disabled fail-opens to account-side allow/deny; never fall back to the openai pool.
+- Domain: `SmartSchedulePolicy` / `EnabledPolicy(userID, platform)` — nil when missing, disabled, or `MemberCount()==0`. For OAI + bridge/AG-group, AG nil/empty/disabled keeps the **openai** closed-pool lookup (today's production path). Do not fail-open to account-side just because AG is off. When AG is enabled with members, lookup is antigravity only; a pool miss rejects and must not fall back to openai.
 - Redis user cache: `smart-schedule:user:{userID}` JSON of all platforms; invalidate on PUT/copy.
 - Redis cooldown: `smart-schedule:cooldown:{platform}:{accountID}` HASH `u:{userID}=untilUnix`. Hot-path `StartCooldown` is `HSETNX` only (no extend). Admin switcher `SetCooldown` uses `HSET` overwrite. TTL may only be lengthened, never shortened (other users share the key). Platform is in the KEY so one pool's TTL cannot cut the other.
 - Redis pair quality: `smart-schedule:pair-quality:{platform}:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{platform}:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{platform}:{accountID}:{userID}` (TTL 7d).
@@ -205,7 +205,7 @@ redis.Expire(ctx, cooldownKey, shortUserTTL) // shortens sibling fields
 #### Correct
 
 ```go
-if policy := cache.EnabledPolicy(userID, SmartScheduleLookupPlatform(account, hint)); policy != nil {
+if policy := cache.EnabledPolicy(userID, SmartScheduleLookupPlatform(account, hint, bundle)); policy != nil {
     return admitSmartSchedule(ctx, account, policy, pairQuality)
 }
 return account.AdmitsScheduleUser(userID, live)
@@ -311,7 +311,7 @@ return account.AdmitsScheduleUser(userID, live)
 ### 2. Signatures
 
 - `smartScheduleAccountMatchesTab(acc, tab)`: same-platform always matches; **only** extra exception is `tab==antigravity && acc.IsOpenAI()`. Anthropic / gemini / grok tabs stay locked.
-- `SmartScheduleLookupPlatform(account, hint)`: OpenAI + (`hint.RequireClaudeGPTBridge` or `hint.GroupPlatform==antigravity`) → `antigravity`; else `account.Platform`. Hint from `ctxkey.RequireClaudeGPTBridge`, `ctxkey.Group.Platform`, else `ctxkey.ForcePlatform`.
+- `SmartScheduleLookupPlatform(account, hint, bundle)`: OpenAI + (`hint.RequireClaudeGPTBridge` or `hint.GroupPlatform==antigravity`) → `antigravity` only when `bundle.EnabledPolicy(antigravity) != nil`; else `openai`. Native OpenAI groups and non-OpenAI accounts stay `account.Platform`. Hint from `ctxkey.RequireClaudeGPTBridge`, `ctxkey.Group.Platform`, else `ctxkey.ForcePlatform`. The helper must see the user policy bundle (or equivalent) so admission, pair slots, unpooled, Observe, and hydrate share one rule.
 - `uniqueSmartScheduleMembershipPlatform(bundle, accountID)`: the single membership platform, or `""` when the account is in more than one pool.
 - `SmartScheduleRedisPlatform(platform)`: empty → `_` so unset callers cannot collide with a real platform.
 - DB PK `user_smart_schedule_accounts (user_id, platform, account_id)` via additive migration `211_user_smart_schedule_account_pk.sql`. Keep `idx_user_smart_schedule_accounts_account_id`. Do not edit 202/204/207/208.
@@ -322,8 +322,8 @@ return account.AdmitsScheduleUser(userID, live)
 
 - AG tab PUT may include OpenAI ids without `openai_claude_gpt_bridge_enabled`. Member row `platform` is the **tab** (`antigravity`), not `account.Platform`.
 - Adding an OpenAI account to the AG pool must not delete the openai-pool row (decision B).
-- Bridge / AG-group OpenAI traffic looks up the antigravity policy on `admitsScheduleUser`, pair acquire, unpooled cheaper-tier, and `ObservePairCompletion`. Native OpenAI groups keep `openai`.
-- AG policy nil / empty / disabled → fail-open account-side allow/deny. **Never** fall back to the openai pool.
+- Bridge / AG-group OpenAI traffic looks up **openai** while AG is off/empty/missing, and **antigravity** only while AG is enabled with members. Admission, pair acquire, unpooled cheaper-tier, `ObservePairCompletion`, and hydrate must share that helper. Native OpenAI groups keep `openai`.
+- AG policy nil / empty / disabled → keep the openai closed pool (do **not** fail-open account-side just because AG is off). Once AG is on, a pool miss rejects; **never** fall back to the openai pool.
 - `ObservePairCompletion.Platform` must be the request lookup platform. Empty platform + dual membership → **do not ingest** (do not pick the first `HasAccount`).
 - Pool-page resume / pair-quality hydrate pass tab `platform`. Account-page omitted `platform` resolves to `account.Platform` only and must not mutate the AG dual-membership row.
 - Admin AG candidates: merge `platform=antigravity&lite=1` and `platform=openai&lite=1`; filter-add may choose antigravity / openai / all-in-this-tab. Do not pull anthropic / gemini / grok on the AG tab.
@@ -338,27 +338,29 @@ return account.AdmitsScheduleUser(userID, live)
 | OpenAI id on anthropic / gemini / grok tab | `SMART_SCHEDULE_PLATFORM_MISMATCH` |
 | Duplicate id in one PUT | `SMART_SCHEDULE_DUPLICATE_ACCOUNT` |
 | Bridge extra off, account in AG pool, `schedulable=true` | Pool write OK; `ResolveClaudeGPTBridgeModel` still false; bridge select misses the account |
-| AG `EnabledPolicy` nil/empty | Fail-open account-side; not openai-pool closed reject |
+| AG `EnabledPolicy` nil/empty | Keep openai closed pool if that policy is enabled; not account-side fail-open |
 | `ObservePairCompletion` empty platform + two memberships | No ingest |
 | Resume omit `platform` on account page | Mutates `account.Platform` row only |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: user 12 AG pool contains OpenAI 1724; group 15 bridge admits via antigravity; group 19 native GPT still uses the openai pool and openai Redis keys.
+- Good: user 12 with AG off / no AG pool: group 15 bridge admits via the openai closed pool (same as today). With AG on and members: group 15 admits via antigravity only; group 19 native GPT still uses the openai pool and openai Redis keys.
 - Good: same OpenAI id cooled on openai does not cool the AG pair (and the reverse).
-- Base: no AG policy → group 15 fail-opens to account-side allow/deny (wider than today's openai closed pool). Production cutover should create the AG pool first.
+- Base: no AG policy → group 15 keeps today's openai closed pool. Deploy with the switch off is a no-op for user 12.
 - Bad: `SelectAccountWithSchedulerForClaudeGPTBridge` platform rewritten to antigravity (zero OpenAI candidates).
-- Bad: AG disabled falls back to `lookupEnabledSmartPolicy(..., openai)`.
+- Bad: AG disabled / empty / missing fail-opens to account-side allow/deny (that makes the switch change production on deploy).
+- Bad: AG enabled still falls back to `lookupEnabledSmartPolicy(..., openai)` after an AG pool miss.
 - Bad: `ObservePairCompletion` map-range first `HasAccount` when both pools contain the id.
 
 ### 6. Tests Required
 
 - `sanitizePoolMembers`: OpenAI→AG allowed without bridge extra; OpenAI→anthropic still `SMART_SCHEDULE_PLATFORM_MISMATCH`; native AG→AG still allowed.
-- `SmartScheduleLookupPlatform`: bridge / AG-group + OpenAI → antigravity; native GPT → openai.
+- `SmartScheduleLookupPlatform`: AG off/empty/missing + bridge/AG-group OpenAI → openai; AG on with members → antigravity; native GPT → openai.
 - Dual persist: one `account_id` two rows; AG PUT does not drop the openai row.
 - Cooldown / occupancy / probe / pin / pair-quality / pair-resume isolation across platform.
 - `ObservePairCompletion` dual-membership without platform skips ingest.
-- AG disabled / empty: fail-open account-side, no openai fallback.
+- AG disabled / empty / missing: bridge admits via openai closed pool; out-of-openai-pool rejected if openai is enabled.
+- AG on with members: openai-only members rejected; no fail-open.
 - `ResolveClaudeGPTBridgeModel` still false when extra is off.
 - Frontend: AG tab can add OpenAI candidates; `claude_gpt_bridge` column visible; other tabs stay locked.
 - Empty-stream tests unchanged.
@@ -369,22 +371,31 @@ return account.AdmitsScheduleUser(userID, live)
 
 ```go
 req.Platform = PlatformAntigravity // SelectAccountWithSchedulerForClaudeGPTBridge
-policy := cache.EnabledPolicy(userID, account.Platform)
+key := PlatformAntigravity         // even when AG is off
+policy := cache.EnabledPolicy(userID, key)
 if policy == nil {
-    policy = cache.EnabledPolicy(userID, PlatformOpenAI) // AG miss must not do this
+    return account.AdmitsScheduleUser(userID, live) // fail-open because AG is off
 }
 ```
 
 #### Correct
 
 ```go
-// scheduler eligibility stays openai; only the closed-pool key changes
-key := SmartScheduleLookupPlatform(account, hint)
+// scheduler eligibility stays openai; closed-pool key follows the AG switch
+key := SmartScheduleLookupPlatform(account, hint, bundle)
 if policy := cache.EnabledPolicy(userID, key); policy != nil {
     return admitSmartSchedule(ctx, account, policy, pairQuality)
 }
 return account.AdmitsScheduleUser(userID, live)
 ```
+
+## Common Mistake: AG-off fail-open because lookup always returns antigravity
+
+**Symptom**: Deploying with the AG switch off changes user 12: group 15 bridge stops using the openai closed pool and fail-opens to account-side allow/deny.
+
+**Cause**: `SmartScheduleLookupPlatform` returned `antigravity` for every OAI + bridge/AG-group request. `EnabledPolicy(antigravity)` was then nil, so admission treated the user as unpooled.
+
+**Prevention**: The helper must read the user policy bundle. AG nil / disabled / empty keeps `openai`. Only `EnabledPolicy(antigravity) != nil` switches the lookup key. Admission, pair slots, unpooled, Observe, and hydrate must share that helper.
 
 ## Common Mistake: rewrite Claude-GPT scheduler platform to antigravity
 

@@ -1,4 +1,4 @@
-{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "User×platform closed pool, PK (user_id, platform, account_id), EnabledPolicy empty=legacy, lookup key is SmartScheduleLookupPlatform (bridge/AG-group OpenAI → antigravity). AG tab may hold OpenAI; Redis/resume/pair-quality are platform-sharded."}
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "User×platform closed pool, PK (user_id, platform, account_id), EnabledPolicy empty=legacy, lookup key is SmartScheduleLookupPlatform (AG off keeps openai for bridge/AG-group OpenAI; AG on with members uses antigravity). AG tab may hold OpenAI; Redis/resume/pair-quality are platform-sharded while AG is on."}
 {"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index; keep display-token and schedule overlays out of this change."}
 {"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Do not change stored billing, actual_cost, or display/cache-read transforms."}
 {"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Admission lookup, pair slots, and unpooled cheaper-tier must use the same platform key."}

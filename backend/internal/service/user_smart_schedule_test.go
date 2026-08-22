@@ -287,38 +287,54 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 		require.Equal(t, 0, lookup.startCalls)
 	})
 
-	t.Run("AG policy disabled fail-opens to account deny not openai pool", func(t *testing.T) {
+	t.Run("AG policy disabled keeps openai closed pool for bridge", func(t *testing.T) {
 		t.Parallel()
-		agCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
-		agCtx = context.WithValue(agCtx, ctxkey.Group, &Group{
-			ID:       15,
-			Platform: PlatformAntigravity,
-			Status:   StatusActive,
-			Hydrated: true,
-		})
+		agCtx := agGroupScheduleCtx(16)
 		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		outside := &Account{ID: 8, Platform: PlatformOpenAI}
 		lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
 			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
 			PlatformAntigravity: {Enabled: false, AccountIDs: map[int64]struct{}{7: {}}},
 		}}}
-		require.False(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup), "must not fall back to openai pool")
+		require.True(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup), "in-pool OAI must still admit via openai")
+		require.False(t, admitsScheduleUser(agCtx, outside, nil, lookup), "out-of-openai-pool must reject")
 	})
 
-	t.Run("AG empty enabled pool fail-opens to account deny not openai pool", func(t *testing.T) {
+	t.Run("AG empty enabled pool keeps openai closed pool for bridge", func(t *testing.T) {
 		t.Parallel()
-		agCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
-		agCtx = context.WithValue(agCtx, ctxkey.Group, &Group{
-			ID:       15,
-			Platform: PlatformAntigravity,
-			Status:   StatusActive,
-			Hydrated: true,
-		})
+		agCtx := agGroupScheduleCtx(16)
 		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		outside := &Account{ID: 8, Platform: PlatformOpenAI}
 		lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
 			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
 			PlatformAntigravity: {Enabled: true, AccountIDs: map[int64]struct{}{}},
 		}}}
-		require.False(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup))
+		require.True(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup))
+		require.False(t, admitsScheduleUser(agCtx, outside, nil, lookup))
+	})
+
+	t.Run("AG missing policy keeps openai closed pool for bridge", func(t *testing.T) {
+		t.Parallel()
+		agCtx := agGroupScheduleCtx(16)
+		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, enabledSmartPolicy(7, 0, nil))}
+		require.True(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup))
+	})
+
+	t.Run("AG on with members admits only AG pool", func(t *testing.T) {
+		t.Parallel()
+		agCtx := agGroupScheduleCtx(16)
+		nativeCtx := nativeOpenAIGroupScheduleCtx(16)
+		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		openaiOnly := &Account{ID: 8, Platform: PlatformOpenAI}
+		lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(8, 0, nil),
+			PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
+		}}}
+		require.True(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup), "AG-pool OAI admits even with account deny")
+		require.False(t, admitsScheduleUser(agCtx, openaiOnly, nil, lookup), "openai-only member must not fail-open")
+		require.True(t, admitsScheduleUser(nativeCtx, openaiOnly, nil, lookup), "native GPT stays openai-only")
+		require.False(t, admitsScheduleUser(nativeCtx, deniedOAI, nil, lookup), "native GPT must not use AG pool")
 	})
 
 	t.Run("enabled empty pool falls back to legacy", func(t *testing.T) {
@@ -1341,6 +1357,25 @@ func TestUserSmartScheduleService_DropsDeletedPoolMembers(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "SMART_SCHEDULE_UNKNOWN_ACCOUNT", infraerrors.Reason(err))
 	})
+}
+
+func TestAdmitsScheduleUser_AGOffResumeUsesOpenAIShard(t *testing.T) {
+	t.Parallel()
+	p50 := 50
+	oai := &Account{ID: 7, Platform: PlatformOpenAI}
+	lookup := &memorySmartLookup{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, &p50),
+			PlatformAntigravity: {Enabled: false, AccountIDs: map[int64]struct{}{7: {}}},
+		}},
+		pair:        map[string]*PairQualityLive{smartPairKey(7, 16): breachedPairLive(400)},
+		resumeUntil: map[string]int64{smartPairPlatformKey(7, 16, PlatformAntigravity): time.Now().UTC().Add(20 * time.Minute).Unix()},
+	}
+	require.False(t, admitsScheduleUser(agGroupScheduleCtx(16), oai, nil, lookup), "AG-off 豁免期 on AG shard must not admit; openai shard still evaluates")
+	require.Equal(t, 1, lookup.startCalls)
+	delete(lookup.cooldownUntil, smartPairKey(7, 16))
+	lookup.resumeUntil[smartPairPlatformKey(7, 16, PlatformOpenAI)] = time.Now().UTC().Add(20 * time.Minute).Unix()
+	require.True(t, admitsScheduleUser(agGroupScheduleCtx(16), oai, nil, lookup), "AG off must honor openai 豁免期")
 }
 
 func TestAdmitsScheduleUser_PairResumeDoesNotLeakAcrossPools(t *testing.T) {

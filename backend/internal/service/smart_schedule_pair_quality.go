@@ -340,7 +340,7 @@ func observePairQualitySuccess(lookup SmartScheduleLookup, ctx context.Context, 
 	observer.ObservePairCompletion(ctx, PairQualityObservation{
 		AccountID:    account.ID,
 		UserID:       userID,
-		Platform:     smartScheduleLookupPlatformFromCtx(ctx, account),
+		Platform:     smartScheduleLookupPlatformForUser(ctx, account, lookup, userID),
 		Success:      true,
 		FirstTokenMs: pairQualityTTFTMs(trueMs, firstMs),
 	})

@@ -14,16 +14,28 @@ type SmartScheduleLookupHint struct {
 }
 
 // SmartScheduleLookupPlatform returns the closed-pool policy key.
-// Bridge / Antigravity-group traffic on an OpenAI account looks up antigravity.
-// Native OpenAI groups keep account.Platform=openai. Never fall back across pools.
-func SmartScheduleLookupPlatform(account *Account, hint SmartScheduleLookupHint) string {
+//
+// Native OpenAI groups always stay account.Platform=openai.
+// OpenAI + (Claude-GPT bridge or AG-group) uses the antigravity closed pool
+// only while that pool is active (EnabledPolicy(antigravity) != nil).
+// AG nil / disabled / empty keeps today's openai lookup. Never fail-open to
+// account-side just because AG is off, and never fall back to openai once AG is on.
+func SmartScheduleLookupPlatform(account *Account, hint SmartScheduleLookupHint, bundle *UserSmartScheduleBundle) string {
 	if account == nil {
 		return ""
 	}
-	if account.IsOpenAI() && (hint.RequireClaudeGPTBridge || normalizeSmartSchedulePlatform(hint.GroupPlatform) == PlatformAntigravity) {
+	native := normalizeSmartSchedulePlatform(account.Platform)
+	if !account.IsOpenAI() {
+		return native
+	}
+	wantsAG := hint.RequireClaudeGPTBridge || normalizeSmartSchedulePlatform(hint.GroupPlatform) == PlatformAntigravity
+	if !wantsAG {
+		return native
+	}
+	if bundle != nil && bundle.EnabledPolicy(PlatformAntigravity) != nil {
 		return PlatformAntigravity
 	}
-	return normalizeSmartSchedulePlatform(account.Platform)
+	return PlatformOpenAI
 }
 
 func smartScheduleLookupHintFromContext(ctx context.Context) SmartScheduleLookupHint {
@@ -45,8 +57,23 @@ func smartScheduleLookupHintFromContext(ctx context.Context) SmartScheduleLookup
 	return hint
 }
 
-func smartScheduleLookupPlatformFromCtx(ctx context.Context, account *Account) string {
-	return SmartScheduleLookupPlatform(account, smartScheduleLookupHintFromContext(ctx))
+type smartScheduleBundleSource interface {
+	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
+}
+
+func smartScheduleBundleFromSource(ctx context.Context, src smartScheduleBundleSource, userID int64) *UserSmartScheduleBundle {
+	if src == nil || userID <= 0 {
+		return nil
+	}
+	return src.Lookup(ctx, userID)
+}
+
+func smartScheduleLookupPlatformForUser(ctx context.Context, account *Account, src smartScheduleBundleSource, userID int64) string {
+	return SmartScheduleLookupPlatform(account, smartScheduleLookupHintFromContext(ctx), smartScheduleBundleFromSource(ctx, src, userID))
+}
+
+func smartScheduleLookupPlatformFromCtx(ctx context.Context, account *Account, lookup SmartScheduleLookup) string {
+	return smartScheduleLookupPlatformForUser(ctx, account, lookup, scheduleUserIDFromContext(ctx, 0))
 }
 
 func withRequireClaudeGPTBridge(ctx context.Context, enabled bool) context.Context {
@@ -82,8 +109,8 @@ func ScheduleLookupPlatformFromContext(ctx context.Context) string {
 	return ""
 }
 
-func stampSmartScheduleLookupPlatform(ctx context.Context, account *Account) context.Context {
-	return WithScheduleLookupPlatform(ctx, smartScheduleLookupPlatformFromCtx(ctx, account))
+func stampSmartScheduleLookupPlatform(ctx context.Context, account *Account, lookup SmartScheduleLookup) context.Context {
+	return WithScheduleLookupPlatform(ctx, smartScheduleLookupPlatformFromCtx(ctx, account, lookup))
 }
 
 func uniqueSmartScheduleMembershipPlatform(bundle *UserSmartScheduleBundle, accountID int64) string {

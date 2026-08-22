@@ -122,6 +122,13 @@ func (s *UserSmartScheduleService) ClearPinned(ctx context.Context, accountID, u
 	s.cache.ClearPinned(ctx, accountID, userID, platform)
 }
 
+func (s *UserSmartScheduleService) PairResumeActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	if s == nil || s.cache == nil {
+		return false
+	}
+	return s.cache.PairResumeActive(ctx, accountID, userID, platform, now)
+}
+
 func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, obs PairQualityObservation) {
 	if s == nil || s.cache == nil || obs.AccountID <= 0 || obs.UserID <= 0 {
 		return
@@ -441,6 +448,10 @@ func (s *UserSmartScheduleService) clearPinMark(ctx context.Context, accountID, 
 		return
 	}
 	s.cache.ClearPinned(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) ClearPairResume(ctx context.Context, accountID, userID int64, platform string) {
+	s.clearPairResume(ctx, accountID, userID, platform)
 }
 
 func (s *UserSmartScheduleService) clearPairResume(ctx context.Context, accountID, userID int64, platform string) {
