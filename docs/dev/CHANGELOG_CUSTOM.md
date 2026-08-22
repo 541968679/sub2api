@@ -1,3 +1,14 @@
+## 2026-08-22 - docs: record production deploy of v0.1.252
+
+### What
+- Production main service is now `ghcr.io/541968679/sub2api:0.1.252` (`163b3f827`), digest `sha256:9a8a84da27d32fe94b19b7c9092049b89c001309b5fbda4a3a3981aa859f1526`.
+
+### Why
+- AG pool table no longer drops OpenAI dual-members (loveapi) after hydrate.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
 ## 2026-08-22 - fix: AG smart-schedule pool table keeps OpenAI members after hydrate
 
 ### What
