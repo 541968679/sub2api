@@ -187,13 +187,7 @@ func (s *OpenAIGatewayService) forwardCountTokensAsAnthropic(
 		}
 
 		upstreamDetail := ""
-		if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-			maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-			if maxBytes <= 0 {
-				maxBytes = 2048
-			}
-			upstreamDetail = truncateString(string(respBody), maxBytes)
-		}
+		upstreamDetail = sanitizeOpsUpstreamDetail(respBody)
 		setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 
 		errMsg := "Upstream request failed"

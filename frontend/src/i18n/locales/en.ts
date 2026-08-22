@@ -2295,6 +2295,9 @@ const enBase = {
         noData: 'No new billed rows yet',
         noDataHint: 'Only requests that wrote true_cost are counted. Historical rows are not backfilled.',
         balance: 'Balance',
+        balanceNeverUpdated: 'Not probed yet',
+        balanceRefresh: 'Refresh upstream balance now',
+        balanceUpdatedHint: 'Opening or refreshing this page re-probes upstream balance when the snapshot is older than 6 minutes. Click refresh to probe immediately. Display only; billing is unchanged.',
         oauthQuotaHint: 'OAuth accounts replace the balance row with cached 7-day quota usage. Shows — when no snapshot exists. Display only; billing is unchanged.',
         burnMatch: 'Aligned · {rate}/h',
         burnMismatch: 'Drift · bal {balance}/h ≠ billed {cost}/h',
@@ -2551,7 +2554,7 @@ const enBase = {
         poolHint: 'Pool accounts are filtered to the current platform. When enabled, only these accounts are selected. The table reuses account-list capacity, quality, actions, and sorting. Pair-cap edits need Save.',
         off: 'Off',
         columnHint: 'Shows whether smart schedule is on for each platform and how many accounts are in the pool. Click to open the detail page.',
-        poolPnlHint: 'This user × this account today revenue / cost / profit. API-key rows show readable upstream balance and compare balance burn speed with today billed cost (actual_cost). OAuth rows replace the balance line with the 7-day quota bar. Display only; billing is unchanged. Revenue only counts new rows with true_cost.',
+        poolPnlHint: 'This user × this account today revenue / cost / profit. API-key rows show readable upstream balance (re-probed on page open/refresh when older than 6 minutes, or immediately via the balance refresh control) and compare balance burn speed with today billed cost (actual_cost). OAuth rows replace the balance line with the 7-day quota bar. Display only; billing is unchanged. Revenue only counts new rows with true_cost.',
         openDetail: 'Open smart schedule details',
         subtitle: 'Configure a per-platform account pool, quality thresholds, and pair cooldown for {email}. When enabled, that platform uses only the pool and ignores the account-side allow/deny/gate/cap.',
         enabled: 'Enable smart schedule for this platform',
@@ -2585,6 +2588,7 @@ const enBase = {
         pairEventCooldownStart: 'Cooldown started',
         pairEventCooldownEnd: 'Cooldown ended',
         pairEventResumed: 'Entered exemption period',
+        pairEventPinned: 'Entered long-term exemption',
         pairEventSelectable: 'Selectable',
         pairEventProbeEnter: 'Entered probe',
         pairEventProbeGraduate: 'Probe graduated',
@@ -2604,6 +2608,10 @@ const enBase = {
         filteredAdd: 'Filtered add',
         filteredAddTitle: 'Add accounts by filter',
         filteredAddHint: 'Platform is locked to {platform}. Only candidates not already in this pool are shown. Filters match the account-management language.',
+        filteredAddHintAg: 'The Antigravity pool accepts native AG accounts and all OpenAI accounts (bridge on or off). The default filter is all platforms; narrow it if needed.',
+        claudeGptBridge: 'Claude→GPT bridge',
+        claudeGptBridgeOn: 'Bridge on',
+        claudeGptBridgeOff: 'Bridge off',
         filteredAddPreview: '{count} matching candidates',
         filteredAddEmpty: 'No candidates match these filters',
         addSelected: 'Add selected ({count})',
@@ -2639,11 +2647,12 @@ const enBase = {
         resumeSuccess: 'Pair entered the exemption period: cooldown cleared; pair quality is not judged until it ends',
         resumeFailed: 'Failed to resume this pair',
         switchState: 'Switch state',
-        switchStateHint: 'Manually switch this pair among paused, cooldown, probe, selectable, and exemption. Leaving pause requires an explicit next state; it does not default to probe.',
+        switchStateHint: 'Manually switch this pair among paused, cooldown, probe, selectable, exemption, and long-term exemption. Leaving pause requires an explicit next state; it does not default to probe.',
         switchSuccessPaused: 'Paused scheduling this account for this user; the account stays in the pool',
         switchSuccessCooling: 'Pair cooldown written',
         switchSuccessProbing: 'Switched to probe: cooldown cleared, windows zeroed, concurrency clamped; graduates to selectable when the gate passes',
         switchSuccessSelectable: 'Switched to selectable: windows cleared; cooldown can start only after N new samples (no time grace)',
+        switchSuccessPinned: 'Switched to long-term exemption: schedulable at full occupancy; pair-quality cooldown does not apply until you pick another state',
         switchFailed: 'Failed to switch pair admission',
         save: 'Save',
         saving: 'Saving...',
@@ -2654,10 +2663,10 @@ const enBase = {
         dirtyBanner: 'Unsaved pair-cap or threshold edits. Auto-refresh will not overwrite this draft; click Save to apply.',
         dirtySaveHint: 'Pair-cap and threshold edits still need Save',
         admission: 'Pool admission',
-        admissionHint: 'Whether this user can be picked from this pool — not the account status. Pause is a long-lived manual state: leaving it requires an explicit next pick and never defaults to probe. Cooldown expiry enters probe, then selectable; exemption is manual-only. Pause and pair cooldown are live locks. A saved pair-quality miss without a cooldown is “will cool on next request”; an unsaved or disabled gate is a preview, not a lock.',
+        admissionHint: 'Whether this user can be picked from this pool — not the account status. Pause is a long-lived manual state: leaving it requires an explicit next pick and never defaults to probe. Cooldown expiry enters probe, then selectable; exemption and long-term exemption are manual-only. Pause and pair cooldown are live locks. A saved pair-quality miss without a cooldown is “will cool on next request”; an unsaved or disabled gate is a preview, not a lock.',
         admissionSelectable: 'Selectable',
         admissionPaused: 'Paused',
-        admissionPausedHint: 'Scheduling this account for this user is paused long-term. The account stays in the pool. Leaving pause requires an explicit pick of probe / selectable / exemption / cooldown — it does not default to probe.',
+        admissionPausedHint: 'Scheduling this account for this user is paused long-term. The account stays in the pool. Leaving pause requires an explicit pick of probe / selectable / exemption / long-term exemption / cooldown — it does not default to probe.',
         admissionCooling: 'Pair cooldown',
         admissionCoolingUntil: 'Until {time}',
         admissionCoolingRemaining: '{minutes} min left',
@@ -2669,6 +2678,8 @@ const enBase = {
         admissionUnsavedPreviewHint: 'Only the draft gate fails, or this platform is not enabled. This is not a live lock; Resume does not clear anything.',
         admissionResumed: 'Exemption period',
         admissionResumedHint: 'Exemption is manual-only. During the exemption period this pair is not judged and will not enter cooldown. After it ends the pair becomes selectable and keeps the grace-period windows — it does not enter probe.',
+        admissionPinned: 'Long-term exemption',
+        admissionPinnedHint: 'Long-term exemption is manual-only. The pair stays schedulable at the full member cap and is never judged or cooled until you pick another state. There is no timeout. Account hard-close can still stop the whole account.',
         admissionProbing: 'Probe',
         admissionProbingHint: 'Cooldown expiry enters probe, then selectable; exemption is manual-only. Probe clamps in-flight concurrency and judges pair quality before graduating to selectable.',
         filterSearch: 'Search pool accounts',
@@ -6585,6 +6596,7 @@ const enBase = {
         caliberCompareExcluded: 'Not in comparison caliber',
         caliberScheduleIncluded: 'In account error rate (scheduling)',
         caliberScheduleExcluded: 'Not in account error rate (scheduling)',
+        caliberNeedsOpsAttention: 'Needs ops',
         typeRecovered: 'Recovered',
         typeRequest: 'Request',
         typeAuth: 'Auth',
@@ -6607,6 +6619,9 @@ const enBase = {
         resolved: 'Resolved',
         viewErrors: 'Errors',
         viewExcluded: 'Excluded',
+        attentionAll: 'All calibers',
+        attentionYes: 'Needs ops',
+        attentionNo: 'Not ops-attention',
         statusCodeOther: 'Other',
         owner: {
           provider: 'Provider',
@@ -6623,6 +6638,44 @@ const enBase = {
         },
         total: 'Total:',
         searchPlaceholder: 'Search request_id / client_request_id / message',
+      },
+      scheduleErrorWhitelist: {
+        title: 'Schedule error whitelist',
+        description:
+          'Schedule caliber only. Defaults are all unchecked, matching pre-ship production: Recovered (unless the failover schedule caliber is on), Claude–GPT bridge, and the legacy routing model-not-found safety rail stay hardcoded excludes. Checked families are excluded from pair cooldown, account last-N, and the account 15m schedule ErrorCount. Client HTTP, user error rate, compare rate, and needs-ops-attention alerts are unchanged.',
+        checkedHint: 'All unchecked by default. Checked = do not count toward schedule error rate / cooldown. Legacy 404 model_not_found rails are not listed here and stay excluded.',
+        saved: 'Schedule error whitelist saved',
+        saveFailed: 'Failed to save schedule error whitelist',
+        families: {
+          client_invalid_request: {
+            label: 'Client invalid_request',
+            hint: 'error_type=invalid_request_error and error_phase=request. Hop-passthrough 400 (phase=upstream) still counts.',
+          },
+          client_wrapped_400_urf: {
+            label: 'Client-wrapped 400 Upstream request failed',
+            hint: 'Only status=400 with wording “upstream request failed”. 502 of the same wording always counts.',
+          },
+          client_context_too_long: {
+            label: 'Context too long',
+            hint: '413, or wording contains prompt too long / context window / array too long.',
+          },
+          pair_concurrency: {
+            label: 'Pair concurrency cap',
+            hint: '429 with “Concurrency limit exceeded for account”.',
+          },
+          group_no_account: {
+            label: 'No account in group',
+            hint: 'No account in the group supports the model. Any phase/status. Still marked needs-ops-attention.',
+          },
+          routing_pool_empty: {
+            label: 'Empty routing pool',
+            hint: 'error_phase=routing and status=503. Still needs-ops-attention.',
+          },
+          protocol_mismatch: {
+            label: 'Protocol mismatch',
+            hint: 'Chat Completions endpoint / Unsupported content type / Invalid URL. Still needs-ops-attention.',
+          },
+        },
       },
       // Error Detail Modal
       errorDetail: {
@@ -6674,6 +6727,10 @@ const enBase = {
         phase: 'Phase',
         status: 'Status',
         message: 'Message',
+        upstreamOriginal: 'Upstream original',
+        upstreamJSON: 'Upstream JSON',
+        downstreamJSON: 'Downstream error JSON',
+        downstreamMapped: 'Downstream mapped',
         basicInfo: 'Basic Info',
         platform: 'Platform',
         model: 'Model',
@@ -6798,6 +6855,7 @@ const enBase = {
           silenceFailed: 'Failed to silence alert',
           viewRule: 'View Rule',
           viewLogs: 'View Logs',
+          viewAttentionErrors: 'Open ops-attention errors',
           firedAt: 'Fired At',
           resolvedAt: 'Resolved At',
           ruleId: 'Rule ID',
@@ -6841,7 +6899,8 @@ const enBase = {
         metricGroups: {
           system: 'System Metrics',
           group: 'Group-level Metrics (requires group_id)',
-          account: 'Account-level Metrics'
+          account: 'Account-level Metrics',
+          routing: 'Routing / group model'
         },
         metrics: {
           successRate: 'Success Rate (%)',
@@ -6859,7 +6918,8 @@ const enBase = {
           accountErrorCount: 'Error Accounts (excluding temporarily unschedulable)',
           accountErrorRatio: 'Error Account Ratio (%)',
           accountTempUnscheduledCount: 'Temporarily Unschedulable Accounts',
-          overloadAccountCount: 'Overloaded Accounts'
+          overloadAccountCount: 'Overloaded Accounts',
+          opsAttentionCount: 'Ops-attention errors'
         },
         metricDescriptions: {
           successRate: 'Percentage of successful requests in the window (0-100).',
@@ -6877,7 +6937,8 @@ const enBase = {
           accountErrorCount: 'Number of error accounts within the window (excluding temporarily unschedulable).',
           accountErrorRatio: 'Error account ratio within the window (0-100).',
           accountTempUnscheduledCount: 'Number of accounts currently temporarily unschedulable (for example proxy or credential failure auto-eviction).',
-          overloadAccountCount: 'Number of overloaded accounts within the window.'
+          overloadAccountCount: 'Number of overloaded accounts within the window.',
+          opsAttentionCount: 'Count of group-model gaps, routing 503s, and protocol mismatches that need an operator. These rows do not enter pair cooldown.'
         },
         hints: {
           recommended: 'Recommended: operator {operator}, threshold {threshold}{unit}',

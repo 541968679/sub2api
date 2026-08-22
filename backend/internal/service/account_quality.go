@@ -75,9 +75,9 @@ type AccountQualityStats struct {
 	TTFTSamples int64 `json:"ttft_samples"`
 	// N / WindowN / AccountQualityWindowN are the site-wide last-N size for Q_a.
 	// Aliases exist so the account cell can show k/N without a settings round-trip.
-	N                      int `json:"n,omitempty"`
-	WindowN                int `json:"window_n,omitempty"`
-	AccountQualityWindowN  int `json:"account_quality_window_n,omitempty"`
+	N                     int `json:"n,omitempty"`
+	WindowN               int `json:"window_n,omitempty"`
+	AccountQualityWindowN int `json:"account_quality_window_n,omitempty"`
 	// ResumeUsers is live-cache only: user_id -> unix until. After 立即恢复,
 	// the chip stays 已恢复 until this timestamp.
 	ResumeUsers map[string]int64 `json:"resume_users,omitempty"`
@@ -626,22 +626,7 @@ func NormalizeAccountQualityHistoryRange(from, to, now time.Time) (time.Time, ti
 // upstream/rate-limit class. Account-dimension scheduling ErrorCount uses the
 // complementary SQLExcludeAccountQualityRoutingModelMiss; user quality does not.
 func SQLAccountQualityRoutingModelMissPredicate() string {
-	return `COALESCE(status_code, 0) IN (400, 403, 404, 503)` +
-		` AND COALESCE(error_phase, '') <> 'upstream'` +
-		` AND LOWER(COALESCE(error_type, '')) NOT IN ('upstream_error','overloaded_error','rate_limit_error')` +
-		` AND (` +
-		`LOWER(COALESCE(error_type, '')) = 'model_not_found'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%model_not_found%'` +
-		` OR LOWER(COALESCE(error_body, '')) LIKE '%model_not_found%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%unknown model%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%model not found%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%unsupported model%'` +
-		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%does not exist%')` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%not supported by any configured account%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%supporting model:%'` +
-		` OR LOWER(COALESCE(error_message, '')) LIKE '%no account supports%'` +
-		` OR (LOWER(COALESCE(error_message, '')) LIKE '%model%' AND LOWER(COALESCE(error_message, '')) LIKE '%not in whitelist%')` +
-		`)`
+	return SQLAccountQualityRoutingModelMissPredicatePrefixed("")
 }
 
 // SQLExcludeAccountQualityRoutingModelMiss is the scheduling ErrorCount filter
@@ -713,6 +698,9 @@ type OpsErrorCaliberInput struct {
 	Platform      string
 	UpstreamModel string
 	UseFailover   bool
+	// Whitelist is the current schedule-error family config. Nil = factory
+	// default (all new families off; legacy routing miss stays hardcoded).
+	Whitelist *ScheduleErrorWhitelist
 }
 
 // OpsErrorRateCalibers is the three-layer list marking for one error row.
@@ -721,28 +709,39 @@ type OpsErrorRateCalibers struct {
 	CountedInUserErrorRate       bool
 	CountedInAccountCompareRate  bool
 	CountedInAccountScheduleRate bool
+	NeedsOpsAttention            bool
 }
 
 // ClassifyOpsErrorRateCalibers uses the same predicates as quality SQL / SLA.
 // User rate = client status>=400. Compare account rate = this hop failed
 // (terminal >=400 or Recovered), excluding model-not-found and bridge.
-// Schedule account rate follows the site-wide failover toggle.
+// Schedule account rate follows the site-wide failover toggle, then drops
+// the hardcoded pre-feature routing miss and any enabled new whitelist
+// families. Attention does not follow the whitelist. Those families still
+// land in ops_error_logs.
 func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers {
 	recovered := IsRecoveredOpsError(in.Phase, in.ClientStatus, in.Message)
 	user := in.ClientStatus >= 400
 	routingMiss := IsAccountQualityRoutingModelMiss(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
 	bridge := IsClaudeGPTBridgeError(in.Platform, in.UpstreamModel)
-	terminalAccount := user && !routingMiss && !bridge
+	attention := IsOpsAttentionError(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
+	wl := DefaultScheduleErrorWhitelist()
+	if in.Whitelist != nil {
+		wl = NormalizeScheduleErrorWhitelist(*in.Whitelist)
+	}
+	scheduleSkip := bridge || IsScheduleQualityExcludedWith(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody, wl)
+	terminalAccount := user && !scheduleSkip
 	compareAccount := !routingMiss && !bridge && (user || recovered)
 	schedule := terminalAccount
 	if in.UseFailover {
-		schedule = compareAccount
+		schedule = compareAccount && !scheduleSkip
 	}
 	return OpsErrorRateCalibers{
 		IsRecovered:                  recovered,
 		CountedInUserErrorRate:       user,
 		CountedInAccountCompareRate:  compareAccount,
 		CountedInAccountScheduleRate: schedule,
+		NeedsOpsAttention:            attention,
 	}
 }
 
@@ -751,7 +750,7 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 	if item == nil {
 		return
 	}
-	cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+	applyOpsErrorRateCalibers(item, OpsErrorCaliberInput{
 		ClientStatus:  clientStatus,
 		Phase:         item.Phase,
 		Type:          item.Type,
@@ -761,8 +760,16 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 		UpstreamModel: item.UpstreamModel,
 		UseFailover:   useFailover,
 	})
+}
+
+func applyOpsErrorRateCalibers(item *OpsErrorLog, in OpsErrorCaliberInput) {
+	if item == nil {
+		return
+	}
+	cals := ClassifyOpsErrorRateCalibers(in)
 	item.IsRecovered = cals.IsRecovered
 	item.CountedInUserErrorRate = cals.CountedInUserErrorRate
 	item.CountedInAccountCompareRate = cals.CountedInAccountCompareRate
 	item.CountedInAccountScheduleRate = cals.CountedInAccountScheduleRate
+	item.NeedsOpsAttention = cals.NeedsOpsAttention
 }

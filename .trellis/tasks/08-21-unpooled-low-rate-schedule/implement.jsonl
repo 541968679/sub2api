@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "unpooled vs smart-schedule: lookupEnabledSmartPolicy + account.Platform (not group platform); admitsScheduleUser must stay unchanged"}
+{"file": ".trellis/spec/backend/index.md", "reason": "backend spec index / pre-dev checklist for schedule work"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "do not change billing/actual_cost or display transform"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "reuse compareUpstreamRate / existing helpers instead of new wait loops"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "session sticky escape must stay consistent across gateway / openai / model-routing"}

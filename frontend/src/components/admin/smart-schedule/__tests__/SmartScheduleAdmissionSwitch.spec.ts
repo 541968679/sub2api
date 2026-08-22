@@ -16,6 +16,7 @@ describe('SmartScheduleAdmissionSwitch', () => {
     await flushPromises()
     expect(document.querySelector('[data-testid="smart-schedule-admission-paused"]')).toBeTruthy()
     expect(document.querySelector('[data-testid="smart-schedule-admission-probing"]')).toBeTruthy()
+    expect(document.querySelector('[data-testid="smart-schedule-admission-pinned"]')).toBeTruthy()
     expect(document.querySelector('[data-testid="smart-schedule-admission-unpause"]')).toBeNull()
     const resumed = document.querySelector('[data-testid="smart-schedule-admission-resumed"]') as HTMLButtonElement
     expect(resumed).toBeTruthy()
@@ -49,6 +50,33 @@ describe('SmartScheduleAdmissionSwitch', () => {
     probing.click()
     await flushPromises()
     expect(w.emitted('select')?.[0]).toEqual(['probing'])
+    w.unmount()
+  })
+
+  it('lets selectable pick long-term exemption', async () => {
+    const w = mount(SmartScheduleAdmissionSwitch, {
+      props: { admission: 'selectable' },
+      attachTo: document.body
+    })
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    const pinned = document.querySelector('[data-testid="smart-schedule-admission-pinned"]') as HTMLButtonElement
+    expect(pinned).toBeTruthy()
+    pinned.click()
+    await flushPromises()
+    expect(w.emitted('select')?.[0]).toEqual(['pinned'])
+    w.unmount()
+  })
+
+  it('keeps the pinned checkmark when the chip is account-level stopped', async () => {
+    const w = mount(SmartScheduleAdmissionSwitch, {
+      props: { admission: 'stopped', pinned: true },
+      attachTo: document.body
+    })
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    const pinned = document.querySelector('[data-testid="smart-schedule-admission-pinned"]') as HTMLButtonElement
+    expect(pinned?.textContent).toContain('✓')
     w.unmount()
   })
 

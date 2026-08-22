@@ -1607,6 +1607,13 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
+	opsBody := service.FailoverOpsRawBody(failoverErr)
+
+	service.RecordOpsUpstreamAttempt(c, service.OpsUpstreamErrorEvent{
+		Platform:           platform,
+		UpstreamStatusCode: statusCode,
+		Kind:               "failover",
+	}, opsBody)
 
 	// 先检查透传规则
 	if h.errorPassthroughService != nil && len(responseBody) > 0 {
@@ -1632,10 +1639,6 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 		}
 	}
 
-	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
-	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
-
 	// 使用默认的错误映射
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
@@ -1644,7 +1647,7 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 // handleFailoverExhaustedSimple 简化版本，用于没有响应体的情况
 func (h *GatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCode int, streamStarted bool) {
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
-	service.SetOpsUpstreamError(c, statusCode, errMsg, "")
+	service.SetOpsUpstreamError(c, statusCode, "", "")
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 

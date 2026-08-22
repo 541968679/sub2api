@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { isCurrentlySchedulingAccount, useUserSmartScheduleEditor } from '../useUserSmartScheduleEditor'
+import {
+  isCurrentlySchedulingAccount,
+  smartSchedulePoolAccountListFilters,
+  useUserSmartScheduleEditor
+} from '../useUserSmartScheduleEditor'
 import { resolvePairCap } from '../smartSchedulePoolAdmission'
 
 const apiMocks = vi.hoisted(() => ({
@@ -14,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   getBatchTodayStats: vi.fn(),
   getSmartSchedulePnlPairs: vi.fn(),
   getSmartSchedulePairQualityBatch: vi.fn(),
+  getUsage: vi.fn(),
   resumeSmartSchedule: vi.fn()
 }))
 
@@ -30,6 +35,7 @@ vi.mock('@/api/admin', () => ({
       list: apiMocks.listAccounts,
       getBatchQualityStats: apiMocks.getBatchQualityStats,
       getBatchTodayStats: apiMocks.getBatchTodayStats,
+      getUsage: apiMocks.getUsage,
       resumeSmartSchedule: apiMocks.resumeSmartSchedule
     }
   }
@@ -107,6 +113,25 @@ describe('isCurrentlySchedulingAccount', () => {
   })
 })
 
+describe('smartSchedulePoolAccountListFilters', () => {
+  it('omits platform on the antigravity tab so mixed ids are not dropped', () => {
+    expect(smartSchedulePoolAccountListFilters('antigravity', [51, 1730])).toEqual({
+      ids: '51,1730',
+      lite: '1'
+    })
+    expect(smartSchedulePoolAccountListFilters('antigravity', [1730]).platform).toBeUndefined()
+  })
+
+  it('keeps the tab platform on other pools', () => {
+    expect(smartSchedulePoolAccountListFilters('openai', [21])).toEqual({
+      ids: '21',
+      lite: '1',
+      platform: 'openai'
+    })
+    expect(smartSchedulePoolAccountListFilters('anthropic', [11])).toMatchObject({ platform: 'anthropic' })
+  })
+})
+
 describe('effective pair cap display', () => {
   it('does not fall back to account-wide concurrency', () => {
     expect(resolvePairCap(null)).toBeNull()
@@ -145,6 +170,10 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
     apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
     apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
+    apiMocks.getUsage.mockResolvedValue({
+      balance_usd: 12.5,
+      balance_updated_at: '2026-08-22T05:00:00.000Z'
+    })
     apiMocks.resumeSmartSchedule.mockImplementation(
       (accountId: number, userId: number, state = 'resumed') =>
         Promise.resolve({
@@ -152,6 +181,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
           user_id: userId,
           state,
           probing: state === 'probing',
+          pinned: state === 'pinned',
           probe_cap: state === 'probing' ? 2 : undefined,
           cooldown_until: null
         })
@@ -191,6 +221,229 @@ describe('useUserSmartScheduleEditor loadAll', () => {
       expect.objectContaining({ platform: 'openai', lite: '1' })
     )
     expect(w.vm.candidatesReady).toBe(true)
+  })
+
+  it('loads OpenAI plus native AG candidates on the antigravity tab', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.activePlatform = 'antigravity'
+    apiMocks.listAccounts.mockClear()
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { platform?: string }) => {
+        if (filters?.platform === 'openai') {
+          return Promise.resolve({
+            items: [{ id: 41, name: 'oai', platform: 'openai', type: 'apikey', status: 'active' }],
+            total: 1,
+            page: 1,
+            page_size: 1000,
+            pages: 1
+          })
+        }
+        return Promise.resolve({
+          items: [{ id: 51, name: 'ag', platform: 'antigravity', type: 'oauth', status: 'active' }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1
+        })
+      }
+    )
+    await w.vm.ensureCandidates()
+    await flushPromises()
+    const platforms = (apiMocks.listAccounts.mock.calls as Array<[number, number, { platform?: string }]>)
+      .map((call) => call[2]?.platform)
+      .sort()
+    expect(platforms).toEqual(['antigravity', 'openai'])
+    expect(w.vm.addableAccounts.map((item: { id: number }) => item.id).sort()).toEqual([41, 51])
+  })
+
+  it('hydrates OpenAI members on the AG tab without platform=antigravity', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 51, platform: 'antigravity', max_concurrency: null },
+            { account_id: 1730, platform: 'antigravity', max_concurrency: null }
+          ]
+        },
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        const catalog = [
+          {
+            id: 51,
+            name: 'ag-native',
+            platform: 'antigravity',
+            type: 'oauth',
+            status: 'active'
+          },
+          {
+            id: 1730,
+            name: 'loveapi',
+            platform: 'openai',
+            type: 'apikey',
+            status: 'active',
+            extra: { openai_claude_gpt_bridge_enabled: true }
+          }
+        ]
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.activePlatform).toBe('antigravity')
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls).toHaveLength(1)
+    expect(poolCalls[0]?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(poolCalls[0]?.[2]?.platform).toBeUndefined()
+    expect(w.vm.poolAccounts.map((item: { id: number; name: string }) => ({ id: item.id, name: item.name }))).toEqual([
+      { id: 51, name: 'ag-native' },
+      { id: 1730, name: 'loveapi' }
+    ])
+    expect(w.vm.currentDraft.accounts.map((item: { account_id: number }) => item.account_id)).toEqual([51, 1730])
+  })
+
+  it('keeps an OpenAI id in the AG draft after add and save, then rehydrates it', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 51, platform: 'antigravity', max_concurrency: null }]
+        },
+        grok: emptyPlatform()
+      }
+    })
+    const catalog = [
+      {
+        id: 51,
+        name: 'ag-native',
+        platform: 'antigravity',
+        type: 'oauth',
+        status: 'active',
+        schedulable: true
+      },
+      {
+        id: 1730,
+        name: 'loveapi',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        extra: { openai_claude_gpt_bridge_enabled: true }
+      }
+    ]
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, platform: string, body: { accounts?: Array<{ account_id: number; max_concurrency?: number | null }> }) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'antigravity',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: (body.accounts ?? []).map((item) => ({
+                ...item,
+                platform
+              }))
+            },
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.poolAccounts.map((item: { id: number }) => item.id)).toEqual([51])
+    await w.vm.addAccountById(1730)
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'antigravity',
+      expect.objectContaining({
+        accounts: expect.arrayContaining([
+          expect.objectContaining({ account_id: 51 }),
+          expect.objectContaining({ account_id: 1730 })
+        ])
+      })
+    )
+    expect(w.vm.currentDraft.accounts.map((item: { account_id: number }) => item.account_id)).toEqual([51, 1730])
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls.length).toBeGreaterThanOrEqual(2)
+    for (const call of poolCalls) {
+      expect(call[2]?.platform).not.toBe('antigravity')
+      expect(call[2]).toMatchObject({ lite: '1' })
+    }
+    expect(poolCalls.at(-1)?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(w.vm.poolAccounts.map((item: { id: number; name: string }) => ({ id: item.id, name: item.name }))).toEqual([
+      { id: 51, name: 'ag-native' },
+      { id: 1730, name: 'loveapi' }
+    ])
   })
 
   it('silent refresh does not flip the first-paint loading flag', async () => {
@@ -325,6 +578,64 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.pairPnlById).toEqual({})
   })
 
+  it('probes stale api-key balances after load and can force a fresh snapshot', async () => {
+    const now = Date.now()
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 21, platform: 'openai', max_concurrency: 2 },
+            { account_id: 22, platform: 'openai', max_concurrency: 2 },
+            { account_id: 23, platform: 'openai', max_concurrency: 2 }
+          ]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 21,
+          name: 'stale-key',
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_usd: 10, upstream_balance_at: new Date(now - 10 * 60 * 1000).toISOString() }
+        },
+        {
+          id: 22,
+          name: 'fresh-key',
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_usd: 20, upstream_balance_at: new Date(now - 2 * 60 * 1000).toISOString() }
+        },
+        { id: 23, name: 'oauth', platform: 'openai', type: 'oauth', extra: {} }
+      ],
+      total: 3,
+      page: 1,
+      page_size: 3,
+      pages: 1
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(apiMocks.getUsage).toHaveBeenCalledTimes(1)
+    expect(apiMocks.getUsage).toHaveBeenCalledWith(21, 'active', undefined)
+    expect(w.vm.poolAccounts.find((item: { id: number }) => item.id === 21)?.extra).toMatchObject({
+      upstream_balance_usd: 12.5,
+      upstream_balance_at: '2026-08-22T05:00:00.000Z'
+    })
+    apiMocks.getUsage.mockClear()
+    await w.vm.refreshAccountBalance(22)
+    await flushPromises()
+    expect(apiMocks.getUsage).toHaveBeenCalledWith(22, 'active', { force: true })
+  })
+
   it('loads pair quality independently of account 15m quality', async () => {
     apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({
       pairs: {
@@ -333,7 +644,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     const w = mountEditor()
     await flushPromises()
-    expect(apiMocks.getSmartSchedulePairQualityBatch).toHaveBeenCalledWith(99, [21])
+    expect(apiMocks.getSmartSchedulePairQualityBatch).toHaveBeenCalledWith(99, [21], 'openai')
     expect(w.vm.pairQualityById['21']).toEqual({
       ttft_p50_ms: 180,
       success_rate: 0.95,
@@ -495,15 +806,22 @@ describe('useUserSmartScheduleEditor loadAll', () => {
 
     await w.vm.setPairAdmission(21, 'selectable')
     await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'selectable', 'openai')
     expect(w.vm.memberPaused(21)).toBe(false)
     expect(w.vm.memberProbing(21)).toBe(false)
 
     await w.vm.setPairAdmission(21, 'probing')
     await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'probing')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'probing', 'openai')
     expect(w.vm.memberProbing(21)).toBe(true)
     expect(w.vm.memberProbeCap(21)).toBe(2)
+    expect(w.vm.memberResumeActive(21)).toBe(false)
+
+    await w.vm.setPairAdmission(21, 'pinned')
+    await flushPromises()
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'pinned', 'openai')
+    expect(w.vm.memberPinned(21)).toBe(true)
+    expect(w.vm.memberProbing(21)).toBe(false)
     expect(w.vm.memberResumeActive(21)).toBe(false)
   })
 
@@ -534,5 +852,57 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     await flushPromises()
     expect(w.vm.memberProbing(21)).toBe(true)
     expect(w.vm.memberProbeCap(21)).toBe(3)
+  })
+
+  it('hydrates pinned from GET without inventing it from resume', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            pinned: true
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberPinned(21)).toBe(true)
+    expect(w.vm.memberProbing(21)).toBe(false)
+  })
+
+  it('does not invent pin from an expired resume mark', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 21,
+            platform: 'openai',
+            admission: 'resumed',
+            pinned: false
+          }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.memberPinned(21)).toBe(false)
   })
 })

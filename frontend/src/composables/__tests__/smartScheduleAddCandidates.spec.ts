@@ -36,6 +36,13 @@ function account(overrides: Partial<Account> = {}): Account {
   } as Account
 }
 
+describe('emptySmartScheduleAddFilters', () => {
+  it('unlocks the platform filter on the antigravity tab', () => {
+    expect(emptySmartScheduleAddFilters('antigravity').platform).toBe('')
+    expect(emptySmartScheduleAddFilters('openai').platform).toBe('openai')
+  })
+})
+
 describe('matchesAddCandidateFilters', () => {
   it('reuses account-list type/status/group and adds schedulable, scheduling, proxy, and id/email search', () => {
     const row = account()

@@ -18,7 +18,12 @@ const (
 	OpsUpstreamStatusCodeKey   = "ops_upstream_status_code"
 	OpsUpstreamErrorMessageKey = "ops_upstream_error_message"
 	OpsUpstreamErrorDetailKey  = "ops_upstream_error_detail"
+	OpsProviderErrorCodeKey    = "ops_provider_error_code"
 	OpsUpstreamErrorsKey       = "ops_upstream_errors"
+
+	// opsUpstreamDetailMaxBytes is the capture cap for admin-visible upstream
+	// JSON. Matches the historical 2KB LogUpstreamErrorBody default.
+	opsUpstreamDetailMaxBytes = 2048
 
 	// Best-effort capture of the current upstream request body so ops can
 	// retry the specific upstream attempt (not just the client request).
@@ -53,6 +58,15 @@ const (
 	OpsClientBusinessLimitedReasonLocalFeatureGate       = "local_feature_gate"
 	OpsClientBusinessLimitedReasonLocalPolicyDenied      = "local_policy_denied"
 )
+
+// genericOpsUpstreamMessages is the Ops-merge set only. It must stay aligned
+// with frontend GENERIC_UPSTREAM_MESSAGES. Do not use it as a client mapping table.
+var genericOpsUpstreamMessages = map[string]struct{}{
+	"upstream request failed":                  {},
+	"upstream request failed after retries":    {},
+	"upstream gateway error":                   {},
+	"upstream service temporarily unavailable": {},
+}
 
 func MarkResponseCommitted(c *gin.Context) {
 	if c != nil {
@@ -159,6 +173,81 @@ func SetOpsUpstreamError(c *gin.Context, upstreamStatusCode int, upstreamMessage
 	setOpsUpstreamError(c, upstreamStatusCode, upstreamMessage, upstreamDetail)
 }
 
+func isGenericOpsUpstreamMessage(msg string) bool {
+	_, ok := genericOpsUpstreamMessages[strings.ToLower(strings.TrimSpace(msg))]
+	return ok
+}
+
+func opsContextString(c *gin.Context, key string) string {
+	if c == nil {
+		return ""
+	}
+	v, ok := c.Get(key)
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
+}
+
+func shouldKeepExistingOpsMessage(existing, incoming string) bool {
+	existing = strings.TrimSpace(existing)
+	incoming = strings.TrimSpace(incoming)
+	if incoming == "" {
+		return existing != ""
+	}
+	if existing == "" {
+		return false
+	}
+	if isGenericOpsUpstreamMessage(incoming) && !isGenericOpsUpstreamMessage(existing) {
+		return true
+	}
+	return false
+}
+
+func isGenericOpsUpstreamDetail(detail string) bool {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return false
+	}
+	if isGenericOpsUpstreamMessage(detail) {
+		return true
+	}
+	var parsed struct {
+		Error *struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(detail), &parsed); err != nil || parsed.Error == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(parsed.Error.Type), "upstream_error") {
+		return false
+	}
+	return isGenericOpsUpstreamMessage(parsed.Error.Message)
+}
+
+func sanitizeOpsUpstreamDetail(rawBody []byte) string {
+	if len(rawBody) == 0 {
+		return ""
+	}
+	truncated := truncateString(string(rawBody), opsUpstreamDetailMaxBytes)
+	sanitized, _ := sanitizeErrorBodyForStorage(truncated, opsUpstreamDetailMaxBytes)
+	return strings.TrimSpace(sanitized)
+}
+
+func setOpsProviderErrorCode(c *gin.Context, code string) {
+	if c == nil {
+		return
+	}
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return
+	}
+	c.Set(OpsProviderErrorCodeKey, truncateString(code, 64))
+}
+
 func setOpsUpstreamError(c *gin.Context, upstreamStatusCode int, upstreamMessage, upstreamDetail string) {
 	if c == nil {
 		return
@@ -167,11 +256,66 @@ func setOpsUpstreamError(c *gin.Context, upstreamStatusCode int, upstreamMessage
 		c.Set(OpsUpstreamStatusCodeKey, upstreamStatusCode)
 	}
 	if msg := strings.TrimSpace(upstreamMessage); msg != "" {
-		c.Set(OpsUpstreamErrorMessageKey, msg)
+		existing := opsContextString(c, OpsUpstreamErrorMessageKey)
+		if !shouldKeepExistingOpsMessage(existing, msg) {
+			c.Set(OpsUpstreamErrorMessageKey, msg)
+		}
 	}
-	if detail := strings.TrimSpace(upstreamDetail); detail != "" {
+	if detail := strings.TrimSpace(upstreamDetail); detail != "" && !isGenericOpsUpstreamDetail(detail) {
 		c.Set(OpsUpstreamErrorDetailKey, detail)
+		if code := strings.TrimSpace(extractUpstreamErrorCode([]byte(detail))); code != "" {
+			setOpsProviderErrorCode(c, code)
+		}
 	}
+}
+
+// recordOpsUpstreamAttempt writes one upstream hop for Ops only.
+// rawBody must be the original upstream body, not a mapped client wrapper.
+// Message is extracted from rawBody (empty stays empty; no generic fill-in).
+// Detail is always sanitized+truncated and does not depend on LogUpstreamErrorBody.
+func recordOpsUpstreamAttempt(c *gin.Context, ev OpsUpstreamErrorEvent, rawBody []byte) {
+	extracted := strings.TrimSpace(extractUpstreamErrorMessage(rawBody))
+	extracted = sanitizeUpstreamErrorMessage(extracted)
+	if extracted != "" && !isGenericOpsUpstreamMessage(extracted) {
+		ev.Message = extracted
+	} else if isGenericOpsUpstreamMessage(ev.Message) {
+		ev.Message = ""
+	}
+
+	if detail := sanitizeOpsUpstreamDetail(rawBody); detail != "" && !isGenericOpsUpstreamDetail(detail) {
+		ev.Detail = detail
+		if ev.UpstreamResponseBody == "" || isGenericOpsUpstreamDetail(ev.UpstreamResponseBody) {
+			ev.UpstreamResponseBody = detail
+		}
+	} else if isGenericOpsUpstreamDetail(ev.Detail) {
+		ev.Detail = ""
+	}
+	if isGenericOpsUpstreamDetail(ev.UpstreamResponseBody) {
+		ev.UpstreamResponseBody = ""
+	}
+
+	if code := strings.TrimSpace(extractUpstreamErrorCode(rawBody)); code != "" {
+		setOpsProviderErrorCode(c, code)
+	}
+
+	setOpsUpstreamError(c, ev.UpstreamStatusCode, ev.Message, ev.Detail)
+	appendOpsUpstreamError(c, ev)
+}
+
+// RecordOpsUpstreamAttempt is the exported wrapper for handler-layer capture.
+func RecordOpsUpstreamAttempt(c *gin.Context, ev OpsUpstreamErrorEvent, rawBody []byte) {
+	recordOpsUpstreamAttempt(c, ev, rawBody)
+}
+
+// FailoverOpsRawBody returns the original upstream body for Ops capture.
+func FailoverOpsRawBody(err *UpstreamFailoverError) []byte {
+	if err == nil {
+		return nil
+	}
+	if len(err.RawUpstreamBody) > 0 {
+		return err.RawUpstreamBody
+	}
+	return err.ResponseBody
 }
 
 // OpsUpstreamErrorEvent describes one upstream error attempt during a single gateway request.
@@ -233,6 +377,12 @@ func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {
 	ev.Detail = strings.TrimSpace(ev.Detail)
 	if ev.Message != "" {
 		ev.Message = sanitizeUpstreamErrorMessage(ev.Message)
+	}
+	if isGenericOpsUpstreamDetail(ev.Detail) {
+		ev.Detail = ""
+	}
+	if isGenericOpsUpstreamDetail(ev.UpstreamResponseBody) {
+		ev.UpstreamResponseBody = ""
 	}
 
 	// If the caller didn't explicitly pass upstream request body but the gateway

@@ -1259,6 +1259,13 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 			c.Header("Retry-After", strconv.Itoa(secs))
 		}
 	}
+	if failoverErr != nil {
+		service.RecordOpsUpstreamAttempt(c, service.OpsUpstreamErrorEvent{
+			Platform:           service.PlatformOpenAI,
+			UpstreamStatusCode: failoverErr.StatusCode,
+			Kind:               "failover",
+		}, service.FailoverOpsRawBody(failoverErr))
+	}
 	if status, errType, errMsg, ok := h.mapAnthropicFailoverBodyError(failoverErr); ok {
 		// bridge 出口消毒：失败回放会把原始上游 error.type/message 逐字转发，
 		// 其中常带 OpenAI/gpt-*/openai.com 指纹。
@@ -2151,6 +2158,13 @@ func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error,
 func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
+	opsBody := service.FailoverOpsRawBody(failoverErr)
+
+	service.RecordOpsUpstreamAttempt(c, service.OpsUpstreamErrorEvent{
+		Platform:           service.PlatformOpenAI,
+		UpstreamStatusCode: statusCode,
+		Kind:               "failover",
+	}, opsBody)
 
 	// 先检查透传规则
 	if h.errorPassthroughService != nil && len(responseBody) > 0 {
@@ -2176,11 +2190,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		}
 	}
 
-	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
-	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
-	if service.IsOpenAISilentRefusalErrorBody(responseBody) {
-		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
+	if service.IsOpenAISilentRefusalErrorBody(opsBody) || service.IsOpenAISilentRefusalErrorBody(responseBody) {
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage(), streamStarted)
 		return
 	}
@@ -2193,7 +2203,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 // handleFailoverExhaustedSimple 简化版本，用于没有响应体的情况
 func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCode int, streamStarted bool) {
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
-	service.SetOpsUpstreamError(c, statusCode, errMsg, "")
+	service.SetOpsUpstreamError(c, statusCode, "", "")
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 

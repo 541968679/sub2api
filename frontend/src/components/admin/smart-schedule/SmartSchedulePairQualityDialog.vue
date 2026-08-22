@@ -99,6 +99,7 @@ const props = defineProps<{
   show: boolean
   userId: number | null
   account: Account | null
+  platform?: string
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -196,6 +197,9 @@ function eventLabel(type: string) {
   if (key === 'resumed' || key === 'enter_resumed' || key === 'exemption') {
     return t('admin.users.smartSchedule.pairEventResumed')
   }
+  if (key === 'pinned' || key === 'enter_pinned') {
+    return t('admin.users.smartSchedule.pairEventPinned')
+  }
   if (key === 'selectable') {
     return t('admin.users.smartSchedule.pairEventSelectable')
   }
@@ -218,7 +222,11 @@ async function loadDetail() {
   }
   loading.value = true
   try {
-    detail.value = await adminAPI.users.getSmartSchedulePairQualityDetail(props.userId, props.account.id)
+    detail.value = await adminAPI.users.getSmartSchedulePairQualityDetail(
+      props.userId,
+      props.account.id,
+      props.platform
+    )
   } catch {
     detail.value = { current: null, snapshots: [], events: [] }
   } finally {
@@ -227,7 +235,7 @@ async function loadDetail() {
 }
 
 watch(
-  () => [props.show, props.userId, props.account?.id] as const,
+  () => [props.show, props.userId, props.account?.id, props.platform] as const,
   ([open]) => {
     if (open) void loadDetail()
     else detail.value = null

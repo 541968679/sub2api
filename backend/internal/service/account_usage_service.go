@@ -682,6 +682,10 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 	return usage, nil
 }
 
+// upstreamBalanceRefreshTTL is the minimum age before GetUsage re-probes
+// prepaid API-key balance. The smart-schedule PnL cell uses the same window.
+const upstreamBalanceRefreshTTL = 6 * time.Minute
+
 func shouldRefreshUpstreamBalance(account *Account, now time.Time) bool {
 	if account == nil || account.Extra == nil {
 		return true
@@ -698,8 +702,7 @@ func shouldRefreshUpstreamBalance(account *Account, now time.Time) bool {
 	if err != nil {
 		return true
 	}
-	// Align with usage cache TTL (~6 min).
-	return now.Sub(ts) >= 6*time.Minute
+	return now.Sub(ts) >= upstreamBalanceRefreshTTL
 }
 
 const extraKeyUpstreamBalanceUnlimited = "upstream_balance_unlimited"

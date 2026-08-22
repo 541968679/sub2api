@@ -36,7 +36,7 @@ type OpsErrorLog struct {
 
 	Severity string `json:"severity"`
 
-	StatusCode int    `json:"status_code"`
+	StatusCode int `json:"status_code"`
 	// ClientStatusCode is the wire status (200 on Recovered). List StatusCode
 	// may still be COALESCE(upstream, status) for display.
 	ClientStatusCode int    `json:"-"`
@@ -52,6 +52,13 @@ type OpsErrorLog struct {
 	ClientRequestID string `json:"client_request_id"`
 	RequestID       string `json:"request_id"`
 	Message         string `json:"message"`
+	// ErrorBody is used for list-badge classification. Not serialized on list
+	// rows (detail still exposes it on OpsErrorLogDetail).
+	ErrorBody string `json:"-"`
+
+	// Admin-compressed upstream original. List rows never include error_body.
+	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`
+	ProviderErrorCode    string `json:"provider_error_code,omitempty"`
 
 	UserID        *int64 `json:"user_id"`
 	UserEmail     string `json:"user_email"`
@@ -82,6 +89,7 @@ type OpsErrorLog struct {
 	CountedInUserErrorRate       bool `json:"counted_in_user_error_rate"`
 	CountedInAccountCompareRate  bool `json:"counted_in_account_compare_rate"`
 	CountedInAccountScheduleRate bool `json:"counted_in_account_schedule_rate"`
+	NeedsOpsAttention            bool `json:"needs_ops_attention"`
 }
 
 type OpsErrorLogDetail struct {
@@ -91,10 +99,9 @@ type OpsErrorLogDetail struct {
 	UserAgent string `json:"user_agent"`
 
 	// Upstream context (optional)
-	UpstreamStatusCode   *int   `json:"upstream_status_code,omitempty"`
-	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`
-	UpstreamErrorDetail  string `json:"upstream_error_detail,omitempty"`
-	UpstreamErrors       string `json:"upstream_errors,omitempty"` // JSON array (string) for display/parsing
+	UpstreamStatusCode  *int   `json:"upstream_status_code,omitempty"`
+	UpstreamErrorDetail string `json:"upstream_error_detail,omitempty"`
+	UpstreamErrors      string `json:"upstream_errors,omitempty"` // JSON array (string) for display/parsing
 
 	// Timings (optional)
 	AuthLatencyMs      *int64 `json:"auth_latency_ms"`
@@ -139,6 +146,9 @@ type OpsErrorLogFilter struct {
 	// Bridge: ""|"all" = no filter, "bridge" = Claude-GPT bridge heuristic, "non_bridge" = inverse.
 	Bridge string
 
+	// NeedsOpsAttention filters list/stats/alert counts in SQL (not in memory).
+	NeedsOpsAttention *bool
+
 	// Optional correlation keys for exact matching.
 	RequestID       string
 	ClientRequestID string
@@ -157,6 +167,12 @@ type OpsErrorLogFilter struct {
 
 	Page     int
 	PageSize int
+}
+
+type OpsAttentionBreakdown struct {
+	GroupID int64  `json:"group_id"`
+	Model   string `json:"model"`
+	Count   int64  `json:"count"`
 }
 
 type OpsErrorLogList struct {

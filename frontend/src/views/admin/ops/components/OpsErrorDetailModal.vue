@@ -108,10 +108,19 @@
         </div>
       </div>
 
-      <!-- Response content (client request -> error_body; upstream -> upstream_error_detail/message) -->
-      <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
-        <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.responseBody') }}</h3>
-        <pre class="mt-4 max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(primaryResponseBody || '') }}</code></pre>
+      <div class="space-y-4">
+        <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.upstreamOriginal') }}</h3>
+          <p class="mt-4 break-words text-sm font-medium text-gray-900 dark:text-white">{{ upstreamOriginal || '—' }}</p>
+        </div>
+        <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.upstreamJSON') }}</h3>
+          <pre class="mt-4 max-h-[360px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(upstreamJSON || '') }}</code></pre>
+        </div>
+        <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.downstreamJSON') }}</h3>
+          <pre class="mt-4 max-h-[360px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(downstreamJSON || '') }}</code></pre>
+        </div>
       </div>
 
       <!-- Upstream errors list (only for request errors) -->
@@ -174,7 +183,9 @@
               </div>
             </div>
 
-            <div v-if="ev.message" class="mt-3 break-words text-sm font-medium text-gray-900 dark:text-white">{{ ev.message }}</div>
+            <div class="mt-3 break-words text-sm font-medium text-gray-900 dark:text-white">
+              {{ hopOriginal(ev) || ev.message || '—' }}
+            </div>
 
             <pre
               v-if="expandedUpstreamDetailIds.has(ev.id)"
@@ -195,7 +206,11 @@ import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 import { opsAPI, type OpsErrorDetail } from '@/api/admin/ops'
 import { formatDateTime } from '@/utils/format'
-import { resolvePrimaryResponseBody, resolveUpstreamPayload } from '../utils/errorDetailResponse'
+import {
+  formatUpstreamOriginal,
+  resolveDownstreamJSON,
+  resolveUpstreamJSON
+} from '../utils/errorDetailResponse'
 
 interface Props {
   show: boolean
@@ -223,12 +238,9 @@ const showUpstreamList = computed(() => props.errorType === 'request')
 
 const requestId = computed(() => detail.value?.request_id || detail.value?.client_request_id || '')
 
-const primaryResponseBody = computed(() => {
-  return resolvePrimaryResponseBody(detail.value, props.errorType)
-})
-
-
-
+const upstreamOriginal = computed(() => formatUpstreamOriginal(detail.value))
+const upstreamJSON = computed(() => resolveUpstreamJSON(detail.value))
+const downstreamJSON = computed(() => resolveDownstreamJSON(detail.value))
 
 const title = computed(() => {
   if (!props.errorId) return t('admin.ops.errorDetail.title')
@@ -276,10 +288,12 @@ const correlatedUpstreamErrors = computed<OpsErrorDetail[]>(() => correlatedUpst
 
 const expandedUpstreamDetailIds = ref(new Set<number>())
 
+function hopOriginal(ev: OpsErrorDetail): string {
+  return formatUpstreamOriginal(ev)
+}
+
 function getUpstreamResponsePreview(ev: OpsErrorDetail): string {
-  const upstreamPayload = resolveUpstreamPayload(ev)
-  if (upstreamPayload) return upstreamPayload
-  return String(ev.error_body || '').trim()
+  return resolveUpstreamJSON(ev)
 }
 
 function toggleUpstreamDetail(id: number) {

@@ -128,6 +128,22 @@ func TestSLAOpsErrorLogFilter_DropsRecoveredAndUpstreamPhase(t *testing.T) {
 	}
 }
 
+func TestBuildOpsErrorLogsWhere_NeedsOpsAttention(t *testing.T) {
+	yes := true
+	where, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{NeedsOpsAttention: &yes})
+	if !strings.Contains(where, "not supported by any configured account") {
+		t.Fatalf("attention filter must use SQL pred: %s", where)
+	}
+	if !strings.Contains(where, "e.error_message") {
+		t.Fatalf("attention filter must qualify columns: %s", where)
+	}
+	no := false
+	notWhere, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{NeedsOpsAttention: &no})
+	if !strings.Contains(notWhere, "NOT (") {
+		t.Fatalf("false filter must negate attention pred: %s", notWhere)
+	}
+}
+
 func TestIsClaudeGPTBridgeError(t *testing.T) {
 	if !service.IsClaudeGPTBridgeError("antigravity", "gpt-5.4") {
 		t.Fatal("expected bridge true")

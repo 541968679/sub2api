@@ -59,9 +59,10 @@ INSERT INTO ops_error_logs (
   attempted_key_prefix,
   deleted_key_owner_user_id,
   deleted_key_name,
-  api_key_prefix
+  api_key_prefix,
+  provider_error_code
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
@@ -174,6 +175,7 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 		opsNullInt64(input.DeletedKeyOwnerUserID),
 		opsNullString(input.DeletedKeyName),
 		opsNullString(input.APIKeyPrefix),
+		opsNullString(input.ProviderErrorCode),
 	}
 }
 
@@ -245,7 +247,9 @@ SELECT
   ak.deleted_at,
   COALESCE(e.deleted_key_name, ''),
   COALESCE(e.status_code, 0),
-  COALESCE(e.error_body, '')
+  COALESCE(e.error_body, ''),
+  COALESCE(e.upstream_error_message, ''),
+  COALESCE(e.provider_error_code, '')
 FROM ops_error_logs e
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
@@ -283,6 +287,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		var deletedKeyName string
 		var clientStatus sql.NullInt64
 		var errorBody string
+		var listUpstreamMessage string
+		var listProviderCode string
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
@@ -321,6 +327,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&deletedKeyName,
 			&clientStatus,
 			&errorBody,
+			&listUpstreamMessage,
+			&listProviderCode,
 		); err != nil {
 			return nil, err
 		}
@@ -369,6 +377,9 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
 		item.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(item.Platform, item.UpstreamModel)
 		item.ClientStatusCode = int(clientStatus.Int64)
+		item.ErrorBody = errorBody
+		item.UpstreamErrorMessage = listUpstreamMessage
+		item.ProviderErrorCode = listProviderCode
 		service.ApplyOpsErrorRateCalibers(&item, item.ClientStatusCode, errorBody, false)
 		out = append(out, &item)
 	}
@@ -627,7 +638,8 @@ SELECT
   COALESCE(e.api_key_prefix, ''),
   COALESCE(ak.name, ''),
   ak.deleted_at,
-  COALESCE(e.status_code, 0)
+  COALESCE(e.status_code, 0),
+  COALESCE(e.provider_error_code, '')
 FROM ops_error_logs e
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN accounts a ON e.account_id = a.id
@@ -657,6 +669,7 @@ LIMIT 1`
 	var detailAPIKeyName string
 	var detailAPIKeyDeletedAt sql.NullTime
 	var clientStatus sql.NullInt64
+	var detailProviderCode string
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&out.ID,
@@ -710,6 +723,7 @@ LIMIT 1`
 		&detailAPIKeyName,
 		&detailAPIKeyDeletedAt,
 		&clientStatus,
+		&detailProviderCode,
 	)
 	if err != nil {
 		return nil, err
@@ -717,6 +731,7 @@ LIMIT 1`
 
 	out.StatusCode = int(statusCode.Int64)
 	out.ClientStatusCode = int(clientStatus.Int64)
+	out.ProviderErrorCode = detailProviderCode
 	out.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(out.Platform, out.UpstreamModel)
 	service.ApplyOpsErrorRateCalibers(&out.OpsErrorLog, out.ClientStatusCode, out.ErrorBody, false)
 	if resolvedAt.Valid {
@@ -1246,6 +1261,14 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 		args = append(args, crid)
 		clauses = append(clauses, "COALESCE(e.client_request_id,'') = $"+itoa(len(args)))
 	}
+	if filter.NeedsOpsAttention != nil {
+		pred := service.SQLOpsAttentionPredicate("e.")
+		if *filter.NeedsOpsAttention {
+			clauses = append(clauses, pred)
+		} else {
+			clauses = append(clauses, "NOT ("+pred+")")
+		}
+	}
 
 	if q := strings.TrimSpace(filter.Query); q != "" {
 		like := "%" + q + "%"
@@ -1409,4 +1432,63 @@ func opsNullInt16(v *int16) any {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: int64(*v), Valid: true}
+}
+
+func opsAttentionListFilter(filter *service.OpsErrorLogFilter) *service.OpsErrorLogFilter {
+	out := service.OpsErrorLogFilter{View: "all"}
+	if filter != nil {
+		out = *filter
+		out.View = "all"
+	}
+	yes := true
+	out.NeedsOpsAttention = &yes
+	return &out
+}
+
+func (r *opsRepository) CountOpsAttentionErrors(ctx context.Context, filter *service.OpsErrorLogFilter) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, fmt.Errorf("nil ops repository")
+	}
+	where, args := buildOpsErrorLogsWhere(opsAttentionListFilter(filter))
+	var total int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ops_error_logs e "+where, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *opsRepository) ListOpsAttentionBreakdown(ctx context.Context, filter *service.OpsErrorLogFilter, limit int) ([]service.OpsAttentionBreakdown, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("nil ops repository")
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+	where, args := buildOpsErrorLogsWhere(opsAttentionListFilter(filter))
+	args = append(args, limit)
+	query := `
+SELECT COALESCE(e.group_id, 0),
+       COALESCE(NULLIF(TRIM(e.requested_model), ''), NULLIF(TRIM(e.model), ''), ''),
+       COUNT(*)
+FROM ops_error_logs e ` + where + `
+GROUP BY 1, 2
+ORDER BY COUNT(*) DESC
+LIMIT $` + itoa(len(args))
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]service.OpsAttentionBreakdown, 0, limit)
+	for rows.Next() {
+		var row service.OpsAttentionBreakdown
+		if err := rows.Scan(&row.GroupID, &row.Model, &row.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }

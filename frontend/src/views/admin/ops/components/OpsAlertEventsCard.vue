@@ -177,6 +177,24 @@ function formatDurationLabel(event: AlertEvent): string {
   return `${t('admin.ops.alertEvents.status.firing')} ${formatDurationMs(ms)}`
 }
 
+function errorListHref(event: AlertEvent): string {
+  const params = new URLSearchParams()
+  const platform = getDimensionString(event, 'platform')
+  if (platform) params.set('platform', platform)
+  const groupId = event.dimensions?.group_id
+  if (groupId != null && groupId !== '') params.set('group_id', String(groupId))
+  params.set('error_type', 'request')
+  params.set('open_error_details', '1')
+  if (String(event.dimensions?.error_list_filter || '').includes('needs_ops_attention')) {
+    params.set('needs_ops_attention', '1')
+  }
+  return `/admin/ops?${params.toString()}`
+}
+
+function isOpsAttentionEvent(event: AlertEvent | null | undefined): boolean {
+  return String(event?.dimensions?.error_list_filter || '').includes('needs_ops_attention')
+}
+
 function formatDimensionsSummary(event: AlertEvent): string {
   const parts: string[] = []
   const platform = getDimensionString(event, 'platform')
@@ -580,10 +598,10 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
                 </a>
                 <a
                   class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
-                  :href="`/admin/ops?platform=${encodeURIComponent(getDimensionString(selected,'platform')||'')}&group_id=${selected.dimensions?.group_id || ''}&error_type=request&open_error_details=1`"
+                  :href="errorListHref(selected)"
                 >
                   <Icon name="externalLink" size="xs" />
-                  {{ t('admin.ops.alertEvents.detail.viewLogs') }}
+                  {{ isOpsAttentionEvent(selected) ? t('admin.ops.alertEvents.detail.viewAttentionErrors') : t('admin.ops.alertEvents.detail.viewLogs') }}
                 </a>
               </div>
             </div>
@@ -593,6 +611,12 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
                 <div v-if="getDimensionString(selected, 'platform')">platform={{ getDimensionString(selected, 'platform') }}</div>
                 <div v-if="selected.dimensions?.group_id">group_id={{ selected.dimensions.group_id }}</div>
                 <div v-if="getDimensionString(selected, 'region')">region={{ getDimensionString(selected, 'region') }}</div>
+                <div
+                  v-for="(row, idx) in Array.isArray(selected.dimensions?.top) ? selected.dimensions.top : []"
+                  :key="`top-${idx}`"
+                >
+                  g{{ row.group_id }}:{{ row.model || '-' }}×{{ row.count }}
+                </div>
               </div>
             </div>
           </div>

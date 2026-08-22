@@ -599,16 +599,8 @@ func (s *AntigravityGatewayService) antigravityRetryLoop(p antigravityRetryLoopP
 
 	var resp *http.Response
 	var usedBaseURL string
-	logBody := p.settingService != nil && p.settingService.cfg != nil && p.settingService.cfg.Gateway.LogUpstreamErrorBody
-	maxBytes := 2048
-	if p.settingService != nil && p.settingService.cfg != nil && p.settingService.cfg.Gateway.LogUpstreamErrorBodyMaxBytes > 0 {
-		maxBytes = p.settingService.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-	}
 	getUpstreamDetail := func(body []byte) string {
-		if !logBody {
-			return ""
-		}
-		return truncateString(string(body), maxBytes)
+		return sanitizeOpsUpstreamDetail(body)
 	}
 
 urlFallbackLoop:
@@ -926,11 +918,7 @@ func (s *AntigravityGatewayService) getLogConfig() (logBody bool, maxBytes int) 
 
 // getUpstreamErrorDetail 获取上游错误详情（用于日志记录）
 func (s *AntigravityGatewayService) getUpstreamErrorDetail(body []byte) string {
-	logBody, maxBytes := s.getLogConfig()
-	if !logBody {
-		return ""
-	}
-	return truncateString(string(body), maxBytes)
+	return sanitizeOpsUpstreamDetail(body)
 }
 
 // checkErrorPolicy nil 安全的包装
@@ -1557,7 +1545,6 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		if resp.StatusCode == http.StatusBadRequest && isSignatureRelatedError(respBody) && s.settingService.IsSignatureRectifierEnabled(ctx) {
 			upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
 			upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-			logBody, maxBytes := s.getLogConfig()
 			upstreamDetail := s.getUpstreamErrorDetail(respBody)
 			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 				Platform:           account.Platform,
@@ -1651,10 +1638,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				}
 				retryUpstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(retryBody))
 				retryUpstreamMsg = sanitizeUpstreamErrorMessage(retryUpstreamMsg)
-				retryUpstreamDetail := ""
-				if logBody {
-					retryUpstreamDetail = truncateString(string(retryBody), maxBytes)
-				}
+				retryUpstreamDetail := sanitizeOpsUpstreamDetail(retryBody)
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 					Platform:           account.Platform,
 					AccountID:          account.ID,

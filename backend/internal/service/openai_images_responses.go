@@ -991,13 +991,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 		upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
 	}
 	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
+	upstreamDetail = sanitizeOpsUpstreamDetail(body)
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 
 	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {

@@ -242,6 +242,22 @@ func TestParseOpsQueryMode(t *testing.T) {
 	require.Equal(t, service.OpsQueryMode(""), parseOpsQueryMode(nil))
 }
 
+func TestApplyOpsNeedsAttentionQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?needs_ops_attention=true", nil)
+	filter := &service.OpsErrorLogFilter{}
+	require.NoError(t, applyOpsNeedsAttentionQuery(c, filter))
+	require.NotNil(t, filter.NeedsOpsAttention)
+	require.True(t, *filter.NeedsOpsAttention)
+
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodGet, "/?needs_ops_attention=maybe", nil)
+	require.Error(t, applyOpsNeedsAttentionQuery(c2, &service.OpsErrorLogFilter{}))
+}
+
 func TestOpsAlertRuleValidation(t *testing.T) {
 	raw := map[string]json.RawMessage{
 		"name":        json.RawMessage(`"High error rate"`),
@@ -259,6 +275,17 @@ func TestOpsAlertRuleValidation(t *testing.T) {
 
 	require.True(t, isPercentOrRateMetric("error_rate"))
 	require.False(t, isPercentOrRateMetric("concurrency_queue_depth"))
+	require.False(t, isPercentOrRateMetric("ops_attention_count"))
+
+	attention, err := validateOpsAlertRulePayload(map[string]json.RawMessage{
+		"name":        json.RawMessage(`"需运维：组模型/路由/协议"`),
+		"metric_type": json.RawMessage(`"ops_attention_count"`),
+		"operator":    json.RawMessage(`">"`),
+		"threshold":   json.RawMessage(`0`),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ops_attention_count", attention.MetricType)
+	require.Equal(t, 0.0, attention.Threshold)
 }
 
 func TestOpsWSHelpers(t *testing.T) {

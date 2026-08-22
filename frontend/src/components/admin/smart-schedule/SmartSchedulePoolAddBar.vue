@@ -37,7 +37,11 @@
               :data-testid="`smart-schedule-add-option-${account.id}`"
               @click="$emit('choose', account.id)"
             >
-              {{ account.name }} (#{{ account.id }})
+              {{ account.name }} (#{{ account.id }}) · {{ account.platform }}{{
+                account.extra?.openai_claude_gpt_bridge_enabled
+                  ? ` · ${t('admin.users.smartSchedule.claudeGptBridgeOn')}`
+                  : ''
+              }}
             </button>
             <p v-if="filteredAccounts.length === 0" class="px-3 py-2 text-sm text-gray-500">
               {{ t('admin.users.smartSchedule.addAccountEmpty') }}

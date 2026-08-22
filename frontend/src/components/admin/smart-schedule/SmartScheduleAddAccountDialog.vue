@@ -9,14 +9,18 @@
   >
     <div class="space-y-4" data-testid="smart-schedule-add-dialog">
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        {{ t('admin.users.smartSchedule.filteredAddHint', { platform: platformLabel }) }}
+        {{
+          platform === 'antigravity'
+            ? t('admin.users.smartSchedule.filteredAddHintAg')
+            : t('admin.users.smartSchedule.filteredAddHint', { platform: platformLabel })
+        }}
       </p>
 
       <AccountTableFilters
         :search-query="filters.search ?? ''"
         :filters="filters"
         :groups="groups"
-        hide-platform
+        :hide-platform="platform !== 'antigravity'"
         :show-sort="false"
         :search-placeholder="t('admin.users.smartSchedule.addAccountPlaceholder')"
         @update:search-query="patchSearch"
@@ -120,6 +124,7 @@
               </th>
               <th class="px-3 py-2">{{ t('admin.accounts.columns.name') }}</th>
               <th class="px-3 py-2">{{ t('admin.accounts.columns.platformType') }}</th>
+              <th class="px-3 py-2">{{ t('admin.users.smartSchedule.claudeGptBridge') }}</th>
               <th class="px-3 py-2">{{ t('admin.accounts.columns.status') }}</th>
               <th class="px-3 py-2">{{ t('admin.accounts.columns.schedulable') }}</th>
               <th class="px-3 py-2">{{ t('admin.accounts.columns.groups') }}</th>
@@ -127,7 +132,7 @@
           </thead>
           <tbody>
             <tr v-if="matchingAccounts.length === 0">
-              <td colspan="6" class="px-3 py-8 text-center text-gray-500">
+              <td colspan="7" class="px-3 py-8 text-center text-gray-500">
                 {{ t('admin.users.smartSchedule.filteredAddEmpty') }}
               </td>
             </tr>
@@ -152,6 +157,9 @@
               </td>
               <td class="px-3 py-2">
                 <PlatformTypeBadge :platform="account.platform" :type="account.type" />
+              </td>
+              <td class="px-3 py-2 text-gray-600 dark:text-gray-300">
+                {{ claudeGptBridgeLabel(account) }}
               </td>
               <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ account.status }}</td>
               <td class="px-3 py-2 text-gray-600 dark:text-gray-300">
@@ -231,6 +239,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const filters = ref<SmartScheduleAddCandidateFilters>(emptySmartScheduleAddFilters(props.platform))
 const selectedIds = ref<number[]>([])
+
+function claudeGptBridgeLabel(account: Account) {
+  if (account.platform !== 'openai') return '—'
+  return account.extra?.openai_claude_gpt_bridge_enabled
+    ? t('admin.users.smartSchedule.claudeGptBridgeOn')
+    : t('admin.users.smartSchedule.claudeGptBridgeOff')
+}
 
 const matchingAccounts = computed(() => filterAddCandidates(props.accounts, filters.value))
 const matchingIdSet = computed(() => new Set(matchingAccounts.value.map((account) => account.id)))

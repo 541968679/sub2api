@@ -21,7 +21,7 @@ type UserSmartScheduleAccount struct {
 func (UserSmartScheduleAccount) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entsql.Annotation{Table: "user_smart_schedule_accounts"},
-		field.ID("account_id", "user_id"),
+		field.ID("user_id", "platform", "account_id"),
 	}
 }
 

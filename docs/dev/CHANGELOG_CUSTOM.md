@@ -1,8 +1,456 @@
+## 2026-08-22 - sync: fold current main into standing replica
+
+### What
+- Merged occupied `main` `1b3965a71` (VERSION **0.1.252**) into `sync/upstream-standing-20260821`.
+- Remapped window-1 SQL `210/211/212` to `212/213/214` so main keeps `210_ops_attention_alert` and `211_user_smart_schedule_account_pk`.
+- Three-way overlay: AG/unpooled/Ops raw error plus window-1 image tokens / default-off profit-control / `response.failed` to 429. Did not merge upstream/main or fold back onto occupied main.
+
+### Why
+- Window-1 must sit on current scheduler/AG/Ops rather than 0.1.247. Leaving window-1 at 210/211 would collide with main.
+
+### Verification
+- `go test -tags=unit` on service / repository / handler
+- `go run ./tools/upstream-sync-guard --base 1b3965a71`
+
+### Affected files
+`backend/migrations/212_subscription_plan_currency.sql`,
+`backend/migrations/213_usage_log_image_input_tokens.sql`,
+`backend/migrations/214_group_profit_control.sql`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/UPSTREAM_SYNC.md`,
+`docs/dev/UPSTREAM_BASE.json`,
+this changelog.
+
+## 2026-08-22 - docs: record production deploy of v0.1.252
+
+### What
+- Production main service is now `ghcr.io/541968679/sub2api:0.1.252` (`163b3f827`), digest `sha256:9a8a84da27d32fe94b19b7c9092049b89c001309b5fbda4a3a3981aa859f1526`.
+
+### Why
+- AG pool table no longer drops OpenAI dual-members (loveapi) after hydrate.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
+## 2026-08-22 - fix: AG smart-schedule pool table keeps OpenAI members after hydrate
+
+### What
+- AG tab `loadPoolDetails` now fetches in-pool rows by `ids` + `lite=1` only. It no longer sends `platform=antigravity` with mixed member ids.
+
+### Why
+- Candidate add already merged AG+OpenAI, and PUT/GET kept the OpenAI id. The pool table then called `GET /admin/accounts?platform=antigravity&ids=...`, which drops `account.Platform=openai` rows (loveapi), so the member vanished after add/save/refresh.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+`.trellis/spec/backend/account-user-schedule.md`
+
+## 2026-08-22 - docs: record production deploy of v0.1.251
+
+### What
+- Production main service is now `ghcr.io/541968679/sub2api:0.1.251` (`52c2f91d1`), digest `sha256:095850c815a9755d2cbdf99418eb3787c9e540d590292a3afb6ce7441a735fe3`.
+
+### Why
+- AG-pool dual-membership + switch-off no-op shipped; `v0.1.250` never published GHCR (`vue-tsc`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
+## 2026-08-22 - fix: type smart-schedule resume grace fields on pool draft
+
+### What
+- `SmartSchedulePoolMemberDraft` now includes `resume_until` / `resume_chip_until`, and `viewToDraft` / `mergeRuntimeMembers` copy them from the API member.
+
+### Why
+- Release `v0.1.250` failed `vue-tsc`: the editor already read those fields but the draft type omitted them.
+
+### Verification
+- `pnpm --dir frontend run typecheck`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+
+## 2026-08-22 - fix: AG smart-schedule switch keeps openai lookup when AG is off
+
+### What
+- `SmartScheduleLookupPlatform` now reads the user policy bundle. OpenAI + bridge/AG-group looks up **antigravity** only while `EnabledPolicy(antigravity)` is active. AG nil / disabled / empty keeps today's **openai** closed pool.
+- Admission, pair slots, unpooled cheaper-tier, ObservePairCompletion, and Redis hydrate/stamp share that helper. Native OpenAI groups stay `openai`. No fail-open to account-side just because AG is off; no openai fallback once AG is on.
+
+### Why
+- The previous helper always returned antigravity for OAI+bridge/AG-group. `EnabledPolicy(antigravity)==nil` then fail-opened to account-side, so deploying with the switch off changed user 12.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform|PairResume|GetPairQualityBatch"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `go test -tags=unit ./internal/handler -count=1 -run "ClaudeGPTBridge|SmartSchedule"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_lookup_platform.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/service/account_unpooled_schedule.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/ops_service.go`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`
+
+## 2026-08-22 - feat: admin Ops shows raw upstream errors without changing client mapping
+
+### What
+- Gateway Ops capture now records the unread-rewritten upstream body (`recordOpsUpstreamAttempt` + merge). Empty detail, generic sentences, and mapped `{"error":{"type":"upstream_error"}}` wrappers no longer wipe a more specific original. `provider_error_code` is populated on insert and returned on list rows (still no `error_body` on the list). WS `error` events also store the original event JSON.
+- Admin list「响应内容」shows upstream original first and the downstream mapped sentence when they differ. Detail modal shows three blocks: upstream original, upstream JSON, downstream JSON. User `/usage` stays client-facing only.
+
+### Why
+- loveapi-style `channel:no_available_key` was stored and shown only as `Upstream request failed` / `Upstream service temporarily unavailable`, so admins could not reconcile with the vendor.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Ops|Passthrough|OpenAI.*Error|Gateway.*Error|FailoverExhausted"`
+- `go test -tags=unit ./internal/handler -count=1 -run "Ops|FailoverExhausted|OpenAI.*Error"`
+- `pnpm --dir frontend exec vitest run src/views/admin/ops/utils/__tests__/errorDetailResponse.spec.ts src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`backend/internal/service/ops_upstream_context.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/handler/ops_error_logger.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/gateway_handler.go`,
+`frontend/src/api/admin/ops.ts`,
+`frontend/src/views/admin/ops/utils/errorDetailResponse.ts`,
+`frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`
+
+## 2026-08-22 - fix: isolate smart-schedule 豁免期 and pair-quality hydrate by platform
+
+### What
+- Smart-schedule 豁免期 now uses `smart-schedule:resume:{platform}:{accountID}` instead of shared `account-quality:resume`. AG 豁免期 no longer fail-opens the openai pool (or Track A gates).
+- Pool pair-quality batch/detail take the current tab platform. Dual-membership without platform no longer collapses two windows onto one account id.
+- Account-page resume still omits platform and only mutates `account.Platform`.
+
+### Why
+- Check/risk review: Brandon required openai and antigravity pools to be fully independent. The implementer left resume and batch hydrate keyed by account only.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform|PairResume|GetPairQualityBatch"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts src/composables/__tests__/smartScheduleAddCandidates.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+
+## 2026-08-22 - feat: AG pool accepts OpenAI accounts with isolated Redis
+
+### What
+- Antigravity smart-schedule pool may include OpenAI accounts (bridge on or off) plus native AG. Dual membership is allowed; adding to AG does not remove the openai-pool row.
+- Closed-pool lookup for bridge / AG-group OpenAI traffic uses the antigravity policy. Nil/empty/disabled AG policy fail-opens to account-side allow/deny and never falls back to the openai pool.
+- Occupancy, cooldown, probe, pin, pair-quality, and ObservePairCompletion are keyed by `(user, account, platform)`.
+- Admin AG tab loads OpenAI + AG candidates and shows a read-only Claude→GPT bridge column.
+
+### Why
+- Brandon locked A–G plus complete openai/AG independence so one pool's cooldown or pair cap cannot freeze the same OpenAI account in the other pool.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts src/composables/__tests__/smartScheduleAddCandidates.spec.ts`
+
+### Affected files
+`backend/migrations/211_user_smart_schedule_account_pk.sql`,
+`backend/internal/service/smart_schedule_lookup_platform.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/concurrency_cache.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`docs/dev/codebase/account.md`
+
+## 2026-08-22 - fix: Claude log collector AC4/AC7 hardening
+
+### What
+- Default zip now refuses `history.jsonl` / `transcripts/` / `projects/**/*.jsonl` even if they sit under debug or `CLAUDE_CODE_DEBUG_LOGS_DIR`.
+- Redact also covers camelCase `oauthToken` / `primaryApiKey` / `ANTHROPIC_AUTH_TOKEN` / `X-Api-Key`, and always strips URL userinfo after JSON walk.
+- Partial permission errors no longer hide a source that already packed files.
+
+### Why
+- Check against AC4/AC7: `.jsonl` log matching could have pulled session text into the lean pack; some token field names were not redacted.
+
+### Verification
+- `cd tools/claude-log-collector && go test ./... -count=1` (also with `CGO_ENABLED=0`)
+
+### Affected files
+`tools/claude-log-collector/internal/collect/sources.go`,
+`tools/claude-log-collector/internal/collect/collect.go`,
+`tools/claude-log-collector/internal/collect/collect_test.go`,
+`tools/claude-log-collector/internal/redact/redact.go`,
+`tools/claude-log-collector/internal/redact/redact_test.go`
+
+## 2026-08-22 - feat: Windows Claude client log collector
+
+### What
+- Added a standalone green tool at `tools/claude-log-collector/` (own go.mod). Customers get a Chinese Fyne exe; CLI and GUI both call `collect.Run`.
+- Default lean zip: redacted Claude settings, 7-day diagnostic logs, Obsidian Claude-plugin configs, human manifest. Optional last-24h redacted sessions and include-all-logs.
+- Never packs vault notes, customer project dirs, raw `.credentials.json`, or plaintext `sk-` / `sk-ant-` keys. Missing clients still succeed as not-found. No network upload.
+
+### Why
+- Bridge customers (e.g. gybilly `***Interrupted***`) only have a client-side grey message. Ops needs a safe local pack to tell client vs site vs gateway vs upstream, without asking them to change protocol.
+
+### Verification
+- `cd tools/claude-log-collector && go test ./... -count=1`
+- `go build -o bin/claude-log-collector.exe ./cmd/collector`
+
+### Affected files
+`tools/claude-log-collector/**`
+
+## 2026-08-22 - fix: smart-schedule PnL balance refreshes on page load
+
+### What
+- Opening or refreshing the user smart-schedule pool now probes stale OpenAI/Anthropic API-key balances (`GET /admin/accounts/:id/usage`, 6-minute TTL, concurrency 4) and writes the result back onto the row extra.
+- The 调度利润 cell shows last probe time and a per-row refresh control (`force=true`). Auto-refresh still respects TTL.
+- `GET /admin/accounts/:id/usage` accepts `force=true` so a click can bypass the TTL.
+
+### Why
+- The balance field only updated when someone opened Accounts usage. The pool page re-listed cached extra and never probed, so operators could not tell when the number last moved.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run TestShouldRefreshUpstreamBalance`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/schedulePnl.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/components/admin/user/__tests__/SmartSchedulePnlCell.spec.ts`
+
+### Affected files
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_usage_service_test.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`
+
+## 2026-08-22 - fix: schedule error whitelist defaults empty so ship matches live schedule
+
+### What
+- Factory `schedule_error_whitelist` is now all `false`. Missing key / `{}` / `families: {}` / all-false adds **no new** schedule excludes.
+- Legacy `IsAccountQualityRoutingModelMiss` (400/403/404/503, phase≠upstream, model-not-found rails) stays **hardcoded** and is removed from the checkbox UI, so 404 `model_not_found` does not start cooling accounts.
+- New families (client request 400, 400 URF, long context, pair concurrency, unrestricted group-no-account, routing 503, protocol mismatch) only exclude after an admin checks them.
+- 502 `Upstream request failed` still always counts. Recovered / Claude–GPT bridge unchanged.
+- Entry stays in the account/user 「错误」 modal, not Settings / Ops error modal.
+
+### Why
+- Shipping the previous all-true factory JSON would change production cooldown on day one.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|ScheduleError|ScheduleQuality|ObservePairQuality|HopInvalid|GroupNoAccount|UpstreamRequestFailed|ApplyOpsError|ApplyErrorLog|RoutingModelMiss"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "ScheduleErrorWhitelist"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/domain_constants.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`,
+`.trellis/spec/backend/account-user-schedule.md`
+
+## 2026-08-22 - move: schedule error whitelist into account/user error modal
+
+### What
+- Removed the Gateway settings checkbox group.
+- Added a third tab in `UsageErrorInspectDialog` (账号/用户列表操作栏「错误」按钮打开的弹窗): usage | errors | schedule error whitelist.
+- Account and user lists share that dialog, so both get the tab. Not in Ops `OpsErrorDetailsModal`.
+- Same GET/PUT `/api/v1/admin/settings/schedule-error-whitelist`. Missing config shows empty (all unchecked) factory defaults.
+
+### Why
+- Operators configure schedule-caliber excludes next to the account/user error list, not under system settings or the Ops dashboard error modal.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/components/admin/usage/UsageErrorInspectDialog.vue`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
+## 2026-08-22 - feat: schedule error whitelist (preset families)
+
+### What
+- New Settings KV `schedule_error_whitelist` (`{ "families": { "<id>": true } }`). true = in whitelist = exclude from pair cooldown / account last-N / account 15m schedule `ErrorCount`.
+- Factory default matches the previous hardcoded exclude, except `invalid_request_error` now requires `error_phase=request` (hop passthrough 400 still counts).
+- Preset families only. Save rejects unknown keys. 502 `Upstream request failed` cannot be whitelisted away.
+- `needs_ops_attention` / `ops_attention_count` stay independent of the whitelist.
+- List second `ApplyOpsErrorRateCalibers` keeps `error_body` so badges match ingest.
+- Existing settings page (Gateway tab) adds a checkbox group; no new route.
+
+### Why
+- Admins need to turn individual false-positive families back on for schedule without inventing custom LIKE needles.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|ScheduleError|ScheduleQuality|ObservePairQuality|HopInvalid|GroupNoAccount|UpstreamRequestFailed|ApplyOpsError|ApplyErrorLog"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "ScheduleErrorWhitelist"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "schedule error whitelist"`
+
+### Affected files
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
+## 2026-08-22 - feat: unpooled users pick cheap immediately, no cheap-tier wait
+
+### What
+- Unpooled users: among accounts with headroom, pick the lowest `EffectiveUpstreamRate()`.
+- If the cheap tier is full and a higher-rate account has a slot, acquire the expensive account immediately. No WaitPlan on the cheap tier.
+- Session sticky on a higher-rate account escapes when a cheaper schedulable peer has `LoadRate < 100`. Judged with `lookupEnabledSmartPolicy(..., sticky.Platform)` — never the group platform.
+- Pooled users (EnabledPolicy on that account platform) keep today's pin and cheap-tier WaitPlan. `previous_response` sticky is not escaped. Billing / `actual_cost` unchanged.
+
+### Why
+- Session pins and OpenAI advanced WaitPlan were still parking unpooled traffic on expensive accounts or waiting on a full cheap tier.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Unpooled|BetterAccount|StickyEscape|FallbackOnly|UpstreamRate|WaitPlan" -count=1`
+
+### Affected files
+`backend/internal/service/account_unpooled_schedule.go`,
+`backend/internal/service/account_unpooled_schedule_test.go`,
+`backend/internal/service/openai_unpooled_schedule_test.go`,
+`backend/internal/service/gateway_unpooled_schedule_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`docs/dev/codebase/account.md`
+
+## 2026-08-22 - fix: exclude false pair-cooldown errors + dedicated ops-attention alert
+
+### What
+- Pair and account schedule ErrorCount no longer ingest client 400 / context / pairing concurrency 429, group-no-account (any phase/status, including the production 502 leak), routing 503, or protocol mismatches.
+- `Upstream request failed` is excluded only at status 400; 502 still cools the pair.
+- New list flag `needs_ops_attention` plus error-list filter. Seeded alert metric `ops_attention_count` (default rule `需运维：组模型/路由/协议`, `> 0` / 15m / 5m sustain / P2 / 30m cooldown). Event carries top group+model.
+
+### Why
+- About a quarter of pair-failure window rows were not hop health. Excluding them without a dedicated pager would hide group-model leaks such as `gpt-5.6-terra`.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|RoutingModelMiss|ScheduleQuality|OpsAttention|Alert|ObservePairQuality"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "Alert"`
+- `go test -tags=unit ./internal/repository -count=1 -run "NeedsOpsAttention|ErrorLogsWhere"`
+- `pnpm --dir frontend exec vitest run src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/ops_port.go`,
+`backend/internal/service/ops_alert_evaluator_service.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/handler/admin/ops_handler.go`,
+`backend/internal/handler/admin/ops_alerts_handler.go`,
+`backend/migrations/210_ops_attention_alert.sql`,
+`frontend/src/views/admin/ops/components/errorLogCaliberBadges.ts`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailsModal.vue`,
+`frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue`,
+`frontend/src/views/admin/ops/components/OpsAlertEventsCard.vue`,
+`frontend/src/views/admin/ops/OpsDashboard.vue`,
+`frontend/src/api/admin/ops.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
+## 2026-08-21 - feat: smart-schedule long-term exemption (`pinned`)
+
+### What
+- Sixth pair admission state: UI 长期豁免, API `pinned` (not `resumed`).
+- Manual only. Enter clears cooldown and probing, does not write `u:`/`w:` or `MarkUserResume`, keeps pair windows.
+- Redis HASH `smart-schedule:pinned:{accountID}` field `u:{userID}`, no TTL. GET hydrates `pinned: true`. Miss = not pinned (no backfill).
+- Hot path: pinned admits at full member cap, ingests windows, never evaluates / `StartCooldown` until admin leaves.
+- Cooldown expiry still enters `probing`, never `pinned`. Omit `state` still means `resumed`. Pause does not become pinned.
+
+### Why
+- Admins need a no-timeout exemption. Reusing `resumed` would expire in 15–30 minutes.
+
+### Check-fix
+- `resolvePairSlotAcquire` checks pin before leftover probe so 长期豁免 keeps the member cap.
+- Switcher `pairAdmissionLiveState` checkmarks 长期豁免 ahead of leftover cooling / probing.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Pinned|ParsePairAdmission|SetPairAdmission|AdmitsScheduleUser|ObservePairCompletion|ResolvePairSlotAcquire"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQualityCache_"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAdmissionSwitch.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/smart_schedule_pair_quality.go`,
+`backend/internal/service/smart_schedule_pin_test.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/smart_schedule_pair_quality_cache_test.go`,
+`frontend/src/composables/smartSchedulePoolAdmission.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolFilters.vue`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/tasks/08-21-smart-schedule-pin/research/pin-api-contract.md`,
+`.trellis/tasks/08-21-smart-schedule-pin/research/frontend-pin-wiring.md`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-21 - sync: fine-port catchup window-1 onto 0.1.247 standing replica
 
 ### What
 - Overlay window-1 P1/P2/P5 from `7feb1549f` onto `sync/upstream-standing-20260821` (branch-point `7f054bc3e`): Codex load-shed identity rewrite, Claude Code security-monitor classifier, configurable client-IP headers / True-Client-IP, moderation proxy fail-closed, plan currency, `response.failed` rate_limit → 429, security-audit default Off, optional group profit-control admin fields.
-- Keep pair/smart-schedule, `true_first_token_ms`, `true_cost`, display billing, and `actual_cost` unchanged. Migrations stay 210–212.
+- Keep pair/smart-schedule, `true_first_token_ms`, `true_cost`, display billing, and `actual_cost` unchanged. Migrations were later remapped to 212–214 when folding main (main already owned 210/211).
 
 ### Why
 - Standing replica needs the catchup window-1 behaviors on current main 0.1.247 without merging old catchup branches or whole-file replacing hot paths.

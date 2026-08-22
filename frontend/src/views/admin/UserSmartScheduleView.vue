@@ -490,6 +490,17 @@
                   :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at"
                 />
               </template>
+              <template #cell-claude_gpt_bridge="{ row }">
+                <span class="text-xs text-gray-600 dark:text-gray-300">
+                  {{
+                    row.platform === 'openai'
+                      ? row.extra?.openai_claude_gpt_bridge_enabled
+                        ? t('admin.users.smartSchedule.claudeGptBridgeOn')
+                        : t('admin.users.smartSchedule.claudeGptBridgeOff')
+                      : '—'
+                  }}
+                </span>
+              </template>
               <template #header-concurrency="{ column }">
                 <div class="flex items-center">
                   <span>{{ column.label }}</span>
@@ -658,7 +669,9 @@
                   :summary="pairPnlById[String(row.id)] ?? null"
                   :today-stats="todayStatsById[String(row.id)] ?? null"
                   :loading="statsLoading"
+                  :balance-refreshing="isBalanceRefreshing(row.id)"
                   @click="openPairSchedulePnl(row)"
+                  @refresh-balance="void refreshAccountBalance(row.id)"
                 />
               </template>
               <template #header-sort_order="{ column }">
@@ -763,6 +776,7 @@
                   <SmartScheduleAdmissionSwitch
                     :admission="row.admission"
                     :paused="row.paused"
+                    :pinned="row.pinned"
                     :disabled="row.admission === 'unsaved_preview'"
                     @select="setPairAdmission(row.id, $event)"
                   />
@@ -841,6 +855,7 @@
       :show="pairQualityAcc != null"
       :user-id="userId"
       :account="pairQualityAcc"
+      :platform="activePlatform"
       @close="pairQualityAcc = null"
     />
     <UserQualityDialog
@@ -1059,6 +1074,7 @@ const {
   memberCooldownUntil,
   memberPaused,
   memberProbing,
+  memberPinned,
   memberProbeCap,
   memberSortOrder,
   persistSortOrders,
@@ -1082,7 +1098,9 @@ const {
   onCopy,
   setPairAdmission,
   refreshAll,
-  ensureCandidates
+  ensureCandidates,
+  refreshAccountBalance,
+  isBalanceRefreshing
 } = useUserSmartScheduleEditor(userId, { poolFetchNeeds })
 
 const pageReady = computed(() => initialLoaded.value && user.value != null)
@@ -1153,6 +1171,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false, minWidth: 88, resizable: false },
   { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, minWidth: 140 },
   { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true, minWidth: 120 },
+  { key: 'claude_gpt_bridge', label: t('admin.users.smartSchedule.claudeGptBridge'), sortable: true, minWidth: 110 },
   { key: 'concurrency', label: t('admin.accounts.columns.capacity'), sortable: true, minWidth: 88 },
   { key: 'pair_cap', label: t('admin.users.smartSchedule.pairCap'), sortable: true, minWidth: 88 },
   { key: 'admission', label: t('admin.users.smartSchedule.admission'), sortable: true, minWidth: 110 },
@@ -1202,6 +1221,7 @@ const poolTableRows = computed(() =>
       cooldownUntil: memberCooldownUntil(account.id),
       paused: memberPaused(account.id),
       probing: memberProbing(account.id),
+      pinned: memberPinned(account.id),
       qualityHint: resolveQualityAdmissionHint({
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
@@ -1219,6 +1239,7 @@ const poolTableRows = computed(() =>
       sort_order: memberSortOrder(account.id),
       priority: liveAccountPriority(account),
       paused: memberPaused(account.id),
+      pinned: memberPinned(account.id),
       admission: admission.state
     }
   })
@@ -1253,6 +1274,8 @@ function admissionLabel(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreview')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumed')
+    case 'pinned':
+      return t('admin.users.smartSchedule.admissionPinned')
     case 'probing':
       return t('admin.users.smartSchedule.admissionProbing')
     default:
@@ -1268,6 +1291,8 @@ function admissionTitle(state: PoolAdmissionState) {
       return t('admin.users.smartSchedule.admissionUnsavedPreviewHint')
     case 'resumed':
       return t('admin.users.smartSchedule.admissionResumedHint')
+    case 'pinned':
+      return t('admin.users.smartSchedule.admissionPinnedHint')
     case 'paused':
       return t('admin.users.smartSchedule.admissionPausedHint')
     case 'probing':
@@ -1293,6 +1318,8 @@ function admissionChipClass(state: PoolAdmissionState) {
       return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
     case 'resumed':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+    case 'pinned':
+      return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300'
     case 'probing':
       return 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
     default:
@@ -1314,6 +1341,7 @@ function liveAccountPriority(account: { id: number; priority?: number }): number
 function pairBadgeMax(accountId: number) {
   return pairOccupancyDisplayMaxForAdmission({
     probing: memberProbing(accountId),
+    pinned: memberPinned(accountId),
     pairCap: memberCapOrNull(accountId),
     windowN: currentDraft.value?.windowN,
     backendCap: memberProbeCap(accountId),
@@ -1323,7 +1351,7 @@ function pairBadgeMax(accountId: number) {
 }
 
 function pairBadgeTooltip(accountId: number) {
-  if (memberProbing(accountId)) {
+  if (memberProbing(accountId) && !memberPinned(accountId)) {
     return t('admin.users.smartSchedule.pairOccupancyProbingHint')
   }
   return memberCapOrNull(accountId) == null

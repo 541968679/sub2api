@@ -372,6 +372,12 @@ const (
 	// quality hard-close (temp unschedulable). Default is fully off.
 	SettingKeyQualityHardCloseSettings = "quality_hard_close_settings"
 
+	// SettingKeyScheduleErrorWhitelist stores JSON of preset schedule-error
+	// families. true = in whitelist = exclude from pair cooldown / last-N /
+	// account 15m schedule ErrorCount. Missing / {} / families:{} / all-false
+	// = no new excludes (legacy routing miss stays hardcoded).
+	SettingKeyScheduleErrorWhitelist = "schedule_error_whitelist"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================

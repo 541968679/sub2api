@@ -26,6 +26,9 @@ export const EMPTY_SMART_SCHEDULE_ADD_FILTERS: SmartScheduleAddCandidateFilters 
 export function emptySmartScheduleAddFilters(
   platform: string
 ): SmartScheduleAddCandidateFilters {
+  if (platform === 'antigravity') {
+    return { ...EMPTY_SMART_SCHEDULE_ADD_FILTERS, platform: '' }
+  }
   return { ...EMPTY_SMART_SCHEDULE_ADD_FILTERS, platform }
 }
 

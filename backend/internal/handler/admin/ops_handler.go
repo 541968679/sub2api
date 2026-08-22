@@ -258,6 +258,33 @@ func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) e
 		strings.EqualFold(strings.TrimSpace(c.Query("status_codes_other")), "true") {
 		filter.StatusCodesOther = true
 	}
+	if err := applyOpsNeedsAttentionQuery(c, filter); err != nil {
+		return err
+	}
+	return nil
+}
+
+func applyOpsNeedsAttentionQuery(c *gin.Context, filter *service.OpsErrorLogFilter) error {
+	if filter == nil {
+		return nil
+	}
+	v := ""
+	if c != nil {
+		v = strings.TrimSpace(c.Query("needs_ops_attention"))
+	}
+	if v == "" {
+		return nil
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes":
+		b := true
+		filter.NeedsOpsAttention = &b
+	case "0", "false", "no":
+		b := false
+		filter.NeedsOpsAttention = &b
+	default:
+		return fmt.Errorf("invalid needs_ops_attention")
+	}
 	return nil
 }
 
@@ -348,6 +375,10 @@ func (h *OpsHandler) ListRequestErrors(c *gin.Context) {
 			out = append(out, n)
 		}
 		filter.StatusCodes = out
+	}
+	if err := applyOpsNeedsAttentionQuery(c, filter); err != nil {
+		response.BadRequest(c, err.Error())
+		return
 	}
 
 	result, err := h.opsService.GetErrorLogs(c.Request.Context(), filter)
@@ -554,6 +585,10 @@ func (h *OpsHandler) ListUpstreamErrors(c *gin.Context) {
 			out = append(out, n)
 		}
 		filter.StatusCodes = out
+	}
+	if err := applyOpsNeedsAttentionQuery(c, filter); err != nil {
+		response.BadRequest(c, err.Error())
+		return
 	}
 
 	result, err := h.opsService.GetErrorLogs(c.Request.Context(), filter)

@@ -256,3 +256,25 @@ func TestBuildCodexUsageProgressFromExtra_ZerosExpiredWindow(t *testing.T) {
 		}
 	})
 }
+
+func TestShouldRefreshUpstreamBalance(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 22, 6, 10, 0, 0, time.UTC)
+
+	if !shouldRefreshUpstreamBalance(nil, now) {
+		t.Fatal("expected nil account to refresh")
+	}
+	if !shouldRefreshUpstreamBalance(&Account{Extra: map[string]any{}}, now) {
+		t.Fatal("expected missing timestamp to refresh")
+	}
+	if !shouldRefreshUpstreamBalance(&Account{
+		Extra: map[string]any{extraKeyUpstreamBalanceAt: now.Add(-upstreamBalanceRefreshTTL).Format(time.RFC3339)},
+	}, now) {
+		t.Fatal("expected exactly-TTL snapshot to refresh")
+	}
+	if shouldRefreshUpstreamBalance(&Account{
+		Extra: map[string]any{extraKeyUpstreamBalanceAt: now.Add(-2 * time.Minute).Format(time.RFC3339)},
+	}, now) {
+		t.Fatal("expected fresh snapshot to skip refresh")
+	}
+}

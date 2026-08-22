@@ -44,7 +44,7 @@ const saving = ref(false)
 const editingId = ref<number | null>(null)
 const draft = ref<AlertRule | null>(null)
 
-type MetricGroup = 'system' | 'group' | 'account'
+type MetricGroup = 'system' | 'group' | 'account' | 'routing'
 
 interface MetricDefinition {
   type: MetricType
@@ -166,6 +166,14 @@ const metricDefinitions = computed(() => {
       recommendedOperator: '>',
       recommendedThreshold: 10
     },
+    {
+      type: 'ops_attention_count',
+      group: 'routing',
+      label: t('admin.ops.alertRules.metrics.opsAttentionCount'),
+      description: t('admin.ops.alertRules.metricDescriptions.opsAttentionCount'),
+      recommendedOperator: '>',
+      recommendedThreshold: 0
+    },
 
     // Group-level metrics (requires group_id filter)
     {
@@ -262,7 +270,7 @@ const metricOptions = computed(() => {
     ]
   }
 
-  return [...buildGroup('system'), ...buildGroup('group'), ...buildGroup('account')]
+  return [...buildGroup('system'), ...buildGroup('routing'), ...buildGroup('group'), ...buildGroup('account')]
 })
 
 const operatorOptions = computed(() => {

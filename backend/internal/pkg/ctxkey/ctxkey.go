@@ -41,6 +41,14 @@ const (
 	Group  Key = "ctx_group"
 	UserID Key = "ctx_user_id"
 
+	// RequireClaudeGPTBridge marks Claude-GPT bridge selection so smart-schedule
+	// lookup uses the antigravity pool for OpenAI accounts.
+	RequireClaudeGPTBridge Key = "ctx_require_claude_gpt_bridge"
+
+	// ScheduleLookupPlatform is the closed-pool Redis/policy key for this request
+	// (openai vs antigravity). Pair occupancy keys read this value.
+	ScheduleLookupPlatform Key = "ctx_schedule_lookup_platform"
+
 	// IsMaxTokensOneHaikuRequest 标识当前请求是否为 max_tokens=1 + haiku 模型的探测请求
 	// 用于 ClaudeCodeOnly 验证绕过（绕过 system prompt 检查，但仍需验证 User-Agent）
 	IsMaxTokensOneHaikuRequest Key = "ctx_is_max_tokens_one_haiku"

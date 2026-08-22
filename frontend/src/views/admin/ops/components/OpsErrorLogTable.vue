@@ -211,9 +211,15 @@
 
               <!-- Message (Response Content) -->
               <td class="px-4 py-2">
-                <div class="max-w-[200px]">
-                  <p class="truncate text-[11px] font-medium text-gray-600 dark:text-gray-400" :title="log.message">
-                    {{ formatSmartMessage(log.message) || '-' }}
+                <div class="max-w-[200px]" :title="listResponseTitle(log)">
+                  <p class="truncate text-[11px] font-medium text-gray-900 dark:text-gray-100">
+                    {{ formatSmartMessage(listResponsePrimary(log)) || '-' }}
+                  </p>
+                  <p
+                    v-if="listResponseSecondary(log)"
+                    class="mt-0.5 truncate text-[10px] text-gray-500 dark:text-gray-400"
+                  >
+                    {{ t('admin.ops.errorDetail.downstreamMapped') }}: {{ formatSmartMessage(listResponseSecondary(log)) }}
                   </p>
                 </div>
               </td>
@@ -252,6 +258,11 @@ import Pagination from '@/components/common/Pagination.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import { errorLogCaliberBadges, isRecoveredErrorLog } from './errorLogCaliberBadges'
 import { getSeverityClass, formatDateTime } from '../utils/opsFormatters'
+import {
+  formatOpsListPrimary,
+  formatOpsListSecondary,
+  formatOpsListTitle
+} from '../utils/errorDetailResponse'
 
 const { t } = useI18n()
 
@@ -370,6 +381,18 @@ function getStatusClass(code: number): string {
   if (code === 429) return 'bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-900/30 dark:text-purple-400 dark:ring-purple-500/30'
   if (code >= 400) return 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-500/30'
   return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-gray-900/30 dark:text-gray-400 dark:ring-gray-500/30'
+}
+
+function listResponsePrimary(log: OpsErrorLog): string {
+  return formatOpsListPrimary(log)
+}
+
+function listResponseSecondary(log: OpsErrorLog): string {
+  return formatOpsListSecondary(log)
+}
+
+function listResponseTitle(log: OpsErrorLog): string {
+  return formatOpsListTitle(log)
 }
 
 function formatSmartMessage(msg: string): string {

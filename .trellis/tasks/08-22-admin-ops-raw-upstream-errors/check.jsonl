@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Check that client mapping, Ops ingest, and admin UI stayed on the correct layer."}
+{"file": ".trellis/spec/backend/ops-schedule-error-caliber.md", "reason": "SLA/Recovered/schedule caliber assertions must not change."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "User /usage must stay client-facing; only admin Ops table/modal adapt."}
+{"file": ".trellis/tasks/08-22-admin-ops-raw-upstream-errors/research/admin-error-surfaces.md", "reason": "Verify all three admin surfaces show original + upstream JSON + downstream JSON."}

@@ -10,7 +10,10 @@ import {
   impliedCostBurnPerHour,
   isOauthAccountType,
   oauthSevenDayQuota,
-  pairAccountBalanceUsd
+  applyUsageBalanceToAccountExtra,
+  pairAccountBalanceUsd,
+  shouldRefreshPairBalance,
+  supportsPairBalanceProbe
 } from '../schedulePnl'
 
 describe('schedulePnl formatters', () => {
@@ -49,6 +52,46 @@ describe('schedulePnl formatters', () => {
     expect(pairAccountBalanceUsd({ extra: { upstream_balance_usd: 8.25 } })).toBe(8.25)
     expect(pairAccountBalanceUsd({ extra: { upstream_balance_usd: '9.5' } })).toBe(9.5)
     expect(pairAccountBalanceUsd({ quota_limit: 100 } as never)).toBeNull()
+  })
+
+  it('refreshes api-key balance only when the snapshot is missing or older than 6 minutes', () => {
+    const now = new Date('2026-08-22T06:10:00.000Z')
+    expect(supportsPairBalanceProbe({ type: 'oauth', platform: 'openai' })).toBe(false)
+    expect(supportsPairBalanceProbe({ type: 'apikey', platform: 'gemini' })).toBe(false)
+    expect(supportsPairBalanceProbe({ type: 'apikey', platform: 'openai' })).toBe(true)
+    expect(shouldRefreshPairBalance({ type: 'apikey', platform: 'openai', extra: {} }, now)).toBe(true)
+    expect(
+      shouldRefreshPairBalance(
+        { type: 'apikey', platform: 'openai', extra: { upstream_balance_at: '2026-08-22T06:08:00.000Z' } },
+        now
+      )
+    ).toBe(false)
+    expect(
+      shouldRefreshPairBalance(
+        { type: 'apikey', platform: 'anthropic', extra: { upstream_balance_at: '2026-08-22T06:04:00.000Z' } },
+        now
+      )
+    ).toBe(true)
+    expect(
+      shouldRefreshPairBalance(
+        { type: 'apikey', platform: 'openai', extra: { upstream_balance_at: '2026-08-22T06:08:00.000Z' } },
+        now,
+        true
+      )
+    ).toBe(true)
+    expect(
+      applyUsageBalanceToAccountExtra({ burn_samples: [] }, {
+        balance_usd: 12.5,
+        balance_updated_at: '2026-08-22T06:10:00.000Z',
+        balance_used_usd: 3
+      })
+    ).toEqual({
+      burn_samples: [],
+      upstream_balance_usd: 12.5,
+      upstream_balance_at: '2026-08-22T06:10:00.000Z',
+      upstream_balance_used_usd: 3,
+      display_balance_used_usd: 3
+    })
   })
 
   it('fits balance burn from extra samples and compares it to today billed cost', () => {

@@ -2145,6 +2145,9 @@ const zhBase = {
         noData: '暂无新入账数据',
         noDataHint: '只统计写入 true_cost 的新请求，历史记录不回填。',
         balance: '余额',
+        balanceNeverUpdated: '尚未探测',
+        balanceRefresh: '立即刷新上游余额',
+        balanceUpdatedHint: '打开或刷新本页时，超过 6 分钟会重新探测上游余额。点刷新可立即探测。仅展示，不改扣费。',
         oauthQuotaHint: 'OAuth 账号用已缓存的 7 日额度用量替换余额。无快照显示 —。仅展示，不改扣费。',
         burnMatch: '对齐 · {rate}/时',
         burnMismatch: '偏离 · 余额{balance}/时 ≠ 计费{cost}/时',
@@ -2419,7 +2422,7 @@ const zhBase = {
         poolHint: '池内账号按当前平台过滤。开启后只从这里选号。列表复用账号管理的容量、质量、操作和排序；配对并发改完后需点保存。',
         off: '未开启',
         columnHint: '展示各平台智能调度是否开启及池内账号数。点击进入该用户的调度详情。',
-        poolPnlHint: '本用户 × 本账号的今日收入 / 成本 / 利润。API Key 显示可读到的上游余额，并能对比余额消耗速度与今日计费消耗（actual_cost）。OAuth 用 7 日额度进度条替换余额一行。仅展示、不改扣费。收入只计已写入 true_cost 的新请求。',
+        poolPnlHint: '本用户 × 本账号的今日收入 / 成本 / 利润。API Key 显示可读到的上游余额（打开/刷新本页时超过 6 分钟会再探测，也可点余额旁刷新立即探测），并能对比余额消耗速度与今日计费消耗（actual_cost）。OAuth 用 7 日额度进度条替换余额一行。仅展示、不改扣费。收入只计已写入 true_cost 的新请求。',
         openDetail: '打开智能调度详情',
         subtitle: '为用户 {email} 按平台配置账号池、质量门槛和配对冷却。开启后该平台只使用池内账号，并忽略账号侧旧允许/拒绝/门槛/并发。',
         enabled: '启用该平台智能调度',
@@ -2453,6 +2456,7 @@ const zhBase = {
         pairEventCooldownStart: '开始冷却',
         pairEventCooldownEnd: '冷却结束',
         pairEventResumed: '进入豁免期',
+        pairEventPinned: '进入长期豁免',
         pairEventSelectable: '可调度',
         pairEventProbeEnter: '进入考察',
         pairEventProbeGraduate: '考察毕业',
@@ -2472,6 +2476,10 @@ const zhBase = {
         filteredAdd: '筛选添加',
         filteredAddTitle: '按条件添加账号',
         filteredAddHint: '平台已锁定为 {platform}。只显示尚未加入本池的候选账号，筛选语言与账号管理一致。',
+        filteredAddHintAg: 'Antigravity 池可加入原生 AG 账号和全部 OpenAI 账号（不论是否开桥）。默认显示全部，可用平台筛选项收窄。',
+        claudeGptBridge: 'Claude→GPT 桥接',
+        claudeGptBridgeOn: '已开桥',
+        claudeGptBridgeOff: '未开桥',
         filteredAddPreview: '匹配 {count} 个候选账号',
         filteredAddEmpty: '没有符合条件的候选账号',
         addSelected: '加入已选 ({count})',
@@ -2507,11 +2515,12 @@ const zhBase = {
         resumeSuccess: '已进入豁免期：冷却已清除，期内不判断配对质量',
         resumeFailed: '恢复配对失败',
         switchState: '切换状态',
-        switchStateHint: '手动切换该配对入池状态：暂停、冷却、考察、调度或豁免期。离开暂停必须再手选下一态，不会默认进考察。',
+        switchStateHint: '手动切换该配对入池状态：暂停、冷却、考察、调度、豁免期或长期豁免。离开暂停必须再手选下一态，不会默认进考察。',
         switchSuccessPaused: '已暂停对该用户调度该账号，账号仍在池内',
         switchSuccessCooling: '已写入配对冷却',
         switchSuccessProbing: '已切到考察：冷却已清、窗口已清零、并发夹紧；达标后再进调度',
         switchSuccessSelectable: '已切到可调度：窗口已清零，重新攒满 N 后才会冷却（无时间豁免）',
+        switchSuccessPinned: '已切到长期豁免：满额可调度，不因配对质量冷却，直到再手选下一态',
         switchFailed: '切换入池状态失败',
         save: '保存',
         saving: '保存中...',
@@ -2522,10 +2531,10 @@ const zhBase = {
         dirtyBanner: '有未保存的配对并发 / 门槛修改。自动刷新不会覆盖这些草稿，需点保存后才会生效。',
         dirtySaveHint: '配对并发与门槛仍需保存',
         admission: '入池状态',
-        admissionHint: '这是该用户在本池里能不能被选中，不是账号 status。暂停是长期手选，离开必须再选下一态，不会默认进考察。冷却到期会进考察再转调度；豁免期仅手选。暂停和配对冷却是真锁；已保存的配对质量门槛未达标但尚未写入冷却时显示「下次请求将冷却」；未保存或未启用的门槛只是预览。',
+        admissionHint: '这是该用户在本池里能不能被选中，不是账号 status。暂停是长期手选，离开必须再选下一态，不会默认进考察。冷却到期会进考察再转调度；豁免期与长期豁免仅手选。暂停和配对冷却是真锁；已保存的配对质量门槛未达标但尚未写入冷却时显示「下次请求将冷却」；未保存或未启用的门槛只是预览。',
         admissionSelectable: '可调度',
         admissionPaused: '已暂停',
-        admissionPausedHint: '已长期暂停对该用户调度该账号。账号仍留在池内。离开暂停必须再手选考察 / 调度 / 豁免期 / 冷却，不会默认进考察。',
+        admissionPausedHint: '已长期暂停对该用户调度该账号。账号仍留在池内。离开暂停必须再手选考察 / 调度 / 豁免期 / 长期豁免 / 冷却，不会默认进考察。',
         admissionCooling: '配对冷却',
         admissionCoolingUntil: '冷却至 {time}',
         admissionCoolingRemaining: '剩余 {minutes} 分钟',
@@ -2537,6 +2546,8 @@ const zhBase = {
         admissionUnsavedPreviewHint: '仅草稿门槛未达标，或平台尚未启用。这不是线上拦截，立即恢复不会清除任何线上状态。',
         admissionResumed: '豁免期',
         admissionResumedHint: '豁免期仅手选。期内完全不判断、不写冷却。期满后进调度并保留宽限期窗口，不经考察。',
+        admissionPinned: '长期豁免',
+        admissionPinnedHint: '长期豁免仅手选。按成员原 cap 可调度，不因配对质量评价或冷却，直到再手选下一态。没有超时。账号硬关闭仍可能整号停。',
         admissionProbing: '考察',
         admissionProbingHint: '冷却到期会进考察再转调度；豁免期仅手选。考察期内夹紧并发，用配对质量评价，达标后再进调度。',
         filterSearch: '搜索池内账号',
@@ -6232,6 +6243,7 @@ const zhBase = {
         caliberCompareExcluded: '未计入对照口径',
         caliberScheduleIncluded: '计入账号错误率（调度）',
         caliberScheduleExcluded: '未计入账号错误率（调度）',
+        caliberNeedsOpsAttention: '需运维',
         typeRecovered: '已救回',
         typeRequest: '请求',
         typeAuth: '认证',
@@ -6254,6 +6266,9 @@ const zhBase = {
         resolved: '已解决',
         viewErrors: '错误',
         viewExcluded: '排除项',
+        attentionAll: '全部口径',
+        attentionYes: '需运维',
+        attentionNo: '非需运维',
         statusCodeOther: '其他',
         owner: {
           provider: '服务商',
@@ -6270,6 +6285,44 @@ const zhBase = {
         },
         total: '总计：',
         searchPlaceholder: '搜索 request_id / client_request_id / message'
+      },
+      scheduleErrorWhitelist: {
+        title: '调度错误白名单',
+        description:
+          '只影响调度口径。默认全不勾选，与上线前现网排除一致：Recovered（除非打开 failover 调度口径）、Claude–GPT 桥接、旧路由 model-not-found 安全栏仍硬编码排除。勾选后该类新增错误不计入配对冷却、账号 last-N 与账号 15 分钟调度 ErrorCount。不影响客户端 HTTP、用户错误率、对照错误率或需运维告警。',
+        checkedHint: '默认全不勾。勾选 = 不计入调度错误率 / 不冷却。旧 404 model_not_found 等安全栏不在此列表，始终排除。',
+        saved: '调度错误白名单已保存',
+        saveFailed: '保存调度错误白名单失败',
+        families: {
+          client_invalid_request: {
+            label: '客户端 invalid_request',
+            hint: 'error_type=invalid_request_error 且 error_phase=request。hop 透传 400（phase=upstream）仍计入调度。',
+          },
+          client_wrapped_400_urf: {
+            label: '客户端包装 400 Upstream request failed',
+            hint: '仅 status=400 且文案含 upstream request failed。502 同类文案永远计入调度。',
+          },
+          client_context_too_long: {
+            label: '上下文过长',
+            hint: '413，或文案含 prompt too long / context window / array too long。',
+          },
+          pair_concurrency: {
+            label: '配对并发上限',
+            hint: '429 且文案含 Concurrency limit exceeded for account。',
+          },
+          group_no_account: {
+            label: '组内无号',
+            hint: '组内没有账号支持该模型。不限 phase/status。仍会打需运维标记。',
+          },
+          routing_pool_empty: {
+            label: '路由池空',
+            hint: 'error_phase=routing 且 status=503。仍会打需运维。',
+          },
+          protocol_mismatch: {
+            label: '协议不匹配',
+            hint: 'Chat Completions endpoint / Unsupported content type / Invalid URL。仍会打需运维。',
+          },
+        },
       },
       // Error Detail Modal
       errorDetail: {
@@ -6321,6 +6374,10 @@ const zhBase = {
         phase: '阶段',
         status: '状态码',
         message: '消息',
+        upstreamOriginal: '上游原文',
+        upstreamJSON: '上游 JSON',
+        downstreamJSON: '下游错误 JSON',
+        downstreamMapped: '下游映射',
         basicInfo: '基本信息',
         platform: '平台',
         model: '模型',
@@ -6445,6 +6502,7 @@ const zhBase = {
           silenceFailed: '静默失败',
           viewRule: '查看规则',
           viewLogs: '查看相关日志',
+          viewAttentionErrors: '查看需运维错误',
           firedAt: '触发时间',
           resolvedAt: '解决时间',
           ruleId: '规则 ID',
@@ -6488,7 +6546,8 @@ const zhBase = {
         metricGroups: {
           system: '系统指标',
           group: '分组级别指标（需 group_id）',
-          account: '账号级别指标'
+          account: '账号级别指标',
+          routing: '路由 / 组模型'
         },
         metrics: {
           successRate: '成功率 (%)',
@@ -6506,7 +6565,8 @@ const zhBase = {
           accountErrorCount: '错误账号数（不含临时不可调度）',
           accountErrorRatio: '错误账号比例 (%)',
           accountTempUnscheduledCount: '临时不可调度账号数',
-          overloadAccountCount: '过载账号数'
+          overloadAccountCount: '过载账号数',
+          opsAttentionCount: '需运维错误数'
         },
         metricDescriptions: {
           successRate: '统计窗口内成功请求占比（0~100）。',
@@ -6524,7 +6584,8 @@ const zhBase = {
           accountErrorCount: '统计窗口内产生错误的账号数量（不含临时不可调度）。',
           accountErrorRatio: '统计窗口内错误账号占比（0~100）。',
           accountTempUnscheduledCount: '当前处于临时不可调度状态的账号数量（如代理或凭据故障被自动摘除）。',
-          overloadAccountCount: '统计窗口内过载账号数量。'
+          overloadAccountCount: '统计窗口内过载账号数量。',
+          opsAttentionCount: '窗口内组模型缺口、路由 503、协议错配等需人工处理的错误行数。不计入配对冷却。'
         },
         hints: {
           recommended: '推荐：运算符 {operator}，阈值 {threshold}{unit}',

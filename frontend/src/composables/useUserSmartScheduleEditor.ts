@@ -29,16 +29,20 @@ import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTe
 import {
   isCurrentlySchedulingAccount,
   isValidProbeConcurrencyWrite,
+  memberPinnedFromApi,
   memberProbingFromApi,
   pickDefaultSmartSchedulePlatform,
   probeConcurrencyWriteValue,
   readBackendProbeCap,
   resolvePairCap,
   resolveProbeConcurrencyMode,
-  userQualityResumeActive,
-  userQualityResumeChipActive,
   type PairAdmissionLiveState
 } from '@/composables/smartSchedulePoolAdmission'
+import {
+  applyUsageBalanceToAccountExtra,
+  shouldRefreshPairBalance,
+  supportsPairBalanceProbe
+} from '@/composables/schedulePnl'
 
 export { isCurrentlySchedulingAccount }
 
@@ -56,8 +60,11 @@ export type SmartSchedulePoolMemberDraft = {
   sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
+  resume_until?: string | null
+  resume_chip_until?: string | null
   paused?: boolean
   probing?: boolean
+  pinned?: boolean
   probe_cap?: number | null
 }
 
@@ -93,6 +100,40 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
       max_concurrency: item.max_concurrency
     }))
   })
+}
+
+function mergeCandidateAccounts(...groups: Account[][]): Account[] {
+  const seen = new Set<number>()
+  const items: Account[] = []
+  for (const group of groups) {
+    for (const account of group) {
+      if (!account?.id || seen.has(account.id)) continue
+      seen.add(account.id)
+      items.push(account)
+    }
+  }
+  return items
+}
+
+export type SmartSchedulePoolAccountListFilters = {
+  ids: string
+  lite: '1'
+  platform?: SmartSchedulePlatform
+}
+
+/** Lite hydrate for in-pool rows. AG may hold OpenAI ids; do not intersect with platform=antigravity. */
+export function smartSchedulePoolAccountListFilters(
+  platform: SmartSchedulePlatform,
+  ids: number[]
+): SmartSchedulePoolAccountListFilters {
+  const filters: SmartSchedulePoolAccountListFilters = {
+    ids: ids.join(','),
+    lite: '1'
+  }
+  if (platform !== 'antigravity') {
+    filters.platform = platform
+  }
+  return filters
 }
 
 export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
@@ -190,9 +231,12 @@ export function useUserSmartScheduleEditor(
   )
   const selectedAccountIds = ref<number[]>([])
   const refreshing = ref(false)
+  const balanceRefreshingIds = ref<number[]>([])
+  let balanceRefreshGen = 0
   const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
   const localPausedByAccount = ref<Record<number, boolean>>({})
   const localProbingByAccount = ref<Record<number, boolean>>({})
+  const localPinnedByAccount = ref<Record<number, boolean>>({})
 
   const currentDraft = computed(() => drafts[activePlatform.value])
   const currentSavedDraft = computed(() => draftFromSavedSnapshot(savedSnapshots[activePlatform.value]))
@@ -233,8 +277,11 @@ export function useUserSmartScheduleEditor(
       sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null,
+      resume_until: item.resume_until ?? null,
+      resume_chip_until: item.resume_chip_until ?? null,
       paused: Boolean(item.paused),
       probing: memberProbingFromApi(item),
+      pinned: memberPinnedFromApi(item),
       probe_cap: readBackendProbeCap(item)
     }))
     return draft
@@ -275,9 +322,12 @@ export function useUserSmartScheduleEditor(
       if (!live) continue
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
+      member.resume_until = live.resume_until ?? null
+      member.resume_chip_until = live.resume_chip_until ?? null
       member.sort_order = live.sort_order ?? null
       member.paused = Boolean(live.paused)
       member.probing = memberProbingFromApi(live)
+      member.pinned = memberPinnedFromApi(live)
       member.probe_cap = readBackendProbeCap(live)
     }
   }
@@ -328,6 +378,13 @@ export function useUserSmartScheduleEditor(
       return localProbingByAccount.value[accountId]
     }
     return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.probing)
+  }
+
+  function memberPinned(accountId: number): boolean {
+    if (Object.prototype.hasOwnProperty.call(localPinnedByAccount.value, accountId)) {
+      return localPinnedByAccount.value[accountId]
+    }
+    return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.pinned)
   }
 
   function memberProbeCap(accountId: number): number | null {
@@ -399,9 +456,11 @@ export function useUserSmartScheduleEditor(
     const nowSec = Math.floor(Date.now() / 1000)
     localPausedByAccount.value = { ...localPausedByAccount.value, [accountId]: state === 'paused' }
     localProbingByAccount.value = { ...localProbingByAccount.value, [accountId]: state === 'probing' }
+    localPinnedByAccount.value = { ...localPinnedByAccount.value, [accountId]: state === 'pinned' }
     if (member) {
       member.paused = state === 'paused'
       member.probing = state === 'probing'
+      member.pinned = state === 'pinned'
       member.probe_cap = state === 'probing' ? (probeCap ?? member.probe_cap ?? null) : null
     }
     if (state === 'paused') {
@@ -419,7 +478,7 @@ export function useUserSmartScheduleEditor(
       return
     }
     if (member) member.cooldown_until = null
-    if (state === 'probing' || state === 'selectable') {
+    if (state === 'probing' || state === 'selectable' || state === 'pinned') {
       patchLocalResume(accountId, null)
       return
     }
@@ -432,13 +491,18 @@ export function useUserSmartScheduleEditor(
   function memberResumeChipActive(accountId: number, now = Date.now()): boolean {
     const local = localResumeGraceByAccount.value[accountId]
     if (local && local.chipUntil * 1000 > now) return true
-    return userQualityResumeChipActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
+    const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+    if (member?.resume_chip_until && Date.parse(member.resume_chip_until) > now) return true
+    return false
   }
 
   function memberResumeActive(accountId: number, now = Date.now()): boolean {
     const local = localResumeGraceByAccount.value[accountId]
     if (local && (local.watchUntil * 1000 > now || local.chipUntil * 1000 > now)) return true
-    return userQualityResumeActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
+    const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+    if (member?.resume_until && Date.parse(member.resume_until) > now) return true
+    if (member?.resume_chip_until && Date.parse(member.resume_chip_until) > now) return true
+    return false
   }
 
   function effectivePairMax(_account: Account): number {
@@ -638,6 +702,7 @@ export function useUserSmartScheduleEditor(
   }
 
   async function loadPoolDetails() {
+    const gen = ++balanceRefreshGen
     const ids = currentDraft.value?.accounts.map((item) => item.account_id) ?? []
     if (ids.length === 0) {
       poolAccounts.value = []
@@ -645,17 +710,18 @@ export function useUserSmartScheduleEditor(
       todayStatsById.value = {}
       pairPnlById.value = {}
       pairQualityById.value = {}
+      balanceRefreshingIds.value = []
       return
     }
     const needs = resolvePoolFetchNeeds()
     const spinStats = needs.quality || needs.today || needs.pnl
     if (spinStats) statsLoading.value = true
     try {
-      const listedPromise = adminAPI.accounts.list(1, ids.length, {
-        platform: activePlatform.value,
-        ids: ids.join(','),
-        lite: '1'
-      })
+      const listedPromise = adminAPI.accounts.list(
+        1,
+        ids.length,
+        smartSchedulePoolAccountListFilters(activePlatform.value, ids)
+      )
       const qualityPromise = needs.quality
         ? adminAPI.accounts.getBatchQualityStats(ids).catch(() => ({ stats: {} as Record<string, AccountQualityStats> }))
         : Promise.resolve({ stats: {} as Record<string, AccountQualityStats> })
@@ -666,7 +732,7 @@ export function useUserSmartScheduleEditor(
         ? adminAPI.users.getSmartSchedulePnlPairs(userId.value, ids).catch(() => ({ pairs: {} as Record<string, SchedulePnlSummary> }))
         : Promise.resolve({ pairs: {} as Record<string, SchedulePnlSummary> })
       const pairQualityPromise = userId.value
-        ? adminAPI.users.getSmartSchedulePairQualityBatch(userId.value, ids).catch(() => ({
+        ? adminAPI.users.getSmartSchedulePairQualityBatch(userId.value, ids, activePlatform.value).catch(() => ({
             pairs: {} as Record<string, SmartSchedulePairQuality>
           }))
         : Promise.resolve({ pairs: {} as Record<string, SmartSchedulePairQuality> })
@@ -683,11 +749,84 @@ export function useUserSmartScheduleEditor(
       todayStatsById.value = needs.today ? (today.stats ?? {}) : {}
       pairPnlById.value = needs.pnl ? (pnl.pairs ?? {}) : {}
       pairQualityById.value = pairQuality.pairs ?? {}
+      void refreshStalePoolBalances(gen)
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
     } finally {
       statsLoading.value = false
     }
+  }
+
+  function setBalanceRefreshing(accountId: number, on: boolean) {
+    if (on) {
+      if (!balanceRefreshingIds.value.includes(accountId)) {
+        balanceRefreshingIds.value = [...balanceRefreshingIds.value, accountId]
+      }
+      return
+    }
+    balanceRefreshingIds.value = balanceRefreshingIds.value.filter((id) => id !== accountId)
+  }
+
+  function isBalanceRefreshing(accountId: number) {
+    return balanceRefreshingIds.value.includes(accountId)
+  }
+
+  async function runPoolBalanceProbes(accounts: Account[], worker: (account: Account) => Promise<void>) {
+    if (accounts.length === 0) return
+    const concurrency = Math.min(4, accounts.length)
+    let next = 0
+    const run = async () => {
+      while (next < accounts.length) {
+        const index = next
+        next += 1
+        await worker(accounts[index])
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, () => run()))
+  }
+
+  async function refreshOneAccountBalance(account: Account, force: boolean, gen: number) {
+    if (!supportsPairBalanceProbe(account)) return
+    if (!force && !shouldRefreshPairBalance(account)) return
+    if (isBalanceRefreshing(account.id)) return
+    setBalanceRefreshing(account.id, true)
+    try {
+      const usage = await adminAPI.accounts.getUsage(account.id, 'active', force ? { force: true } : undefined)
+      if (gen !== balanceRefreshGen) return
+      const current = poolAccounts.value.find((item) => item.id === account.id)
+      if (!current) return
+      patchPoolAccount({
+        ...current,
+        extra: applyUsageBalanceToAccountExtra(current.extra, usage)
+      })
+    } catch {
+      // Keep the last snapshot; the cell still shows upstream_balance_at.
+    } finally {
+      setBalanceRefreshing(account.id, false)
+    }
+  }
+
+  async function refreshStalePoolBalances(gen: number) {
+    const targets = poolAccounts.value.filter((account) => shouldRefreshPairBalance(account))
+    await runPoolBalanceProbes(targets, (account) => refreshOneAccountBalance(account, false, gen))
+  }
+
+  async function refreshAccountBalance(accountId: number) {
+    const account = poolAccounts.value.find((item) => item.id === accountId)
+    if (!account) return
+    await refreshOneAccountBalance(account, true, balanceRefreshGen)
+  }
+
+  async function listLiteByPlatform(platform: SmartSchedulePlatform) {
+    const filters = { platform, lite: '1' }
+    const first = await adminAPI.accounts.list(1, CANDIDATE_PAGE_SIZE, filters)
+    const items = [...(first.items ?? [])]
+    const pages = first.pages ?? 1
+    for (let page = 2; page <= pages; page++) {
+      const next = await adminAPI.accounts.list(page, CANDIDATE_PAGE_SIZE, filters)
+      items.push(...(next.items ?? []))
+    }
+    return items
   }
 
   async function loadCandidates(opts?: { force?: boolean }) {
@@ -698,14 +837,13 @@ export function useUserSmartScheduleEditor(
     if (candidatesLoading.value) return
     candidatesLoading.value = true
     try {
-      const filters = { platform, lite: '1' }
-      const first = await adminAPI.accounts.list(1, CANDIDATE_PAGE_SIZE, filters)
-      const items = [...(first.items ?? [])]
-      const pages = first.pages ?? 1
-      for (let page = 2; page <= pages; page++) {
-        const next = await adminAPI.accounts.list(page, CANDIDATE_PAGE_SIZE, filters)
-        items.push(...(next.items ?? []))
-      }
+      const items =
+        platform === 'antigravity'
+          ? mergeCandidateAccounts(
+              await listLiteByPlatform('antigravity'),
+              await listLiteByPlatform('openai')
+            )
+          : await listLiteByPlatform(platform)
       candidateAccounts.value = items
       candidatesLoaded.value = true
       candidatesPlatform.value = platform
@@ -916,15 +1054,22 @@ export function useUserSmartScheduleEditor(
   async function setPairAdmission(accountId: number, state: PairAdmissionLiveState) {
     if (!userId.value) return
     try {
-      const result = await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value, state)
+      const result = await adminAPI.accounts.resumeSmartSchedule(
+        accountId,
+        userId.value,
+        state,
+        activePlatform.value
+      )
       const nextState =
-        result.state === 'cooling'
-        || result.state === 'selectable'
-        || result.state === 'resumed'
-        || result.state === 'paused'
-        || result.state === 'probing'
-          ? result.state
-          : state
+        result.pinned === true || result.state === 'pinned'
+          ? 'pinned'
+          : result.state === 'cooling'
+            || result.state === 'selectable'
+            || result.state === 'resumed'
+            || result.state === 'paused'
+            || result.state === 'probing'
+            ? result.state
+            : state
       applyLocalAdmission(
         accountId,
         nextState,
@@ -940,7 +1085,9 @@ export function useUserSmartScheduleEditor(
               ? 'admin.users.smartSchedule.switchSuccessProbing'
               : nextState === 'selectable'
                 ? 'admin.users.smartSchedule.switchSuccessSelectable'
-                : 'admin.users.smartSchedule.resumeSuccess'
+                : nextState === 'pinned'
+                  ? 'admin.users.smartSchedule.switchSuccessPinned'
+                  : 'admin.users.smartSchedule.resumeSuccess'
       appStore.showSuccess(t(toast))
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.switchFailed')))
@@ -955,6 +1102,7 @@ export function useUserSmartScheduleEditor(
       localResumeGraceByAccount.value = {}
       localPausedByAccount.value = {}
       localProbingByAccount.value = {}
+      localPinnedByAccount.value = {}
       if (id) {
         void loadAll({ pickPlatform: true })
       }
@@ -1019,6 +1167,7 @@ export function useUserSmartScheduleEditor(
     memberCooldownUntil,
     memberPaused,
     memberProbing,
+    memberPinned,
     memberProbeCap,
     memberSortOrder,
     persistSortOrders,
@@ -1045,6 +1194,8 @@ export function useUserSmartScheduleEditor(
     setPairAdmission,
     refreshAll,
     ensureCandidates,
-    loadPoolDetails
+    loadPoolDetails,
+    refreshAccountBalance,
+    isBalanceRefreshing
   }
 }

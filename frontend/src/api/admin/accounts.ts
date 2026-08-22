@@ -259,9 +259,16 @@ export async function clearError(id: number): Promise<Account> {
  * @param id - Account ID
  * @returns Account usage info
  */
-export async function getUsage(id: number, source?: 'passive' | 'active'): Promise<AccountUsageInfo> {
+export async function getUsage(
+  id: number,
+  source?: 'passive' | 'active',
+  options?: { force?: boolean }
+): Promise<AccountUsageInfo> {
   const { data } = await apiClient.get<AccountUsageInfo>(`/admin/accounts/${id}/usage`, {
-    params: source ? { source } : undefined
+    params: {
+      ...(source ? { source } : {}),
+      ...(options?.force ? { force: 'true' } : {})
+    }
   })
   return data
 }
@@ -635,7 +642,13 @@ export async function updateQualityHardClose(
   return data
 }
 
-export type SmartScheduleAdmissionState = 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
+export type SmartScheduleAdmissionState =
+  | 'paused'
+  | 'cooling'
+  | 'probing'
+  | 'resumed'
+  | 'selectable'
+  | 'pinned'
 
 export interface SmartScheduleAdmissionResult {
   account_id: number
@@ -643,21 +656,23 @@ export interface SmartScheduleAdmissionResult {
   state: SmartScheduleAdmissionState
   cooldown_until?: string | null
   probing?: boolean
+  pinned?: boolean
   probe_cap?: number | null
   probing_cap?: number | null
   in_flight_cap?: number | null
   pair_probe_cap?: number | null
 }
 
-/** Switch one user×account pair among paused / cooling / probing / resumed / selectable. Omitted state is resumed (exemption), never probing. */
+/** Switch one user×account pair among paused / cooling / probing / resumed / selectable / pinned. Omitted state is resumed (豁免期), never pinned or probing. */
 export async function resumeSmartSchedule(
   accountId: number,
   userId: number,
-  state: SmartScheduleAdmissionState = 'resumed'
+  state: SmartScheduleAdmissionState = 'resumed',
+  platform?: string
 ): Promise<SmartScheduleAdmissionResult> {
   const { data } = await apiClient.post<SmartScheduleAdmissionResult>(
     `/admin/accounts/${accountId}/smart-schedule-resume`,
-    { user_id: userId, state }
+    { user_id: userId, state, ...(platform ? { platform } : {}) }
   )
   return data
 }

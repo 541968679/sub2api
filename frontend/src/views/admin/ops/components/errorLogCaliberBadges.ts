@@ -14,6 +14,8 @@ const chipScheduleOn =
   'bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-500/30'
 const chipScheduleOff =
   'bg-gray-100 text-gray-700 ring-gray-600/20 dark:bg-dark-700 dark:text-gray-300 dark:ring-dark-500/40'
+const chipAttention =
+  'bg-rose-50 text-rose-800 ring-rose-600/20 dark:bg-rose-900/30 dark:text-rose-200 dark:ring-rose-500/30'
 
 export function isRecoveredErrorLog(log: OpsErrorLog): boolean {
   if (log.is_recovered === true) return true
@@ -26,11 +28,19 @@ export function errorLogCaliberBadges(log: OpsErrorLog): ErrorLogCaliberBadge[] 
   if (
     log.counted_in_user_error_rate == null &&
     log.counted_in_account_compare_rate == null &&
-    log.counted_in_account_schedule_rate == null
+    log.counted_in_account_schedule_rate == null &&
+    log.needs_ops_attention == null
   ) {
     return []
   }
   const badges: ErrorLogCaliberBadge[] = []
+  if (log.needs_ops_attention === true) {
+    badges.push({
+      key: 'ops-attention',
+      labelKey: 'admin.ops.errorLog.caliberNeedsOpsAttention',
+      className: chipAttention
+    })
+  }
   if (log.counted_in_user_error_rate === false) {
     badges.push({
       key: 'user-excluded',

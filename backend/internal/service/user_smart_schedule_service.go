@@ -52,53 +52,81 @@ func (s *UserSmartScheduleService) Lookup(ctx context.Context, userID int64) *Us
 	return s.cache.Lookup(ctx, userID)
 }
 
-func (s *UserSmartScheduleService) CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool {
+func (s *UserSmartScheduleService) CooldownActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
 	if s == nil || s.cache == nil {
 		return false
 	}
-	return s.cache.CooldownActive(ctx, accountID, userID, now)
+	return s.cache.CooldownActive(ctx, accountID, userID, platform, now)
 }
 
-func (s *UserSmartScheduleService) StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) {
+func (s *UserSmartScheduleService) StartCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	s.cache.StartCooldown(ctx, accountID, userID, minutes, now)
+	s.cache.StartCooldown(ctx, accountID, userID, platform, minutes, now)
 }
 
-func (s *UserSmartScheduleService) GetPairQuality(ctx context.Context, accountID, userID int64) *PairQualityLive {
+func (s *UserSmartScheduleService) GetPairQuality(ctx context.Context, accountID, userID int64, platform string) *PairQualityLive {
 	if s == nil || s.cache == nil {
 		return nil
 	}
-	return s.cache.GetPairQuality(ctx, accountID, userID)
+	return s.cache.GetPairQuality(ctx, accountID, userID, platform)
 }
 
-func (s *UserSmartScheduleService) IsProbing(ctx context.Context, accountID, userID int64) bool {
+func (s *UserSmartScheduleService) IsProbing(ctx context.Context, accountID, userID int64, platform string) bool {
 	if s == nil || s.cache == nil {
 		return false
 	}
-	return s.cache.IsProbing(ctx, accountID, userID)
+	return s.cache.IsProbing(ctx, accountID, userID, platform)
 }
 
-func (s *UserSmartScheduleService) MarkProbing(ctx context.Context, accountID, userID int64) {
+func (s *UserSmartScheduleService) MarkProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	s.cache.MarkProbing(ctx, accountID, userID)
+	s.cache.MarkProbing(ctx, accountID, userID, platform)
 }
 
-func (s *UserSmartScheduleService) ClearProbing(ctx context.Context, accountID, userID int64) {
+func (s *UserSmartScheduleService) ClearProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	s.cache.ClearProbing(ctx, accountID, userID)
+	s.cache.ClearProbing(ctx, accountID, userID, platform)
 }
 
-func (s *UserSmartScheduleService) GraduateProbing(ctx context.Context, accountID, userID int64) {
+func (s *UserSmartScheduleService) GraduateProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	s.cache.GraduateProbing(ctx, accountID, userID)
+	s.cache.GraduateProbing(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) IsPinned(ctx context.Context, accountID, userID int64, platform string) bool {
+	if s == nil || s.cache == nil {
+		return false
+	}
+	return s.cache.IsPinned(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) MarkPinned(ctx context.Context, accountID, userID int64, platform string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.MarkPinned(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) ClearPinned(ctx context.Context, accountID, userID int64, platform string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.ClearPinned(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) PairResumeActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	if s == nil || s.cache == nil {
+		return false
+	}
+	return s.cache.PairResumeActive(ctx, accountID, userID, platform, now)
 }
 
 func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, obs PairQualityObservation) {
@@ -109,31 +137,36 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	if bundle == nil {
 		return
 	}
-	var policy *SmartSchedulePlatformPolicy
-	for _, candidate := range bundle.Policies {
-		if candidate != nil && candidate.HasAccount(obs.AccountID) {
-			policy = candidate
-			break
-		}
+	platform := normalizeSmartSchedulePlatform(obs.Platform)
+	if platform == "" {
+		platform = uniqueSmartScheduleMembershipPlatform(bundle, obs.AccountID)
 	}
-	if policy == nil || !policy.Enabled || policy.MemberCount() == 0 {
+	if platform == "" {
+		return
+	}
+	policy := bundle.EnabledPolicy(platform)
+	if policy == nil || !policy.HasAccount(obs.AccountID) {
 		return
 	}
 	if policy.IsPaused(obs.AccountID) {
 		return
 	}
 	now := time.Now().UTC()
-	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, now) {
+	pinned := s.cache.IsPinned(ctx, obs.AccountID, obs.UserID, platform)
+	if pinned {
+		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.WindowN(), obs.Success, obs.FirstTokenMs)
 		return
 	}
-	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, policy.WindowN(), obs.Success, obs.FirstTokenMs)
-	stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: obs.AccountID}, true)
-	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID)
-	if pairQualityResumeBlocksEvaluate(probing, stats, obs.UserID, now) {
+	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, platform, now) {
 		return
 	}
-	clearLeftoverResumeIfProbing(ctx, s.qualityLiveCache, probing, obs.AccountID, obs.UserID, stats, now)
-	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, policy, live, now)
+	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.WindowN(), obs.Success, obs.FirstTokenMs)
+	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID, platform)
+	if pairQualityResumeBlocksEvaluate(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now) {
+		return
+	}
+	clearLeftoverPairResumeIfProbing(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now)
+	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now)
 }
 
 func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*UserSmartScheduleView, error) {
@@ -148,7 +181,9 @@ func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*User
 	s.hydrateAccountPriority(ctx, view)
 	s.hydratePairCurrent(ctx, userID, view)
 	s.hydratePairCooldown(ctx, userID, view)
+	s.hydratePairResume(ctx, userID, view)
 	s.hydratePairProbing(ctx, userID, view)
+	s.hydratePairPinned(ctx, userID, view)
 	s.hydratePairQuality(ctx, userID, view)
 	view.DefaultPlatform = pickDefaultSmartSchedulePlatform(view)
 	return view, nil
@@ -283,10 +318,10 @@ func ParsePairAdmissionState(raw string) (string, error) {
 		return PairAdmissionResumed, nil
 	}
 	switch state {
-	case PairAdmissionPaused, PairAdmissionCooling, PairAdmissionProbing, PairAdmissionResumed, PairAdmissionSelectable:
+	case PairAdmissionPaused, PairAdmissionCooling, PairAdmissionProbing, PairAdmissionResumed, PairAdmissionSelectable, PairAdmissionPinned:
 		return state, nil
 	default:
-		return "", infraerrors.BadRequest("SMART_SCHEDULE_ADMISSION_INVALID", "state must be paused, cooling, probing, resumed, or selectable")
+		return "", infraerrors.BadRequest("SMART_SCHEDULE_ADMISSION_INVALID", "state must be paused, cooling, probing, resumed, selectable, or pinned")
 	}
 }
 
@@ -295,7 +330,7 @@ func (s *UserSmartScheduleService) ResumePair(ctx context.Context, accountID, us
 	return err
 }
 
-func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, accountID, userID int64, state string) (*PairAdmissionResult, error) {
+func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, accountID, userID int64, state string, platformHint ...string) (*PairAdmissionResult, error) {
 	if accountID <= 0 || userID <= 0 {
 		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_id and user_id are required")
 	}
@@ -303,92 +338,137 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
+	platform := ""
+	if len(platformHint) > 0 {
+		platform = platformHint[0]
+	}
+	platform = s.resolvePairAdmissionPlatform(ctx, accountID, userID, platform)
 	now := time.Now().UTC()
 	result := &PairAdmissionResult{AccountID: accountID, UserID: userID, State: parsed}
 	if parsed != PairAdmissionProbing {
-		s.clearProbeMark(ctx, accountID, userID)
+		s.clearProbeMark(ctx, accountID, userID, platform)
+	}
+	if parsed != PairAdmissionPinned {
+		s.clearPinMark(ctx, accountID, userID, platform)
 	}
 	switch parsed {
 	case PairAdmissionPaused:
 		if s != nil && s.cache != nil {
-			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
 		}
-		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
-				return nil, err
-			}
-		}
+		s.clearPairResume(ctx, accountID, userID, platform)
 	case PairAdmissionCooling:
-		until, err := s.forcePairCooldown(ctx, accountID, userID, now)
+		until, err := s.forcePairCooldown(ctx, accountID, userID, platform, now)
 		if err != nil {
 			return nil, err
 		}
 		result.CooldownUntil = &until
-		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
-				return nil, err
-			}
-		}
+		s.clearPairResume(ctx, accountID, userID, platform)
 	case PairAdmissionProbing:
 		if s != nil && s.cache != nil {
-			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
-			s.cache.ZeroPairQuality(ctx, accountID, userID, "")
-			s.cache.MarkProbing(ctx, accountID, userID)
+			s.cache.ZeroPairQuality(ctx, accountID, userID, platform, "")
+			s.cache.MarkProbing(ctx, accountID, userID, platform)
 		}
-		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
-				return nil, err
-			}
-		}
+		s.clearPairResume(ctx, accountID, userID, platform)
 		result.Probing = true
-		cap := s.probeCapForPair(ctx, accountID, userID)
+		cap := s.probeCapForPair(ctx, accountID, userID, platform)
 		result.ProbeCap = &cap
 	case PairAdmissionSelectable:
 		if s != nil && s.cache != nil {
-			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
-			s.cache.ZeroPairQuality(ctx, accountID, userID, PairQualityEventSelectable)
+			s.cache.ZeroPairQuality(ctx, accountID, userID, platform, PairQualityEventSelectable)
 		}
-		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.ClearUserResume(ctx, accountID, userID); err != nil {
+		s.clearPairResume(ctx, accountID, userID, platform)
+	case PairAdmissionPinned:
+		if s != nil && s.cache != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
+			s.cache.MarkPinned(ctx, accountID, userID, platform)
 		}
+		s.clearPairResume(ctx, accountID, userID, platform)
+		result.Pinned = true
 	default:
 		result.State = PairAdmissionResumed
 		if s != nil && s.cache != nil {
-			if err := s.cache.ClearCooldown(ctx, accountID, userID); err != nil {
+			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
 		}
 		if s != nil && s.cache != nil {
-			s.cache.ZeroPairQuality(ctx, accountID, userID, PairQualityEventResumed)
+			s.cache.ZeroPairQuality(ctx, accountID, userID, platform, PairQualityEventResumed)
 		}
-		if s != nil && s.qualityLiveCache != nil {
-			if err := s.qualityLiveCache.MarkUserResume(ctx, accountID, userID); err != nil {
-				return nil, err
-			}
+		if err := s.markPairResume(ctx, accountID, userID, platform); err != nil {
+			return nil, err
 		}
 	}
-	if err := s.setMemberPaused(ctx, userID, accountID, parsed == PairAdmissionPaused); err != nil {
+	if err := s.setMemberPaused(ctx, userID, accountID, platform, parsed == PairAdmissionPaused); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-func (s *UserSmartScheduleService) clearProbeMark(ctx context.Context, accountID, userID int64) {
+func (s *UserSmartScheduleService) resolvePairAdmissionPlatform(ctx context.Context, accountID, userID int64, platform string) string {
+	platform = normalizeSmartSchedulePlatform(platform)
+	if platform != "" {
+		return platform
+	}
+	if s != nil && s.accountRepo != nil {
+		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
+		if err == nil && len(accounts) > 0 && accounts[0] != nil {
+			return normalizeSmartSchedulePlatform(accounts[0].Platform)
+		}
+	}
+	if s != nil && s.cache != nil {
+		if bundle := s.cache.Lookup(ctx, userID); bundle != nil {
+			if found := uniqueSmartScheduleMembershipPlatform(bundle, accountID); found != "" {
+				return found
+			}
+		}
+	}
+	return ""
+}
+
+func (s *UserSmartScheduleService) clearProbeMark(ctx context.Context, accountID, userID int64, platform string) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	s.cache.ClearProbing(ctx, accountID, userID)
+	s.cache.ClearProbing(ctx, accountID, userID, platform)
 }
 
-func (s *UserSmartScheduleService) probeCapForPair(ctx context.Context, accountID, userID int64) int {
+func (s *UserSmartScheduleService) clearPinMark(ctx context.Context, accountID, userID int64, platform string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.ClearPinned(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) ClearPairResume(ctx context.Context, accountID, userID int64, platform string) {
+	s.clearPairResume(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) clearPairResume(ctx context.Context, accountID, userID int64, platform string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.ClearPairResume(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) markPairResume(ctx context.Context, accountID, userID int64, platform string) error {
+	if s == nil || s.cache == nil {
+		return nil
+	}
+	return s.cache.MarkPairResume(ctx, accountID, userID, platform)
+}
+
+func (s *UserSmartScheduleService) probeCapForPair(ctx context.Context, accountID, userID int64, platform string) int {
 	n := DefaultSmartScheduleWindowN
 	memberCap := 0
 	if s == nil || s.cache == nil || accountID <= 0 || userID <= 0 {
@@ -398,49 +478,39 @@ func (s *UserSmartScheduleService) probeCapForPair(ctx context.Context, accountI
 	if bundle == nil {
 		return ProbeInFlightCap(n, memberCap)
 	}
-	if s.accountRepo != nil {
-		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
-		if err == nil && len(accounts) > 0 && accounts[0] != nil {
-			if policy := bundle.Policy(accounts[0].Platform); policy != nil {
-				return policy.ProbeInFlightCap(policy.PairCap(accountID))
-			}
-		}
-	}
-	for _, policy := range bundle.Policies {
-		if policy != nil && policy.HasAccount(accountID) {
+	platform = normalizeSmartSchedulePlatform(platform)
+	if platform != "" {
+		if policy := bundle.Policy(platform); policy != nil {
 			return policy.ProbeInFlightCap(policy.PairCap(accountID))
 		}
 	}
 	return ProbeInFlightCap(n, memberCap)
 }
 
-func (s *UserSmartScheduleService) setMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+func (s *UserSmartScheduleService) setMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error {
 	if s == nil || s.repo == nil {
 		return nil
 	}
-	if err := s.repo.SetMemberPaused(ctx, userID, accountID, paused); err != nil {
+	if err := s.repo.SetMemberPaused(ctx, userID, accountID, platform, paused); err != nil {
 		return err
 	}
 	if s.cache != nil {
-		return s.cache.ApplyMemberPaused(ctx, userID, accountID, paused)
+		return s.cache.ApplyMemberPaused(ctx, userID, accountID, platform, paused)
 	}
 	return nil
 }
 
-func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accountID, userID int64, now time.Time) (time.Time, error) {
+func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accountID, userID int64, platform string, now time.Time) (time.Time, error) {
 	minutes := DefaultSmartScheduleCooldownMinutes
-	if s != nil && s.accountRepo != nil {
-		accounts, err := s.accountRepo.GetByIDs(ctx, []int64{accountID})
-		if err == nil && len(accounts) > 0 && accounts[0] != nil && s.cache != nil {
-			if bundle := s.cache.Lookup(ctx, userID); bundle != nil {
-				if policy := bundle.Policy(accounts[0].Platform); policy != nil {
-					minutes = ClampSmartScheduleCooldownMinutes(policy.CooldownMinutes)
-				}
+	if s != nil && s.cache != nil {
+		if bundle := s.cache.Lookup(ctx, userID); bundle != nil {
+			if policy := bundle.Policy(platform); policy != nil {
+				minutes = ClampSmartScheduleCooldownMinutes(policy.CooldownMinutes)
 			}
 		}
 	}
 	if s != nil && s.cache != nil {
-		return s.cache.SetCooldown(ctx, accountID, userID, minutes, now)
+		return s.cache.SetCooldown(ctx, accountID, userID, platform, minutes, now)
 	}
 	return now.Add(time.Duration(minutes) * time.Minute), nil
 }
@@ -502,7 +572,7 @@ func (s *UserSmartScheduleService) sanitizePoolMembers(ctx context.Context, user
 			}
 			return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account not found")
 		}
-		if normalizeSmartSchedulePlatform(acc.Platform) != platform {
+		if !smartScheduleAccountMatchesTab(acc, platform) {
 			return nil, infraerrors.BadRequest("SMART_SCHEDULE_PLATFORM_MISMATCH", "account platform does not match the selected tab")
 		}
 		kept = append(kept, member)
@@ -671,35 +741,22 @@ func dropMissingSmartScheduleMembers(view *UserSmartScheduleView, byID map[int64
 }
 
 // hydratePairCurrent fills CurrentConcurrency for every pool member from
-// concurrency:account_user:{accountID}:{userID}. Uncapped members are included
-// so the admin badge can show this user's occupancy; this does not acquire
-// slots or change pair-cap enforcement.
+// concurrency:account_user:{accountID}:{userID}:{platform}. Uncapped members
+// are included so the admin badge can show this user's occupancy; this does
+// not acquire slots or change pair-cap enforcement.
 func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.pairConcurrency == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
 	}
-	ids := make([]int64, 0)
-	seen := make(map[int64]struct{})
-	for _, platform := range view.Platforms {
-		for _, member := range platform.Accounts {
-			if member.AccountID <= 0 {
-				continue
-			}
-			if _, ok := seen[member.AccountID]; ok {
-				continue
-			}
-			seen[member.AccountID] = struct{}{}
-			ids = append(ids, member.AccountID)
-		}
-	}
-	if len(ids) == 0 {
-		return
-	}
-	counts, err := s.pairConcurrency.GetAccountUserConcurrencyBatch(ctx, ids, userID)
-	if err != nil || counts == nil {
-		return
-	}
 	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		counts, err := s.pairConcurrency.GetAccountUserConcurrencyBatch(WithScheduleLookupPlatform(ctx, platformKey), ids, userID)
+		if err != nil || counts == nil {
+			continue
+		}
 		for i := range platform.Accounts {
 			platform.Accounts[i].CurrentConcurrency = counts[platform.Accounts[i].AccountID]
 		}
@@ -707,32 +764,36 @@ func (s *UserSmartScheduleService) hydratePairCurrent(ctx context.Context, userI
 	}
 }
 
+func smartScheduleViewAccountIDs(platform SmartSchedulePlatformView) []int64 {
+	ids := make([]int64, 0, len(platform.Accounts))
+	seen := map[int64]struct{}{}
+	for _, member := range platform.Accounts {
+		if member.AccountID <= 0 {
+			continue
+		}
+		if _, ok := seen[member.AccountID]; ok {
+			continue
+		}
+		seen[member.AccountID] = struct{}{}
+		ids = append(ids, member.AccountID)
+	}
+	return ids
+}
+
 func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
 	}
-	ids := make([]int64, 0)
-	seen := make(map[int64]struct{})
-	for _, platform := range view.Platforms {
-		for _, member := range platform.Accounts {
-			if member.AccountID <= 0 {
-				continue
-			}
-			if _, ok := seen[member.AccountID]; ok {
-				continue
-			}
-			seen[member.AccountID] = struct{}{}
-			ids = append(ids, member.AccountID)
-		}
-	}
-	if len(ids) == 0 {
-		return
-	}
-	untilByAccount := s.cache.GetCooldownUntilBatch(ctx, ids, userID, time.Now().UTC())
-	if len(untilByAccount) == 0 {
-		return
-	}
+	now := time.Now().UTC()
 	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		untilByAccount := s.cache.GetCooldownUntilBatch(ctx, ids, userID, platformKey, now)
+		if len(untilByAccount) == 0 {
+			continue
+		}
 		for i := range platform.Accounts {
 			until, ok := untilByAccount[platform.Accounts[i].AccountID]
 			if !ok || until.IsZero() {
@@ -745,32 +806,51 @@ func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, user
 	}
 }
 
+func (s *UserSmartScheduleService) hydratePairResume(ctx context.Context, userID int64, view *UserSmartScheduleView) {
+	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
+		return
+	}
+	now := time.Now().UTC()
+	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		untilByAccount := s.cache.GetPairResumeUntilBatch(ctx, ids, userID, platformKey, now)
+		if len(untilByAccount) == 0 {
+			continue
+		}
+		for i := range platform.Accounts {
+			live, ok := untilByAccount[platform.Accounts[i].AccountID]
+			if !ok || !live.Active(now) {
+				continue
+			}
+			if !live.WatchUntil.IsZero() {
+				watch := live.WatchUntil
+				platform.Accounts[i].ResumeUntil = &watch
+			}
+			if !live.ChipUntil.IsZero() {
+				chip := live.ChipUntil
+				platform.Accounts[i].ResumeChipUntil = &chip
+			}
+		}
+		view.Platforms[platformKey] = platform
+	}
+}
+
 func (s *UserSmartScheduleService) hydratePairProbing(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
 	}
-	ids := make([]int64, 0)
-	seen := make(map[int64]struct{})
-	for _, platform := range view.Platforms {
-		for _, member := range platform.Accounts {
-			if member.AccountID <= 0 {
-				continue
-			}
-			if _, ok := seen[member.AccountID]; ok {
-				continue
-			}
-			seen[member.AccountID] = struct{}{}
-			ids = append(ids, member.AccountID)
-		}
-	}
-	if len(ids) == 0 {
-		return
-	}
-	probing := s.cache.IsProbingBatch(ctx, ids, userID)
-	if len(probing) == 0 {
-		return
-	}
 	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		probing := s.cache.IsProbingBatch(ctx, ids, userID, platformKey)
+		if len(probing) == 0 {
+			continue
+		}
 		desired := viewProbeDesired(&platform)
 		for i := range platform.Accounts {
 			if !probing[platform.Accounts[i].AccountID] {
@@ -791,30 +871,45 @@ func (s *UserSmartScheduleService) hydratePairProbing(ctx context.Context, userI
 	}
 }
 
+func (s *UserSmartScheduleService) hydratePairPinned(ctx context.Context, userID int64, view *UserSmartScheduleView) {
+	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
+		return
+	}
+	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		pinned := s.cache.IsPinnedBatch(ctx, ids, userID, platformKey)
+		if len(pinned) == 0 {
+			continue
+		}
+		for i := range platform.Accounts {
+			if !pinned[platform.Accounts[i].AccountID] {
+				continue
+			}
+			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil {
+				continue
+			}
+			platform.Accounts[i].Pinned = true
+			platform.Accounts[i].Probing = false
+			platform.Accounts[i].ProbeCap = nil
+		}
+		view.Platforms[platformKey] = platform
+	}
+}
+
 func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userID int64, view *UserSmartScheduleView) {
 	if s == nil || s.cache == nil || view == nil || userID <= 0 || len(view.Platforms) == 0 {
 		return
 	}
-	ids := make([]int64, 0)
-	seen := make(map[int64]struct{})
-	for _, platform := range view.Platforms {
-		for _, member := range platform.Accounts {
-			if member.AccountID <= 0 {
-				continue
-			}
-			if _, ok := seen[member.AccountID]; ok {
-				continue
-			}
-			seen[member.AccountID] = struct{}{}
-			ids = append(ids, member.AccountID)
-		}
-	}
-	if len(ids) == 0 {
-		return
-	}
-	lives := s.cache.GetPairQualityBatch(ctx, ids, userID)
 	now := time.Now().UTC()
 	for platformKey, platform := range view.Platforms {
+		ids := smartScheduleViewAccountIDs(platform)
+		if len(ids) == 0 {
+			continue
+		}
+		lives := s.cache.GetPairQualityBatch(ctx, ids, userID, platformKey)
 		n := DefaultSmartScheduleWindowN
 		if policy := viewPolicyN(&platform); policy > 0 {
 			n = policy
@@ -838,11 +933,10 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 			}
 			viewSnap = aliasPairQualityView(viewSnap)
 			platform.Accounts[i].PairQuality = &viewSnap
-			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil {
+			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil || platform.Accounts[i].Pinned {
 				continue
 			}
-			stats := loadLiveQualityForAdmission(ctx, s.qualityLiveCache, &Account{ID: platform.Accounts[i].AccountID}, true)
-			if UserQualityResumeActive(stats, userID, now) {
+			if s.cache.PairResumeActive(ctx, platform.Accounts[i].AccountID, userID, platformKey, now) {
 				continue
 			}
 			if !qualityGateHasMetric(gate) {
@@ -910,20 +1004,20 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 		Events:    []PairQualityEvent{},
 	}
 	if s.cache != nil {
-		if live := s.cache.GetPairQuality(ctx, accountID, userID); live != nil {
+		if live := s.cache.GetPairQuality(ctx, accountID, userID, platform); live != nil {
 			detail.Live = live.View()
 			detail.Live.N = n
 			detail.Live = aliasPairQualityView(detail.Live)
 		}
 		detail.Current = detail.Live
-		if snaps := s.cache.ListPairQualitySnapshots(ctx, accountID, userID, 200); snaps != nil {
+		if snaps := s.cache.ListPairQualitySnapshots(ctx, accountID, userID, platform, 200); snaps != nil {
 			detail.Snapshots = make([]PairQualitySnapshot, 0, len(snaps))
 			for _, snap := range snaps {
 				snap.N = n
 				detail.Snapshots = append(detail.Snapshots, aliasPairQualitySnapshot(snap))
 			}
 		}
-		if events := s.cache.ListPairQualityEvents(ctx, accountID, userID, 200); events != nil {
+		if events := s.cache.ListPairQualityEvents(ctx, accountID, userID, platform, 200); events != nil {
 			detail.Events = make([]PairQualityEvent, 0, len(events))
 			for _, event := range events {
 				detail.Events = append(detail.Events, aliasPairQualityEvent(event))
@@ -941,20 +1035,21 @@ func (s *UserSmartScheduleService) GetPairQualityDetailForAccount(ctx context.Co
 	if err != nil {
 		return nil, err
 	}
-	for platform, row := range view.Platforms {
-		for _, member := range row.Accounts {
-			if member.AccountID == accountID {
-				return s.GetPairQualityDetail(ctx, userID, platform, accountID)
-			}
+	found := uniqueSmartScheduleMembershipPlatform(&UserSmartScheduleBundle{Policies: membershipPoliciesFromView(view)}, accountID)
+	if found == "" {
+		if smartScheduleAccountInMultiplePools(view, accountID) {
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_PLATFORM_REQUIRED", "account is in multiple platform pools")
 		}
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
-	return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	return s.GetPairQualityDetail(ctx, userID, found, accountID)
 }
 
-func (s *UserSmartScheduleService) GetPairQualityBatch(ctx context.Context, userID int64, accountIDs []int64) (*SmartSchedulePairQualityBatch, error) {
+func (s *UserSmartScheduleService) GetPairQualityBatch(ctx context.Context, userID int64, accountIDs []int64, platform string) (*SmartSchedulePairQualityBatch, error) {
 	if userID <= 0 {
 		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "user_id is required")
 	}
+	platform = normalizeSmartSchedulePlatform(platform)
 	out := &SmartSchedulePairQualityBatch{Pairs: map[string]SmartSchedulePairQualityView{}}
 	view, err := s.Get(ctx, userID)
 	if err != nil {
@@ -966,8 +1061,21 @@ func (s *UserSmartScheduleService) GetPairQualityBatch(ctx context.Context, user
 			wanted[id] = struct{}{}
 		}
 	}
-	for _, platform := range view.Platforms {
-		for _, member := range platform.Accounts {
+	memberships := map[int64]int{}
+	if platform == "" {
+		for _, row := range view.Platforms {
+			for _, member := range row.Accounts {
+				if member.AccountID > 0 {
+					memberships[member.AccountID]++
+				}
+			}
+		}
+	}
+	for platformKey, row := range view.Platforms {
+		if platform != "" && platformKey != platform {
+			continue
+		}
+		for _, member := range row.Accounts {
 			if member.AccountID <= 0 {
 				continue
 			}
@@ -976,12 +1084,48 @@ func (s *UserSmartScheduleService) GetPairQualityBatch(ctx context.Context, user
 					continue
 				}
 			}
+			if platform == "" && memberships[member.AccountID] > 1 {
+				continue
+			}
 			if member.PairQuality != nil {
 				out.Pairs[strconv.FormatInt(member.AccountID, 10)] = *member.PairQuality
 			}
 		}
 	}
 	return out, nil
+}
+
+func membershipPoliciesFromView(view *UserSmartScheduleView) map[string]*SmartSchedulePlatformPolicy {
+	if view == nil {
+		return nil
+	}
+	out := make(map[string]*SmartSchedulePlatformPolicy, len(view.Platforms))
+	for platform, row := range view.Platforms {
+		policy := &SmartSchedulePlatformPolicy{AccountIDs: map[int64]struct{}{}}
+		for _, member := range row.Accounts {
+			if member.AccountID > 0 {
+				policy.AccountIDs[member.AccountID] = struct{}{}
+			}
+		}
+		out[platform] = policy
+	}
+	return out
+}
+
+func smartScheduleAccountInMultiplePools(view *UserSmartScheduleView, accountID int64) bool {
+	if view == nil || accountID <= 0 {
+		return false
+	}
+	found := 0
+	for _, row := range view.Platforms {
+		for _, member := range row.Accounts {
+			if member.AccountID == accountID {
+				found++
+				break
+			}
+		}
+	}
+	return found > 1
 }
 
 func pickDefaultSmartSchedulePlatform(view *UserSmartScheduleView) string {

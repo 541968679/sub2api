@@ -123,6 +123,53 @@ export function pairAccountBalanceUsd(account: unknown): number | null {
   )
 }
 
+/** Same window as backend shouldRefreshUpstreamBalance. */
+export const UPSTREAM_BALANCE_REFRESH_MS = 6 * 60 * 1000
+
+export function supportsPairBalanceProbe(account: unknown): boolean {
+  if (!account || typeof account !== 'object') return false
+  const rec = account as { type?: unknown; platform?: unknown }
+  if (rec.type !== 'apikey') return false
+  return rec.platform === 'openai' || rec.platform === 'anthropic'
+}
+
+export function pairAccountBalanceUpdatedAt(account: unknown): Date | null {
+  const extra = accountExtra(account)
+  return extra ? parseIsoTime(extra.upstream_balance_at) : null
+}
+
+export function shouldRefreshPairBalance(account: unknown, now = new Date(), force = false): boolean {
+  if (!supportsPairBalanceProbe(account)) return false
+  if (force) return true
+  const updatedAt = pairAccountBalanceUpdatedAt(account)
+  if (!updatedAt) return true
+  return now.getTime() - updatedAt.getTime() >= UPSTREAM_BALANCE_REFRESH_MS
+}
+
+export function applyUsageBalanceToAccountExtra(
+  extra: Record<string, unknown> | null | undefined,
+  usage: {
+    balance_usd?: number | null
+    balance_updated_at?: string | null
+    balance_source?: string
+    balance_error?: string
+    balance_unlimited?: boolean
+    balance_used_usd?: number | null
+  }
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...(extra ?? {}) }
+  if (usage.balance_usd != null) next.upstream_balance_usd = usage.balance_usd
+  if (usage.balance_updated_at) next.upstream_balance_at = usage.balance_updated_at
+  if (usage.balance_source != null) next.upstream_balance_source = usage.balance_source
+  if (usage.balance_error != null) next.upstream_balance_error = usage.balance_error
+  if (usage.balance_unlimited != null) next.upstream_balance_unlimited = usage.balance_unlimited
+  if (usage.balance_used_usd != null) {
+    next.upstream_balance_used_usd = usage.balance_used_usd
+    next.display_balance_used_usd = usage.balance_used_usd
+  }
+  return next
+}
+
 export type BalanceBurnSample = { t: Date; v: number; kind?: string }
 
 export type BalanceCostBurnCompare = {

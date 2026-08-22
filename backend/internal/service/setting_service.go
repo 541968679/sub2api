@@ -562,10 +562,12 @@ func (s *SettingService) effectiveWeChatConnectOAuthConfig(settings map[string]s
 
 // NewSettingService 创建系统设置服务实例
 func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *SettingService {
-	return &SettingService{
+	s := &SettingService{
 		settingRepo: settingRepo,
 		cfg:         cfg,
 	}
+	registerScheduleErrorWhitelistSource(s)
+	return s
 }
 
 // SetDefaultSubscriptionGroupReader injects an optional group reader for default subscription validation.

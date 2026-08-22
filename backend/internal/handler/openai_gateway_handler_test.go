@@ -113,6 +113,83 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	assert.Equal(t, "test error", errorObj["message"])
 }
 
+func TestOpenAIHandleFailoverExhausted_RecordsRawUpstreamKeepsClientMapping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	raw := []byte(`{"error":{"type":"new_api_error","code":"channel:no_available_key","message":"no enabled keys (any suffix) for model gpt-5.4"}}`)
+	wrapper, err := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"type":    "upstream_error",
+			"message": "Upstream service temporarily unavailable",
+		},
+	})
+	require.NoError(t, err)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode:      http.StatusServiceUnavailable,
+		ResponseBody:    wrapper,
+		RawUpstreamBody: raw,
+	}, false)
+
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "upstream_error", gjson.GetBytes(w.Body.Bytes(), "error.type").String())
+	require.Equal(t, "Upstream service temporarily unavailable", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.NotContains(t, w.Body.String(), "channel:no_available_key")
+
+	require.Equal(t, "no enabled keys (any suffix) for model gpt-5.4", c.GetString(service.OpsUpstreamErrorMessageKey))
+	require.Contains(t, c.GetString(service.OpsUpstreamErrorDetailKey), "channel:no_available_key")
+	require.Equal(t, "channel:no_available_key", c.GetString(service.OpsProviderErrorCodeKey))
+}
+
+func TestOpenAIHandleFailoverExhausted_DoesNotStoreMappedWrapperAsUpstreamJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	wrapper, err := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"type":    "upstream_error",
+			"message": "Upstream service temporarily unavailable",
+		},
+	})
+	require.NoError(t, err)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode:   http.StatusServiceUnavailable,
+		ResponseBody: wrapper,
+	}, false)
+
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "Upstream service temporarily unavailable", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.NotContains(t, c.GetString(service.OpsUpstreamErrorDetailKey), `"type":"upstream_error"`)
+	require.Empty(t, c.GetString(service.OpsUpstreamErrorMessageKey))
+}
+
+func TestOpenAIHandleFailoverExhausted_UsesResponseBodyWhenRawMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	raw := []byte(`{"error":{"type":"new_api_error","code":"channel:no_available_key","message":"no enabled keys"}}`)
+	h := &OpenAIGatewayHandler{}
+	h.handleFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode:   http.StatusServiceUnavailable,
+		ResponseBody: raw,
+	}, false)
+
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "Upstream service temporarily unavailable", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.Equal(t, "no enabled keys", c.GetString(service.OpsUpstreamErrorMessageKey))
+	require.Equal(t, "channel:no_available_key", c.GetString(service.OpsProviderErrorCodeKey))
+}
+
 func TestOpenAIImagesResponseDeliveryErrorReturnsLocal500AndKeepsAccountHealthy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

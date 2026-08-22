@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -208,19 +209,20 @@ func (r *userSmartScheduleRepository) UpdateSortOrders(ctx context.Context, user
 	})
 }
 
-func (r *userSmartScheduleRepository) SetMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+func (r *userSmartScheduleRepository) SetMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error {
 	if r == nil || r.client == nil {
 		return fmt.Errorf("smart schedule repository unavailable")
 	}
-	if userID <= 0 || accountID <= 0 {
+	platform = strings.TrimSpace(strings.ToLower(platform))
+	if userID <= 0 || accountID <= 0 || platform == "" {
 		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
 	client := clientFromContext(ctx, r.client)
 	res, err := client.ExecContext(ctx, `
 		UPDATE user_smart_schedule_accounts
-		SET paused = $3
-		WHERE user_id = $1 AND account_id = $2
-	`, userID, accountID, paused)
+		SET paused = $4
+		WHERE user_id = $1 AND account_id = $2 AND platform = $3
+	`, userID, accountID, platform, paused)
 	if err != nil {
 		return fmt.Errorf("set smart schedule paused: %w", err)
 	}

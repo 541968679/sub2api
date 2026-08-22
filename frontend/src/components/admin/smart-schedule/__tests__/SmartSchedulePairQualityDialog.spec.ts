@@ -79,6 +79,7 @@ describe('SmartSchedulePairQualityDialog', () => {
       events: [
         { at: '2026-08-21T02:00:00.000Z', type: 'cooldown_start' },
         { at: '2026-08-21T02:30:00.000Z', type: 'resumed' },
+        { at: '2026-08-21T02:32:00.000Z', type: 'pinned' },
         { at: '2026-08-21T02:45:00.000Z', type: 'selectable' },
         { at: '2026-08-21T02:50:00.000Z', type: 'probe_enter' },
         { at: '2026-08-21T02:55:00.000Z', type: 'probe_graduate' }
@@ -95,7 +96,20 @@ describe('SmartSchedulePairQualityDialog', () => {
       }
     })
     await flushPromises()
-    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11)
+    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11, undefined)
+  })
+
+  it('loads the tab platform pair-quality route when platform is set', async () => {
+    const w = mount(SmartSchedulePairQualityDialog, {
+      props: {
+        show: true,
+        userId: 99,
+        platform: 'antigravity',
+        account: { id: 11, name: 'acc-11' } as any
+      }
+    })
+    await flushPromises()
+    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11, 'antigravity')
     expect(w.get('[data-testid="smart-schedule-pair-quality-dialog"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pair-quality-chart"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(
@@ -103,6 +117,9 @@ describe('SmartSchedulePairQualityDialog', () => {
     )
     expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(
       'admin.users.smartSchedule.pairEventResumed'
+    )
+    expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(
+      'admin.users.smartSchedule.pairEventPinned'
     )
     expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(
       'admin.users.smartSchedule.pairEventSelectable'

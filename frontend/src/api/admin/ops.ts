@@ -688,6 +688,7 @@ export type MetricType =
   | 'account_error_ratio'
   | 'account_temp_unscheduled_count'
   | 'overload_account_count'
+  | 'ops_attention_count'
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
 export interface AlertRule {
@@ -903,6 +904,8 @@ export interface OpsErrorLog {
   client_request_id: string
   request_id: string
   message: string
+  upstream_error_message?: string
+  provider_error_code?: string
 
   user_id?: number | null
   user_email: string
@@ -927,6 +930,7 @@ export interface OpsErrorLog {
   counted_in_user_error_rate?: boolean
   counted_in_account_compare_rate?: boolean
   counted_in_account_schedule_rate?: boolean
+  needs_ops_attention?: boolean
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {
@@ -935,7 +939,6 @@ export interface OpsErrorDetail extends OpsErrorLog {
 
   // Upstream context (optional; enriched by gateway services)
   upstream_status_code?: number | null
-  upstream_error_message?: string
   upstream_error_detail?: string
   upstream_errors?: string
 

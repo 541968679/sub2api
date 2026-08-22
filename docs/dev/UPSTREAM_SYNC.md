@@ -2,19 +2,27 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
-## 当前状态（2026-08-21 standing）
+## 当前状态（2026-08-22 standing，已 fold main）
 
 | 项 | 值 |
 |----|----|
-| 本仓 `main` | 占用 checkout 保持 `main`；创建本分支时为 `7f054bc3e` / VERSION **0.1.247** |
-| 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合 `main`、未 push） |
-| branch-point / `--base` | `7f054bc3e` |
+| 本仓 `main` | 占用 checkout 保持 `main`；本次合入 `1b3965a71` / VERSION **0.1.252** |
+| 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合回真正 `main`、未 push） |
+| branch-point / `--base` | `1b3965a71` |
 | 窗 1 补丁源 | `7feb1549f` on `sync/upstream-catchup-20260814`（只当补丁源，禁止 merge/rebase） |
 | 窗 1 SQL | `212_subscription_plan_currency.sql`、`213_usage_log_image_input_tokens.sql`、`214_group_profit_control.sql`（让号：`main` 已占用 `210_ops_attention_alert` / `211_user_smart_schedule_account_pk`） |
 | 已合入的 large baseline | 上游 `v0.1.152` / `b73d8c3ef` |
 | pending eval window | 仍从 `fbfdcef81` 起（冻结上限不变） |
 | 水位 JSON | [UPSTREAM_BASE.json](./UPSTREAM_BASE.json) |
-| 代码状态 | **窗 1 P1–P5 精细叠到 0.1.247**（利润门/安全审计默认关；image tokens 与 `true_cost`/`true_first_token_ms` 共存） |
+| 代码状态 | **窗 1 P1–P5 仍在，且已叠到 0.1.252 main**（利润门/安全审计默认关；image tokens 与 `true_cost`/`true_first_token_ms` 共存；AG/unpooled/Ops 原文错误来自 main） |
+
+## 2026-08-22 - Fold occupied main 0.1.252 into standing replica
+
+- **Merged**: occupied `main` `1b3965a71` (VERSION **0.1.252**) into `sync/upstream-standing-20260821`.
+- **SQL remap**: window-1 `210/211/212` → `212/213/214` before merge. `main` `210_ops_attention_alert` / `211_user_smart_schedule_account_pk` kept.
+- **Overlay**: AG pool isolation + unpooled cheapest + Ops raw error + schedule-error whitelist default-empty + pin + PnL refresh, plus window-1 image tokens / default-off profit-control / `response.failed`→429.
+- **`--base`**: now `1b3965a71`. Pending eval still starts at `fbfdcef81`.
+- **Not done**: fold back onto occupied `main`, `git push`, deploy, window-2 triage. Did not merge `upstream/main` or rebase catchup.
 
 ## 2026-08-21 - Fine-port catchup window-1 onto 0.1.247
 

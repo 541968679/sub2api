@@ -403,7 +403,7 @@ async function mountPage() {
 
 async function pickAdmissionState(
   w: Awaited<ReturnType<typeof mountPage>>,
-  state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable'
+  state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable' | 'pinned'
 ) {
   await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
   await flushPromises()
@@ -484,12 +484,13 @@ beforeEach(() => {
   apiMocks.moveAccountToTop.mockReset()
   apiMocks.resumeSmartSchedule.mockReset()
   apiMocks.resumeSmartSchedule.mockImplementation(
-    (accountId: number, userId: number, state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable' = 'resumed') =>
+    (accountId: number, userId: number, state: 'paused' | 'cooling' | 'probing' | 'resumed' | 'selectable' | 'pinned' = 'resumed') =>
       Promise.resolve({
         account_id: accountId,
         user_id: userId,
         state,
         probing: state === 'probing',
+        pinned: state === 'pinned',
         probe_cap: state === 'probing' ? 4 : undefined,
         cooldown_until: state === 'cooling' ? new Date(Date.now() + 15 * 60_000).toISOString() : null
       })
@@ -885,6 +886,71 @@ describe('UserSmartScheduleView', () => {
     expect(poolCalls).toHaveLength(1)
     expect(poolCalls[0]?.[2]).toMatchObject({ platform: 'openai', ids: '21', lite: '1' })
     expect(candidateCalls).toHaveLength(0)
+  })
+
+  it('shows OpenAI dual-members on the AG pool table after GET hydrate', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        ...makeView().platforms,
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 51, platform: 'antigravity', max_concurrency: null },
+            { account_id: 1730, platform: 'antigravity', max_concurrency: null }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        const catalog = [
+          { id: 51, name: 'ag-native', platform: 'antigravity', type: 'oauth', status: 'active', schedulable: true },
+          {
+            id: 1730,
+            name: 'loveapi',
+            platform: 'openai',
+            type: 'apikey',
+            status: 'active',
+            schedulable: true,
+            extra: { openai_claude_gpt_bridge_enabled: true }
+          }
+        ]
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-tab-antigravity"]').attributes('data-active')).toBe('true')
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls).toHaveLength(1)
+    expect(poolCalls[0]?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(poolCalls[0]?.[2]?.platform).toBeUndefined()
+    expect(w.get('[data-testid="smart-schedule-pool-table"]').text()).toContain('loveapi')
+    expect(w.get('[data-testid="smart-schedule-pool-table"]').text()).toContain('ag-native')
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="claude_gpt_bridge"]').exists()).toBe(true)
   })
 
   it('renders the users-list row including one combined user quality cell', async () => {
@@ -1692,22 +1758,29 @@ describe('UserSmartScheduleView', () => {
     })
     const w = await mountPage()
     await pickAdmissionState(w, 'resumed')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'resumed')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'resumed', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('resumed')
     expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
       'admin.users.smartSchedule.admissionResumed'
     )
 
     await pickAdmissionState(w, 'selectable')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
 
     await pickAdmissionState(w, 'cooling')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('cooling')
 
+    await pickAdmissionState(w, 'pinned')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned', 'anthropic')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
+    expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
+      'admin.users.smartSchedule.admissionPinned'
+    )
+
     await pickAdmissionState(w, 'paused')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
 
     apiMocks.getSmartSchedule.mockResolvedValue({
@@ -1956,7 +2029,7 @@ describe('UserSmartScheduleView', () => {
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
     await pickAdmissionState(w, 'probing')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'probing')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'probing', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('probing')
   })
 
@@ -1982,9 +2055,149 @@ describe('UserSmartScheduleView', () => {
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
     await pickAdmissionState(w, 'selectable')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).not.toBe('probing')
+  })
+
+  it('hydrates long-term exemption from GET pinned:true and uses the member cap', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: 8,
+            pinned: true,
+            probe_cap: 2
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
+    expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
+      'admin.users.smartSchedule.admissionPinned'
+    )
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/8')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
+  })
+
+  it('does not invent long-term exemption from an expired 豁免期', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: null,
+            pinned: false
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    apiMocks.getBatchQualityStats.mockResolvedValue({
+      stats: {
+        '11': {
+          window_seconds: 900,
+          success_count: 0,
+          error_count: 8,
+          success_rate: 0,
+          p50_ttft_ms: 900,
+          ttft_samples: 8,
+          resume_users: { '99': Math.floor(Date.now() / 1000) - 60 },
+          resume_watching_users: { '99': Math.floor(Date.now() / 1000) - 60 }
+        }
+      }
+    })
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).not.toBe('pinned')
+  })
+
+  it('can switch selectable to long-term exemption', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 8 }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    await pickAdmissionState(w, 'pinned')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned', 'anthropic')
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
+    expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/8')
+  })
+
+  it('keeps long-term exemption after refresh when GET omits pinned', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 8 }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    await pickAdmissionState(w, 'pinned')
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: 8 }]
+        }
+      }
+    })
+    await w.get('[data-testid="smart-schedule-refresh"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
   })
 
   it('does not fetch candidates on first paint', async () => {

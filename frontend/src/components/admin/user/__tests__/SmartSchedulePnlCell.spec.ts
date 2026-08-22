@@ -20,6 +20,18 @@ vi.mock('@/components/account/UsageProgressBar.vue', () => ({
   }
 }))
 
+vi.mock('@/components/icons/Icon.vue', () => ({
+  default: {
+    name: 'Icon',
+    props: ['name', 'size'],
+    template: '<span class="icon" />'
+  }
+}))
+
+vi.mock('@/utils/format', () => ({
+  formatRelativeTime: (value: Date | string) => `rel:${typeof value === 'string' ? value : value.toISOString()}`
+}))
+
 function accountWithBalance(overrides: Partial<Account> = {}): Account {
   return {
     id: 11,
@@ -28,6 +40,7 @@ function accountWithBalance(overrides: Partial<Account> = {}): Account {
     type: 'apikey',
     extra: {
       upstream_balance_usd: 80,
+      upstream_balance_at: '2026-08-17T12:00:00.000Z',
       burn_samples: [
         { t: '2026-08-17T10:00:00.000Z', v: 100, kind: 'balance_usd' },
         { t: '2026-08-17T11:00:00.000Z', v: 90, kind: 'balance_usd' },
@@ -55,6 +68,22 @@ describe('SmartSchedulePnlCell', () => {
     expect(wrapper.text()).not.toContain('$9.00')
     expect(wrapper.text()).not.toContain('admin.users.schedulePnl.sevenDay')
     expect(wrapper.find('[data-testid="smart-schedule-pnl-oauth-7d"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="smart-schedule-pnl-balance-updated"]').text()).toContain('rel:')
+  })
+
+  it('emits refresh-balance without opening the trend', async () => {
+    const wrapper = mount(SmartSchedulePnlCell, {
+      props: {
+        account: accountWithBalance(),
+        summary: {
+          today: { revenue: 1.2, cost: 0.3, profit: 0.9, margin: 0.75 },
+          seven_day: null
+        }
+      }
+    })
+    await wrapper.get('[data-testid="smart-schedule-pnl-balance-refresh"]').trigger('click')
+    expect(wrapper.emitted('refresh-balance')).toHaveLength(1)
+    expect(wrapper.emitted('click')).toBeUndefined()
   })
 
   it('replaces the balance row with a 7-day quota bar for oauth accounts', () => {

@@ -117,6 +117,7 @@
           :platform="platform"
           :group-id="groupId"
           :error-type="errorDetailsType"
+          :needs-ops-attention="errorDetailsNeedsAttention"
           @update:show="showErrorDetails = $event"
           @openErrorDetail="openError"
         />
@@ -209,6 +210,7 @@ const QUERY_KEYS = {
   // Deep links
   openErrorDetails: 'open_error_details',
   errorType: 'error_type',
+  needsOpsAttention: 'needs_ops_attention',
   alertRuleId: 'alert_rule_id',
   openAlertRules: 'open_alert_rules'
 } as const
@@ -306,6 +308,10 @@ const applyRouteQueryToState = () => {
   if (openErr === '1' || openErr === 'true') {
     const typ = readQueryString(QUERY_KEYS.errorType)
     errorDetailsType.value = typ === 'upstream' ? 'upstream' : 'request'
+    const attention = readQueryString(QUERY_KEYS.needsOpsAttention)
+    if (attention === '1' || attention === 'true') errorDetailsNeedsAttention.value = true
+    else if (attention === '0' || attention === 'false') errorDetailsNeedsAttention.value = false
+    else errorDetailsNeedsAttention.value = null
     showErrorDetails.value = true
   }
 }
@@ -369,6 +375,7 @@ const showErrorModal = ref(false)
 
 const showErrorDetails = ref(false)
 const errorDetailsType = ref<'request' | 'upstream'>('request')
+const errorDetailsNeedsAttention = ref<boolean | null>(null)
 
 const showRequestDetails = ref(false)
 const requestDetailsPreset = ref<OpsRequestDetailsPreset>({

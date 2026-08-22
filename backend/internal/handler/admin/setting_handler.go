@@ -3094,6 +3094,43 @@ func (h *SettingHandler) UpdateQualityHardCloseSettings(c *gin.Context) {
 	response.Success(c, qualityHardCloseSettingsDTO(updatedSettings))
 }
 
+// GetScheduleErrorWhitelist 获取调度错误白名单（预置族）
+// GET /api/v1/admin/settings/schedule-error-whitelist
+func (h *SettingHandler) GetScheduleErrorWhitelist(c *gin.Context) {
+	settings, err := h.settingService.GetScheduleErrorWhitelist(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+// UpdateScheduleErrorWhitelistRequest 只接受已知 family id + bool。
+type UpdateScheduleErrorWhitelistRequest struct {
+	Families map[string]bool `json:"families"`
+}
+
+// UpdateScheduleErrorWhitelist 更新调度错误白名单
+// PUT /api/v1/admin/settings/schedule-error-whitelist
+func (h *SettingHandler) UpdateScheduleErrorWhitelist(c *gin.Context) {
+	var req UpdateScheduleErrorWhitelistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.ScheduleErrorWhitelist{Families: req.Families}
+	if err := h.settingService.SetScheduleErrorWhitelist(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetScheduleErrorWhitelist(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, updated)
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {

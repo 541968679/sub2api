@@ -41,6 +41,14 @@ func (m *opsRepoMock) GetErrorLogStats(ctx context.Context, filter *OpsErrorLogF
 	}, nil
 }
 
+func (m *opsRepoMock) CountOpsAttentionErrors(ctx context.Context, filter *OpsErrorLogFilter) (int64, error) {
+	return 0, nil
+}
+
+func (m *opsRepoMock) ListOpsAttentionBreakdown(ctx context.Context, filter *OpsErrorLogFilter, limit int) ([]OpsAttentionBreakdown, error) {
+	return nil, nil
+}
+
 func (m *opsRepoMock) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLogDetail, error) {
 	return &OpsErrorLogDetail{}, nil
 }
