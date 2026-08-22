@@ -1,3 +1,19 @@
+## 2026-08-22 - fix: return Chat Completions JSON as soon as Responses buffer sees a terminal
+
+### What
+- CC→Responses sync SSE buffer (`handleChatBufferedStreamingResponse`) now finishes on `response.completed` / `done` / `incomplete` / `failed` as soon as `event.Response` is present, using the existing Messages helper `isOpenAICompatResponsesTerminalEvent`.
+- Success path no longer waits for body EOF or `StreamDataIntervalTimeout` after a usable terminal. `response.failed` still goes through the existing failed / cyber / failover finish path, not a success JSON.
+
+### Why
+- Production long-tail hangs were keepalive / empty lines refreshing `lastReadAt` after `completed`, so the 180s interval never fired even though the JSON was already assemblable.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestHandleChatBuffered|TestShouldForceSyncInboundUpstreamSSE|TestBufferRawChatCompletions|TestAccountHasCustomOpenAIBaseURL|TestForwardAsChatCompletions_" -count=1`
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`
+
 ## 2026-08-22 - docs: record production deploy of v0.1.252
 
 ### What

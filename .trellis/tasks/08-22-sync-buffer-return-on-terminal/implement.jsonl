@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index; routing/display invariants stay out of this change"}
+{"file": ".trellis/spec/backend/openai-apikey-upstream-routing.md", "reason": "Keep official S2 / ResolveUpstreamAPI; do not retarget inbound CC"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Reuse existing Messages terminal helper; no new heuristic"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Align exit with isOpenAICompatResponsesTerminalEvent + event.Response"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/prd.md", "reason": "R1-R9 and AC1-AC8 locked acceptance"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/design.md", "reason": "Immediate return only on usable Responses terminal; keep H2/180s/S2"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/research/upstream-sync-buffer.md", "reason": "Adapt upstream true-terminal return; do not wholesale-replace the file"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/research/raw-cc-buffer.md", "reason": "Raw usable() is first-delta; must not become immediate return"}
