@@ -1,3 +1,21 @@
+## 2026-08-22 - fix: AG smart-schedule pool table keeps OpenAI members after hydrate
+
+### What
+- AG tab `loadPoolDetails` now fetches in-pool rows by `ids` + `lite=1` only. It no longer sends `platform=antigravity` with mixed member ids.
+
+### Why
+- Candidate add already merged AG+OpenAI, and PUT/GET kept the OpenAI id. The pool table then called `GET /admin/accounts?platform=antigravity&ids=...`, which drops `account.Platform=openai` rows (loveapi), so the member vanished after add/save/refresh.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`docs/dev/codebase/account.md`,
+`.trellis/spec/backend/account-user-schedule.md`
+
 ## 2026-08-22 - docs: record production deploy of v0.1.251
 
 ### What

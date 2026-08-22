@@ -141,7 +141,7 @@ if pairFull {
 - Redis pair quality: `smart-schedule:pair-quality:{platform}:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{platform}:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{platform}:{accountID}:{userID}` (TTL 7d).
 - Redis pair 豁免期: `smart-schedule:resume:{platform}:{accountID}` HASH `u:{userID}` + `w:{userID}` (TTL 40m). Same 15m/30m grace as Track A, but keyed by pool platform. Do not read or write `account-quality:resume` from smart-schedule paths.
 - Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?, platform?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable|pinned`; omitted `state` is `resumed` (豁免期 write default, **not** `pinned`, **not** a pause-lift default, and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{platform}:{accountID}` field `u:{userID}`. Redis pin HASH: `smart-schedule:pinned:{platform}:{accountID}` field `u:{userID}`, **no TTL**. Miss / no mark = not probing / not pinned (no deploy backfill). GET hydrates `pinned: true`. Do **not** reuse `resumed` for long-term exemption.
-- Pool account details: existing `GET /admin/accounts?platform=&ids=`.
+- Pool account details: `GET /admin/accounts?ids=&lite=1`. AG tab **must omit** `platform` (or request both antigravity+openai). `platform=antigravity&ids=` drops OpenAI dual-members after add/save/refresh.
 
 ### 3. Contracts
 
@@ -412,6 +412,14 @@ return account.AdmitsScheduleUser(userID, live)
 **Cause**: empty `obs.Platform` plus `for platform, policy := range bundle.Policies { if policy.HasAccount(...) }`, or resume/pair-quality batch keyed by `account_id` only.
 
 **Prevention**: stamp the request lookup platform. If platform is still empty and `uniqueSmartScheduleMembershipPlatform` returns `""`, skip ingest. Pool-page APIs pass tab `platform`. Account-page omit stays `account.Platform`.
+
+## Common Mistake: AG pool hydrate uses `platform=antigravity&ids=`
+
+**Symptom**: Adding an OpenAI account (e.g. loveapi) to the AG tab succeeds, then the row vanishes after add / Save / refresh. Candidates still list it.
+
+**Cause**: `loadPoolDetails` called `GET /admin/accounts?platform=antigravity&ids=...`. The accounts list intersects `ids` with `account.Platform`, so OpenAI ids never come back. `poolAccounts` then filters out missing ids.
+
+**Prevention**: Fetch AG pool rows by `ids` + `lite=1` only (no platform), or merge AG+OpenAI lists. Candidate merge is not enough.
 
 ## Common Mistake: read old Redis keys after the platform shard
 

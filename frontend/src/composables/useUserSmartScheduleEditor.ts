@@ -115,6 +115,27 @@ function mergeCandidateAccounts(...groups: Account[][]): Account[] {
   return items
 }
 
+export type SmartSchedulePoolAccountListFilters = {
+  ids: string
+  lite: '1'
+  platform?: SmartSchedulePlatform
+}
+
+/** Lite hydrate for in-pool rows. AG may hold OpenAI ids; do not intersect with platform=antigravity. */
+export function smartSchedulePoolAccountListFilters(
+  platform: SmartSchedulePlatform,
+  ids: number[]
+): SmartSchedulePoolAccountListFilters {
+  const filters: SmartSchedulePoolAccountListFilters = {
+    ids: ids.join(','),
+    lite: '1'
+  }
+  if (platform !== 'antigravity') {
+    filters.platform = platform
+  }
+  return filters
+}
+
 export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
   return {
     enabled: false,
@@ -696,11 +717,11 @@ export function useUserSmartScheduleEditor(
     const spinStats = needs.quality || needs.today || needs.pnl
     if (spinStats) statsLoading.value = true
     try {
-      const listedPromise = adminAPI.accounts.list(1, ids.length, {
-        platform: activePlatform.value,
-        ids: ids.join(','),
-        lite: '1'
-      })
+      const listedPromise = adminAPI.accounts.list(
+        1,
+        ids.length,
+        smartSchedulePoolAccountListFilters(activePlatform.value, ids)
+      )
       const qualityPromise = needs.quality
         ? adminAPI.accounts.getBatchQualityStats(ids).catch(() => ({ stats: {} as Record<string, AccountQualityStats> }))
         : Promise.resolve({ stats: {} as Record<string, AccountQualityStats> })

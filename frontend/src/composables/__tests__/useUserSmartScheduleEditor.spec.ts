@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { isCurrentlySchedulingAccount, useUserSmartScheduleEditor } from '../useUserSmartScheduleEditor'
+import {
+  isCurrentlySchedulingAccount,
+  smartSchedulePoolAccountListFilters,
+  useUserSmartScheduleEditor
+} from '../useUserSmartScheduleEditor'
 import { resolvePairCap } from '../smartSchedulePoolAdmission'
 
 const apiMocks = vi.hoisted(() => ({
@@ -106,6 +110,25 @@ describe('isCurrentlySchedulingAccount', () => {
         rate_limit_reset_at: new Date(Date.now() + 60_000).toISOString()
       })
     ).toBe(false)
+  })
+})
+
+describe('smartSchedulePoolAccountListFilters', () => {
+  it('omits platform on the antigravity tab so mixed ids are not dropped', () => {
+    expect(smartSchedulePoolAccountListFilters('antigravity', [51, 1730])).toEqual({
+      ids: '51,1730',
+      lite: '1'
+    })
+    expect(smartSchedulePoolAccountListFilters('antigravity', [1730]).platform).toBeUndefined()
+  })
+
+  it('keeps the tab platform on other pools', () => {
+    expect(smartSchedulePoolAccountListFilters('openai', [21])).toEqual({
+      ids: '21',
+      lite: '1',
+      platform: 'openai'
+    })
+    expect(smartSchedulePoolAccountListFilters('anthropic', [11])).toMatchObject({ platform: 'anthropic' })
   })
 })
 
@@ -232,6 +255,195 @@ describe('useUserSmartScheduleEditor loadAll', () => {
       .sort()
     expect(platforms).toEqual(['antigravity', 'openai'])
     expect(w.vm.addableAccounts.map((item: { id: number }) => item.id).sort()).toEqual([41, 51])
+  })
+
+  it('hydrates OpenAI members on the AG tab without platform=antigravity', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 51, platform: 'antigravity', max_concurrency: null },
+            { account_id: 1730, platform: 'antigravity', max_concurrency: null }
+          ]
+        },
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        const catalog = [
+          {
+            id: 51,
+            name: 'ag-native',
+            platform: 'antigravity',
+            type: 'oauth',
+            status: 'active'
+          },
+          {
+            id: 1730,
+            name: 'loveapi',
+            platform: 'openai',
+            type: 'apikey',
+            status: 'active',
+            extra: { openai_claude_gpt_bridge_enabled: true }
+          }
+        ]
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.activePlatform).toBe('antigravity')
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls).toHaveLength(1)
+    expect(poolCalls[0]?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(poolCalls[0]?.[2]?.platform).toBeUndefined()
+    expect(w.vm.poolAccounts.map((item: { id: number; name: string }) => ({ id: item.id, name: item.name }))).toEqual([
+      { id: 51, name: 'ag-native' },
+      { id: 1730, name: 'loveapi' }
+    ])
+    expect(w.vm.currentDraft.accounts.map((item: { account_id: number }) => item.account_id)).toEqual([51, 1730])
+  })
+
+  it('keeps an OpenAI id in the AG draft after add and save, then rehydrates it', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 51, platform: 'antigravity', max_concurrency: null }]
+        },
+        grok: emptyPlatform()
+      }
+    })
+    const catalog = [
+      {
+        id: 51,
+        name: 'ag-native',
+        platform: 'antigravity',
+        type: 'oauth',
+        status: 'active',
+        schedulable: true
+      },
+      {
+        id: 1730,
+        name: 'loveapi',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        extra: { openai_claude_gpt_bridge_enabled: true }
+      }
+    ]
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, platform: string, body: { accounts?: Array<{ account_id: number; max_concurrency?: number | null }> }) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'antigravity',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: (body.accounts ?? []).map((item) => ({
+                ...item,
+                platform
+              }))
+            },
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.poolAccounts.map((item: { id: number }) => item.id)).toEqual([51])
+    await w.vm.addAccountById(1730)
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'antigravity',
+      expect.objectContaining({
+        accounts: expect.arrayContaining([
+          expect.objectContaining({ account_id: 51 }),
+          expect.objectContaining({ account_id: 1730 })
+        ])
+      })
+    )
+    expect(w.vm.currentDraft.accounts.map((item: { account_id: number }) => item.account_id)).toEqual([51, 1730])
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls.length).toBeGreaterThanOrEqual(2)
+    for (const call of poolCalls) {
+      expect(call[2]?.platform).not.toBe('antigravity')
+      expect(call[2]).toMatchObject({ lite: '1' })
+    }
+    expect(poolCalls.at(-1)?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(w.vm.poolAccounts.map((item: { id: number; name: string }) => ({ id: item.id, name: item.name }))).toEqual([
+      { id: 51, name: 'ag-native' },
+      { id: 1730, name: 'loveapi' }
+    ])
   })
 
   it('silent refresh does not flip the first-paint loading flag', async () => {

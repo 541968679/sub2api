@@ -888,6 +888,71 @@ describe('UserSmartScheduleView', () => {
     expect(candidateCalls).toHaveLength(0)
   })
 
+  it('shows OpenAI dual-members on the AG pool table after GET hydrate', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'antigravity',
+      platforms: {
+        ...makeView().platforms,
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 1730, platform: 'openai', max_concurrency: null }]
+        },
+        antigravity: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 51, platform: 'antigravity', max_concurrency: null },
+            { account_id: 1730, platform: 'antigravity', max_concurrency: null }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { ids?: string; platform?: string }) => {
+        const catalog = [
+          { id: 51, name: 'ag-native', platform: 'antigravity', type: 'oauth', status: 'active', schedulable: true },
+          {
+            id: 1730,
+            name: 'loveapi',
+            platform: 'openai',
+            type: 'apikey',
+            status: 'active',
+            schedulable: true,
+            extra: { openai_claude_gpt_bridge_enabled: true }
+          }
+        ]
+        let items = catalog
+        if (filters?.ids) {
+          const wanted = new Set(filters.ids.split(',').map((id) => Number(id)))
+          items = items.filter((item) => wanted.has(item.id))
+        }
+        if (filters?.platform) {
+          items = items.filter((item) => item.platform === filters.platform)
+        }
+        return Promise.resolve({
+          items,
+          total: items.length,
+          page: 1,
+          page_size: items.length || 1,
+          pages: 1
+        })
+      }
+    )
+    const w = await mountPage()
+    expect(w.get('[data-testid="smart-schedule-tab-antigravity"]').attributes('data-active')).toBe('true')
+    const poolCalls = (apiMocks.listAccounts.mock.calls as Array<
+      [number, number, { ids?: string; lite?: string; platform?: string }]
+    >).filter((call) => Boolean(call[2]?.ids))
+    expect(poolCalls).toHaveLength(1)
+    expect(poolCalls[0]?.[2]).toEqual({ ids: '51,1730', lite: '1' })
+    expect(poolCalls[0]?.[2]?.platform).toBeUndefined()
+    expect(w.get('[data-testid="smart-schedule-pool-table"]').text()).toContain('loveapi')
+    expect(w.get('[data-testid="smart-schedule-pool-table"]').text()).toContain('ag-native')
+    expect(w.get('[data-testid="smart-schedule-pool-headers"]').find('[data-column="claude_gpt_bridge"]').exists()).toBe(true)
+  })
+
   it('renders the users-list row including one combined user quality cell', async () => {
     apiMocks.getUserBatchQualityStats.mockResolvedValue({
       stats: {
