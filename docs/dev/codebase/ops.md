@@ -23,6 +23,7 @@ List contract (`/errors` and `/request-errors`):
 - When the flag is on, `phase=upstream` is **not** stripped, so an explicit upstream-phase filter can still see Recovered.
 - `/upstream-errors` already hardcodes `phase=upstream` and does not apply `status>=400`.
 - SLA / `error_sla` / usage error-rate numerator stay `status_code >= 400` only. Recovered is list observability, not a client outage.
+- List rows return compressed admin originals `upstream_error_message` and `provider_error_code`. They still omit `error_body`. Quality / list filters keep reading downstream `message` / `error_body`.
 - List rows carry three caliber flags from the same predicates as quality SQL (do not guess from copy):
   - `counted_in_user_error_rate`: client `status>=400` (Recovered = false).
   - `counted_in_account_compare_rate`: `COALESCE(upstream, status)>=400` and not routing-miss / bridge (Recovered = true).
@@ -51,7 +52,10 @@ Do not repeat the SSH playbook here.
 | Service | `backend/internal/service/group_capacity_service.go` | Aggregates active-group capacity from one account projection plus batched concurrency/session/RPM reads. |
 | Repository | `backend/internal/repository/account_repo.go` | Provides statistics-only account projections and schedulable group-capacity rows. |
 | Repository | `backend/internal/repository/concurrency_cache.go` | Scans existing account slot keys for periodic expired-member cleanup. |
+| Capture | `backend/internal/service/ops_upstream_context.go` | `recordOpsUpstreamAttempt` writes raw upstream message/JSON/code for Ops only; merge ignores empty detail, generic client sentences, and mapped `upstream_error` wrapper JSON. |
 | Frontend API | `frontend/src/api/admin/ops.ts` | Metric type union and admin API calls. |
+| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue` | List「响应内容」primary = upstream original; secondary = downstream mapped sentence. |
+| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue` | Detail shows upstream original, upstream JSON, and downstream JSON as three blocks. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue` | Metric picker definitions and recommended thresholds. |
 
 ## Core Flow
@@ -113,6 +117,11 @@ group capacity refresh
   flags must use the real client status (`ClientStatusCode`).
 - Account schedule `ErrorCount` is a separate switch (`schedule_use_failover_error_rate`).
   Turning it on does not change SLA or the user-quality numerator.
+- Admin error UI is dual-sided. `error_message` / `error_body` stay client-facing.
+  Upstream original text and JSON live in `upstream_error_message` /
+  `upstream_error_detail` / `upstream_errors` / `provider_error_code`.
+  `LogUpstreamErrorBody` only gates stdout, not admin capture.
+  User `/usage` (`UserErrorRequestsTable`) stays client-facing only.
 
 ## Known Pitfalls
 

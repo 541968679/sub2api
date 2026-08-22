@@ -133,4 +133,25 @@ describe('OpsErrorLogTable', () => {
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberScheduleExcluded')
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberNeedsOpsAttention')
   })
+
+  it('shows upstream original as primary and mapped sentence as secondary without JSON', () => {
+    const mapped: OpsErrorLog = {
+      ...row,
+      id: 4,
+      status_code: 502,
+      message: 'Upstream service temporarily unavailable',
+      upstream_error_message: 'no enabled keys (any suffix) for model gpt-5.4',
+      provider_error_code: 'channel:no_available_key'
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [mapped], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+    })
+    expect(wrapper.text()).toContain('channel:no_available_key')
+    expect(wrapper.text()).toContain('no enabled keys')
+    expect(wrapper.text()).toContain('Upstream service temporarily unavailable')
+    expect(wrapper.text()).toContain('admin.ops.errorDetail.downstreamMapped')
+    expect(wrapper.text()).not.toContain('"type":"new_api_error"')
+    expect(wrapper.html()).not.toContain('error_body')
+  })
 })

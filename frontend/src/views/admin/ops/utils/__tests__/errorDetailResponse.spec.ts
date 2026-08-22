@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { OpsErrorDetail } from '@/api/admin/ops'
-import { resolvePrimaryResponseBody, resolveUpstreamPayload } from '../errorDetailResponse'
+import {
+  formatOpsListPrimary,
+  formatOpsListSecondary,
+  formatUpstreamOriginal,
+  resolveDownstreamJSON,
+  resolvePrimaryResponseBody,
+  resolveUpstreamJSON,
+  resolveUpstreamPayload
+} from '../errorDetailResponse'
 
 function makeDetail(overrides: Partial<OpsErrorDetail>): OpsErrorDetail {
   return {
@@ -130,5 +138,64 @@ describe('errorDetailResponse', () => {
       upstream_errors: '',
       upstream_error_message: 'fallback message'
     }))).toBe('fallback message')
+  })
+
+  it('formats upstream original as code plus message', () => {
+    expect(formatUpstreamOriginal({
+      provider_error_code: 'channel:no_available_key',
+      upstream_error_message: 'no enabled keys'
+    })).toBe('channel:no_available_key no enabled keys')
+    expect(formatUpstreamOriginal({
+      provider_error_code: '',
+      upstream_error_message: 'no enabled keys'
+    })).toBe('no enabled keys')
+  })
+
+  it('splits admin detail into upstream original, upstream JSON, and downstream JSON', () => {
+    const detail = makeDetail({
+      provider_error_code: 'channel:no_available_key',
+      upstream_error_message: 'no enabled keys (any suffix) for model gpt-5.4',
+      upstream_error_detail: '{"error":{"type":"new_api_error","code":"channel:no_available_key","message":"no enabled keys"}}',
+      error_body: '{"error":{"type":"upstream_error","message":"Upstream service temporarily unavailable"}}'
+    })
+
+    expect(formatUpstreamOriginal(detail)).toContain('no enabled keys')
+    expect(resolveUpstreamJSON(detail)).toContain('channel:no_available_key')
+    expect(resolveDownstreamJSON(detail)).toContain('Upstream service temporarily unavailable')
+    expect(resolveUpstreamJSON(detail)).not.toContain('Upstream service temporarily unavailable')
+  })
+
+  it('skips generic wrapper JSON when resolving upstream JSON', () => {
+    const detail = makeDetail({
+      upstream_error_detail: '{"error":{"type":"upstream_error","message":"Upstream request failed"}}',
+      upstream_errors: JSON.stringify([
+        { detail: '{"error":{"type":"upstream_error","message":"Upstream service temporarily unavailable"}}' },
+        { detail: '{"error":{"code":"channel:no_available_key","message":"no enabled keys"}}' }
+      ])
+    })
+    expect(resolveUpstreamJSON(detail)).toContain('channel:no_available_key')
+    expect(resolveUpstreamJSON(detail)).not.toContain('Upstream request failed')
+  })
+
+  it('uses last hop raw JSON when upstream_error_detail is empty', () => {
+    const detail = makeDetail({
+      upstream_error_detail: '',
+      upstream_errors: JSON.stringify([
+        { message: 'first', detail: '{"error":{"message":"first hop"}}' },
+        { message: 'last', detail: '{"error":{"code":"channel:no_available_key","message":"no enabled keys"}}' }
+      ])
+    })
+    expect(resolveUpstreamJSON(detail)).toContain('channel:no_available_key')
+  })
+
+  it('uses upstream original on the list and keeps the mapped sentence as secondary', () => {
+    const log = {
+      provider_error_code: 'channel:no_available_key',
+      upstream_error_message: 'no enabled keys (any suffix) for model gpt-5.4',
+      message: 'Upstream service temporarily unavailable'
+    }
+    expect(formatOpsListPrimary(log)).toContain('no enabled keys')
+    expect(formatOpsListPrimary(log)).toContain('channel:no_available_key')
+    expect(formatOpsListSecondary(log)).toBe('Upstream service temporarily unavailable')
   })
 })

@@ -348,6 +348,14 @@ func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertE
 			}
 		}
 	}
+	if entry.ProviderErrorCode != nil {
+		code := truncateString(strings.TrimSpace(*entry.ProviderErrorCode), 64)
+		if code == "" {
+			entry.ProviderErrorCode = nil
+		} else {
+			entry.ProviderErrorCode = &code
+		}
+	}
 
 	if err := sanitizeOpsUpstreamErrors(entry); err != nil {
 		return nil, false, err

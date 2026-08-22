@@ -904,6 +904,8 @@ export interface OpsErrorLog {
   client_request_id: string
   request_id: string
   message: string
+  upstream_error_message?: string
+  provider_error_code?: string
 
   user_id?: number | null
   user_email: string
@@ -937,7 +939,6 @@ export interface OpsErrorDetail extends OpsErrorLog {
 
   // Upstream context (optional; enriched by gateway services)
   upstream_status_code?: number | null
-  upstream_error_message?: string
   upstream_error_detail?: string
   upstream_errors?: string
 

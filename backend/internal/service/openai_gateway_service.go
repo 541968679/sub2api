@@ -3273,24 +3273,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Skip non-WSv2 invalid_encrypted_content retry because encrypted reasoning items are missing (account: %s)", account.Name)
 			}
 			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
-				upstreamDetail := ""
-				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-					maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-					if maxBytes <= 0 {
-						maxBytes = 2048
-					}
-					upstreamDetail = truncateString(string(respBody), maxBytes)
-				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
 					Platform:           account.Platform,
 					AccountID:          account.ID,
 					AccountName:        account.Name,
 					UpstreamStatusCode: resp.StatusCode,
 					UpstreamRequestID:  resp.Header.Get("x-request-id"),
 					Kind:               "failover",
-					Message:            upstreamMsg,
-					Detail:             upstreamDetail,
-				})
+				}, respBody)
 
 				s.handleFailoverSideEffects(ctx, resp, account)
 				releaseOpenAIParsedRequestBody(c)
@@ -3765,15 +3755,15 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  resp.Header.Get("x-request-id"),
+		Passthrough:        true,
+		Kind:               "failover",
+	}, body)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 	if hit, code, message := detectOpenAICyberPolicy(body); hit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
@@ -3787,18 +3777,6 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 	if s.rateLimitService != nil {
 		_ = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
 	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:             account.Platform,
-		AccountID:            account.ID,
-		AccountName:          account.Name,
-		UpstreamStatusCode:   resp.StatusCode,
-		UpstreamRequestID:    resp.Header.Get("x-request-id"),
-		Passthrough:          true,
-		Kind:                 "failover",
-		Message:              upstreamMsg,
-		Detail:               upstreamDetail,
-		UpstreamResponseBody: upstreamDetail,
-	})
 	return &UpstreamFailoverError{
 		StatusCode:      resp.StatusCode,
 		ResponseBody:    body,
@@ -3817,15 +3795,15 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  resp.Header.Get("x-request-id"),
+		Passthrough:        true,
+		Kind:               "http_error",
+	}, body)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 	if s.rateLimitService != nil {
 		// Passthrough mode preserves the raw upstream error response, but runtime
@@ -3833,18 +3811,6 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 		// reusing a freshly rate-limited account.
 		_ = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
 	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:             account.Platform,
-		AccountID:            account.ID,
-		AccountName:          account.Name,
-		UpstreamStatusCode:   resp.StatusCode,
-		UpstreamRequestID:    resp.Header.Get("x-request-id"),
-		Passthrough:          true,
-		Kind:                 "http_error",
-		Message:              upstreamMsg,
-		Detail:               upstreamDetail,
-		UpstreamResponseBody: upstreamDetail,
-	})
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := resp.Header.Get("Content-Type")
@@ -4174,46 +4140,40 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	payload []byte,
 	message string,
 ) *UpstreamFailoverError {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	message = scrubBridgeClientText(c, message)
-	if message == "" {
-		message = "Upstream stream disconnected before completion"
-	}
-	detail := ""
-	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		detail = truncateString(string(payload), maxBytes)
+	rawPayload := append([]byte(nil), payload...)
+	clientMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	clientMessage = scrubBridgeClientText(c, clientMessage)
+	if clientMessage == "" {
+		clientMessage = "Upstream stream disconnected before completion"
 	}
 	if c != nil {
-		setOpsUpstreamError(c, http.StatusBadGateway, message, detail)
 		event := OpsUpstreamErrorEvent{
 			Platform:           PlatformOpenAI,
 			UpstreamStatusCode: http.StatusBadGateway,
 			UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
 			Passthrough:        passthrough,
 			Kind:               "failover",
-			Message:            message,
-			Detail:             detail,
+		}
+		if len(rawPayload) == 0 && !isGenericOpsUpstreamMessage(clientMessage) {
+			event.Message = clientMessage
 		}
 		if account != nil {
 			event.Platform = account.Platform
 			event.AccountID = account.ID
 			event.AccountName = account.Name
 		}
-		appendOpsUpstreamError(c, event)
+		recordOpsUpstreamAttempt(c, event, rawPayload)
 	}
 	body, _ := json.Marshal(gin.H{
 		"error": gin.H{
 			"type":    "upstream_error",
-			"message": message,
+			"message": clientMessage,
 		},
 	})
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: body,
+		StatusCode:      http.StatusBadGateway,
+		ResponseBody:    body,
+		RawUpstreamBody: rawPayload,
 	}
 }
 
@@ -4239,7 +4199,6 @@ func (s *OpenAIGatewayService) newOpenAIStreamClientError(
 		statusCode = http.StatusBadRequest
 	}
 	if c != nil {
-		setOpsUpstreamError(c, statusCode, message, "")
 		event := OpsUpstreamErrorEvent{
 			Platform:           PlatformOpenAI,
 			UpstreamStatusCode: statusCode,
@@ -4252,7 +4211,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamClientError(
 			event.AccountID = account.ID
 			event.AccountName = account.Name
 		}
-		appendOpsUpstreamError(c, event)
+		recordOpsUpstreamAttempt(c, event, nil)
 	}
 	body, _ := json.Marshal(gin.H{
 		"error": gin.H{
@@ -4276,37 +4235,29 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	message string,
 ) string {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
-	message = scrubBridgeClientText(c, message)
-	if message == "" {
-		message = "Upstream response failed"
-	}
-	detail := ""
-	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		detail = truncateString(string(payload), maxBytes)
+	clientMessage := scrubBridgeClientText(c, message)
+	if clientMessage == "" {
+		clientMessage = "Upstream response failed"
 	}
 	if c != nil {
-		setOpsUpstreamError(c, http.StatusBadGateway, message, detail)
 		event := OpsUpstreamErrorEvent{
 			Platform:           PlatformOpenAI,
 			UpstreamStatusCode: http.StatusBadGateway,
 			UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
 			Passthrough:        passthrough,
 			Kind:               kind,
-			Message:            message,
-			Detail:             detail,
+		}
+		if len(payload) == 0 && !isGenericOpsUpstreamMessage(message) {
+			event.Message = message
 		}
 		if account != nil {
 			event.Platform = account.Platform
 			event.AccountID = account.ID
 			event.AccountName = account.Name
 		}
-		appendOpsUpstreamError(c, event)
+		recordOpsUpstreamAttempt(c, event, payload)
 	}
-	return message
+	return clientMessage
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
@@ -4917,15 +4868,14 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  resp.Header.Get("x-request-id"),
+		Kind:               "http_error",
+	}, body)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
 	if hit, code, message := detectOpenAICyberPolicy(body); hit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
@@ -4980,16 +4930,6 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	// Check custom error codes
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  resp.Header.Get("x-request-id"),
-			Kind:               "http_error",
-			Message:            upstreamMsg,
-			Detail:             upstreamDetail,
-		})
 		if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
 			imageTrace.Log(c, "downstream_response_built", http.StatusInternalServerError, resp.Header.Get("x-request-id"))
 		}
@@ -5013,20 +4953,6 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	if s.rateLimitService != nil {
 		shouldDisable = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
 	}
-	kind := "http_error"
-	if shouldDisable {
-		kind = "failover"
-	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
-		UpstreamStatusCode: resp.StatusCode,
-		UpstreamRequestID:  resp.Header.Get("x-request-id"),
-		Kind:               kind,
-		Message:            upstreamMsg,
-		Detail:             upstreamDetail,
-	})
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
@@ -5122,6 +5048,14 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 ) (*OpenAIForwardResult, error) {
 	body := s.readUpstreamErrorBody(resp)
 
+	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  resp.Header.Get("x-request-id"),
+		Kind:               "http_error",
+	}, body)
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	if upstreamMsg == "" {
 		upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
@@ -5130,15 +5064,6 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	// bridge 出口消毒：上游 error.message 常带 OpenAI/gpt-*/openai.com 指纹。
 	upstreamMsg = scrubBridgeClientText(c, upstreamMsg)
 
-	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	if hit, code, message := detectOpenAICyberPolicy(body); hit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
 		writeError(c, resp.StatusCode, "invalid_request_error", scrubBridgeClientText(c, message))
@@ -5163,16 +5088,6 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	// Check custom error codes — if the account does not handle this status,
 	// return a generic error without exposing upstream details.
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  resp.Header.Get("x-request-id"),
-			Kind:               "http_error",
-			Message:            upstreamMsg,
-			Detail:             upstreamDetail,
-		})
 		writeError(c, http.StatusInternalServerError, "api_error", "Upstream gateway error")
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
@@ -5191,20 +5106,6 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 			c.Request.Context(), account, resp.StatusCode, resp.Header, body, modelForCooldown,
 		)
 	}
-	kind := "http_error"
-	if shouldDisable {
-		kind = "failover"
-	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
-		UpstreamStatusCode: resp.StatusCode,
-		UpstreamRequestID:  resp.Header.Get("x-request-id"),
-		Kind:               kind,
-		Message:            upstreamMsg,
-		Detail:             upstreamDetail,
-	})
 	if shouldDisable {
 		return nil, &UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,

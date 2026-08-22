@@ -59,9 +59,10 @@ INSERT INTO ops_error_logs (
   attempted_key_prefix,
   deleted_key_owner_user_id,
   deleted_key_name,
-  api_key_prefix
+  api_key_prefix,
+  provider_error_code
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
@@ -174,6 +175,7 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 		opsNullInt64(input.DeletedKeyOwnerUserID),
 		opsNullString(input.DeletedKeyName),
 		opsNullString(input.APIKeyPrefix),
+		opsNullString(input.ProviderErrorCode),
 	}
 }
 
@@ -245,7 +247,9 @@ SELECT
   ak.deleted_at,
   COALESCE(e.deleted_key_name, ''),
   COALESCE(e.status_code, 0),
-  COALESCE(e.error_body, '')
+  COALESCE(e.error_body, ''),
+  COALESCE(e.upstream_error_message, ''),
+  COALESCE(e.provider_error_code, '')
 FROM ops_error_logs e
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
@@ -283,6 +287,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		var deletedKeyName string
 		var clientStatus sql.NullInt64
 		var errorBody string
+		var listUpstreamMessage string
+		var listProviderCode string
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
@@ -321,6 +327,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&deletedKeyName,
 			&clientStatus,
 			&errorBody,
+			&listUpstreamMessage,
+			&listProviderCode,
 		); err != nil {
 			return nil, err
 		}
@@ -370,6 +378,8 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		item.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(item.Platform, item.UpstreamModel)
 		item.ClientStatusCode = int(clientStatus.Int64)
 		item.ErrorBody = errorBody
+		item.UpstreamErrorMessage = listUpstreamMessage
+		item.ProviderErrorCode = listProviderCode
 		service.ApplyOpsErrorRateCalibers(&item, item.ClientStatusCode, errorBody, false)
 		out = append(out, &item)
 	}
@@ -628,7 +638,8 @@ SELECT
   COALESCE(e.api_key_prefix, ''),
   COALESCE(ak.name, ''),
   ak.deleted_at,
-  COALESCE(e.status_code, 0)
+  COALESCE(e.status_code, 0),
+  COALESCE(e.provider_error_code, '')
 FROM ops_error_logs e
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN accounts a ON e.account_id = a.id
@@ -658,6 +669,7 @@ LIMIT 1`
 	var detailAPIKeyName string
 	var detailAPIKeyDeletedAt sql.NullTime
 	var clientStatus sql.NullInt64
+	var detailProviderCode string
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&out.ID,
@@ -711,6 +723,7 @@ LIMIT 1`
 		&detailAPIKeyName,
 		&detailAPIKeyDeletedAt,
 		&clientStatus,
+		&detailProviderCode,
 	)
 	if err != nil {
 		return nil, err
@@ -718,6 +731,7 @@ LIMIT 1`
 
 	out.StatusCode = int(statusCode.Int64)
 	out.ClientStatusCode = int(clientStatus.Int64)
+	out.ProviderErrorCode = detailProviderCode
 	out.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(out.Platform, out.UpstreamModel)
 	service.ApplyOpsErrorRateCalibers(&out.OpsErrorLog, out.ClientStatusCode, out.ErrorBody, false)
 	if resolvedAt.Valid {

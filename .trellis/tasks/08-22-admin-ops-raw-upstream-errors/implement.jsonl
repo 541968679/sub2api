@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Cross-layer capture vs client write vs admin UI; do not mix layers."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Ops fields, client JSON, and admin list/detail/cards must not share one rewritten payload."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend package map before touching gateway/ops insert."}
+{"file": ".trellis/spec/backend/ops-schedule-error-caliber.md", "reason": "List/quality predicates must keep reading downstream message/body, not switch to upstream text."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Admin table/modal changes stay in existing Ops components."}
+{"file": ".trellis/tasks/08-22-admin-ops-raw-upstream-errors/research/admin-error-surfaces.md", "reason": "Inventory of list/detail/card surfaces and why generic text is stored."}

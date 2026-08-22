@@ -1,3 +1,32 @@
+## 2026-08-22 - feat: admin Ops shows raw upstream errors without changing client mapping
+
+### What
+- Gateway Ops capture now records the unread-rewritten upstream body (`recordOpsUpstreamAttempt` + merge). Empty detail, generic sentences, and mapped `{"error":{"type":"upstream_error"}}` wrappers no longer wipe a more specific original. `provider_error_code` is populated on insert and returned on list rows (still no `error_body` on the list). WS `error` events also store the original event JSON.
+- Admin list「响应内容」shows upstream original first and the downstream mapped sentence when they differ. Detail modal shows three blocks: upstream original, upstream JSON, downstream JSON. User `/usage` stays client-facing only.
+
+### Why
+- loveapi-style `channel:no_available_key` was stored and shown only as `Upstream request failed` / `Upstream service temporarily unavailable`, so admins could not reconcile with the vendor.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Ops|Passthrough|OpenAI.*Error|Gateway.*Error|FailoverExhausted"`
+- `go test -tags=unit ./internal/handler -count=1 -run "Ops|FailoverExhausted|OpenAI.*Error"`
+- `pnpm --dir frontend exec vitest run src/views/admin/ops/utils/__tests__/errorDetailResponse.spec.ts src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`backend/internal/service/ops_upstream_context.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/handler/ops_error_logger.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/gateway_handler.go`,
+`frontend/src/api/admin/ops.ts`,
+`frontend/src/views/admin/ops/utils/errorDetailResponse.ts`,
+`frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`
+
 ## 2026-08-22 - fix: isolate smart-schedule 豁免期 and pair-quality hydrate by platform
 
 ### What
@@ -46,6 +75,43 @@
 `backend/internal/repository/concurrency_cache.go`,
 `frontend/src/composables/useUserSmartScheduleEditor.ts`,
 `docs/dev/codebase/account.md`
+
+## 2026-08-22 - fix: Claude log collector AC4/AC7 hardening
+
+### What
+- Default zip now refuses `history.jsonl` / `transcripts/` / `projects/**/*.jsonl` even if they sit under debug or `CLAUDE_CODE_DEBUG_LOGS_DIR`.
+- Redact also covers camelCase `oauthToken` / `primaryApiKey` / `ANTHROPIC_AUTH_TOKEN` / `X-Api-Key`, and always strips URL userinfo after JSON walk.
+- Partial permission errors no longer hide a source that already packed files.
+
+### Why
+- Check against AC4/AC7: `.jsonl` log matching could have pulled session text into the lean pack; some token field names were not redacted.
+
+### Verification
+- `cd tools/claude-log-collector && go test ./... -count=1` (also with `CGO_ENABLED=0`)
+
+### Affected files
+`tools/claude-log-collector/internal/collect/sources.go`,
+`tools/claude-log-collector/internal/collect/collect.go`,
+`tools/claude-log-collector/internal/collect/collect_test.go`,
+`tools/claude-log-collector/internal/redact/redact.go`,
+`tools/claude-log-collector/internal/redact/redact_test.go`
+
+## 2026-08-22 - feat: Windows Claude client log collector
+
+### What
+- Added a standalone green tool at `tools/claude-log-collector/` (own go.mod). Customers get a Chinese Fyne exe; CLI and GUI both call `collect.Run`.
+- Default lean zip: redacted Claude settings, 7-day diagnostic logs, Obsidian Claude-plugin configs, human manifest. Optional last-24h redacted sessions and include-all-logs.
+- Never packs vault notes, customer project dirs, raw `.credentials.json`, or plaintext `sk-` / `sk-ant-` keys. Missing clients still succeed as not-found. No network upload.
+
+### Why
+- Bridge customers (e.g. gybilly `***Interrupted***`) only have a client-side grey message. Ops needs a safe local pack to tell client vs site vs gateway vs upstream, without asking them to change protocol.
+
+### Verification
+- `cd tools/claude-log-collector && go test ./... -count=1`
+- `go build -o bin/claude-log-collector.exe ./cmd/collector`
+
+### Affected files
+`tools/claude-log-collector/**`
 
 ## 2026-08-22 - fix: smart-schedule PnL balance refreshes on page load
 

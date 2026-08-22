@@ -56,6 +56,10 @@ type OpsErrorLog struct {
 	// rows (detail still exposes it on OpsErrorLogDetail).
 	ErrorBody string `json:"-"`
 
+	// Admin-compressed upstream original. List rows never include error_body.
+	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`
+	ProviderErrorCode    string `json:"provider_error_code,omitempty"`
+
 	UserID        *int64 `json:"user_id"`
 	UserEmail     string `json:"user_email"`
 	APIKeyID      *int64 `json:"api_key_id"`
@@ -95,10 +99,9 @@ type OpsErrorLogDetail struct {
 	UserAgent string `json:"user_agent"`
 
 	// Upstream context (optional)
-	UpstreamStatusCode   *int   `json:"upstream_status_code,omitempty"`
-	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`
-	UpstreamErrorDetail  string `json:"upstream_error_detail,omitempty"`
-	UpstreamErrors       string `json:"upstream_errors,omitempty"` // JSON array (string) for display/parsing
+	UpstreamStatusCode  *int   `json:"upstream_status_code,omitempty"`
+	UpstreamErrorDetail string `json:"upstream_error_detail,omitempty"`
+	UpstreamErrors      string `json:"upstream_errors,omitempty"` // JSON array (string) for display/parsing
 
 	// Timings (optional)
 	AuthLatencyMs      *int64 `json:"auth_latency_ms"`

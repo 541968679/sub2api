@@ -797,6 +797,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				CreatedAt: time.Now(),
 			}
 			applyOpsLatencyFieldsFromContext(c, entry)
+			applyOpsProviderErrorCodeFromContext(c, entry)
 
 			if apiKey != nil {
 				entry.APIKeyID = &apiKey.ID
@@ -995,6 +996,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				}
 			}
 		}
+		applyOpsProviderErrorCodeFromContext(c, entry)
 
 		if apiKey != nil {
 			entry.APIKeyID = &apiKey.ID
@@ -1118,6 +1120,7 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 		}
 	}
 	applyOpsLatencyFieldsFromContext(c, entry)
+	applyOpsProviderErrorCodeFromContext(c, entry)
 
 	if apiKey != nil {
 		entry.APIKeyID = &apiKey.ID
@@ -1144,6 +1147,25 @@ func isCountTokensRequest(c *gin.Context) bool {
 		return false
 	}
 	return strings.Contains(c.Request.URL.Path, "/count_tokens")
+}
+
+func applyOpsProviderErrorCodeFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
+	if c == nil || entry == nil || entry.ProviderErrorCode != nil {
+		return
+	}
+	if v, ok := c.Get(service.OpsProviderErrorCodeKey); ok {
+		if s, ok := v.(string); ok {
+			if code := strings.TrimSpace(s); code != "" {
+				entry.ProviderErrorCode = &code
+				return
+			}
+		}
+	}
+	if entry.UpstreamErrorDetail != nil {
+		if code := strings.TrimSpace(service.ExtractUpstreamErrorCode([]byte(*entry.UpstreamErrorDetail))); code != "" {
+			entry.ProviderErrorCode = &code
+		}
+	}
 }
 
 func applyOpsLatencyFieldsFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
