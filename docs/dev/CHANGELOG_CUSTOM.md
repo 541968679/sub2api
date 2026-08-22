@@ -1,3 +1,17 @@
+## 2026-08-22 - fix: type smart-schedule resume grace fields on pool draft
+
+### What
+- `SmartSchedulePoolMemberDraft` now includes `resume_until` / `resume_chip_until`, and `viewToDraft` / `mergeRuntimeMembers` copy them from the API member.
+
+### Why
+- Release `v0.1.250` failed `vue-tsc`: the editor already read those fields but the draft type omitted them.
+
+### Verification
+- `pnpm --dir frontend run typecheck`
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+
 ## 2026-08-22 - fix: AG smart-schedule switch keeps openai lookup when AG is off
 
 ### What

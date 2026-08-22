@@ -60,6 +60,8 @@ export type SmartSchedulePoolMemberDraft = {
   sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
+  resume_until?: string | null
+  resume_chip_until?: string | null
   paused?: boolean
   probing?: boolean
   pinned?: boolean
@@ -254,6 +256,8 @@ export function useUserSmartScheduleEditor(
       sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null,
+      resume_until: item.resume_until ?? null,
+      resume_chip_until: item.resume_chip_until ?? null,
       paused: Boolean(item.paused),
       probing: memberProbingFromApi(item),
       pinned: memberPinnedFromApi(item),
@@ -297,6 +301,8 @@ export function useUserSmartScheduleEditor(
       if (!live) continue
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
+      member.resume_until = live.resume_until ?? null
+      member.resume_chip_until = live.resume_chip_until ?? null
       member.sort_order = live.sort_order ?? null
       member.paused = Boolean(live.paused)
       member.probing = memberProbingFromApi(live)
