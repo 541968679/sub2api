@@ -658,7 +658,9 @@
                   :summary="pairPnlById[String(row.id)] ?? null"
                   :today-stats="todayStatsById[String(row.id)] ?? null"
                   :loading="statsLoading"
+                  :balance-refreshing="isBalanceRefreshing(row.id)"
                   @click="openPairSchedulePnl(row)"
+                  @refresh-balance="void refreshAccountBalance(row.id)"
                 />
               </template>
               <template #header-sort_order="{ column }">
@@ -1084,7 +1086,9 @@ const {
   onCopy,
   setPairAdmission,
   refreshAll,
-  ensureCandidates
+  ensureCandidates,
+  refreshAccountBalance,
+  isBalanceRefreshing
 } = useUserSmartScheduleEditor(userId, { poolFetchNeeds })
 
 const pageReady = computed(() => initialLoaded.value && user.value != null)

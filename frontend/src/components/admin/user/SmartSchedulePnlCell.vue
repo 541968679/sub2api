@@ -31,11 +31,35 @@
       </div>
       <div
         v-else
-        class="text-sm font-semibold leading-5 text-gray-900 dark:text-white"
+        class="flex flex-col items-start gap-0.5"
         data-testid="smart-schedule-pnl-balance"
       >
-        {{ t('admin.users.schedulePnl.balance') }}
-        {{ balanceText }}
+        <div class="flex items-center gap-1 text-sm font-semibold leading-5 text-gray-900 dark:text-white">
+          <span>
+            {{ t('admin.users.schedulePnl.balance') }}
+            {{ balanceText }}
+          </span>
+          <span
+            v-if="canProbeBalance"
+            role="button"
+            tabindex="0"
+            class="inline-flex rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-dark-600 dark:hover:text-primary-400"
+            data-testid="smart-schedule-pnl-balance-refresh"
+            :aria-label="t('admin.users.schedulePnl.balanceRefresh')"
+            :title="t('admin.users.schedulePnl.balanceUpdatedHint')"
+            @click.stop="emit('refresh-balance')"
+            @keydown.enter.stop.prevent="emit('refresh-balance')"
+          >
+            <Icon name="refresh" size="xs" :class="balanceRefreshing ? 'animate-spin' : ''" />
+          </span>
+        </div>
+        <span
+          v-if="canProbeBalance"
+          class="text-[11px] font-normal leading-4 text-gray-400 dark:text-dark-500"
+          data-testid="smart-schedule-pnl-balance-updated"
+        >
+          {{ updatedText }}
+        </span>
       </div>
       <template v-if="hasToday">
         <div class="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
@@ -75,6 +99,8 @@ import { useI18n } from 'vue-i18n'
 import type { Account, WindowStats } from '@/types'
 import type { SchedulePnlSummary } from '@/api/admin/users'
 import UsageProgressBar from '@/components/account/UsageProgressBar.vue'
+import Icon from '@/components/icons/Icon.vue'
+import { formatRelativeTime } from '@/utils/format'
 import {
   compareBalanceBurnToCost,
   formatSchedulePnlUsdPlain,
@@ -82,7 +108,9 @@ import {
   hasSchedulePnlWindow,
   isOauthAccountType,
   oauthSevenDayQuota,
-  pairAccountBalanceUsd
+  pairAccountBalanceUpdatedAt,
+  pairAccountBalanceUsd,
+  supportsPairBalanceProbe
 } from '@/composables/schedulePnl'
 
 const props = withDefaults(
@@ -91,19 +119,26 @@ const props = withDefaults(
     account?: Account | null
     todayStats?: WindowStats | null
     loading?: boolean
+    balanceRefreshing?: boolean
   }>(),
-  { summary: null, account: null, todayStats: null, loading: false }
+  { summary: null, account: null, todayStats: null, loading: false, balanceRefreshing: false }
 )
 
-const emit = defineEmits<{ click: [] }>()
+const emit = defineEmits<{ click: []; 'refresh-balance': [] }>()
 const { t } = useI18n()
 
 const isOauth = computed(() => isOauthAccountType(props.account))
 const oauthQuota = computed(() => oauthSevenDayQuota(props.account))
 const hasToday = computed(() => hasSchedulePnlWindow(props.summary?.today))
+const canProbeBalance = computed(() => supportsPairBalanceProbe(props.account))
 const balanceUsd = computed(() => (isOauth.value ? null : pairAccountBalanceUsd(props.account)))
-const showBody = computed(() => hasToday.value || isOauth.value || balanceUsd.value != null)
+const showBody = computed(() => hasToday.value || isOauth.value || balanceUsd.value != null || canProbeBalance.value)
 const balanceText = computed(() => formatSchedulePnlUsdPlain(balanceUsd.value))
+const updatedText = computed(() => {
+  const at = pairAccountBalanceUpdatedAt(props.account)
+  if (!at) return t('admin.users.schedulePnl.balanceNeverUpdated')
+  return formatRelativeTime(at)
+})
 const today = computed(() => formatSchedulePnlWindow(props.summary?.today))
 const marginClass = computed(() => {
   const profit = props.summary?.today?.profit

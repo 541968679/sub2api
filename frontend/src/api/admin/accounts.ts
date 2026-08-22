@@ -259,9 +259,16 @@ export async function clearError(id: number): Promise<Account> {
  * @param id - Account ID
  * @returns Account usage info
  */
-export async function getUsage(id: number, source?: 'passive' | 'active'): Promise<AccountUsageInfo> {
+export async function getUsage(
+  id: number,
+  source?: 'passive' | 'active',
+  options?: { force?: boolean }
+): Promise<AccountUsageInfo> {
   const { data } = await apiClient.get<AccountUsageInfo>(`/admin/accounts/${id}/usage`, {
-    params: source ? { source } : undefined
+    params: {
+      ...(source ? { source } : {}),
+      ...(options?.force ? { force: 'true' } : {})
+    }
   })
   return data
 }

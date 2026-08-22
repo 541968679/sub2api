@@ -14,6 +14,7 @@ const apiMocks = vi.hoisted(() => ({
   getBatchTodayStats: vi.fn(),
   getSmartSchedulePnlPairs: vi.fn(),
   getSmartSchedulePairQualityBatch: vi.fn(),
+  getUsage: vi.fn(),
   resumeSmartSchedule: vi.fn()
 }))
 
@@ -30,6 +31,7 @@ vi.mock('@/api/admin', () => ({
       list: apiMocks.listAccounts,
       getBatchQualityStats: apiMocks.getBatchQualityStats,
       getBatchTodayStats: apiMocks.getBatchTodayStats,
+      getUsage: apiMocks.getUsage,
       resumeSmartSchedule: apiMocks.resumeSmartSchedule
     }
   }
@@ -145,6 +147,10 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     apiMocks.getBatchTodayStats.mockResolvedValue({ stats: {} })
     apiMocks.getSmartSchedulePnlPairs.mockResolvedValue({ pairs: {} })
     apiMocks.getSmartSchedulePairQualityBatch.mockResolvedValue({ pairs: {} })
+    apiMocks.getUsage.mockResolvedValue({
+      balance_usd: 12.5,
+      balance_updated_at: '2026-08-22T05:00:00.000Z'
+    })
     apiMocks.resumeSmartSchedule.mockImplementation(
       (accountId: number, userId: number, state = 'resumed') =>
         Promise.resolve({
@@ -324,6 +330,64 @@ describe('useUserSmartScheduleEditor loadAll', () => {
       expect.objectContaining({ id: 21, name: 'oa-1' })
     ])
     expect(w.vm.pairPnlById).toEqual({})
+  })
+
+  it('probes stale api-key balances after load and can force a fresh snapshot', async () => {
+    const now = Date.now()
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 21, platform: 'openai', max_concurrency: 2 },
+            { account_id: 22, platform: 'openai', max_concurrency: 2 },
+            { account_id: 23, platform: 'openai', max_concurrency: 2 }
+          ]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 21,
+          name: 'stale-key',
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_usd: 10, upstream_balance_at: new Date(now - 10 * 60 * 1000).toISOString() }
+        },
+        {
+          id: 22,
+          name: 'fresh-key',
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_usd: 20, upstream_balance_at: new Date(now - 2 * 60 * 1000).toISOString() }
+        },
+        { id: 23, name: 'oauth', platform: 'openai', type: 'oauth', extra: {} }
+      ],
+      total: 3,
+      page: 1,
+      page_size: 3,
+      pages: 1
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(apiMocks.getUsage).toHaveBeenCalledTimes(1)
+    expect(apiMocks.getUsage).toHaveBeenCalledWith(21, 'active', undefined)
+    expect(w.vm.poolAccounts.find((item: { id: number }) => item.id === 21)?.extra).toMatchObject({
+      upstream_balance_usd: 12.5,
+      upstream_balance_at: '2026-08-22T05:00:00.000Z'
+    })
+    apiMocks.getUsage.mockClear()
+    await w.vm.refreshAccountBalance(22)
+    await flushPromises()
+    expect(apiMocks.getUsage).toHaveBeenCalledWith(22, 'active', { force: true })
   })
 
   it('loads pair quality independently of account 15m quality', async () => {

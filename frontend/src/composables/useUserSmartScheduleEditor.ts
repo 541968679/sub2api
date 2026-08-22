@@ -40,6 +40,11 @@ import {
   userQualityResumeChipActive,
   type PairAdmissionLiveState
 } from '@/composables/smartSchedulePoolAdmission'
+import {
+  applyUsageBalanceToAccountExtra,
+  shouldRefreshPairBalance,
+  supportsPairBalanceProbe
+} from '@/composables/schedulePnl'
 
 export { isCurrentlySchedulingAccount }
 
@@ -192,6 +197,8 @@ export function useUserSmartScheduleEditor(
   )
   const selectedAccountIds = ref<number[]>([])
   const refreshing = ref(false)
+  const balanceRefreshingIds = ref<number[]>([])
+  let balanceRefreshGen = 0
   const localResumeGraceByAccount = ref<Record<number, LocalPairResumeGrace>>({})
   const localPausedByAccount = ref<Record<number, boolean>>({})
   const localProbingByAccount = ref<Record<number, boolean>>({})
@@ -652,6 +659,7 @@ export function useUserSmartScheduleEditor(
   }
 
   async function loadPoolDetails() {
+    const gen = ++balanceRefreshGen
     const ids = currentDraft.value?.accounts.map((item) => item.account_id) ?? []
     if (ids.length === 0) {
       poolAccounts.value = []
@@ -659,6 +667,7 @@ export function useUserSmartScheduleEditor(
       todayStatsById.value = {}
       pairPnlById.value = {}
       pairQualityById.value = {}
+      balanceRefreshingIds.value = []
       return
     }
     const needs = resolvePoolFetchNeeds()
@@ -697,11 +706,72 @@ export function useUserSmartScheduleEditor(
       todayStatsById.value = needs.today ? (today.stats ?? {}) : {}
       pairPnlById.value = needs.pnl ? (pnl.pairs ?? {}) : {}
       pairQualityById.value = pairQuality.pairs ?? {}
+      void refreshStalePoolBalances(gen)
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.loadFailed')))
     } finally {
       statsLoading.value = false
     }
+  }
+
+  function setBalanceRefreshing(accountId: number, on: boolean) {
+    if (on) {
+      if (!balanceRefreshingIds.value.includes(accountId)) {
+        balanceRefreshingIds.value = [...balanceRefreshingIds.value, accountId]
+      }
+      return
+    }
+    balanceRefreshingIds.value = balanceRefreshingIds.value.filter((id) => id !== accountId)
+  }
+
+  function isBalanceRefreshing(accountId: number) {
+    return balanceRefreshingIds.value.includes(accountId)
+  }
+
+  async function runPoolBalanceProbes(accounts: Account[], worker: (account: Account) => Promise<void>) {
+    if (accounts.length === 0) return
+    const concurrency = Math.min(4, accounts.length)
+    let next = 0
+    const run = async () => {
+      while (next < accounts.length) {
+        const index = next
+        next += 1
+        await worker(accounts[index])
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, () => run()))
+  }
+
+  async function refreshOneAccountBalance(account: Account, force: boolean, gen: number) {
+    if (!supportsPairBalanceProbe(account)) return
+    if (!force && !shouldRefreshPairBalance(account)) return
+    if (isBalanceRefreshing(account.id)) return
+    setBalanceRefreshing(account.id, true)
+    try {
+      const usage = await adminAPI.accounts.getUsage(account.id, 'active', force ? { force: true } : undefined)
+      if (gen !== balanceRefreshGen) return
+      const current = poolAccounts.value.find((item) => item.id === account.id)
+      if (!current) return
+      patchPoolAccount({
+        ...current,
+        extra: applyUsageBalanceToAccountExtra(current.extra, usage)
+      })
+    } catch {
+      // Keep the last snapshot; the cell still shows upstream_balance_at.
+    } finally {
+      setBalanceRefreshing(account.id, false)
+    }
+  }
+
+  async function refreshStalePoolBalances(gen: number) {
+    const targets = poolAccounts.value.filter((account) => shouldRefreshPairBalance(account))
+    await runPoolBalanceProbes(targets, (account) => refreshOneAccountBalance(account, false, gen))
+  }
+
+  async function refreshAccountBalance(accountId: number) {
+    const account = poolAccounts.value.find((item) => item.id === accountId)
+    if (!account) return
+    await refreshOneAccountBalance(account, true, balanceRefreshGen)
   }
 
   async function loadCandidates(opts?: { force?: boolean }) {
@@ -1065,6 +1135,8 @@ export function useUserSmartScheduleEditor(
     setPairAdmission,
     refreshAll,
     ensureCandidates,
-    loadPoolDetails
+    loadPoolDetails,
+    refreshAccountBalance,
+    isBalanceRefreshing
   }
 }

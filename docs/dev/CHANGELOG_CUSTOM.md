@@ -1,3 +1,30 @@
+## 2026-08-22 - fix: smart-schedule PnL balance refreshes on page load
+
+### What
+- Opening or refreshing the user smart-schedule pool now probes stale OpenAI/Anthropic API-key balances (`GET /admin/accounts/:id/usage`, 6-minute TTL, concurrency 4) and writes the result back onto the row extra.
+- The 调度利润 cell shows last probe time and a per-row refresh control (`force=true`). Auto-refresh still respects TTL.
+- `GET /admin/accounts/:id/usage` accepts `force=true` so a click can bypass the TTL.
+
+### Why
+- The balance field only updated when someone opened Accounts usage. The pool page re-listed cached extra and never probed, so operators could not tell when the number last moved.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run TestShouldRefreshUpstreamBalance`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/schedulePnl.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/components/admin/user/__tests__/SmartSchedulePnlCell.spec.ts`
+
+### Affected files
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_usage_service_test.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`
+
 ## 2026-08-22 - fix: schedule error whitelist defaults empty so ship matches live schedule
 
 ### What
