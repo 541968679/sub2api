@@ -1256,7 +1256,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	if hasMinRate {
 		for i := 0; i < len(candidates); i++ {
 			item := candidates[i]
-			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, item.account.Platform) {
+			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, smartScheduleLookupPlatformFromCtx(ctx, item.account)) {
 				continue
 			}
 			if item.account.EffectiveUpstreamRate() <= minRate || !accountHasScheduleHeadroom(poolLoad, item.account.ID) {
@@ -1842,6 +1842,9 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
+	if requireClaudeGPTBridge {
+		ctx = withRequireClaudeGPTBridge(ctx, true)
+	}
 	platform := PlatformOpenAI
 	if len(platformOverride) > 0 {
 		platform = normalizeOpenAICompatiblePlatform(platformOverride[0])

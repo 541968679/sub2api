@@ -667,11 +667,12 @@ export interface SmartScheduleAdmissionResult {
 export async function resumeSmartSchedule(
   accountId: number,
   userId: number,
-  state: SmartScheduleAdmissionState = 'resumed'
+  state: SmartScheduleAdmissionState = 'resumed',
+  platform?: string
 ): Promise<SmartScheduleAdmissionResult> {
   const { data } = await apiClient.post<SmartScheduleAdmissionResult>(
     `/admin/accounts/${accountId}/smart-schedule-resume`,
-    { user_id: userId, state }
+    { user_id: userId, state, ...(platform ? { platform } : {}) }
   )
   return data
 }

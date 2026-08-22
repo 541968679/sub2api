@@ -29,6 +29,8 @@ type SmartScheduleAccountMember struct {
 	Priority           int                           `json:"priority"` // read-only live accounts.priority; writes ignore
 	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
+	ResumeUntil        *time.Time                    `json:"resume_until,omitempty"`
+	ResumeChipUntil    *time.Time                    `json:"resume_chip_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
 	Probing            bool                          `json:"probing"`
 	Pinned             bool                          `json:"pinned"`
@@ -164,34 +166,49 @@ func (b *UserSmartScheduleBundle) EnabledPolicy(platform string) *SmartScheduleP
 // Redis miss / no probe mark = not probing (no backfill).
 type SmartScheduleLookup interface {
 	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
-	CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool
-	StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time)
-	GetPairQuality(ctx context.Context, accountID, userID int64) *PairQualityLive
-	IsProbing(ctx context.Context, accountID, userID int64) bool
-	MarkProbing(ctx context.Context, accountID, userID int64)
-	ClearProbing(ctx context.Context, accountID, userID int64)
-	GraduateProbing(ctx context.Context, accountID, userID int64)
-	IsPinned(ctx context.Context, accountID, userID int64) bool
-	MarkPinned(ctx context.Context, accountID, userID int64)
-	ClearPinned(ctx context.Context, accountID, userID int64)
+	CooldownActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool
+	StartCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time)
+	GetPairQuality(ctx context.Context, accountID, userID int64, platform string) *PairQualityLive
+	IsProbing(ctx context.Context, accountID, userID int64, platform string) bool
+	MarkProbing(ctx context.Context, accountID, userID int64, platform string)
+	ClearProbing(ctx context.Context, accountID, userID int64, platform string)
+	GraduateProbing(ctx context.Context, accountID, userID int64, platform string)
+	IsPinned(ctx context.Context, accountID, userID int64, platform string) bool
+	MarkPinned(ctx context.Context, accountID, userID int64, platform string)
+	ClearPinned(ctx context.Context, accountID, userID int64, platform string)
+	PairResumeActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool
+	ClearPairResume(ctx context.Context, accountID, userID int64, platform string)
 }
 
 // UserSmartScheduleCache is the admin + hot-path cache (invalidate on save).
 type UserSmartScheduleCache interface {
 	SmartScheduleLookup
 	Invalidate(ctx context.Context, userID int64) error
-	ClearCooldown(ctx context.Context, accountID, userID int64) error
-	SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) (time.Time, error)
-	ApplyMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error
-	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time
-	IngestPairQuality(ctx context.Context, accountID, userID int64, n int, success bool, firstTokenMs *int) *PairQualityLive
-	ZeroPairQuality(ctx context.Context, accountID, userID int64, eventType string)
-	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]*PairQualityLive
-	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, limit int) []PairQualitySnapshot
-	ListPairQualityEvents(ctx context.Context, accountID, userID int64, limit int) []PairQualityEvent
-	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, event PairQualityEvent)
-	IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool
-	IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool
+	ClearCooldown(ctx context.Context, accountID, userID int64, platform string) error
+	ClearCooldownAllPlatforms(ctx context.Context, accountID, userID int64) error
+	SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error)
+	ApplyMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
+	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]time.Time
+	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, n int, success bool, firstTokenMs *int) *PairQualityLive
+	ZeroPairQuality(ctx context.Context, accountID, userID int64, platform string, eventType string)
+	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
+	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualitySnapshot
+	ListPairQualityEvents(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualityEvent
+	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, platform string, event PairQualityEvent)
+	IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]bool
+	IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]bool
+	MarkPairResume(ctx context.Context, accountID, userID int64, platform string) error
+	GetPairResumeUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]PairResumeUntil
+}
+
+// PairResumeUntil is the per-pool 豁免期 overlay (not account-quality:resume).
+type PairResumeUntil struct {
+	ChipUntil  time.Time
+	WatchUntil time.Time
+}
+
+func (p PairResumeUntil) Active(now time.Time) bool {
+	return p.ChipUntil.After(now) || p.WatchUntil.After(now)
 }
 
 // UserSmartScheduleRepository persists policies and pool members.
@@ -200,7 +217,7 @@ type UserSmartScheduleRepository interface {
 	ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error)
 	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
 	UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) error
-	SetMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error
+	SetMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
 }
 
 // UserSmartScheduleSummary is the compact list-column view of one user's smart schedule.

@@ -34,9 +34,10 @@ func TestUserSmartScheduleService_SetPairAdmissionPinned(t *testing.T) {
 	require.Equal(t, 1, cache.cleared, "enter pin clears cooldown")
 	require.GreaterOrEqual(t, cache.clearedProbe, 1, "enter pin clears probing")
 	require.Equal(t, 1, cache.markedPin)
-	require.True(t, cache.IsPinned(ctx, 7, 16))
-	require.False(t, cache.IsProbing(ctx, 7, 16))
-	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "pin must not write u:/w:")
+	require.True(t, cache.IsPinned(ctx, 7, 16, "openai"))
+	require.False(t, cache.IsProbing(ctx, 7, 16, "openai"))
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "pin must not clear Track A resume")
+	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()), "pin must not write pair resume")
 	require.NotContains(t, cache.zeros, PairQualityEventResumed)
 	require.NotContains(t, cache.zeros, PairQualityEventSelectable)
 
@@ -44,8 +45,9 @@ func TestUserSmartScheduleService_SetPairAdmissionPinned(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionResumed, omitted.State, "omit state is 豁免期, not pinned")
 	require.False(t, omitted.Pinned)
-	require.False(t, cache.IsPinned(ctx, 7, 16))
-	require.True(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
+	require.False(t, cache.IsPinned(ctx, 7, 16, "openai"))
+	require.True(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "pair 豁免期 must not overwrite Track A resume")
 }
 
 func TestUserSmartScheduleService_PauseDoesNotBecomePinned(t *testing.T) {
@@ -64,7 +66,7 @@ func TestUserSmartScheduleService_PauseDoesNotBecomePinned(t *testing.T) {
 	require.Equal(t, PairAdmissionPaused, paused.State)
 	require.False(t, paused.Pinned)
 	require.Equal(t, 0, cache.markedPin)
-	require.False(t, cache.IsPinned(ctx, 7, 16))
+	require.False(t, cache.IsPinned(ctx, 7, 16, "openai"))
 
 	omitted, err := svc.SetPairAdmission(ctx, 7, 16, "")
 	require.NoError(t, err)
@@ -93,7 +95,7 @@ func TestUserSmartScheduleService_GetHydratesPinned(t *testing.T) {
 	require.False(t, member.Probing)
 	require.False(t, member.WillCool)
 
-	cache.ClearPinned(ctx, 7, 16)
+	cache.ClearPinned(ctx, 7, 16, "openai")
 	unmarked, err := svc.Get(ctx, 16)
 	require.NoError(t, err)
 	require.False(t, unmarked.Platforms[PlatformAnthropic].Accounts[0].Pinned, "Redis miss is not pinned")
@@ -142,7 +144,7 @@ func TestAdmitsScheduleUser_PinnedSkipsEvaluate(t *testing.T) {
 	}
 	require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
 	require.Equal(t, 0, lookup.startCalls, "pinned must not StartCooldown")
-	require.True(t, lookup.IsPinned(ctx, 7, 16))
+	require.True(t, lookup.IsPinned(ctx, 7, 16, "openai"))
 }
 
 func TestObservePairCompletion_PinnedIngestsButDoesNotCool(t *testing.T) {
@@ -165,7 +167,7 @@ func TestObservePairCompletion_PinnedIngestsButDoesNotCool(t *testing.T) {
 		})
 	}
 	require.Len(t, cache.ingested, 3, "pinned windows may keep ingesting")
-	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16).OKCount)
+	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16, "openai").OKCount)
 	require.Equal(t, 0, cache.starts, "N successes while pinned do not cool")
 }
 
@@ -187,7 +189,7 @@ func TestObservePairCompletion_LeavePinnedToSelectableCanCool(t *testing.T) {
 	left, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionSelectable, left.State)
-	require.False(t, cache.IsPinned(ctx, 7, 16))
+	require.False(t, cache.IsPinned(ctx, 7, 16, "openai"))
 
 	for i := 0; i < 3; i++ {
 		svc.ObservePairCompletion(ctx, PairQualityObservation{

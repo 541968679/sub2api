@@ -61,7 +61,7 @@ type accountRepository struct {
 // after an account is removed from every user pool.
 type smartScheduleDeleteCache interface {
 	Invalidate(ctx context.Context, userID int64) error
-	ClearCooldown(ctx context.Context, accountID, userID int64) error
+	ClearCooldownAllPlatforms(ctx context.Context, accountID, userID int64) error
 }
 
 var schedulerNeutralExtraKeyPrefixes = []string{
@@ -586,7 +586,7 @@ func (r *accountRepository) invalidateSmartScheduleUsers(ctx context.Context, ac
 		if err := r.smartScheduleCache.Invalidate(ctx, userID); err != nil {
 			logger.LegacyPrintf("repository.account", "[SmartSchedule] invalidate user cache failed: user=%d account=%d err=%v", userID, accountID, err)
 		}
-		if err := r.smartScheduleCache.ClearCooldown(ctx, accountID, userID); err != nil {
+		if err := r.smartScheduleCache.ClearCooldownAllPlatforms(ctx, accountID, userID); err != nil {
 			logger.LegacyPrintf("repository.account", "[SmartSchedule] clear pair cooldown failed: user=%d account=%d err=%v", userID, accountID, err)
 		}
 	}

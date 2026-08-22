@@ -200,6 +200,40 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.candidatesReady).toBe(true)
   })
 
+  it('loads OpenAI plus native AG candidates on the antigravity tab', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.activePlatform = 'antigravity'
+    apiMocks.listAccounts.mockClear()
+    apiMocks.listAccounts.mockImplementation(
+      (_page: number, _size: number, filters?: { platform?: string }) => {
+        if (filters?.platform === 'openai') {
+          return Promise.resolve({
+            items: [{ id: 41, name: 'oai', platform: 'openai', type: 'apikey', status: 'active' }],
+            total: 1,
+            page: 1,
+            page_size: 1000,
+            pages: 1
+          })
+        }
+        return Promise.resolve({
+          items: [{ id: 51, name: 'ag', platform: 'antigravity', type: 'oauth', status: 'active' }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1
+        })
+      }
+    )
+    await w.vm.ensureCandidates()
+    await flushPromises()
+    const platforms = (apiMocks.listAccounts.mock.calls as Array<[number, number, { platform?: string }]>)
+      .map((call) => call[2]?.platform)
+      .sort()
+    expect(platforms).toEqual(['antigravity', 'openai'])
+    expect(w.vm.addableAccounts.map((item: { id: number }) => item.id).sort()).toEqual([41, 51])
+  })
+
   it('silent refresh does not flip the first-paint loading flag', async () => {
     const w = mountEditor()
     await flushPromises()
@@ -398,7 +432,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     const w = mountEditor()
     await flushPromises()
-    expect(apiMocks.getSmartSchedulePairQualityBatch).toHaveBeenCalledWith(99, [21])
+    expect(apiMocks.getSmartSchedulePairQualityBatch).toHaveBeenCalledWith(99, [21], 'openai')
     expect(w.vm.pairQualityById['21']).toEqual({
       ttft_p50_ms: 180,
       success_rate: 0.95,
@@ -560,20 +594,20 @@ describe('useUserSmartScheduleEditor loadAll', () => {
 
     await w.vm.setPairAdmission(21, 'selectable')
     await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'selectable', 'openai')
     expect(w.vm.memberPaused(21)).toBe(false)
     expect(w.vm.memberProbing(21)).toBe(false)
 
     await w.vm.setPairAdmission(21, 'probing')
     await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'probing')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'probing', 'openai')
     expect(w.vm.memberProbing(21)).toBe(true)
     expect(w.vm.memberProbeCap(21)).toBe(2)
     expect(w.vm.memberResumeActive(21)).toBe(false)
 
     await w.vm.setPairAdmission(21, 'pinned')
     await flushPromises()
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'pinned')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(21, 99, 'pinned', 'openai')
     expect(w.vm.memberPinned(21)).toBe(true)
     expect(w.vm.memberProbing(21)).toBe(false)
     expect(w.vm.memberResumeActive(21)).toBe(false)

@@ -17,6 +17,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   select: 100,
   name: 180,
   platform_type: 140,
+  claude_gpt_bridge: 120,
   concurrency: 130,
   pair_cap: 120,
   admission: 140,

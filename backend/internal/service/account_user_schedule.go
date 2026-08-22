@@ -47,12 +47,12 @@ type UserConcurrencyPatch struct {
 
 // UserQualityGateEntry is one replace-all quality-gate row on account update.
 type UserQualityGateEntry struct {
-	UserID              int64    `json:"user_id"`
-	MaxP50TTFTMs        *int     `json:"quality_max_p50_ttft_ms"`
-	MinSuccessRate      *float64 `json:"quality_min_success_rate"`
-	MinSuccessSamples   *int     `json:"quality_min_success_samples"`
-	MinTTFTSamples      *int     `json:"quality_min_ttft_samples"`
-	Condition           *string  `json:"quality_condition"`
+	UserID            int64    `json:"user_id"`
+	MaxP50TTFTMs      *int     `json:"quality_max_p50_ttft_ms"`
+	MinSuccessRate    *float64 `json:"quality_min_success_rate"`
+	MinSuccessSamples *int     `json:"quality_min_success_samples"`
+	MinTTFTSamples    *int     `json:"quality_min_ttft_samples"`
+	Condition         *string  `json:"quality_condition"`
 }
 
 // UserQualityGatePatch merges one user's quality gate without rewriting lists.
@@ -232,7 +232,8 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 		return false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform)
+	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account)
+	policy := lookupEnabledSmartPolicy(ctx, lookup, userID, lookupPlatform)
 	if policy == nil {
 		return account.AdmitsScheduleUser(userID, loadLiveQualityForAdmission(ctx, cache, account, false))
 	}
@@ -243,30 +244,27 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 		return false
 	}
 	now := time.Now().UTC()
-	if lookup != nil && lookup.IsPinned(ctx, account.ID, userID) {
+	if lookup != nil && lookup.IsPinned(ctx, account.ID, userID, lookupPlatform) {
 		return true
 	}
-	if lookup != nil && lookup.CooldownActive(ctx, account.ID, userID, now) {
+	if lookup != nil && lookup.CooldownActive(ctx, account.ID, userID, lookupPlatform, now) {
 		return false
 	}
-	// Resume overlay still lives on account-quality:resume. Only the chip/grace
-	// fields are used here; live 15-minute Q_a numbers must not decide cooldown.
-	// 豁免期 (resumed, no probe mark) is fail-open: ingest happens elsewhere, no evaluate / no graduate.
-	// Leftover u:/w: while probing must not skip graduate (expiry / 立即恢复 share this HASH).
-	stats := loadLiveQualityForAdmission(ctx, cache, account, true)
-	probing := lookup != nil && lookup.IsProbing(ctx, account.ID, userID)
-	if pairQualityResumeBlocksEvaluate(probing, stats, userID, now) {
+	// Pair 豁免期 lives on smart-schedule:resume:{platform}:{account}.
+	// account-quality:resume is Track A only and must not skip evaluate here.
+	probing := lookup != nil && lookup.IsProbing(ctx, account.ID, userID, lookupPlatform)
+	if pairQualityResumeBlocksEvaluate(ctx, lookup, probing, account.ID, userID, lookupPlatform, now) {
 		return true
 	}
-	clearLeftoverResumeIfProbing(ctx, cache, probing, account.ID, userID, stats, now)
+	clearLeftoverPairResumeIfProbing(ctx, lookup, probing, account.ID, userID, lookupPlatform, now)
 	if !policy.HasQualityMetrics() && !probing {
 		return true
 	}
 	var pair *PairQualityLive
 	if lookup != nil {
-		pair = lookup.GetPairQuality(ctx, account.ID, userID)
+		pair = lookup.GetPairQuality(ctx, account.ID, userID, lookupPlatform)
 	}
-	return evaluateSmartSchedulePairQuality(ctx, lookup, account.ID, userID, policy, pair, now)
+	return evaluateSmartSchedulePairQuality(ctx, lookup, account.ID, userID, lookupPlatform, policy, pair, now)
 }
 
 func containsScheduleUserID(ids []int64, userID int64) bool {

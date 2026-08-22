@@ -84,27 +84,37 @@ func TestPairQualityToStats_CrossUserIsolationShape(t *testing.T) {
 
 type observeCacheStub struct {
 	stubSmartCache
-	bundle    *UserSmartScheduleBundle
-	live      map[string]*PairQualityLive
-	cooling   map[string]bool
-	probing   map[string]bool
-	pinned    map[string]bool
-	ingested  []PairQualityObservation
-	starts    int
-	graduated int
+	bundle      *UserSmartScheduleBundle
+	live        map[string]*PairQualityLive
+	cooling     map[string]bool
+	probing     map[string]bool
+	pinned      map[string]bool
+	resumeUntil map[string]int64
+	ingested    []PairQualityObservation
+	starts      int
+	graduated   int
 }
 
 func (s *observeCacheStub) Lookup(context.Context, int64) *UserSmartScheduleBundle { return s.bundle }
-func (s *observeCacheStub) CooldownActive(_ context.Context, accountID, userID int64, _ time.Time) bool {
+func (s *observeCacheStub) CooldownActive(_ context.Context, accountID, userID int64, _ string, _ time.Time) bool {
 	return s.cooling[smartPairKey(accountID, userID)]
 }
-func (s *observeCacheStub) StartCooldown(context.Context, int64, int64, int, time.Time) {
+func (s *observeCacheStub) StartCooldown(context.Context, int64, int64, string, int, time.Time) {
 	s.starts++
 }
-func (s *observeCacheStub) GetPairQuality(_ context.Context, accountID, userID int64) *PairQualityLive {
+func (s *observeCacheStub) GetPairQuality(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
 	return s.live[smartPairKey(accountID, userID)]
 }
-func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userID int64, n int, success bool, firstTokenMs *int) *PairQualityLive {
+func (s *observeCacheStub) GetPairQualityBatch(_ context.Context, accountIDs []int64, userID int64, _ string) map[int64]*PairQualityLive {
+	out := map[int64]*PairQualityLive{}
+	for _, accountID := range accountIDs {
+		if live := s.GetPairQuality(context.Background(), accountID, userID, ""); live != nil {
+			out[accountID] = live
+		}
+	}
+	return out
+}
+func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userID int64, _ string, n int, success bool, firstTokenMs *int) *PairQualityLive {
 	s.ingested = append(s.ingested, PairQualityObservation{AccountID: accountID, UserID: userID, Success: success, FirstTokenMs: firstTokenMs})
 	key := smartPairKey(accountID, userID)
 	if s.live == nil {
@@ -114,41 +124,68 @@ func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userI
 	return s.live[key]
 }
 
-func (s *observeCacheStub) IsProbing(_ context.Context, accountID, userID int64) bool {
+func (s *observeCacheStub) IsProbing(_ context.Context, accountID, userID int64, _ string) bool {
 	return s.probing[smartPairKey(accountID, userID)]
 }
 
-func (s *observeCacheStub) MarkProbing(_ context.Context, accountID, userID int64) {
+func (s *observeCacheStub) MarkProbing(_ context.Context, accountID, userID int64, _ string) {
 	if s.probing == nil {
 		s.probing = map[string]bool{}
 	}
 	s.probing[smartPairKey(accountID, userID)] = true
 }
 
-func (s *observeCacheStub) ClearProbing(_ context.Context, accountID, userID int64) {
+func (s *observeCacheStub) ClearProbing(_ context.Context, accountID, userID int64, _ string) {
 	delete(s.probing, smartPairKey(accountID, userID))
 }
 
-func (s *observeCacheStub) GraduateProbing(ctx context.Context, accountID, userID int64) {
-	if s.IsProbing(ctx, accountID, userID) {
+func (s *observeCacheStub) GraduateProbing(ctx context.Context, accountID, userID int64, platform string) {
+	if s.IsProbing(ctx, accountID, userID, platform) {
 		s.graduated++
 	}
-	s.ClearProbing(ctx, accountID, userID)
+	s.ClearProbing(ctx, accountID, userID, platform)
 }
 
-func (s *observeCacheStub) IsPinned(_ context.Context, accountID, userID int64) bool {
+func (s *observeCacheStub) IsPinned(_ context.Context, accountID, userID int64, _ string) bool {
 	return s.pinned[smartPairKey(accountID, userID)]
 }
 
-func (s *observeCacheStub) MarkPinned(_ context.Context, accountID, userID int64) {
+func (s *observeCacheStub) MarkPinned(_ context.Context, accountID, userID int64, _ string) {
 	if s.pinned == nil {
 		s.pinned = map[string]bool{}
 	}
 	s.pinned[smartPairKey(accountID, userID)] = true
 }
 
-func (s *observeCacheStub) ClearPinned(_ context.Context, accountID, userID int64) {
+func (s *observeCacheStub) ClearPinned(_ context.Context, accountID, userID int64, _ string) {
 	delete(s.pinned, smartPairKey(accountID, userID))
+}
+
+func (s *observeCacheStub) PairResumeActive(_ context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	return s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)] > now.Unix()
+}
+
+func (s *observeCacheStub) ClearPairResume(_ context.Context, accountID, userID int64, platform string) {
+	delete(s.resumeUntil, smartPairPlatformKey(accountID, userID, platform))
+}
+
+func (s *observeCacheStub) MarkPairResume(_ context.Context, accountID, userID int64, platform string) error {
+	if s.resumeUntil == nil {
+		s.resumeUntil = map[string]int64{}
+	}
+	s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)] = time.Now().UTC().Add(2 * AccountQualityWindow).Unix()
+	return nil
+}
+
+func (s *observeCacheStub) GetPairResumeUntilBatch(_ context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]PairResumeUntil {
+	out := map[int64]PairResumeUntil{}
+	for _, accountID := range accountIDs {
+		until := s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)]
+		if until > now.Unix() {
+			out[accountID] = PairResumeUntil{WatchUntil: time.Unix(until, 0).UTC()}
+		}
+	}
+	return out
 }
 
 func TestObservePairCompletion_SkipsPausedCoolingAndEvaluatesAfterN(t *testing.T) {
@@ -180,7 +217,7 @@ func TestObservePairCompletion_SkipsPausedCoolingAndEvaluatesAfterN(t *testing.T
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true, FirstTokenMs: intPtr(400)})
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true, FirstTokenMs: intPtr(400)})
 	require.Equal(t, 1, cache.starts)
-	require.Nil(t, cache.GetPairQuality(context.Background(), 9, 16))
+	require.Nil(t, cache.GetPairQuality(context.Background(), 9, 16, "openai"))
 }
 
 func TestObservePairCompletion_ResumeIngestsWithoutEvaluate(t *testing.T) {
@@ -192,6 +229,7 @@ func TestObservePairCompletion_ResumeIngestsWithoutEvaluate(t *testing.T) {
 		bundle: smartBundle(PlatformAnthropic, policy),
 		live:   map[string]*PairQualityLive{},
 	}
+	require.NoError(t, cache.MarkPairResume(context.Background(), 7, 16, PlatformAnthropic))
 	quality := &liveQualityCacheStub{}
 	require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
 	svc := NewUserSmartScheduleService(nil, cache, nil, quality, nil)

@@ -91,6 +91,7 @@ type SmartSchedulePairQualityBatch struct {
 type PairQualityObservation struct {
 	AccountID    int64
 	UserID       int64
+	Platform     string
 	Success      bool
 	FirstTokenMs *int
 }
@@ -328,8 +329,8 @@ func pairQualityTTFTMs(trueMs, firstMs *int) *int {
 	return nil
 }
 
-func observePairQualitySuccess(lookup SmartScheduleLookup, ctx context.Context, accountID, userID int64, trueMs, firstMs *int) {
-	if lookup == nil || accountID <= 0 || userID <= 0 {
+func observePairQualitySuccess(lookup SmartScheduleLookup, ctx context.Context, account *Account, userID int64, trueMs, firstMs *int) {
+	if lookup == nil || account == nil || account.ID <= 0 || userID <= 0 {
 		return
 	}
 	observer, ok := lookup.(PairQualityObserver)
@@ -337,8 +338,9 @@ func observePairQualitySuccess(lookup SmartScheduleLookup, ctx context.Context, 
 		return
 	}
 	observer.ObservePairCompletion(ctx, PairQualityObservation{
-		AccountID:    accountID,
+		AccountID:    account.ID,
 		UserID:       userID,
+		Platform:     smartScheduleLookupPlatformFromCtx(ctx, account),
 		Success:      true,
 		FirstTokenMs: pairQualityTTFTMs(trueMs, firstMs),
 	})
@@ -418,46 +420,46 @@ func pairQualityProbeAndMixed(live *PairQualityLive, policy *SmartSchedulePlatfo
 }
 
 // pairQualityResumeBlocksEvaluate is 豁免期 fail-open only (no probe mark).
-// Leftover u:/w: during probing is not 豁免期 — do not skip graduate / and-mixed.
-func pairQualityResumeBlocksEvaluate(probing bool, stats *AccountQualityStats, userID int64, now time.Time) bool {
-	if probing {
+// Leftover pair resume during probing is not 豁免期 — do not skip graduate / and-mixed.
+func pairQualityResumeBlocksEvaluate(ctx context.Context, lookup SmartScheduleLookup, probing bool, accountID, userID int64, platform string, now time.Time) bool {
+	if probing || lookup == nil {
 		return false
 	}
-	return UserQualityResumeActive(stats, userID, now)
+	return lookup.PairResumeActive(ctx, accountID, userID, platform, now)
 }
 
-func clearLeftoverResumeIfProbing(ctx context.Context, cache AccountQualityLiveCache, probing bool, accountID, userID int64, stats *AccountQualityStats, now time.Time) {
-	if !probing || cache == nil || !UserQualityResumeActive(stats, userID, now) {
+func clearLeftoverPairResumeIfProbing(ctx context.Context, lookup SmartScheduleLookup, probing bool, accountID, userID int64, platform string, now time.Time) {
+	if !probing || lookup == nil || !lookup.PairResumeActive(ctx, accountID, userID, platform, now) {
 		return
 	}
-	_ = cache.ClearUserResume(ctx, accountID, userID)
+	lookup.ClearPairResume(ctx, accountID, userID, platform)
 }
 
 // evaluateSmartSchedulePairQuality applies cooldown / probe graduate on the hot path
 // and after ingest. 豁免期 (no probe mark) must be checked by the caller (no evaluate).
-func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
-	if lookup != nil && lookup.IsPinned(ctx, accountID, userID) {
+func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, platform string, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
+	if lookup != nil && lookup.IsPinned(ctx, accountID, userID, platform) {
 		return true
 	}
-	probing := lookup != nil && lookup.IsProbing(ctx, accountID, userID)
+	probing := lookup != nil && lookup.IsProbing(ctx, accountID, userID, platform)
 	minutes := DefaultSmartScheduleCooldownMinutes
 	if policy != nil && policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
 		minutes = policy.CooldownMinutes
 	}
 	if probing {
 		if pairQualityBlocks(live, policy) || pairQualityProbeAndMixed(live, policy) {
-			lookup.ClearProbing(ctx, accountID, userID)
-			lookup.StartCooldown(ctx, accountID, userID, minutes, now)
+			lookup.ClearProbing(ctx, accountID, userID, platform)
+			lookup.StartCooldown(ctx, accountID, userID, platform, minutes, now)
 			return false
 		}
 		if pairQualityProbeGraduates(live, policy) {
-			lookup.GraduateProbing(ctx, accountID, userID)
+			lookup.GraduateProbing(ctx, accountID, userID, platform)
 		}
 		return true
 	}
 	if pairQualityBlocks(live, policy) {
 		if lookup != nil {
-			lookup.StartCooldown(ctx, accountID, userID, minutes, now)
+			lookup.StartCooldown(ctx, accountID, userID, platform, minutes, now)
 		}
 		return false
 	}

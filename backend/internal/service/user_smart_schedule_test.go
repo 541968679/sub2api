@@ -21,6 +21,7 @@ type memorySmartLookup struct {
 	pair          map[string]*PairQualityLive
 	probing       map[string]bool
 	pinned        map[string]bool
+	resumeUntil   map[string]int64
 	startCalls    int
 	lastUntilUnix int64
 	graduated     int
@@ -33,7 +34,7 @@ func (m *memorySmartLookup) Lookup(_ context.Context, _ int64) *UserSmartSchedul
 	return m.bundle
 }
 
-func (m *memorySmartLookup) CooldownActive(_ context.Context, accountID, userID int64, now time.Time) bool {
+func (m *memorySmartLookup) CooldownActive(_ context.Context, accountID, userID int64, _ string, now time.Time) bool {
 	if m == nil || len(m.cooldownUntil) == 0 {
 		return false
 	}
@@ -41,7 +42,7 @@ func (m *memorySmartLookup) CooldownActive(_ context.Context, accountID, userID 
 	return until > now.Unix()
 }
 
-func (m *memorySmartLookup) StartCooldown(_ context.Context, accountID, userID int64, minutes int, now time.Time) {
+func (m *memorySmartLookup) StartCooldown(_ context.Context, accountID, userID int64, _ string, minutes int, now time.Time) {
 	if m == nil {
 		return
 	}
@@ -58,21 +59,21 @@ func (m *memorySmartLookup) StartCooldown(_ context.Context, accountID, userID i
 	m.lastUntilUnix = until
 }
 
-func (m *memorySmartLookup) GetPairQuality(_ context.Context, accountID, userID int64) *PairQualityLive {
+func (m *memorySmartLookup) GetPairQuality(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
 	if m == nil || len(m.pair) == 0 {
 		return nil
 	}
 	return m.pair[smartPairKey(accountID, userID)]
 }
 
-func (m *memorySmartLookup) IsProbing(_ context.Context, accountID, userID int64) bool {
+func (m *memorySmartLookup) IsProbing(_ context.Context, accountID, userID int64, _ string) bool {
 	if m == nil || len(m.probing) == 0 {
 		return false
 	}
 	return m.probing[smartPairKey(accountID, userID)]
 }
 
-func (m *memorySmartLookup) MarkProbing(_ context.Context, accountID, userID int64) {
+func (m *memorySmartLookup) MarkProbing(_ context.Context, accountID, userID int64, _ string) {
 	if m == nil {
 		return
 	}
@@ -82,31 +83,31 @@ func (m *memorySmartLookup) MarkProbing(_ context.Context, accountID, userID int
 	m.probing[smartPairKey(accountID, userID)] = true
 }
 
-func (m *memorySmartLookup) ClearProbing(_ context.Context, accountID, userID int64) {
+func (m *memorySmartLookup) ClearProbing(_ context.Context, accountID, userID int64, _ string) {
 	if m == nil || len(m.probing) == 0 {
 		return
 	}
 	delete(m.probing, smartPairKey(accountID, userID))
 }
 
-func (m *memorySmartLookup) GraduateProbing(ctx context.Context, accountID, userID int64) {
+func (m *memorySmartLookup) GraduateProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if m == nil {
 		return
 	}
-	if m.IsProbing(ctx, accountID, userID) {
+	if m.IsProbing(ctx, accountID, userID, platform) {
 		m.graduated++
 	}
-	m.ClearProbing(ctx, accountID, userID)
+	m.ClearProbing(ctx, accountID, userID, platform)
 }
 
-func (m *memorySmartLookup) IsPinned(_ context.Context, accountID, userID int64) bool {
+func (m *memorySmartLookup) IsPinned(_ context.Context, accountID, userID int64, _ string) bool {
 	if m == nil || len(m.pinned) == 0 {
 		return false
 	}
 	return m.pinned[smartPairKey(accountID, userID)]
 }
 
-func (m *memorySmartLookup) MarkPinned(_ context.Context, accountID, userID int64) {
+func (m *memorySmartLookup) MarkPinned(_ context.Context, accountID, userID int64, _ string) {
 	if m == nil {
 		return
 	}
@@ -116,15 +117,33 @@ func (m *memorySmartLookup) MarkPinned(_ context.Context, accountID, userID int6
 	m.pinned[smartPairKey(accountID, userID)] = true
 }
 
-func (m *memorySmartLookup) ClearPinned(_ context.Context, accountID, userID int64) {
+func (m *memorySmartLookup) ClearPinned(_ context.Context, accountID, userID int64, _ string) {
 	if m == nil || len(m.pinned) == 0 {
 		return
 	}
 	delete(m.pinned, smartPairKey(accountID, userID))
 }
 
+func (m *memorySmartLookup) PairResumeActive(_ context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	if m == nil || len(m.resumeUntil) == 0 {
+		return false
+	}
+	return m.resumeUntil[smartPairPlatformKey(accountID, userID, platform)] > now.Unix()
+}
+
+func (m *memorySmartLookup) ClearPairResume(_ context.Context, accountID, userID int64, platform string) {
+	if m == nil || len(m.resumeUntil) == 0 {
+		return
+	}
+	delete(m.resumeUntil, smartPairPlatformKey(accountID, userID, platform))
+}
+
 func smartPairKey(accountID, userID int64) string {
 	return strconv.FormatInt(accountID, 10) + ":" + strconv.FormatInt(userID, 10)
+}
+
+func smartPairPlatformKey(accountID, userID int64, platform string) string {
+	return SmartScheduleRedisPlatform(platform) + ":" + smartPairKey(accountID, userID)
 }
 
 func enabledSmartPolicy(accountID int64, capN int, p50 *int) *SmartSchedulePlatformPolicy {
@@ -206,7 +225,7 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 
 		lookup.pair[smartPairKey(7, 16)] = breachedPairLive(200)
 		require.False(t, admitsScheduleUser(ctx, denied, accountLive, lookup))
-		lookup.StartCooldown(ctx, 7, 16, 30, time.Now().UTC())
+		lookup.StartCooldown(ctx, 7, 16, PlatformAnthropic, 30, time.Now().UTC())
 		require.Equal(t, firstUntil, lookup.lastUntilUnix)
 		require.Equal(t, firstUntil, lookup.cooldownUntil[smartPairKey(7, 16)])
 	})
@@ -266,6 +285,40 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 			byID: map[int64]*AccountQualityStats{7: liveQualityStats(200, 12, 20, 0, 1)},
 		}, lookup))
 		require.Equal(t, 0, lookup.startCalls)
+	})
+
+	t.Run("AG policy disabled fail-opens to account deny not openai pool", func(t *testing.T) {
+		t.Parallel()
+		agCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+		agCtx = context.WithValue(agCtx, ctxkey.Group, &Group{
+			ID:       15,
+			Platform: PlatformAntigravity,
+			Status:   StatusActive,
+			Hydrated: true,
+		})
+		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
+			PlatformAntigravity: {Enabled: false, AccountIDs: map[int64]struct{}{7: {}}},
+		}}}
+		require.False(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup), "must not fall back to openai pool")
+	})
+
+	t.Run("AG empty enabled pool fail-opens to account deny not openai pool", func(t *testing.T) {
+		t.Parallel()
+		agCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+		agCtx = context.WithValue(agCtx, ctxkey.Group, &Group{
+			ID:       15,
+			Platform: PlatformAntigravity,
+			Status:   StatusActive,
+			Hydrated: true,
+		})
+		deniedOAI := &Account{ID: 7, Platform: PlatformOpenAI, DenyUserIDs: []int64{16}}
+		lookup := &memorySmartLookup{bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
+			PlatformAntigravity: {Enabled: true, AccountIDs: map[int64]struct{}{}},
+		}}}
+		require.False(t, admitsScheduleUser(agCtx, deniedOAI, nil, lookup))
 	})
 
 	t.Run("enabled empty pool falls back to legacy", func(t *testing.T) {
@@ -348,27 +401,25 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 	return nil
 }
 
-func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID int64, paused bool) error {
+func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID int64, platform string, paused bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.bundle == nil || s.bundle.Policies == nil {
 		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
-	for _, policy := range s.bundle.Policies {
-		if policy == nil || !policy.HasAccount(accountID) {
-			continue
-		}
-		if policy.Paused == nil {
-			policy.Paused = map[int64]struct{}{}
-		}
-		if paused {
-			policy.Paused[accountID] = struct{}{}
-		} else {
-			delete(policy.Paused, accountID)
-		}
-		return nil
+	policy := s.bundle.Policies[normalizeSmartSchedulePlatform(platform)]
+	if policy == nil || !policy.HasAccount(accountID) {
+		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
-	return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+	if policy.Paused == nil {
+		policy.Paused = map[int64]struct{}{}
+	}
+	if paused {
+		policy.Paused[accountID] = struct{}{}
+	} else {
+		delete(policy.Paused, accountID)
+	}
+	return nil
 }
 
 func (s *stubSmartRepo) UpdateSortOrders(_ context.Context, _ int64, platform string, orders []SmartScheduleSortAssignment) error {
@@ -728,17 +779,25 @@ type stubSmartCache struct {
 }
 
 func (s stubSmartCache) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle { return nil }
-func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ time.Time) bool {
+func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ string, _ time.Time) bool {
 	return false
 }
-func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ int, _ time.Time) {}
-func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error                           { return nil }
-func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64) error               { return nil }
-func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) (time.Time, error) {
+func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time) {
+}
+func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error { return nil }
+func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64, _ string) error {
+	return nil
+}
+func (s stubSmartCache) ClearCooldownAllPlatforms(_ context.Context, _ int64, _ int64) error {
+	return nil
+}
+func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time) (time.Time, error) {
 	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
 
-func (s stubSmartCache) ApplyMemberPaused(context.Context, int64, int64, bool) error { return nil }
+func (s stubSmartCache) ApplyMemberPaused(context.Context, int64, int64, string, bool) error {
+	return nil
+}
 
 type admissionCacheRecorder struct {
 	stubSmartCache
@@ -754,18 +813,19 @@ type admissionCacheRecorder struct {
 	markedPin    int
 	clearedPin   int
 	graduated    int
+	resumeUntil  map[string]int64
 }
 
 func (s *admissionCacheRecorder) Lookup(_ context.Context, _ int64) *UserSmartScheduleBundle {
 	return s.bundle
 }
 
-func (s *admissionCacheRecorder) ClearCooldown(_ context.Context, _ int64, _ int64) error {
+func (s *admissionCacheRecorder) ClearCooldown(_ context.Context, _ int64, _ int64, _ string) error {
 	s.cleared++
 	return nil
 }
 
-func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, minutes int, now time.Time) (time.Time, error) {
+func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time) (time.Time, error) {
 	s.setMins = minutes
 	if s.setErr != nil {
 		return time.Time{}, s.setErr
@@ -773,15 +833,15 @@ func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64
 	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
 
-func (s *admissionCacheRecorder) ZeroPairQuality(_ context.Context, _ int64, _ int64, eventType string) {
+func (s *admissionCacheRecorder) ZeroPairQuality(_ context.Context, _ int64, _ int64, _ string, eventType string) {
 	s.zeros = append(s.zeros, eventType)
 }
 
-func (s *admissionCacheRecorder) IsProbing(_ context.Context, accountID, userID int64) bool {
+func (s *admissionCacheRecorder) IsProbing(_ context.Context, accountID, userID int64, _ string) bool {
 	return s.probing[smartPairKey(accountID, userID)]
 }
 
-func (s *admissionCacheRecorder) MarkProbing(_ context.Context, accountID, userID int64) {
+func (s *admissionCacheRecorder) MarkProbing(_ context.Context, accountID, userID int64, _ string) {
 	s.markedProbe++
 	if s.probing == nil {
 		s.probing = map[string]bool{}
@@ -789,33 +849,33 @@ func (s *admissionCacheRecorder) MarkProbing(_ context.Context, accountID, userI
 	s.probing[smartPairKey(accountID, userID)] = true
 }
 
-func (s *admissionCacheRecorder) ClearProbing(_ context.Context, accountID, userID int64) {
+func (s *admissionCacheRecorder) ClearProbing(_ context.Context, accountID, userID int64, _ string) {
 	s.clearedProbe++
 	delete(s.probing, smartPairKey(accountID, userID))
 }
 
-func (s *admissionCacheRecorder) GraduateProbing(ctx context.Context, accountID, userID int64) {
-	if s.IsProbing(ctx, accountID, userID) {
+func (s *admissionCacheRecorder) GraduateProbing(ctx context.Context, accountID, userID int64, platform string) {
+	if s.IsProbing(ctx, accountID, userID, platform) {
 		s.graduated++
 	}
-	s.ClearProbing(ctx, accountID, userID)
+	s.ClearProbing(ctx, accountID, userID, platform)
 }
 
-func (s *admissionCacheRecorder) IsProbingBatch(_ context.Context, accountIDs []int64, userID int64) map[int64]bool {
+func (s *admissionCacheRecorder) IsProbingBatch(_ context.Context, accountIDs []int64, userID int64, _ string) map[int64]bool {
 	out := map[int64]bool{}
 	for _, accountID := range accountIDs {
-		if s.IsProbing(context.Background(), accountID, userID) {
+		if s.IsProbing(context.Background(), accountID, userID, "") {
 			out[accountID] = true
 		}
 	}
 	return out
 }
 
-func (s *admissionCacheRecorder) IsPinned(_ context.Context, accountID, userID int64) bool {
+func (s *admissionCacheRecorder) IsPinned(_ context.Context, accountID, userID int64, _ string) bool {
 	return s.pinned[smartPairKey(accountID, userID)]
 }
 
-func (s *admissionCacheRecorder) MarkPinned(_ context.Context, accountID, userID int64) {
+func (s *admissionCacheRecorder) MarkPinned(_ context.Context, accountID, userID int64, _ string) {
 	s.markedPin++
 	if s.pinned == nil {
 		s.pinned = map[string]bool{}
@@ -823,16 +883,43 @@ func (s *admissionCacheRecorder) MarkPinned(_ context.Context, accountID, userID
 	s.pinned[smartPairKey(accountID, userID)] = true
 }
 
-func (s *admissionCacheRecorder) ClearPinned(_ context.Context, accountID, userID int64) {
+func (s *admissionCacheRecorder) ClearPinned(_ context.Context, accountID, userID int64, _ string) {
 	s.clearedPin++
 	delete(s.pinned, smartPairKey(accountID, userID))
 }
 
-func (s *admissionCacheRecorder) IsPinnedBatch(_ context.Context, accountIDs []int64, userID int64) map[int64]bool {
+func (s *admissionCacheRecorder) IsPinnedBatch(_ context.Context, accountIDs []int64, userID int64, _ string) map[int64]bool {
 	out := map[int64]bool{}
 	for _, accountID := range accountIDs {
-		if s.IsPinned(context.Background(), accountID, userID) {
+		if s.IsPinned(context.Background(), accountID, userID, "") {
 			out[accountID] = true
+		}
+	}
+	return out
+}
+
+func (s *admissionCacheRecorder) PairResumeActive(_ context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	return s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)] > now.Unix()
+}
+
+func (s *admissionCacheRecorder) ClearPairResume(_ context.Context, accountID, userID int64, platform string) {
+	delete(s.resumeUntil, smartPairPlatformKey(accountID, userID, platform))
+}
+
+func (s *admissionCacheRecorder) MarkPairResume(_ context.Context, accountID, userID int64, platform string) error {
+	if s.resumeUntil == nil {
+		s.resumeUntil = map[string]int64{}
+	}
+	s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)] = time.Now().UTC().Add(2 * AccountQualityWindow).Unix()
+	return nil
+}
+
+func (s *admissionCacheRecorder) GetPairResumeUntilBatch(_ context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]PairResumeUntil {
+	out := map[int64]PairResumeUntil{}
+	for _, accountID := range accountIDs {
+		until := s.resumeUntil[smartPairPlatformKey(accountID, userID, platform)]
+		if until > now.Unix() {
+			out[accountID] = PairResumeUntil{WatchUntil: time.Unix(until, 0).UTC()}
 		}
 	}
 	return out
@@ -890,21 +977,21 @@ func TestUserSmartScheduleService_SetPairAdmission(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionResumed, resumed.State)
 	require.Equal(t, 1, cache.cleared)
-	require.True(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
+	require.True(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
+	require.Nil(t, quality.byID[7], "pair 豁免期 must not write Track A resume")
 
 	selectable, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionSelectable, selectable.State)
-	require.False(t, UserQualityResumedChipActive(quality.byID[7], 16, time.Now().UTC()))
-	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "selectable must not write w: grace")
+	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
+	require.Nil(t, quality.byID[7], "selectable must not write Track A grace")
 
 	cooling, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionCooling)
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionCooling, cooling.State)
 	require.NotNil(t, cooling.CooldownUntil)
 	require.Equal(t, 30, cache.setMins)
-	require.Nil(t, quality.byID[7].ResumeUsers)
-	require.Nil(t, quality.byID[7].ResumeWatchingUsers)
+	require.Nil(t, quality.byID[7], "cooling must not write Track A resume")
 
 	_, err = svc.SetPairAdmission(ctx, 7, 16, "bogus")
 	require.Error(t, err)
@@ -955,40 +1042,53 @@ func TestUserSmartScheduleService_SetPairAdmissionCoolingFailsKeepsPaused(t *tes
 	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7), "failed cooling write must not unpause")
 }
 
-func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ int64, _ time.Time) map[int64]time.Time {
+func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ int64, _ string, _ time.Time) map[int64]time.Time {
 	if s.until == nil {
 		return map[int64]time.Time{}
 	}
 	return s.until
 }
 
-func (s stubSmartCache) GetPairQuality(context.Context, int64, int64) *PairQualityLive { return nil }
-func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, int, bool, *int) *PairQualityLive {
+func (s stubSmartCache) GetPairQuality(context.Context, int64, int64, string) *PairQualityLive {
 	return nil
 }
-func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string) {}
-func (s stubSmartCache) GetPairQualityBatch(context.Context, []int64, int64) map[int64]*PairQualityLive {
+func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string, int, bool, *int) *PairQualityLive {
+	return nil
+}
+func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string, string) {}
+func (s stubSmartCache) GetPairQualityBatch(context.Context, []int64, int64, string) map[int64]*PairQualityLive {
 	return map[int64]*PairQualityLive{}
 }
-func (s stubSmartCache) ListPairQualitySnapshots(context.Context, int64, int64, int) []PairQualitySnapshot {
+func (s stubSmartCache) ListPairQualitySnapshots(context.Context, int64, int64, string, int) []PairQualitySnapshot {
 	return nil
 }
-func (s stubSmartCache) ListPairQualityEvents(context.Context, int64, int64, int) []PairQualityEvent {
+func (s stubSmartCache) ListPairQualityEvents(context.Context, int64, int64, string, int) []PairQualityEvent {
 	return nil
 }
-func (s stubSmartCache) AppendPairQualityEvent(context.Context, int64, int64, PairQualityEvent) {}
-func (s stubSmartCache) IsProbing(context.Context, int64, int64) bool                           { return false }
-func (s stubSmartCache) MarkProbing(context.Context, int64, int64)                              {}
-func (s stubSmartCache) ClearProbing(context.Context, int64, int64)                             {}
-func (s stubSmartCache) GraduateProbing(context.Context, int64, int64)                          {}
-func (s stubSmartCache) IsProbingBatch(context.Context, []int64, int64) map[int64]bool {
+func (s stubSmartCache) AppendPairQualityEvent(context.Context, int64, int64, string, PairQualityEvent) {
+}
+func (s stubSmartCache) IsProbing(context.Context, int64, int64, string) bool  { return false }
+func (s stubSmartCache) MarkProbing(context.Context, int64, int64, string)     {}
+func (s stubSmartCache) ClearProbing(context.Context, int64, int64, string)    {}
+func (s stubSmartCache) GraduateProbing(context.Context, int64, int64, string) {}
+func (s stubSmartCache) IsProbingBatch(context.Context, []int64, int64, string) map[int64]bool {
 	return map[int64]bool{}
 }
-func (s stubSmartCache) IsPinned(context.Context, int64, int64) bool  { return false }
-func (s stubSmartCache) MarkPinned(context.Context, int64, int64)     {}
-func (s stubSmartCache) ClearPinned(context.Context, int64, int64)    {}
-func (s stubSmartCache) IsPinnedBatch(context.Context, []int64, int64) map[int64]bool {
+func (s stubSmartCache) IsPinned(context.Context, int64, int64, string) bool { return false }
+func (s stubSmartCache) MarkPinned(context.Context, int64, int64, string)    {}
+func (s stubSmartCache) ClearPinned(context.Context, int64, int64, string)   {}
+func (s stubSmartCache) IsPinnedBatch(context.Context, []int64, int64, string) map[int64]bool {
 	return map[int64]bool{}
+}
+func (s stubSmartCache) PairResumeActive(context.Context, int64, int64, string, time.Time) bool {
+	return false
+}
+func (s stubSmartCache) ClearPairResume(context.Context, int64, int64, string) {}
+func (s stubSmartCache) MarkPairResume(context.Context, int64, int64, string) error {
+	return nil
+}
+func (s stubSmartCache) GetPairResumeUntilBatch(context.Context, []int64, int64, string, time.Time) map[int64]PairResumeUntil {
+	return map[int64]PairResumeUntil{}
 }
 
 func breachedPairLive(p50 int) *PairQualityLive {
@@ -1002,6 +1102,57 @@ func breachedPairLive(p50 int) *PairQualityLive {
 	live := &PairQualityLive{N: n, TTFTMs: ttft, OK: ok}
 	RecomputePairQuality(live)
 	return live
+}
+
+func TestSanitizePoolMembers_OpenAIAllowedOnAntigravityStillRejectedElsewhere(t *testing.T) {
+	t.Parallel()
+	svc := NewUserSmartScheduleService(nil, nil, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformOpenAI},
+		{ID: 8, Platform: PlatformAntigravity},
+	}}, nil, nil)
+
+	got, err := svc.sanitizePoolMembers(context.Background(), 16, PlatformAntigravity, []SmartScheduleAccountMember{
+		{AccountID: 7},
+		{AccountID: 8},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{7, 8}, []int64{got[0].AccountID, got[1].AccountID})
+
+	_, err = svc.sanitizePoolMembers(context.Background(), 16, PlatformAnthropic, []SmartScheduleAccountMember{
+		{AccountID: 7},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_PLATFORM_MISMATCH")
+}
+
+func TestPutPlatform_DualMembershipDoesNotRemoveOtherPool(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformOpenAI, enabledSmartPolicy(7, 0, nil))}
+	svc := NewUserSmartScheduleService(repo, nil, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformOpenAI},
+	}}, nil, nil)
+	_, err := svc.PutPlatform(ctx, 16, PlatformAntigravity, SmartSchedulePlatformWrite{
+		Enabled:         true,
+		CooldownMinutes: 15,
+		Accounts:        []SmartScheduleAccountMember{{AccountID: 7}},
+	})
+	require.NoError(t, err)
+	require.True(t, repo.bundle.Policies[PlatformOpenAI].HasAccount(7))
+	require.True(t, repo.bundle.Policies[PlatformAntigravity].HasAccount(7))
+}
+
+func TestObservePairCompletion_DualMembershipWithoutPlatformSkips(t *testing.T) {
+	t.Parallel()
+	cache := &observeCacheStub{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
+			PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
+		}},
+	}
+	svc := NewUserSmartScheduleService(nil, cache, nil, nil, nil)
+	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
+	require.Empty(t, cache.ingested)
 }
 
 func TestUserSmartScheduleService_SortOrderPersistsOnMembership(t *testing.T) {
@@ -1190,4 +1341,75 @@ func TestUserSmartScheduleService_DropsDeletedPoolMembers(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "SMART_SCHEDULE_UNKNOWN_ACCOUNT", infraerrors.Reason(err))
 	})
+}
+
+func TestAdmitsScheduleUser_PairResumeDoesNotLeakAcrossPools(t *testing.T) {
+	t.Parallel()
+	p50 := 50
+	oai := &Account{ID: 7, Platform: PlatformOpenAI}
+	lookup := &memorySmartLookup{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, &p50),
+			PlatformAntigravity: enabledSmartPolicy(7, 0, &p50),
+		}},
+		pair:        map[string]*PairQualityLive{smartPairKey(7, 16): breachedPairLive(400)},
+		resumeUntil: map[string]int64{smartPairPlatformKey(7, 16, PlatformAntigravity): time.Now().UTC().Add(20 * time.Minute).Unix()},
+	}
+	agCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	agCtx = context.WithValue(agCtx, ctxkey.Group, &Group{ID: 15, Platform: PlatformAntigravity, Status: StatusActive, Hydrated: true})
+	oaiCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	oaiCtx = context.WithValue(oaiCtx, ctxkey.Group, &Group{ID: 19, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true})
+
+	require.True(t, admitsScheduleUser(agCtx, oai, nil, lookup), "AG 豁免期 must fail-open AG pool")
+	require.Equal(t, 0, lookup.startCalls)
+	require.False(t, admitsScheduleUser(oaiCtx, oai, nil, lookup), "openai pool must still evaluate and cool")
+	require.Equal(t, 1, lookup.startCalls)
+}
+
+func TestSetPairAdmission_OmittedPlatformOnlyTouchesAccountPlatform(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cache := &admissionCacheRecorder{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
+			PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
+		}},
+		resumeUntil: map[string]int64{
+			smartPairPlatformKey(7, 16, PlatformAntigravity): time.Now().UTC().Add(20 * time.Minute).Unix(),
+		},
+	}
+	svc := NewUserSmartScheduleService(nil, cache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformOpenAI},
+	}}, &liveQualityCacheStub{}, nil)
+	_, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionResumed)
+	require.NoError(t, err)
+	require.True(t, cache.PairResumeActive(ctx, 7, 16, PlatformOpenAI, time.Now().UTC()))
+	require.True(t, cache.PairResumeActive(ctx, 7, 16, PlatformAntigravity, time.Now().UTC()), "omitted platform must not clear the other pool")
+}
+
+func TestGetPairQualityBatch_DualMembershipRequiresPlatform(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p50 := 80
+	cache := &observeCacheStub{
+		bundle: &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{
+			PlatformOpenAI:      enabledSmartPolicy(7, 0, nil),
+			PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
+		}},
+		live: map[string]*PairQualityLive{smartPairKey(7, 16): ApplyPairQualityIngest(nil, 3, true, &p50)},
+	}
+	svc := NewUserSmartScheduleService(&stubSmartRepo{bundle: cache.bundle}, cache, nil, nil, nil)
+
+	skipped, err := svc.GetPairQualityBatch(ctx, 16, []int64{7}, "")
+	require.NoError(t, err)
+	_, leaked := skipped.Pairs["7"]
+	require.False(t, leaked, "dual membership without platform must not collapse by account id")
+
+	oaiBatch, err := svc.GetPairQualityBatch(ctx, 16, []int64{7}, PlatformOpenAI)
+	require.NoError(t, err)
+	require.Contains(t, oaiBatch.Pairs, "7")
+
+	_, err = svc.GetPairQualityDetailForAccount(ctx, 16, 7)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_PLATFORM_REQUIRED")
 }

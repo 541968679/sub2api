@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -16,8 +17,11 @@ const (
 	smartScheduleCooldownKeyPrefix = "smart-schedule:cooldown:"
 	smartScheduleProbeKeyPrefix    = "smart-schedule:probe:"
 	smartSchedulePinnedKeyPrefix   = "smart-schedule:pinned:"
+	smartScheduleResumeKeyPrefix   = "smart-schedule:resume:"
 	smartScheduleCooldownFieldPref = "u:"
+	smartScheduleResumeWatchPref   = "w:"
 	smartScheduleCooldownTTLBuffer = 2 * time.Hour
+	smartScheduleResumeTTL         = 40 * time.Minute
 )
 
 type userSmartScheduleCache struct {
@@ -34,20 +38,28 @@ func smartScheduleUserKey(userID int64) string {
 	return smartScheduleUserKeyPrefix + strconv.FormatInt(userID, 10)
 }
 
-func smartScheduleCooldownKey(accountID int64) string {
-	return smartScheduleCooldownKeyPrefix + strconv.FormatInt(accountID, 10)
+func smartScheduleCooldownKey(platform string, accountID int64) string {
+	return smartScheduleCooldownKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
 }
 
 func smartScheduleCooldownField(userID int64) string {
 	return smartScheduleCooldownFieldPref + strconv.FormatInt(userID, 10)
 }
 
-func smartScheduleProbeKey(accountID int64) string {
-	return smartScheduleProbeKeyPrefix + strconv.FormatInt(accountID, 10)
+func smartScheduleProbeKey(platform string, accountID int64) string {
+	return smartScheduleProbeKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
 }
 
-func smartSchedulePinnedKey(accountID int64) string {
-	return smartSchedulePinnedKeyPrefix + strconv.FormatInt(accountID, 10)
+func smartSchedulePinnedKey(platform string, accountID int64) string {
+	return smartSchedulePinnedKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
+}
+
+func smartScheduleResumeKey(platform string, accountID int64) string {
+	return smartScheduleResumeKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
+}
+
+func smartScheduleResumeWatchingField(userID int64) string {
+	return smartScheduleResumeWatchPref + strconv.FormatInt(userID, 10)
 }
 
 func (c *userSmartScheduleCache) Lookup(ctx context.Context, userID int64) *service.UserSmartScheduleBundle {
@@ -81,34 +93,34 @@ func (c *userSmartScheduleCache) Invalidate(ctx context.Context, userID int64) e
 	return c.rdb.Del(ctx, smartScheduleUserKey(userID)).Err()
 }
 
-func (c *userSmartScheduleCache) CooldownActive(ctx context.Context, accountID, userID int64, now time.Time) bool {
+func (c *userSmartScheduleCache) CooldownActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return false
 	}
-	raw, err := c.rdb.HGet(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Result()
+	raw, err := c.rdb.HGet(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Result()
 	if err != nil || raw == "" {
 		return false
 	}
 	until, parseErr := strconv.ParseInt(raw, 10, 64)
 	if parseErr != nil || until <= now.Unix() {
 		if until > 0 && until <= now.Unix() {
-			c.expirePairCooldown(ctx, accountID, userID)
+			c.expirePairCooldown(ctx, accountID, userID, platform)
 		}
 		return false
 	}
 	return true
 }
 
-func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) {
+func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	if c.IsPinned(ctx, accountID, userID) {
+	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
 	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
 	until := now.Add(time.Duration(minutes) * time.Minute).Unix()
-	key := smartScheduleCooldownKey(accountID)
+	key := smartScheduleCooldownKey(platform, accountID)
 	field := smartScheduleCooldownField(userID)
 	added, err := c.rdb.HSetNX(ctx, key, field, until).Result()
 	if err != nil || !added {
@@ -116,7 +128,7 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 	}
 	ttl := time.Duration(minutes)*time.Minute + smartScheduleCooldownTTLBuffer
 	c.extendCooldownTTL(ctx, key, ttl)
-	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 		Ts:    now.Unix(),
 		Type:  service.PairQualityEventCooldownStart,
 		Until: &until,
@@ -124,7 +136,7 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 }
 
 // SetCooldown overwrites the pair cooldown (admin switcher). Hot path stays HSETNX.
-func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, minutes int, now time.Time) (time.Time, error) {
+func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error) {
 	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
 	until := now.Add(time.Duration(minutes) * time.Minute)
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
@@ -134,13 +146,13 @@ func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, use
 		now = time.Now().UTC()
 		until = now.Add(time.Duration(minutes) * time.Minute)
 	}
-	key := smartScheduleCooldownKey(accountID)
+	key := smartScheduleCooldownKey(platform, accountID)
 	untilUnix := until.Unix()
 	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), untilUnix).Err(); err != nil {
 		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
-	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 		Ts:    now.Unix(),
 		Type:  service.PairQualityEventCooldownStart,
 		Until: &untilUnix,
@@ -149,7 +161,7 @@ func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, use
 }
 
 // ApplyMemberPaused write-through updates the user bundle so pause does not depend on a cache miss.
-func (c *userSmartScheduleCache) ApplyMemberPaused(ctx context.Context, userID, accountID int64, paused bool) error {
+func (c *userSmartScheduleCache) ApplyMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error {
 	if c == nil || userID <= 0 || accountID <= 0 {
 		return nil
 	}
@@ -159,7 +171,7 @@ func (c *userSmartScheduleCache) ApplyMemberPaused(ctx context.Context, userID, 
 			var stored cachedSmartScheduleBundle
 			if json.Unmarshal(raw, &stored) == nil {
 				bundle := stored.toBundle()
-				applyPausedToCachedBundle(bundle, accountID, paused)
+				applyPausedToCachedBundle(bundle, accountID, platform, paused)
 				c.storeUserBundle(ctx, userID, bundle)
 				return nil
 			}
@@ -175,28 +187,38 @@ func (c *userSmartScheduleCache) ApplyMemberPaused(ctx context.Context, userID, 
 	if bundle == nil {
 		return nil
 	}
-	applyPausedToCachedBundle(bundle, accountID, paused)
+	applyPausedToCachedBundle(bundle, accountID, platform, paused)
 	c.storeUserBundle(ctx, userID, bundle)
 	return nil
 }
 
-func applyPausedToCachedBundle(bundle *service.UserSmartScheduleBundle, accountID int64, paused bool) {
+func applyPausedToCachedBundle(bundle *service.UserSmartScheduleBundle, accountID int64, platform string, paused bool) {
 	if bundle == nil || accountID <= 0 {
 		return
 	}
-	for _, policy := range bundle.Policies {
+	platform = strings.ToLower(strings.TrimSpace(platform))
+	if platform != "" {
+		policy := bundle.Policy(platform)
 		if policy == nil || !policy.HasAccount(accountID) {
-			continue
+			return
 		}
-		if policy.Paused == nil {
-			policy.Paused = map[int64]struct{}{}
-		}
-		if paused {
-			policy.Paused[accountID] = struct{}{}
-		} else {
-			delete(policy.Paused, accountID)
-		}
+		applyPausedToPolicy(policy, accountID, paused)
+		return
 	}
+}
+
+func applyPausedToPolicy(policy *service.SmartSchedulePlatformPolicy, accountID int64, paused bool) {
+	if policy == nil || accountID <= 0 {
+		return
+	}
+	if policy.Paused == nil {
+		policy.Paused = map[int64]struct{}{}
+	}
+	if paused {
+		policy.Paused[accountID] = struct{}{}
+		return
+	}
+	delete(policy.Paused, accountID)
 }
 
 // extendCooldownTTL only sets or lengthens the HASH TTL. A short cooldown
@@ -214,16 +236,16 @@ func (c *userSmartScheduleCache) extendCooldownTTL(ctx context.Context, key stri
 	}
 }
 
-func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, userID int64) error {
+func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, userID int64, platform string) error {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return nil
 	}
-	n, err := c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Result()
+	n, err := c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Result()
 	if err != nil {
 		return err
 	}
 	if n > 0 {
-		c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 			Ts:   time.Now().UTC().Unix(),
 			Type: service.PairQualityEventCooldownEnd,
 		})
@@ -231,111 +253,231 @@ func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, u
 	return nil
 }
 
-func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) ClearCooldownAllPlatforms(ctx context.Context, accountID, userID int64) error {
+	if c == nil || accountID <= 0 || userID <= 0 {
+		return nil
+	}
+	var first error
+	for _, platform := range service.AllowedQuotaPlatforms {
+		if err := c.ClearCooldown(ctx, accountID, userID, platform); err != nil && first == nil {
+			first = err
+		}
+		c.ClearProbing(ctx, accountID, userID, platform)
+		c.ClearPinned(ctx, accountID, userID, platform)
+		c.ClearPairResume(ctx, accountID, userID, platform)
+		c.ZeroPairQuality(ctx, accountID, userID, platform, "")
+	}
+	return first
+}
+
+func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || c.rdb == nil {
 		return
 	}
-	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID)).Err()
-	if c.IsPinned(ctx, accountID, userID) {
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
+	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
-	c.ZeroPairQuality(ctx, accountID, userID, service.PairQualityEventExpiryZero)
-	c.MarkProbing(ctx, accountID, userID)
-	c.clearPairResumeGrace(ctx, accountID, userID)
+	c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+	c.MarkProbing(ctx, accountID, userID, platform)
+	c.ClearPairResume(ctx, accountID, userID, platform)
 }
 
-// clearPairResumeGrace drops leftover 豁免期 / 立即恢复 u:/w: when entering probe.
-func (c *userSmartScheduleCache) clearPairResumeGrace(ctx context.Context, accountID, userID int64) {
-	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
-		return
-	}
-	_ = c.rdb.HDel(ctx, accountQualityResumeKey(accountID),
-		accountQualityResumeUserField(userID),
-		accountQualityResumeWatchingField(userID),
-	).Err()
-}
-
-func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64) bool {
+func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64, platform string) bool {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return false
 	}
-	raw, err := c.rdb.HGet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID)).Result()
+	raw, err := c.rdb.HGet(ctx, smartScheduleProbeKey(platform, accountID), smartScheduleCooldownField(userID)).Result()
 	return err == nil && raw != ""
 }
 
-func (c *userSmartScheduleCache) MarkProbing(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) MarkProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
 	now := time.Now().UTC()
-	if err := c.rdb.HSet(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
+	if err := c.rdb.HSet(ctx, smartScheduleProbeKey(platform, accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
 		return
 	}
-	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 		Ts:   now.Unix(),
 		Type: service.PairQualityEventProbeEnter,
 	})
 }
 
-func (c *userSmartScheduleCache) ClearProbing(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) ClearProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	_ = c.rdb.HDel(ctx, smartScheduleProbeKey(accountID), smartScheduleCooldownField(userID)).Err()
+	_ = c.rdb.HDel(ctx, smartScheduleProbeKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 }
 
-func (c *userSmartScheduleCache) GraduateProbing(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) GraduateProbing(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	if !c.IsProbing(ctx, accountID, userID) {
+	if !c.IsProbing(ctx, accountID, userID, platform) {
 		return
 	}
-	c.ClearProbing(ctx, accountID, userID)
-	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+	c.ClearProbing(ctx, accountID, userID, platform)
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 		Ts:   time.Now().UTC().Unix(),
 		Type: service.PairQualityEventProbeGraduate,
 	})
 }
 
-func (c *userSmartScheduleCache) IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool {
-	return c.hashMarkBatch(ctx, accountIDs, userID, smartScheduleProbeKey)
+func (c *userSmartScheduleCache) IsProbingBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]bool {
+	return c.hashMarkBatch(ctx, accountIDs, userID, platform, smartScheduleProbeKey)
 }
 
-func (c *userSmartScheduleCache) IsPinned(ctx context.Context, accountID, userID int64) bool {
+func (c *userSmartScheduleCache) IsPinned(ctx context.Context, accountID, userID int64, platform string) bool {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return false
 	}
-	raw, err := c.rdb.HGet(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID)).Result()
+	raw, err := c.rdb.HGet(ctx, smartSchedulePinnedKey(platform, accountID), smartScheduleCooldownField(userID)).Result()
 	return err == nil && raw != ""
 }
 
-func (c *userSmartScheduleCache) MarkPinned(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) MarkPinned(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
 	now := time.Now().UTC()
-	if err := c.rdb.HSet(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
+	if err := c.rdb.HSet(ctx, smartSchedulePinnedKey(platform, accountID), smartScheduleCooldownField(userID), now.Unix()).Err(); err != nil {
 		return
 	}
-	c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 		Ts:   now.Unix(),
 		Type: service.PairQualityEventPinEnter,
 	})
 }
 
-func (c *userSmartScheduleCache) ClearPinned(ctx context.Context, accountID, userID int64) {
+func (c *userSmartScheduleCache) ClearPinned(ctx context.Context, accountID, userID int64, platform string) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	_ = c.rdb.HDel(ctx, smartSchedulePinnedKey(accountID), smartScheduleCooldownField(userID)).Err()
+	_ = c.rdb.HDel(ctx, smartSchedulePinnedKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 }
 
-func (c *userSmartScheduleCache) IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]bool {
-	return c.hashMarkBatch(ctx, accountIDs, userID, smartSchedulePinnedKey)
+func (c *userSmartScheduleCache) IsPinnedBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]bool {
+	return c.hashMarkBatch(ctx, accountIDs, userID, platform, smartSchedulePinnedKey)
 }
 
-func (c *userSmartScheduleCache) hashMarkBatch(ctx context.Context, accountIDs []int64, userID int64, keyFn func(int64) string) map[int64]bool {
+func (c *userSmartScheduleCache) PairResumeActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return false
+	}
+	vals, err := c.rdb.HMGet(ctx, smartScheduleResumeKey(platform, accountID),
+		smartScheduleCooldownField(userID),
+		smartScheduleResumeWatchingField(userID),
+	).Result()
+	if err != nil {
+		return false
+	}
+	for _, raw := range vals {
+		until, ok := parseUnixField(raw)
+		if ok && until > now.Unix() {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *userSmartScheduleCache) MarkPairResume(ctx context.Context, accountID, userID int64, platform string) error {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	key := smartScheduleResumeKey(platform, accountID)
+	pipe := c.rdb.TxPipeline()
+	pipe.HSet(ctx, key, map[string]any{
+		smartScheduleCooldownField(userID):       now.Add(service.AccountQualityWindow).Unix(),
+		smartScheduleResumeWatchingField(userID): now.Add(2 * service.AccountQualityWindow).Unix(),
+	})
+	pipe.Expire(ctx, key, smartScheduleResumeTTL)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (c *userSmartScheduleCache) ClearPairResume(ctx context.Context, accountID, userID int64, platform string) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartScheduleResumeKey(platform, accountID),
+		smartScheduleCooldownField(userID),
+		smartScheduleResumeWatchingField(userID),
+	).Err()
+}
+
+func (c *userSmartScheduleCache) GetPairResumeUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]service.PairResumeUntil {
+	out := map[int64]service.PairResumeUntil{}
+	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
+		return out
+	}
+	ids := make([]int64, 0, len(accountIDs))
+	seen := map[int64]struct{}{}
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, ok := seen[accountID]; ok {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		ids = append(ids, accountID)
+	}
+	if len(ids) == 0 {
+		return out
+	}
+	pipe := c.rdb.Pipeline()
+	cmds := make([]*redis.SliceCmd, len(ids))
+	for i, accountID := range ids {
+		cmds[i] = pipe.HMGet(ctx, smartScheduleResumeKey(platform, accountID),
+			smartScheduleCooldownField(userID),
+			smartScheduleResumeWatchingField(userID),
+		)
+	}
+	_, _ = pipe.Exec(ctx)
+	for i, cmd := range cmds {
+		vals, err := cmd.Result()
+		if err != nil || len(vals) < 2 {
+			continue
+		}
+		chip, chipOK := parseUnixField(vals[0])
+		watch, watchOK := parseUnixField(vals[1])
+		live := service.PairResumeUntil{}
+		if chipOK && chip > now.Unix() {
+			live.ChipUntil = time.Unix(chip, 0).UTC()
+		}
+		if watchOK && watch > now.Unix() {
+			live.WatchUntil = time.Unix(watch, 0).UTC()
+		}
+		if live.Active(now) {
+			out[ids[i]] = live
+		}
+	}
+	return out
+}
+
+func parseUnixField(raw any) (int64, bool) {
+	switch v := raw.(type) {
+	case string:
+		if v == "" {
+			return 0, false
+		}
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n <= 0 {
+			return 0, false
+		}
+		return n, true
+	case []byte:
+		return parseUnixField(string(v))
+	default:
+		return 0, false
+	}
+}
+
+func (c *userSmartScheduleCache) hashMarkBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, keyFn func(string, int64) string) map[int64]bool {
 	out := map[int64]bool{}
 	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 || keyFn == nil {
 		return out
@@ -358,7 +500,7 @@ func (c *userSmartScheduleCache) hashMarkBatch(ctx context.Context, accountIDs [
 	pipe := c.rdb.Pipeline()
 	cmds := make([]*redis.StringCmd, len(ids))
 	for i, accountID := range ids {
-		cmds[i] = pipe.HGet(ctx, keyFn(accountID), smartScheduleCooldownField(userID))
+		cmds[i] = pipe.HGet(ctx, keyFn(platform, accountID), smartScheduleCooldownField(userID))
 	}
 	_, _ = pipe.Exec(ctx)
 	for i, cmd := range cmds {
@@ -371,7 +513,7 @@ func (c *userSmartScheduleCache) hashMarkBatch(ctx context.Context, accountIDs [
 	return out
 }
 
-func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, now time.Time) map[int64]time.Time {
+func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]time.Time {
 	out := map[int64]time.Time{}
 	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
 		return out
@@ -394,7 +536,7 @@ func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, acco
 	pipe := c.rdb.Pipeline()
 	cmds := make([]*redis.StringCmd, len(ids))
 	for i, accountID := range ids {
-		cmds[i] = pipe.HGet(ctx, smartScheduleCooldownKey(accountID), smartScheduleCooldownField(userID))
+		cmds[i] = pipe.HGet(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID))
 	}
 	_, _ = pipe.Exec(ctx)
 	nowUnix := now.Unix()
@@ -406,7 +548,7 @@ func (c *userSmartScheduleCache) GetCooldownUntilBatch(ctx context.Context, acco
 		until, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil || until <= nowUnix {
 			if until > 0 && until <= nowUnix {
-				c.expirePairCooldown(ctx, ids[i], userID)
+				c.expirePairCooldown(ctx, ids[i], userID, platform)
 			}
 			continue
 		}

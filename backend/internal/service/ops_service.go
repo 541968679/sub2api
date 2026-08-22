@@ -240,6 +240,7 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 		s.pairQuality.ObservePairCompletion(ctx, PairQualityObservation{
 			AccountID: *entry.AccountID,
 			UserID:    *entry.UserID,
+			Platform:  smartScheduleLookupPlatformFromCtx(ctx, &Account{ID: *entry.AccountID, Platform: entry.Platform}),
 			Success:   false,
 		})
 	}

@@ -210,7 +210,7 @@ func (c *smartScheduleDeleteCacheRecorder) Invalidate(_ context.Context, userID 
 	return nil
 }
 
-func (c *smartScheduleDeleteCacheRecorder) ClearCooldown(_ context.Context, accountID, userID int64) error {
+func (c *smartScheduleDeleteCacheRecorder) ClearCooldownAllPlatforms(_ context.Context, accountID, userID int64) error {
 	c.cleared = append(c.cleared, [2]int64{accountID, userID})
 	return nil
 }

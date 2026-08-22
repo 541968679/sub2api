@@ -33,8 +33,9 @@ type copySmartScheduleRequest struct {
 }
 
 type resumeSmartScheduleRequest struct {
-	UserID int64  `json:"user_id"`
-	State  string `json:"state"`
+	UserID   int64  `json:"user_id"`
+	State    string `json:"state"`
+	Platform string `json:"platform"`
 }
 
 func (h *UserHandler) smartScheduleService() *service.UserSmartScheduleService {
@@ -209,6 +210,7 @@ func (h *UserHandler) CopyUserSmartSchedule(c *gin.Context) {
 
 type batchSmartSchedulePairQualityRequest struct {
 	AccountIDs []int64 `json:"account_ids"`
+	Platform   string  `json:"platform"`
 }
 
 // GetUserSmartSchedulePairQualityBatch POST /admin/users/:id/smart-schedule/pair-quality
@@ -232,7 +234,7 @@ func (h *UserHandler) GetUserSmartSchedulePairQualityBatch(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
 		return
 	}
-	batch, err := svc.GetPairQualityBatch(c.Request.Context(), userID, req.AccountIDs)
+	batch, err := svc.GetPairQualityBatch(c.Request.Context(), userID, req.AccountIDs, req.Platform)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -318,7 +320,7 @@ func (h *AccountHandler) ResumeSmartSchedule(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	result, err := h.smartSchedule.SetPairAdmission(c.Request.Context(), accountID, req.UserID, req.State)
+	result, err := h.smartSchedule.SetPairAdmission(c.Request.Context(), accountID, req.UserID, req.State, req.Platform)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

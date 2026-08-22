@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/redis/go-redis/v9"
 )
@@ -28,7 +29,7 @@ const (
 	accountSlotKeyPrefix = "concurrency:account:"
 	// 格式: concurrency:user:{userID}
 	userSlotKeyPrefix = "concurrency:user:"
-	// 格式: concurrency:account_user:{accountID}:{userID}
+	// 格式: concurrency:account_user:{accountID}:{userID}:{platform}
 	accountUserSlotKeyPrefix = "concurrency:account_user:"
 	// 格式: concurrency:api_key:{apiKeyID}
 	apiKeySlotKeyPrefix = "concurrency:api_key:"
@@ -267,8 +268,17 @@ func userSlotKey(userID int64) string {
 	return fmt.Sprintf("%s%d", userSlotKeyPrefix, userID)
 }
 
-func accountUserSlotKey(accountID, userID int64) string {
-	return fmt.Sprintf("%s%d:%d", accountUserSlotKeyPrefix, accountID, userID)
+func scheduleLookupPlatformFromCtx(ctx context.Context) string {
+	if ctx != nil {
+		if platform, ok := ctx.Value(ctxkey.ScheduleLookupPlatform).(string); ok {
+			return service.SmartScheduleRedisPlatform(platform)
+		}
+	}
+	return service.SmartScheduleRedisPlatform("")
+}
+
+func accountUserSlotKey(ctx context.Context, accountID, userID int64) string {
+	return fmt.Sprintf("%s%d:%d:%s", accountUserSlotKeyPrefix, accountID, userID, scheduleLookupPlatformFromCtx(ctx))
 }
 
 func apiKeySlotKey(apiKeyID int64) string {
@@ -375,7 +385,7 @@ func (c *concurrencyCache) GetUserConcurrency(ctx context.Context, userID int64)
 }
 
 func (c *concurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
-	key := accountUserSlotKey(accountID, userID)
+	key := accountUserSlotKey(ctx, accountID, userID)
 	if maxConcurrency <= 0 {
 		// Count-only occupancy: ZADD without a cap. Do not reuse acquireScript
 		// (max=0 would reject) and do not treat 999 as a backend limit.
@@ -394,7 +404,7 @@ func (c *concurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID
 }
 
 func (c *concurrencyCache) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
-	key := accountUserSlotKey(accountID, userID)
+	key := accountUserSlotKey(ctx, accountID, userID)
 	return c.rdb.ZRem(ctx, key, requestID).Err()
 }
 
@@ -416,7 +426,7 @@ func (c *concurrencyCache) GetAccountUserConcurrencyBatch(ctx context.Context, a
 	}
 	cmds := make([]pairCmd, 0, len(accountIDs))
 	for _, accountID := range accountIDs {
-		slotKey := accountUserSlotKey(accountID, userID)
+		slotKey := accountUserSlotKey(ctx, accountID, userID)
 		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
 		cmds = append(cmds, pairCmd{
 			accountID: accountID,

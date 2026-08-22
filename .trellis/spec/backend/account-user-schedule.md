@@ -17,9 +17,9 @@
 - `Account.QualityGateBlocksUser(userID int64, stats *AccountQualityStats) bool`
 - `Account.AdmitsScheduleUser(userID int64, stats *AccountQualityStats) bool` — identity plus quality gate.
 - `Account.PairMaxConcurrency(userID int64) int` — `0` means no pair cap.
-- Redis pair slot: `concurrency:account_user:{accountID}:{userID}` (zset, same Lua as account/user slots).
+- Redis pair slot: `concurrency:account_user:{accountID}:{userID}:{platform}` (zset, same Lua as account/user slots). Empty platform is `_`.
 - Redis live quality: `account-quality:last-n:{accountID}` is the \(Q_a\) source of truth (site-wide N, all users; TTL 7d). Completions ingest and project JSON to `account-quality:live:{accountID}` (no resume fields). Reader = selection `Get` (prefers last-N, then legacy live JSON). Cache miss / nil stats fail open. The 5-minute tick must not `Replace` live from a 15-minute SQL window. Pair cooldown stays on \(Q_{a,u}\), not this account cell. Admin user-list quality is a separate Redis window `user-quality:last-n:{userID}` (\(Q_u\), same N, this user across all accounts) and does not feed gates or hard-close.
-- Redis resume overlay: `account-quality:resume:{accountID}` (HASH, TTL 20m). `MarkUserResume` / `MarkAccountResume` write HASH fields only (`u:{userID}`, `a`). `Get` merges the overlay onto last-N / live stats. Do not SCAN-delete last-N keys. Resume HASH must survive even when an account has no last-N key. Legacy live JSON `resume_users` / `account_resume_until` is migrated with `HSETNX` then stripped from the live key.
+- Redis resume overlay (Track A): `account-quality:resume:{accountID}` (HASH, TTL 20m). `MarkUserResume` / `MarkAccountResume` write HASH fields only (`u:{userID}`, `a`). `Get` merges the overlay onto last-N / live stats. Do not SCAN-delete last-N keys. Resume HASH must survive even when an account has no last-N key. Legacy live JSON `resume_users` / `account_resume_until` is migrated with `HSETNX` then stripped from the live key. This overlay is **not** the smart-schedule 豁免期.
 - Admin update JSON fields: `allow_user_ids`, `deny_user_ids`, `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, `user_quality_gate_patch`.
 - Legacy write still accepted: `user_schedule_mode` + `schedule_user_ids` (replaces one list, does not clear caps or gates).
 - Admin UI may save/apply the site-wide quality threshold template (`GET/PUT /admin/settings/quality-hard-close` metric fields). The template is not stored per user and must not include `user_id`. Apply fills the current gate form only; persist still goes through `user_quality_gates` / `user_quality_gate_patch`. User-gate forms expose p50 / success rate / two sample floors / condition. They do not have `pause_minutes`. **立即恢复** (`POST /admin/accounts/:id/quality-resume` `{user_id}`) keeps the gate and writes a 15-minute resume-HASH grace (`u:{userID}`). While the grace is active, `QualityGateBlocksUser` does not block that pair. Account hard-close **立即恢复调度** / `recover-state` writes HASH field `a` (`account_resume_until` after merge) so the next tick does not re-pause on the same window.
@@ -125,40 +125,41 @@ if pairFull {
 
 ### 1. Scope / Trigger
 
-- Trigger: user-page per-`account.Platform` closed pool + quality + pair cooldown + pool-member cap. Cross-layer: two SQL tables, user Redis cache, pair cooldown HASH, pair-quality windows, every `admitsScheduleUser` path, UsersView modal.
+- Trigger: user-page per-platform closed pool + quality + pair cooldown + pool-member cap. Cross-layer: two SQL tables, user Redis cache, pair cooldown HASH, pair-quality windows, every `admitsScheduleUser` path, UsersView modal.
 - Independent of `account_schedule_users`. Do not write this policy onto shared account scheduler snapshots. Do not fold into `IsSchedulable()` or `SetTempUnschedulable`.
-- Selection key is `account.Platform` (mixed-scheduling Antigravity accounts use the antigravity policy).
+- Lookup key is `SmartScheduleLookupPlatform(account, hint)`: OpenAI + (Claude-GPT bridge or AG-group) → `antigravity`; otherwise `account.Platform`. Never fall back across pools. Scheduler eligibility for bridge stays `account.Platform == openai`.
 - Track A account quality (`account-quality:live`, 15m / 5min cells, hard-close) is unchanged. Smart-schedule cooldown must not read that live quality number.
-- Track B pair quality `Q_{a,u}` is `(account_id, user_id)` only and feeds smart-schedule cooldown + the pool 配对质量 column.
+- Track B pair quality `Q_{a,u,p}` is `(account_id, user_id, platform)` and feeds smart-schedule cooldown + the pool 配对质量 column. openai and antigravity pools are fully independent.
 
 ### 2. Signatures
 
 - DB `user_smart_schedule_policies`: unique `(user_id, platform)`; `enabled bool`; quality columns same shape as pair gates; one window size N stored in both `quality_min_success_samples` and `quality_min_ttft_samples` (default 10, clamp **1–100**). API field `quality_window_samples` (alias `quality_window_n`). Probe in-flight: `probe_concurrency_mode` (`follow_n` default / `custom`) + optional `probe_concurrency` (1–100, required when custom). This is **not** `account_quality_window_n`. `cooldown_minutes` 1–1440 default 15. Platforms: `anthropic|openai|gemini|antigravity|grok`.
-- DB `user_smart_schedule_accounts`: PK `(user_id, account_id)`; redundant `platform`; `max_concurrency` null or ≥1; `paused bool` default false (migration 207). Member `account.platform` must equal row `platform`. CASCADE from users/accounts. PUT replace-all restores `paused` for members that remain. Client writes ignore `paused`.
-- Domain: `SmartSchedulePolicy` / `EnabledPolicy(userID, platform)` — nil when missing, disabled, or `MemberCount()==0`.
+- DB `user_smart_schedule_accounts`: PK `(user_id, platform, account_id)` (migration 211; do not edit 202/204/207/208). Dual membership allowed. `max_concurrency` null or ≥1; `paused bool` default false (migration 207). AG tab may hold `account.IsOpenAI()` members; other tabs stay platform-locked. CASCADE from users/accounts. PUT replace-all is per-platform and must not delete the other pool's row. Client writes ignore `paused`.
+- Domain: `SmartSchedulePolicy` / `EnabledPolicy(userID, platform)` — nil when missing, disabled, or `MemberCount()==0`. AG nil/empty/disabled fail-opens to account-side allow/deny; never fall back to the openai pool.
 - Redis user cache: `smart-schedule:user:{userID}` JSON of all platforms; invalidate on PUT/copy.
-- Redis cooldown: `smart-schedule:cooldown:{accountID}` HASH `u:{userID}=untilUnix`. Hot-path `StartCooldown` is `HSETNX` only (no extend). Admin switcher `SetCooldown` uses `HSET` overwrite. TTL may only be lengthened, never shortened (other users share the key).
-- Redis pair quality: `smart-schedule:pair-quality:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{accountID}:{userID}` (TTL 7d).
-- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable|pinned`; omitted `state` is `resumed` (豁免期 write default, **not** `pinned`, **not** a pause-lift default, and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{accountID}` field `u:{userID}`. Redis pin HASH: `smart-schedule:pinned:{accountID}` field `u:{userID}`, **no TTL**. Miss / no mark = not probing / not pinned (no deploy backfill). GET hydrates `pinned: true`. Do **not** reuse `resumed` for long-term exemption.
+- Redis cooldown: `smart-schedule:cooldown:{platform}:{accountID}` HASH `u:{userID}=untilUnix`. Hot-path `StartCooldown` is `HSETNX` only (no extend). Admin switcher `SetCooldown` uses `HSET` overwrite. TTL may only be lengthened, never shortened (other users share the key). Platform is in the KEY so one pool's TTL cannot cut the other.
+- Redis pair quality: `smart-schedule:pair-quality:{platform}:{accountID}` HASH `u:{userID}` = two FIFO windows (`W_ttft`, `W_ok`). Trend list `smart-schedule:pair-quality-trend:{platform}:{accountID}:{userID}` (TTL 24h). Event list `smart-schedule:pair-quality-events:{platform}:{accountID}:{userID}` (TTL 7d).
+- Redis pair 豁免期: `smart-schedule:resume:{platform}:{accountID}` HASH `u:{userID}` + `w:{userID}` (TTL 40m). Same 15m/30m grace as Track A, but keyed by pool platform. Do not read or write `account-quality:resume` from smart-schedule paths.
+- Admin: `GET /admin/users/:id/smart-schedule`; `PUT /admin/users/:id/smart-schedule/:platform`; `POST .../copy` `{from_platform}`; `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?, platform?}`. Pair quality: pool member `pair_quality` + `will_cool`; `POST /admin/users/:id/smart-schedule/pair-quality`; `GET /admin/users/:id/smart-schedule/pair-quality/:accountId`; `GET /admin/users/:id/smart-schedule/:platform/accounts/:account_id/pair-quality`. `state` is `paused|cooling|probing|resumed|selectable|pinned`; omitted `state` is `resumed` (豁免期 write default, **not** `pinned`, **not** a pause-lift default, and **not** `probing`). Invalid `state` → `SMART_SCHEDULE_ADMISSION_INVALID`. Pause of a non-member → `SMART_SCHEDULE_UNKNOWN_ACCOUNT`. Redis probe HASH: `smart-schedule:probe:{platform}:{accountID}` field `u:{userID}`. Redis pin HASH: `smart-schedule:pinned:{platform}:{accountID}` field `u:{userID}`, **no TTL**. Miss / no mark = not probing / not pinned (no deploy backfill). GET hydrates `pinned: true`. Do **not** reuse `resumed` for long-term exemption.
 - Pool account details: existing `GET /admin/accounts?platform=&ids=`.
 
 ### 3. Contracts
 
 PUT body: `{enabled, quality_*, quality_window_samples|quality_window_n, probe_concurrency_mode, probe_concurrency, cooldown_minutes, accounts:[{account_id, max_concurrency?}]}`. Copy copies enabled/thresholds/N/cooldown/probe settings only, never members or caps. Do not copy account-quality N into `probe_concurrency`. GET shows `enabled=false` when the stored row is enabled but the pool is empty. GET echoes `quality_window_samples`, `quality_window_n`, and both old sample fields as the same N, plus `probe_concurrency_mode` / `probe_concurrency` (omit/empty mode → `follow_n`).
 
-Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’s cooldown field, **zeros both pair windows**, clears `paused` and the probe mark, and writes `account-quality:resume` `u:`+`w:` grace. Completions during grace **do enter** the windows; evaluate is skipped until `u:`/`w:` expire. After grace the pair is 调度 (`selectable`): **keep** in-grace windows, then evaluate with selectable rules (may cool immediately). Grace end does **not** enter 考察.
+Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’s cooldown field, **zeros both pair windows**, clears `paused` and the probe mark, and writes `smart-schedule:resume:{platform}:{accountID}` `u:`+`w:` grace. Completions during grace **do enter** the windows; evaluate is skipped until `u:`/`w:` expire. After grace the pair is 调度 (`selectable`): **keep** in-grace windows, then evaluate with selectable rules (may cool immediately). Grace end does **not** enter 考察. Track A `account-quality:resume` is unchanged.
 
-`selectable` (调度) clears `paused`, `HDEL`s cooldown, **zeros both windows**, `ClearUserResume` (deletes `u:` **and** `w:`), and clears the probe mark. There is **no** 15-minute watching fail-open. Re-accumulate N before cooldown.
+`selectable` (调度) clears `paused`, `HDEL`s cooldown, **zeros both windows**, `ClearPairResume` (deletes this pool’s `u:` **and** `w:`), and clears the probe mark. There is **no** 15-minute watching fail-open. Re-accumulate N before cooldown. Do not clear Track A resume.
 
-`probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearUserResume` (no `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(desired, member cap)` or desired if unset. `desired` is window N when `probe_concurrency_mode=follow_n` (omit/empty), or `probe_concurrency` (1–100) when `custom`. Member `max_concurrency` is a hard ceiling. This is **not** account-quality global N. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY`; do not silently fall back. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
+`probing` (考察) is entered by **cooldown wall-clock expiry** or by admin (including 调度→考察). Enter: `HDEL` cooldown, **zero both windows**, `ClearPairResume` (no pair `u:`/`w:`), `HSET` probe mark. In-flight pair cap = `min(desired, member cap)` or desired if unset. `desired` is window N when `probe_concurrency_mode=follow_n` (omit/empty), or `probe_concurrency` (1–100) when `custom`. Member `max_concurrency` is a hard ceiling. This is **not** account-quality global N. Invalid custom (0, >100, custom without a number) → `SMART_SCHEDULE_INVALID_QUALITY`; do not silently fall back. During probing, ingest and evaluate `Q_{a,u}`. Graduate → 调度: **keep** windows, `HDEL` probe mark, lift to member cap. Probe cool uses the same or/and as pair cooldown (unfilled metrics do not participate) plus a **probe-only** override: `and` + both windows full + one pass one fail → `StartCooldown` (anti-deadlock). That override must **not** change `and` for selectable. Graduate requires `W_ok` full N; configured success-rate threshold must pass; empty/unfilled `W_ttft` does **not** block; if `W_ttft` is full, p50 must pass. No time-based graduate. No traffic → stay probing.
 
 `cooling` clears `paused` and the probe mark, `HSET`s cooldown to `now+policy.cooldown_minutes` and deletes `u:`/`w:`. Cooling/paused pairs do not ingest. Auto cooldown expiry enters **考察**, not 调度: `HDEL` + zero windows + write probe mark + `ClearUserResume`, no time grace.
 
 `paused` is **long-lived manual only**. Sets the membership flag, invalidates `smart-schedule:user:{userID}`, `HDEL`s cooldown, deletes `u:`/`w:`, and **clears** the probe mark and pin mark. **No implicit unpause** and **no default next state**. Leaving pause requires an explicit `state` ∈ {`probing`,`selectable`,`resumed`,`cooling`,`pinned`} (or write `paused` again). Clearing the paused flag must not write `probing` or `pinned`.
 
-`pinned` (长期豁免) is **manual only**. Enter (`state=pinned` only): `HDEL` cooldown, clear probe mark, `ClearUserResume` (do **not** write `u:`/`w:`, do **not** `MarkUserResume`), `HSET` pin mark, **keep** pair windows. Full member cap. Windows may keep ingesting. **Never evaluate, never `StartCooldown`** until the admin leaves. Leave requires an explicit next state (`paused` / `cooling` / `probing` / `selectable` / `resumed`). **No implicit timeout**. Cooldown expiry still → `probing`, never `pinned`.
+`pinned` (长期豁免) is **manual only**. Enter (`state=pinned` only): `HDEL` cooldown, clear probe mark, `ClearPairResume` (do **not** write pair `u:`/`w:`, do **not** write Track A resume), `HSET` pin mark, **keep** pair windows. Full member cap. Windows may keep ingesting. **Never evaluate, never `StartCooldown`** until the admin leaves. Leave requires an explicit next state (`paused` / `cooling` / `probing` / `selectable` / `resumed`). **No implicit timeout**. Cooldown expiry still → `probing`, never `pinned`.
 
-Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); **`pinned` admit and skip evaluate / `StartCooldown`** (check pin **before** leftover cooldown); active cooldown reject; 豁免期 `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover resume during probing still evaluates (graduate / and-mixed); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). `pinned` uses the member cap, not the probe cap. Account hard-close / `IsSchedulable()` still applies (whole-account gate). Otherwise the legacy scenario in this file. Do not fold pause, probing, or pin into `IsSchedulable()`. Do not backfill existing pairs on deploy.
+Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); **`pinned` admit and skip evaluate / `StartCooldown`** (check pin **before** leftover cooldown); active cooldown reject; pair 豁免期 `smart-schedule:resume` `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover pair resume during probing still evaluates (graduate / and-mixed); probing vs selectable then judge **only** `Q_{a,u}` (pair windows). Do not read `account-quality:resume` here. Unfilled metrics do not participate (same or/and as account track). Count `< N` → that metric does not cooldown. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool (including and-mixed override). Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap). `pinned` uses the member cap, not the probe cap. Account hard-close / `IsSchedulable()` still applies (whole-account gate). Otherwise the legacy scenario in this file. Do not fold pause, probing, or pin into `IsSchedulable()`. Do not backfill existing pairs on deploy.
 
 Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`) via `ClassifyOpsErrorRateCalibers`. Empty `schedule_error_whitelist` matches pre-feature production: Recovered stays off schedule unless the failover toggle is on; Claude–GPT bridge and the legacy `IsAccountQualityRoutingModelMiss` rail stay hardcoded excludes. New families (client request 400, 400 URF, long context, pair concurrency, unrestricted group-no-account, routing 503, protocol mismatch) write `Success=false` unless checked. Full families: `ops-schedule-error-caliber.md`. Cooling / paused pairs do not ingest. `pinned` pairs **do** ingest and must not evaluate / `StartCooldown`. `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells; skip `will_cool` while pinned.
 
@@ -168,6 +169,8 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 | --- | --- |
 | `enabled=true` and zero members | `SMART_SCHEDULE_EMPTY_POOL` (write). Runtime: treat as disabled (legacy). |
 | Unknown / wrong-platform account id | `SMART_SCHEDULE_INVALID_ACCOUNT` |
+| Duplicate `account_id` in one PUT | `SMART_SCHEDULE_DUPLICATE_ACCOUNT` |
+| Account platform does not match the tab (except AG tab + OpenAI) | `SMART_SCHEDULE_PLATFORM_MISMATCH` |
 | `cooldown_minutes` out of 1–1440 | `SMART_SCHEDULE_INVALID_COOLDOWN` |
 | Invalid quality metric / condition / N outside 1–100 / invalid probe concurrency | `SMART_SCHEDULE_INVALID_QUALITY` |
 | Copy `from_platform` missing or same | `SMART_SCHEDULE_COPY_INVALID` |
@@ -202,7 +205,7 @@ redis.Expire(ctx, cooldownKey, shortUserTTL) // shortens sibling fields
 #### Correct
 
 ```go
-if policy := cache.EnabledPolicy(userID, account.Platform); policy != nil {
+if policy := cache.EnabledPolicy(userID, SmartScheduleLookupPlatform(account, hint)); policy != nil {
     return admitSmartSchedule(ctx, account, policy, pairQuality)
 }
 return account.AdmitsScheduleUser(userID, live)
@@ -229,7 +232,7 @@ return account.AdmitsScheduleUser(userID, live)
 
 **Symptom**: user A has a 60-minute pair cooldown on account X; user B breaches the same account with a 15-minute cooldown; A’s remaining cooldown disappears after ~15 minutes.
 
-**Cause**: cooldown lives in one HASH per account (`smart-schedule:cooldown:{accountID}`). A naive `Expire(key, B.cooldown)` cuts the key TTL for every field.
+**Cause**: cooldown lives in one HASH per account×platform (`smart-schedule:cooldown:{platform}:{accountID}`). A naive `Expire(key, B.cooldown)` cuts the key TTL for every field of that platform.
 
 **Prevention**: `HSETNX` the field; set/extend key TTL only when the new expiry is later than the current TTL. Tests must cover two users on one HASH.
 
@@ -261,9 +264,9 @@ return account.AdmitsScheduleUser(userID, live)
 
 **Symptom**: pair last-N already has N counted completes (often N successes) but the pair stays `probing`. Account/user quality cells may also show “successes > N”.
 
-**Cause**: `UserQualityResumeActive` is shared with 豁免期 and account-quality 立即恢复. `expirePairCooldown` used to `HDEL` cooldown + zero windows + mark probe without `ClearUserResume`. `ObservePairCompletion` / `admitsScheduleUser` then skipped evaluate while grace was live, so windows filled past N with no graduate. Grace lasts 15–30m and can be refreshed.
+**Cause**: leftover pair `smart-schedule:resume` `u:`/`w:` (or historically the shared `account-quality:resume` HASH) stayed live when entering probe. `ObservePairCompletion` / `admitsScheduleUser` then skipped evaluate, so windows filled past N with no graduate.
 
-**Prevention**: enter probe always HDEL `u:`/`w:`. While `IsProbing`, do not skip evaluate for leftover grace. 豁免期 fail-open is only when there is no probe mark. Tests must cover “N successes in probe + leftover resume → graduate”.
+**Prevention**: enter probe always `ClearPairResume` for that platform. While `IsProbing`, do not skip evaluate for leftover pair grace. 豁免期 fail-open is only when there is no probe mark. Track A `account-quality:resume` must not skip smart-schedule evaluate. Tests must cover “N successes in probe + leftover pair resume → graduate”.
 
 ## Common Mistake: unpooled cheap-tier escape uses group platform
 
@@ -293,6 +296,116 @@ return account.AdmitsScheduleUser(userID, live)
 
 **Symptom**: snapshot occupancy is still `< N`, but `tryAcquireAccountAndPairSlot` returns `pairFull`; the request waits on that account or forwards after waking with only the account slot.
 
-**Cause**: Layer 2 records `pairFull` by removing the account from `available`, then Layer 3 / routing wait iterates the original `candidates` (or stale `routingPairCounts`). Handler wait paths call `AcquireAccountSlotWithWaitTimeout` and skip `concurrency:account_user:{accountID}:{userID}`.
+**Cause**: Layer 2 records `pairFull` by removing the account from `available`, then Layer 3 / routing wait iterates the original `candidates` (or stale `routingPairCounts`). Handler wait paths call `AcquireAccountSlotWithWaitTimeout` and skip `concurrency:account_user:{accountID}:{userID}:{platform}`.
 
 **Prevention**: keep a this-request `pairFullIDs` set and skip it in every WaitPlan loop. Wake must `AttachPairSlotAfterAccountWait` (hold account slot + `AcquireAccountUserSlot`); on `pairFull` release the account slot and reselect. Do not treat Recovered ops rows as pair-full.
+
+## Scenario: AG pool OpenAI dual-membership + lookup platform
+
+### 1. Scope / Trigger
+
+- Trigger: Antigravity smart-schedule tab may hold OpenAI accounts (bridge on or off). Same account may also sit in the openai pool. This is a cross-layer contract (PK, sanitize, lookup helper, Redis keys, admin resume/hydrate, AG candidate merge).
+- Do not change `ResolveClaudeGPTBridgeModel`, empty-stream converters, stored billing, or `actual_cost`.
+- Scheduler eligibility for Claude→GPT bridge stays `account.Platform == openai`. The **policy / Redis** key is `SmartScheduleLookupPlatform`, not the scheduler platform.
+
+### 2. Signatures
+
+- `smartScheduleAccountMatchesTab(acc, tab)`: same-platform always matches; **only** extra exception is `tab==antigravity && acc.IsOpenAI()`. Anthropic / gemini / grok tabs stay locked.
+- `SmartScheduleLookupPlatform(account, hint)`: OpenAI + (`hint.RequireClaudeGPTBridge` or `hint.GroupPlatform==antigravity`) → `antigravity`; else `account.Platform`. Hint from `ctxkey.RequireClaudeGPTBridge`, `ctxkey.Group.Platform`, else `ctxkey.ForcePlatform`.
+- `uniqueSmartScheduleMembershipPlatform(bundle, accountID)`: the single membership platform, or `""` when the account is in more than one pool.
+- `SmartScheduleRedisPlatform(platform)`: empty → `_` so unset callers cannot collide with a real platform.
+- DB PK `user_smart_schedule_accounts (user_id, platform, account_id)` via additive migration `211_user_smart_schedule_account_pk.sql`. Keep `idx_user_smart_schedule_accounts_account_id`. Do not edit 202/204/207/208.
+- Admin write: `PUT /admin/users/:id/smart-schedule/:platform` (tab is the member `platform`). Resume: `POST /admin/accounts/:id/smart-schedule-resume` `{user_id, state?, platform?}`. Pair-quality batch/detail take the current tab platform.
+- Redis occupancy / cooldown / probe / pin / pair-quality / pair resume: platform is in the KEY (see the user×platform scenario above). Do not read pre-211 keys as fallback.
+
+### 3. Contracts
+
+- AG tab PUT may include OpenAI ids without `openai_claude_gpt_bridge_enabled`. Member row `platform` is the **tab** (`antigravity`), not `account.Platform`.
+- Adding an OpenAI account to the AG pool must not delete the openai-pool row (decision B).
+- Bridge / AG-group OpenAI traffic looks up the antigravity policy on `admitsScheduleUser`, pair acquire, unpooled cheaper-tier, and `ObservePairCompletion`. Native OpenAI groups keep `openai`.
+- AG policy nil / empty / disabled → fail-open account-side allow/deny. **Never** fall back to the openai pool.
+- `ObservePairCompletion.Platform` must be the request lookup platform. Empty platform + dual membership → **do not ingest** (do not pick the first `HasAccount`).
+- Pool-page resume / pair-quality hydrate pass tab `platform`. Account-page omitted `platform` resolves to `account.Platform` only and must not mutate the AG dual-membership row.
+- Admin AG candidates: merge `platform=antigravity&lite=1` and `platform=openai&lite=1`; filter-add may choose antigravity / openai / all-in-this-tab. Do not pull anthropic / gemini / grok on the AG tab.
+- Pool column `claude_gpt_bridge` is read-only extra. Non-OpenAI cells render `—`. Not a PUT field.
+- Deploy residual: old Redis keys without `{platform}` become orphans and expire by TTL. In-flight occupancy / cooldown reset. Do not dual-read old keys.
+
+### 4. Validation & Error Matrix
+
+| Condition | Error / runtime |
+| --- | --- |
+| OpenAI id on AG tab PUT | 200; member stored as `platform=antigravity` |
+| OpenAI id on anthropic / gemini / grok tab | `SMART_SCHEDULE_PLATFORM_MISMATCH` |
+| Duplicate id in one PUT | `SMART_SCHEDULE_DUPLICATE_ACCOUNT` |
+| Bridge extra off, account in AG pool, `schedulable=true` | Pool write OK; `ResolveClaudeGPTBridgeModel` still false; bridge select misses the account |
+| AG `EnabledPolicy` nil/empty | Fail-open account-side; not openai-pool closed reject |
+| `ObservePairCompletion` empty platform + two memberships | No ingest |
+| Resume omit `platform` on account page | Mutates `account.Platform` row only |
+
+### 5. Good / Base / Bad Cases
+
+- Good: user 12 AG pool contains OpenAI 1724; group 15 bridge admits via antigravity; group 19 native GPT still uses the openai pool and openai Redis keys.
+- Good: same OpenAI id cooled on openai does not cool the AG pair (and the reverse).
+- Base: no AG policy → group 15 fail-opens to account-side allow/deny (wider than today's openai closed pool). Production cutover should create the AG pool first.
+- Bad: `SelectAccountWithSchedulerForClaudeGPTBridge` platform rewritten to antigravity (zero OpenAI candidates).
+- Bad: AG disabled falls back to `lookupEnabledSmartPolicy(..., openai)`.
+- Bad: `ObservePairCompletion` map-range first `HasAccount` when both pools contain the id.
+
+### 6. Tests Required
+
+- `sanitizePoolMembers`: OpenAI→AG allowed without bridge extra; OpenAI→anthropic still `SMART_SCHEDULE_PLATFORM_MISMATCH`; native AG→AG still allowed.
+- `SmartScheduleLookupPlatform`: bridge / AG-group + OpenAI → antigravity; native GPT → openai.
+- Dual persist: one `account_id` two rows; AG PUT does not drop the openai row.
+- Cooldown / occupancy / probe / pin / pair-quality / pair-resume isolation across platform.
+- `ObservePairCompletion` dual-membership without platform skips ingest.
+- AG disabled / empty: fail-open account-side, no openai fallback.
+- `ResolveClaudeGPTBridgeModel` still false when extra is off.
+- Frontend: AG tab can add OpenAI candidates; `claude_gpt_bridge` column visible; other tabs stay locked.
+- Empty-stream tests unchanged.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```go
+req.Platform = PlatformAntigravity // SelectAccountWithSchedulerForClaudeGPTBridge
+policy := cache.EnabledPolicy(userID, account.Platform)
+if policy == nil {
+    policy = cache.EnabledPolicy(userID, PlatformOpenAI) // AG miss must not do this
+}
+```
+
+#### Correct
+
+```go
+// scheduler eligibility stays openai; only the closed-pool key changes
+key := SmartScheduleLookupPlatform(account, hint)
+if policy := cache.EnabledPolicy(userID, key); policy != nil {
+    return admitSmartSchedule(ctx, account, policy, pairQuality)
+}
+return account.AdmitsScheduleUser(userID, live)
+```
+
+## Common Mistake: rewrite Claude-GPT scheduler platform to antigravity
+
+**Symptom**: group 15 bridge returns no accounts even though OpenAI ids are in the AG pool.
+
+**Cause**: `isOpenAIAccountEligibleForScheduleRequest` requires `account.Platform == schedulerPlatform`. Changing the scheduler platform to antigravity drops every OpenAI candidate.
+
+**Prevention**: keep `SelectAccountWithSchedulerForClaudeGPTBridge` on openai. Change only `SmartScheduleLookupPlatform` / Redis / pair ingest.
+
+## Common Mistake: Observe / hydrate picks the first dual-membership pool
+
+**Symptom**: group 15 completion writes openai pair-quality, or AG 豁免期 fail-opens the openai pool.
+
+**Cause**: empty `obs.Platform` plus `for platform, policy := range bundle.Policies { if policy.HasAccount(...) }`, or resume/pair-quality batch keyed by `account_id` only.
+
+**Prevention**: stamp the request lookup platform. If platform is still empty and `uniqueSmartScheduleMembershipPlatform` returns `""`, skip ingest. Pool-page APIs pass tab `platform`. Account-page omit stays `account.Platform`.
+
+## Common Mistake: read old Redis keys after the platform shard
+
+**Symptom**: AG cooldown HASH TTL still cuts the openai sibling, or deploy “keeps” in-flight state by dual-reading.
+
+**Cause**: fallback `GET smart-schedule:cooldown:{accountID}` when the new `{platform}` key misses.
+
+**Prevention**: all read/write/clear/hydrate/delete use `{platform}` keys. Old keys are orphans; accept the deploy reset. Do not dual-read.

@@ -36,8 +36,6 @@ import {
   readBackendProbeCap,
   resolvePairCap,
   resolveProbeConcurrencyMode,
-  userQualityResumeActive,
-  userQualityResumeChipActive,
   type PairAdmissionLiveState
 } from '@/composables/smartSchedulePoolAdmission'
 import {
@@ -100,6 +98,19 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
       max_concurrency: item.max_concurrency
     }))
   })
+}
+
+function mergeCandidateAccounts(...groups: Account[][]): Account[] {
+  const seen = new Set<number>()
+  const items: Account[] = []
+  for (const group of groups) {
+    for (const account of group) {
+      if (!account?.id || seen.has(account.id)) continue
+      seen.add(account.id)
+      items.push(account)
+    }
+  }
+  return items
 }
 
 export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
@@ -453,13 +464,18 @@ export function useUserSmartScheduleEditor(
   function memberResumeChipActive(accountId: number, now = Date.now()): boolean {
     const local = localResumeGraceByAccount.value[accountId]
     if (local && local.chipUntil * 1000 > now) return true
-    return userQualityResumeChipActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
+    const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+    if (member?.resume_chip_until && Date.parse(member.resume_chip_until) > now) return true
+    return false
   }
 
   function memberResumeActive(accountId: number, now = Date.now()): boolean {
     const local = localResumeGraceByAccount.value[accountId]
     if (local && (local.watchUntil * 1000 > now || local.chipUntil * 1000 > now)) return true
-    return userQualityResumeActive(qualityStatsById.value[String(accountId)], userId.value ?? 0, now)
+    const member = currentDraft.value?.accounts.find((item) => item.account_id === accountId)
+    if (member?.resume_until && Date.parse(member.resume_until) > now) return true
+    if (member?.resume_chip_until && Date.parse(member.resume_chip_until) > now) return true
+    return false
   }
 
   function effectivePairMax(_account: Account): number {
@@ -689,7 +705,7 @@ export function useUserSmartScheduleEditor(
         ? adminAPI.users.getSmartSchedulePnlPairs(userId.value, ids).catch(() => ({ pairs: {} as Record<string, SchedulePnlSummary> }))
         : Promise.resolve({ pairs: {} as Record<string, SchedulePnlSummary> })
       const pairQualityPromise = userId.value
-        ? adminAPI.users.getSmartSchedulePairQualityBatch(userId.value, ids).catch(() => ({
+        ? adminAPI.users.getSmartSchedulePairQualityBatch(userId.value, ids, activePlatform.value).catch(() => ({
             pairs: {} as Record<string, SmartSchedulePairQuality>
           }))
         : Promise.resolve({ pairs: {} as Record<string, SmartSchedulePairQuality> })
@@ -774,6 +790,18 @@ export function useUserSmartScheduleEditor(
     await refreshOneAccountBalance(account, true, balanceRefreshGen)
   }
 
+  async function listLiteByPlatform(platform: SmartSchedulePlatform) {
+    const filters = { platform, lite: '1' }
+    const first = await adminAPI.accounts.list(1, CANDIDATE_PAGE_SIZE, filters)
+    const items = [...(first.items ?? [])]
+    const pages = first.pages ?? 1
+    for (let page = 2; page <= pages; page++) {
+      const next = await adminAPI.accounts.list(page, CANDIDATE_PAGE_SIZE, filters)
+      items.push(...(next.items ?? []))
+    }
+    return items
+  }
+
   async function loadCandidates(opts?: { force?: boolean }) {
     const platform = activePlatform.value
     if (!opts?.force && candidatesLoaded.value && candidatesPlatform.value === platform) {
@@ -782,14 +810,13 @@ export function useUserSmartScheduleEditor(
     if (candidatesLoading.value) return
     candidatesLoading.value = true
     try {
-      const filters = { platform, lite: '1' }
-      const first = await adminAPI.accounts.list(1, CANDIDATE_PAGE_SIZE, filters)
-      const items = [...(first.items ?? [])]
-      const pages = first.pages ?? 1
-      for (let page = 2; page <= pages; page++) {
-        const next = await adminAPI.accounts.list(page, CANDIDATE_PAGE_SIZE, filters)
-        items.push(...(next.items ?? []))
-      }
+      const items =
+        platform === 'antigravity'
+          ? mergeCandidateAccounts(
+              await listLiteByPlatform('antigravity'),
+              await listLiteByPlatform('openai')
+            )
+          : await listLiteByPlatform(platform)
       candidateAccounts.value = items
       candidatesLoaded.value = true
       candidatesPlatform.value = platform
@@ -1000,7 +1027,12 @@ export function useUserSmartScheduleEditor(
   async function setPairAdmission(accountId: number, state: PairAdmissionLiveState) {
     if (!userId.value) return
     try {
-      const result = await adminAPI.accounts.resumeSmartSchedule(accountId, userId.value, state)
+      const result = await adminAPI.accounts.resumeSmartSchedule(
+        accountId,
+        userId.value,
+        state,
+        activePlatform.value
+      )
       const nextState =
         result.pinned === true || result.state === 'pinned'
           ? 'pinned'

@@ -30,30 +30,30 @@ type pairQualityRedisState struct {
 	UpdatedAt int64    `json:"updated_at"`
 }
 
-func smartSchedulePairQualityKey(accountID int64) string {
-	return smartSchedulePairQualityKeyPrefix + strconv.FormatInt(accountID, 10)
+func smartSchedulePairQualityKey(platform string, accountID int64) string {
+	return smartSchedulePairQualityKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
 }
 
-func smartSchedulePairTrendKey(accountID, userID int64) string {
-	return smartSchedulePairTrendKeyPrefix + strconv.FormatInt(accountID, 10) + ":" + strconv.FormatInt(userID, 10)
+func smartSchedulePairTrendKey(platform string, accountID, userID int64) string {
+	return smartSchedulePairTrendKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10) + ":" + strconv.FormatInt(userID, 10)
 }
 
-func smartSchedulePairEventKey(accountID, userID int64) string {
-	return smartSchedulePairEventKeyPrefix + strconv.FormatInt(accountID, 10) + ":" + strconv.FormatInt(userID, 10)
+func smartSchedulePairEventKey(platform string, accountID, userID int64) string {
+	return smartSchedulePairEventKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10) + ":" + strconv.FormatInt(userID, 10)
 }
 
-func (c *userSmartScheduleCache) GetPairQuality(ctx context.Context, accountID, userID int64) *service.PairQualityLive {
+func (c *userSmartScheduleCache) GetPairQuality(ctx context.Context, accountID, userID int64, platform string) *service.PairQualityLive {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return nil
 	}
-	raw, err := c.rdb.HGet(ctx, smartSchedulePairQualityKey(accountID), smartScheduleCooldownField(userID)).Bytes()
+	raw, err := c.rdb.HGet(ctx, smartSchedulePairQualityKey(platform, accountID), smartScheduleCooldownField(userID)).Bytes()
 	if err != nil || len(raw) == 0 {
 		return nil
 	}
 	return decodePairQualityLive(raw)
 }
 
-func (c *userSmartScheduleCache) GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64) map[int64]*service.PairQualityLive {
+func (c *userSmartScheduleCache) GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*service.PairQualityLive {
 	out := map[int64]*service.PairQualityLive{}
 	if c == nil || c.rdb == nil || userID <= 0 || len(accountIDs) == 0 {
 		return out
@@ -65,7 +65,7 @@ func (c *userSmartScheduleCache) GetPairQualityBatch(ctx context.Context, accoun
 	pipe := c.rdb.Pipeline()
 	cmds := make([]*redis.StringCmd, len(ids))
 	for i, accountID := range ids {
-		cmds[i] = pipe.HGet(ctx, smartSchedulePairQualityKey(accountID), smartScheduleCooldownField(userID))
+		cmds[i] = pipe.HGet(ctx, smartSchedulePairQualityKey(platform, accountID), smartScheduleCooldownField(userID))
 	}
 	_, _ = pipe.Exec(ctx)
 	for i, cmd := range cmds {
@@ -80,50 +80,50 @@ func (c *userSmartScheduleCache) GetPairQualityBatch(ctx context.Context, accoun
 	return out
 }
 
-func (c *userSmartScheduleCache) IngestPairQuality(ctx context.Context, accountID, userID int64, n int, success bool, firstTokenMs *int) *service.PairQualityLive {
+func (c *userSmartScheduleCache) IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, n int, success bool, firstTokenMs *int) *service.PairQualityLive {
 	if c == nil || accountID <= 0 || userID <= 0 {
 		return nil
 	}
-	live := c.GetPairQuality(ctx, accountID, userID)
+	live := c.GetPairQuality(ctx, accountID, userID, platform)
 	live = applyPairQualityIngestProxy(live, n, success, firstTokenMs)
-	c.storePairQuality(ctx, accountID, userID, live)
-	c.appendPairQualitySnapshot(ctx, accountID, userID, live.Snapshot())
+	c.storePairQuality(ctx, accountID, userID, platform, live)
+	c.appendPairQualitySnapshot(ctx, accountID, userID, platform, live.Snapshot())
 	return live
 }
 
-func (c *userSmartScheduleCache) ZeroPairQuality(ctx context.Context, accountID, userID int64, eventType string) {
+func (c *userSmartScheduleCache) ZeroPairQuality(ctx context.Context, accountID, userID int64, platform string, eventType string) {
 	if c == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
-	live := serviceZeroPairQualityLive(c.GetPairQuality(ctx, accountID, userID))
-	c.storePairQuality(ctx, accountID, userID, live)
+	live := serviceZeroPairQualityLive(c.GetPairQuality(ctx, accountID, userID, platform))
+	c.storePairQuality(ctx, accountID, userID, platform, live)
 	if eventType != "" {
-		c.AppendPairQualityEvent(ctx, accountID, userID, service.PairQualityEvent{
+		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 			Ts:   time.Now().UTC().Unix(),
 			Type: eventType,
 		})
 	}
 }
 
-func (c *userSmartScheduleCache) ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, limit int) []service.PairQualitySnapshot {
-	return listPairQualityJSON[service.PairQualitySnapshot](c, ctx, smartSchedulePairTrendKey(accountID, userID), limit)
+func (c *userSmartScheduleCache) ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []service.PairQualitySnapshot {
+	return listPairQualityJSON[service.PairQualitySnapshot](c, ctx, smartSchedulePairTrendKey(platform, accountID, userID), limit)
 }
 
-func (c *userSmartScheduleCache) ListPairQualityEvents(ctx context.Context, accountID, userID int64, limit int) []service.PairQualityEvent {
-	return listPairQualityJSON[service.PairQualityEvent](c, ctx, smartSchedulePairEventKey(accountID, userID), limit)
+func (c *userSmartScheduleCache) ListPairQualityEvents(ctx context.Context, accountID, userID int64, platform string, limit int) []service.PairQualityEvent {
+	return listPairQualityJSON[service.PairQualityEvent](c, ctx, smartSchedulePairEventKey(platform, accountID, userID), limit)
 }
 
-func (c *userSmartScheduleCache) AppendPairQualityEvent(ctx context.Context, accountID, userID int64, event service.PairQualityEvent) {
+func (c *userSmartScheduleCache) AppendPairQualityEvent(ctx context.Context, accountID, userID int64, platform string, event service.PairQualityEvent) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 || event.Type == "" {
 		return
 	}
 	if event.Ts == 0 {
 		event.Ts = time.Now().UTC().Unix()
 	}
-	appendPairQualityList(c, ctx, smartSchedulePairEventKey(accountID, userID), event, smartSchedulePairEventMax, smartSchedulePairEventTTL)
+	appendPairQualityList(c, ctx, smartSchedulePairEventKey(platform, accountID, userID), event, smartSchedulePairEventMax, smartSchedulePairEventTTL)
 }
 
-func (c *userSmartScheduleCache) storePairQuality(ctx context.Context, accountID, userID int64, live *service.PairQualityLive) {
+func (c *userSmartScheduleCache) storePairQuality(ctx context.Context, accountID, userID int64, platform string, live *service.PairQualityLive) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 || live == nil {
 		return
 	}
@@ -131,15 +131,15 @@ func (c *userSmartScheduleCache) storePairQuality(ctx context.Context, accountID
 	if err != nil {
 		return
 	}
-	key := smartSchedulePairQualityKey(accountID)
+	key := smartSchedulePairQualityKey(platform, accountID)
 	pipe := c.rdb.Pipeline()
 	pipe.HSet(ctx, key, smartScheduleCooldownField(userID), payload)
 	pipe.Expire(ctx, key, smartSchedulePairQualityTTL)
 	_, _ = pipe.Exec(ctx)
 }
 
-func (c *userSmartScheduleCache) appendPairQualitySnapshot(ctx context.Context, accountID, userID int64, snap service.PairQualitySnapshot) {
-	appendPairQualityList(c, ctx, smartSchedulePairTrendKey(accountID, userID), snap, smartSchedulePairTrendMax, smartSchedulePairTrendTTL)
+func (c *userSmartScheduleCache) appendPairQualitySnapshot(ctx context.Context, accountID, userID int64, platform string, snap service.PairQualitySnapshot) {
+	appendPairQualityList(c, ctx, smartSchedulePairTrendKey(platform, accountID, userID), snap, smartSchedulePairTrendMax, smartSchedulePairTrendTTL)
 }
 
 func appendPairQualityList(c *userSmartScheduleCache, ctx context.Context, key string, value any, max int, ttl time.Duration) {

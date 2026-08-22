@@ -96,7 +96,20 @@ describe('SmartSchedulePairQualityDialog', () => {
       }
     })
     await flushPromises()
-    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11)
+    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11, undefined)
+  })
+
+  it('loads the tab platform pair-quality route when platform is set', async () => {
+    const w = mount(SmartSchedulePairQualityDialog, {
+      props: {
+        show: true,
+        userId: 99,
+        platform: 'antigravity',
+        account: { id: 11, name: 'acc-11' } as any
+      }
+    })
+    await flushPromises()
+    expect(apiMocks.getSmartSchedulePairQualityDetail).toHaveBeenCalledWith(99, 11, 'antigravity')
     expect(w.get('[data-testid="smart-schedule-pair-quality-dialog"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pair-quality-chart"]').exists()).toBe(true)
     expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(

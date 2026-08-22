@@ -392,6 +392,8 @@ export interface SmartScheduleAccountMember {
   priority?: number
   current_concurrency?: number
   cooldown_until?: string | null
+  resume_until?: string | null
+  resume_chip_until?: string | null
   paused?: boolean
   probing?: boolean
   pinned?: boolean
@@ -627,13 +629,14 @@ export async function getSmartSchedulePnlPairs(
 
 export async function getSmartSchedulePairQualityBatch(
   userId: number,
-  accountIds: number[]
+  accountIds: number[],
+  platform?: string
 ): Promise<BatchSmartSchedulePairQualityResponse> {
   const { data } = await apiClient.post<
     BatchSmartSchedulePairQualityResponse & { stats?: Record<string, SmartSchedulePairQuality> }
   >(
     `/admin/users/${userId}/smart-schedule/pair-quality`,
-    { account_ids: accountIds }
+    { account_ids: accountIds, platform }
   )
   const bag = data.pairs ?? data.stats ?? {}
   const pairs: Record<string, SmartSchedulePairQuality> = {}
@@ -658,11 +661,13 @@ type SmartSchedulePairQualityDetailResponse = {
 
 export async function getSmartSchedulePairQualityDetail(
   userId: number,
-  accountId: number
+  accountId: number,
+  platform?: string
 ): Promise<SmartSchedulePairQualityDetail> {
-  const { data } = await apiClient.get<SmartSchedulePairQualityDetailResponse>(
-    `/admin/users/${userId}/smart-schedule/pair-quality/${accountId}`
-  )
+  const path = platform
+    ? `/admin/users/${userId}/smart-schedule/${encodeURIComponent(platform)}/accounts/${accountId}/pair-quality`
+    : `/admin/users/${userId}/smart-schedule/pair-quality/${accountId}`
+  const { data } = await apiClient.get<SmartSchedulePairQualityDetailResponse>(path)
   return {
     current: normalizeSmartSchedulePairQuality(data.current ?? data.live),
     snapshots: (data.snapshots ?? [])

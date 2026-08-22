@@ -169,10 +169,10 @@ func TestEvaluateSmartSchedule_ProbeGraduateKeepsWindows(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, policy, live, time.Now().UTC()))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 1, lookup.graduated)
-	require.False(t, lookup.IsProbing(context.Background(), 7, 16))
-	require.Equal(t, 3, lookup.GetPairQuality(context.Background(), 7, 16).OKCount, "graduate must keep windows")
+	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
+	require.Equal(t, 3, lookup.GetPairQuality(context.Background(), 7, 16, "openai").OKCount, "graduate must keep windows")
 	require.Equal(t, 0, lookup.startCalls)
 }
 
@@ -187,9 +187,9 @@ func TestEvaluateSmartSchedule_ProbeAndMixedCools(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, policy, live, time.Now().UTC()))
+	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 1, lookup.startCalls)
-	require.False(t, lookup.IsProbing(context.Background(), 7, 16))
+	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
 }
 
@@ -203,9 +203,9 @@ func TestEvaluateSmartSchedule_SelectableMixedDoesNotUseOverride(t *testing.T) {
 		bundle: smartBundle(PlatformAnthropic, policy),
 		pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, policy, live, time.Now().UTC()))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 0, lookup.startCalls)
-	require.False(t, lookup.IsProbing(context.Background(), 7, 16), "no mark = not probing / no backfill")
+	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"), "no mark = not probing / no backfill")
 }
 
 func TestEvaluateSmartSchedule_NoTrafficStaysProbing(t *testing.T) {
@@ -215,8 +215,8 @@ func TestEvaluateSmartSchedule_NoTrafficStaysProbing(t *testing.T) {
 		bundle:  smartBundle(PlatformAnthropic, policy),
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, policy, syncOKLive(3, 1), time.Now().UTC()))
-	require.True(t, lookup.IsProbing(context.Background(), 7, 16))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, syncOKLive(3, 1), time.Now().UTC()))
+	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
 	require.Equal(t, 0, lookup.startCalls)
 }
@@ -238,7 +238,7 @@ func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
 		}
 		require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
 		require.Equal(t, 1, lookup.graduated)
-		require.False(t, lookup.IsProbing(ctx, 7, 16))
+		require.False(t, lookup.IsProbing(ctx, 7, 16, "openai"))
 		require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
 		require.Equal(t, 1, lookup.graduated)
 	})
@@ -253,7 +253,7 @@ func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
 		require.Equal(t, 0, lookup.graduated)
 	})
 
-	t.Run("leftover resume during probe still graduates", func(t *testing.T) {
+	t.Run("leftover Track A resume during probe still graduates and stays on Track A", func(t *testing.T) {
 		t.Parallel()
 		lookup := &memorySmartLookup{
 			bundle:  smartBundle(PlatformAnthropic, policy),
@@ -263,17 +263,31 @@ func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
 		quality := &liveQualityCacheStub{}
 		require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
 		require.True(t, admitsScheduleUser(ctx, acc, quality, lookup))
-		require.Equal(t, 1, lookup.graduated, "N successes in probe must graduate even with leftover u:/w:")
-		require.False(t, lookup.IsProbing(ctx, 7, 16))
-		require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()))
+		require.Equal(t, 1, lookup.graduated, "N successes in probe must graduate even with leftover Track A u:/w:")
+		require.False(t, lookup.IsProbing(ctx, 7, 16, "openai"))
+		require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "smart-schedule must not clear Track A resume")
+	})
+
+	t.Run("leftover pair resume during probe still graduates", func(t *testing.T) {
+		t.Parallel()
+		lookup := &memorySmartLookup{
+			bundle:      smartBundle(PlatformAnthropic, policy),
+			pair:        map[string]*PairQualityLive{smartPairKey(7, 16): live},
+			probing:     map[string]bool{smartPairKey(7, 16): true},
+			resumeUntil: map[string]int64{smartPairPlatformKey(7, 16, PlatformAnthropic): time.Now().UTC().Add(20 * time.Minute).Unix()},
+		}
+		require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
+		require.Equal(t, 1, lookup.graduated)
+		require.False(t, lookup.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
 	})
 
 	t.Run("resume grace skips evaluate when not probing", func(t *testing.T) {
 		t.Parallel()
 		p50 := 50
 		lookup := &memorySmartLookup{
-			bundle: smartBundle(PlatformAnthropic, probePolicy(7, 3, &p50, nil, false)),
-			pair:   map[string]*PairQualityLive{smartPairKey(7, 16): mixedAndLive(3, 400, 3)},
+			bundle:      smartBundle(PlatformAnthropic, probePolicy(7, 3, &p50, nil, false)),
+			pair:        map[string]*PairQualityLive{smartPairKey(7, 16): mixedAndLive(3, 400, 3)},
+			resumeUntil: map[string]int64{smartPairPlatformKey(7, 16, PlatformAnthropic): time.Now().UTC().Add(20 * time.Minute).Unix()},
 		}
 		quality := &liveQualityCacheStub{}
 		require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
@@ -297,12 +311,12 @@ func TestObservePairCompletion_ProbeGraduateAndMixed(t *testing.T) {
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
 	require.Equal(t, 0, cache.graduated, "W_ok < N stays probing")
-	require.True(t, cache.IsProbing(context.Background(), 7, 16))
+	require.True(t, cache.IsProbing(context.Background(), 7, 16, "openai"))
 
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
 	require.Equal(t, 1, cache.graduated)
-	require.False(t, cache.IsProbing(context.Background(), 7, 16))
-	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16).OKCount)
+	require.False(t, cache.IsProbing(context.Background(), 7, 16, "openai"))
+	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16, "openai").OKCount)
 	require.Equal(t, 0, cache.starts)
 
 	p50 := 100
@@ -322,10 +336,10 @@ func TestObservePairCompletion_ProbeGraduateAndMixed(t *testing.T) {
 		FirstTokenMs: intPtr(400),
 	})
 	require.Equal(t, 1, mixed.starts, "and mixed (success pass + p50 fail) must cool in probe")
-	require.False(t, mixed.IsProbing(context.Background(), 7, 16))
+	require.False(t, mixed.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, mixed.graduated)
-	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16).OKCount)
-	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16).TTFTCount)
+	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16, "openai").OKCount)
+	require.Equal(t, 3, mixed.GetPairQuality(context.Background(), 7, 16, "openai").TTFTCount)
 }
 
 func TestObservePairCompletion_ProbeResumeGraceDoesNotBlockGraduate(t *testing.T) {
@@ -339,18 +353,20 @@ func TestObservePairCompletion_ProbeResumeGraceDoesNotBlockGraduate(t *testing.T
 	}
 	quality := &liveQualityCacheStub{}
 	require.NoError(t, quality.MarkUserResume(context.Background(), 7, 16))
+	require.NoError(t, cache.MarkPairResume(context.Background(), 7, 16, PlatformAnthropic))
 	svc := NewUserSmartScheduleService(nil, cache, nil, quality, nil)
 
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
 	require.Equal(t, 0, cache.graduated, "W_ok < N stays probing")
-	require.True(t, cache.IsProbing(context.Background(), 7, 16))
+	require.True(t, cache.IsProbing(context.Background(), 7, 16, "openai"))
 
 	svc.ObservePairCompletion(context.Background(), PairQualityObservation{AccountID: 7, UserID: 16, Success: true})
-	require.Equal(t, 1, cache.graduated, "N successes in probe must graduate even with leftover u:/w:")
-	require.False(t, cache.IsProbing(context.Background(), 7, 16), "N successes in probe, still probing")
-	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16).OKCount)
-	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "leftover grace cleared on probe evaluate")
+	require.Equal(t, 1, cache.graduated, "N successes in probe must graduate even with leftover pair resume")
+	require.False(t, cache.IsProbing(context.Background(), 7, 16, "openai"), "N successes in probe, still probing")
+	require.Equal(t, 3, cache.GetPairQuality(context.Background(), 7, 16, "openai").OKCount)
+	require.False(t, cache.PairResumeActive(context.Background(), 7, 16, PlatformAnthropic, time.Now().UTC()))
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "probe evaluate must not clear Track A resume")
 }
 
 func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
@@ -384,7 +400,8 @@ func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionSelectable, selectable.State)
 	require.False(t, selectable.Probing)
-	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()))
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "selectable must not clear Track A resume")
+	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
 	require.Contains(t, cache.zeros, PairQualityEventSelectable)
 
 	probe, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionProbing)
@@ -394,14 +411,15 @@ func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
 	require.NotNil(t, probe.ProbeCap)
 	require.Equal(t, 4, *probe.ProbeCap, "min(N=10, cap=4)")
 	require.Equal(t, 1, cache.markedProbe)
-	require.True(t, cache.IsProbing(ctx, 7, 16))
-	require.False(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "enter probing clears u:/w:")
+	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"))
+	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()), "enter probing clears pair resume")
+	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "enter probing must not clear Track A resume")
 	require.Contains(t, cache.zeros, "")
 
 	again, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
 	require.NoError(t, err)
 	require.Equal(t, PairAdmissionSelectable, again.State)
-	require.False(t, cache.IsProbing(ctx, 7, 16))
+	require.False(t, cache.IsProbing(ctx, 7, 16, "openai"))
 	require.GreaterOrEqual(t, cache.clearedProbe, 1)
 }
 
@@ -446,7 +464,7 @@ func TestUserSmartScheduleService_GetHydratesProbingAndProbeCap(t *testing.T) {
 	require.Equal(t, 2, *customView.Platforms[PlatformAnthropic].ProbeConcurrency)
 	require.Equal(t, 2, *customView.Platforms[PlatformAnthropic].Accounts[0].ProbeCap, "custom 2 with cap 5 → 2")
 
-	cache.ClearProbing(ctx, 7, 16)
+	cache.ClearProbing(ctx, 7, 16, "openai")
 	unmarked, err := svc.Get(ctx, 16)
 	require.NoError(t, err)
 	require.False(t, unmarked.Platforms[PlatformAnthropic].Accounts[0].Probing, "no mark = not probing / no backfill")
@@ -484,7 +502,7 @@ func TestUserSmartScheduleService_PauseDoesNotAutoProbe(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
 	require.Equal(t, 0, cache.markedProbe)
-	require.False(t, cache.IsProbing(ctx, 7, 16))
+	require.False(t, cache.IsProbing(ctx, 7, 16, "openai"))
 
 	explicit, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionProbing)
 	require.NoError(t, err)

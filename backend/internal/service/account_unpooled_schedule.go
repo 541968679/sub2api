@@ -76,7 +76,7 @@ func hasHigherUpstreamRateHeadroom(candidates []*Account, minRate float64, loadB
 }
 
 // shouldEscapeSessionStickyForCheaperTier is session-sticky only.
-// Unpooled is judged with sticky.Platform via lookupEnabledSmartPolicy — never a group platform.
+// Unpooled is judged with SmartScheduleLookupPlatform(sticky, request hint).
 // userID<=0 is the same fail-open as admitsScheduleUser (treated as unpooled).
 func shouldEscapeSessionStickyForCheaperTier(
 	ctx context.Context,
@@ -89,7 +89,7 @@ func shouldEscapeSessionStickyForCheaperTier(
 	if sticky == nil || len(candidates) == 0 {
 		return false
 	}
-	if lookupEnabledSmartPolicy(ctx, lookup, userID, sticky.Platform) != nil {
+	if lookupEnabledSmartPolicy(ctx, lookup, userID, SmartScheduleLookupPlatform(sticky, smartScheduleLookupHintFromContext(ctx))) != nil {
 		return false
 	}
 	minRate, ok := minSchedulableUpstreamRate(candidates)
@@ -122,7 +122,7 @@ func shouldSkipMinRateWaitPlan(
 	if account == nil {
 		return false
 	}
-	if !isUnpooledScheduleUser(ctx, lookup, userID, account.Platform) {
+	if !isUnpooledScheduleUser(ctx, lookup, userID, SmartScheduleLookupPlatform(account, smartScheduleLookupHintFromContext(ctx))) {
 		return false
 	}
 	minRate, ok := minSchedulableUpstreamRate(candidates)

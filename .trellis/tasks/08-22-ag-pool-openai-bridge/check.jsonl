@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "Check that AG-tab OpenAI members, lookup platform, pause/PK, and empty-pool fail-open still match the smart-schedule contract."}
+{"file": ".trellis/spec/backend/anthropic-messages-sse.md", "reason": "Empty-visible / NoAccountFailover must stay unchanged unless Brandon flips decision F."}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Reject any accidental billing/display/cache-read edits."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality check conventions for backend changes."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality bar for pool column + candidate merge."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify admitsScheduleUser, pair acquire, and unpooled escape all use the same lookup platform."}
+{"file": ".trellis/tasks/08-22-ag-pool-openai-bridge/research/current-vs-proposed.md", "reason": "Acceptance: bridge must use AG pool when enabled; native GPT group 19 must keep openai pool."}
+{"file": ".trellis/tasks/08-22-ag-pool-openai-bridge/research/empty-stream-related.md", "reason": "Flag any empty-stream code as out of scope unless F is yes."}

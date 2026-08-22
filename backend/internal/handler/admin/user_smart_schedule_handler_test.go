@@ -197,7 +197,7 @@ func (s *serviceSmartRepoStub) UpdateSortOrders(_ context.Context, _ int64, _ st
 	return nil
 }
 
-func (s *serviceSmartRepoStub) SetMemberPaused(_ context.Context, _ int64, accountID int64, paused bool) error {
+func (s *serviceSmartRepoStub) SetMemberPaused(_ context.Context, _ int64, accountID int64, _ string, paused bool) error {
 	if s == nil || s.bundle == nil || s.bundle.Policies == nil {
 		return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}

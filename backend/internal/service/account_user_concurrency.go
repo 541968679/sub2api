@@ -27,7 +27,7 @@ func isPairConcurrencyFull(ctx context.Context, account *Account, current int, l
 }
 
 // resolvePairSlotAcquire returns the real pair cap and whether the hot path
-// should write concurrency:account_user:{accountID}:{userID}.
+// should write concurrency:account_user:{accountID}:{userID}:{platform}.
 // Closed-pool members always track occupancy (count-only when cap is 0/null).
 // 999 is UI-only (UNCAPPED_PAIR_DISPLAY_MAX) and must never be used as a cap.
 func resolvePairSlotAcquire(ctx context.Context, account *Account, lookup SmartScheduleLookup) (pairMax int, trackOccupancy bool) {
@@ -35,15 +35,16 @@ func resolvePairSlotAcquire(ctx context.Context, account *Account, lookup SmartS
 		return 0, false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, account.Platform); policy != nil {
+	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account)
+	if policy := lookupEnabledSmartPolicy(ctx, lookup, userID, lookupPlatform); policy != nil {
 		if !policy.HasAccount(account.ID) {
 			return 0, false
 		}
 		memberCap := policy.PairCap(account.ID)
-		if lookup != nil && lookup.IsPinned(ctx, account.ID, userID) {
+		if lookup != nil && lookup.IsPinned(ctx, account.ID, userID, lookupPlatform) {
 			return memberCap, true
 		}
-		if lookup != nil && lookup.IsProbing(ctx, account.ID, userID) {
+		if lookup != nil && lookup.IsProbing(ctx, account.ID, userID, lookupPlatform) {
 			return policy.ProbeInFlightCap(memberCap), true
 		}
 		return memberCap, true
@@ -75,6 +76,12 @@ func pairConcurrencyAccountIDs(ctx context.Context, accounts []*Account, userID 
 }
 
 func loadPairConcurrencyCounts(ctx context.Context, svc *ConcurrencyService, accounts []*Account, userID int64, lookup SmartScheduleLookup) map[int64]int {
+	for _, acc := range accounts {
+		if acc != nil {
+			ctx = stampSmartScheduleLookupPlatform(ctx, acc)
+			break
+		}
+	}
 	ids := pairConcurrencyAccountIDs(ctx, accounts, userID, lookup)
 	if len(ids) == 0 || svc == nil {
 		return map[int64]int{}
@@ -141,6 +148,7 @@ func (s *GatewayService) tryAcquireAccountAndPairSlot(ctx context.Context, accou
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
+	ctx = stampSmartScheduleLookupPlatform(ctx, account)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
 	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
@@ -149,6 +157,7 @@ func (s *OpenAIGatewayService) tryAcquireAccountAndPairSlot(ctx context.Context,
 	if s == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, false, nil
 	}
+	ctx = stampSmartScheduleLookupPlatform(ctx, account)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, s.smartScheduleCache)
 	return acquireAccountAndPairSlot(ctx, s.concurrencyService, account, scheduleUserIDFromContext(ctx, 0), pairMax, track)
 }
@@ -199,6 +208,7 @@ func attachPairSlotHoldingAccount(ctx context.Context, svc *ConcurrencyService, 
 		return accountRelease, false, nil
 	}
 
+	ctx = stampSmartScheduleLookupPlatform(ctx, account)
 	pairMax, track := resolvePairSlotAcquire(ctx, account, lookup)
 	userID := scheduleUserIDFromContext(ctx, 0)
 	max := pairMax

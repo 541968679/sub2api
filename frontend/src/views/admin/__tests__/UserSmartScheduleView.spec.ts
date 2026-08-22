@@ -1693,29 +1693,29 @@ describe('UserSmartScheduleView', () => {
     })
     const w = await mountPage()
     await pickAdmissionState(w, 'resumed')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'resumed')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'resumed', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('resumed')
     expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
       'admin.users.smartSchedule.admissionResumed'
     )
 
     await pickAdmissionState(w, 'selectable')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
 
     await pickAdmissionState(w, 'cooling')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'cooling', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('cooling')
 
     await pickAdmissionState(w, 'pinned')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
     expect(w.get('[data-testid="smart-schedule-admission"]').text()).toContain(
       'admin.users.smartSchedule.admissionPinned'
     )
 
     await pickAdmissionState(w, 'paused')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'paused', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
 
     apiMocks.getSmartSchedule.mockResolvedValue({
@@ -1964,7 +1964,7 @@ describe('UserSmartScheduleView', () => {
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
     await pickAdmissionState(w, 'probing')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'probing')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'probing', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('probing')
   })
 
@@ -1990,7 +1990,7 @@ describe('UserSmartScheduleView', () => {
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('paused')
     await pickAdmissionState(w, 'selectable')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'selectable', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('selectable')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).not.toBe('probing')
   })
@@ -2093,7 +2093,7 @@ describe('UserSmartScheduleView', () => {
     })
     const w = await mountPage()
     await pickAdmissionState(w, 'pinned')
-    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned')
+    expect(apiMocks.resumeSmartSchedule).toHaveBeenCalledWith(11, 99, 'pinned', 'anthropic')
     expect(w.get('[data-testid="smart-schedule-admission"]').attributes('data-admission')).toBe('pinned')
     expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/8')
   })

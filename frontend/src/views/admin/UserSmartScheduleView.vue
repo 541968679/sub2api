@@ -490,6 +490,17 @@
                   :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at"
                 />
               </template>
+              <template #cell-claude_gpt_bridge="{ row }">
+                <span class="text-xs text-gray-600 dark:text-gray-300">
+                  {{
+                    row.platform === 'openai'
+                      ? row.extra?.openai_claude_gpt_bridge_enabled
+                        ? t('admin.users.smartSchedule.claudeGptBridgeOn')
+                        : t('admin.users.smartSchedule.claudeGptBridgeOff')
+                      : '—'
+                  }}
+                </span>
+              </template>
               <template #header-concurrency="{ column }">
                 <div class="flex items-center">
                   <span>{{ column.label }}</span>
@@ -844,6 +855,7 @@
       :show="pairQualityAcc != null"
       :user-id="userId"
       :account="pairQualityAcc"
+      :platform="activePlatform"
       @close="pairQualityAcc = null"
     />
     <UserQualityDialog
@@ -1159,6 +1171,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'select', label: '', sortable: false, minWidth: 88, resizable: false },
   { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, minWidth: 140 },
   { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true, minWidth: 120 },
+  { key: 'claude_gpt_bridge', label: t('admin.users.smartSchedule.claudeGptBridge'), sortable: true, minWidth: 110 },
   { key: 'concurrency', label: t('admin.accounts.columns.capacity'), sortable: true, minWidth: 88 },
   { key: 'pair_cap', label: t('admin.users.smartSchedule.pairCap'), sortable: true, minWidth: 88 },
   { key: 'admission', label: t('admin.users.smartSchedule.admission'), sortable: true, minWidth: 110 },

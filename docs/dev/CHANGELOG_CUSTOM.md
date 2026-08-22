@@ -1,3 +1,52 @@
+## 2026-08-22 - fix: isolate smart-schedule 豁免期 and pair-quality hydrate by platform
+
+### What
+- Smart-schedule 豁免期 now uses `smart-schedule:resume:{platform}:{accountID}` instead of shared `account-quality:resume`. AG 豁免期 no longer fail-opens the openai pool (or Track A gates).
+- Pool pair-quality batch/detail take the current tab platform. Dual-membership without platform no longer collapses two windows onto one account id.
+- Account-page resume still omits platform and only mutates `account.Platform`.
+
+### Why
+- Check/risk review: Brandon required openai and antigravity pools to be fully independent. The implementer left resume and batch hydrate keyed by account only.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform|PairResume|GetPairQualityBatch"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts src/composables/__tests__/smartScheduleAddCandidates.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/account_user_schedule.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+
+## 2026-08-22 - feat: AG pool accepts OpenAI accounts with isolated Redis
+
+### What
+- Antigravity smart-schedule pool may include OpenAI accounts (bridge on or off) plus native AG. Dual membership is allowed; adding to AG does not remove the openai-pool row.
+- Closed-pool lookup for bridge / AG-group OpenAI traffic uses the antigravity policy. Nil/empty/disabled AG policy fail-opens to account-side allow/deny and never falls back to the openai pool.
+- Occupancy, cooldown, probe, pin, pair-quality, and ObservePairCompletion are keyed by `(user, account, platform)`.
+- Admin AG tab loads OpenAI + AG candidates and shows a read-only Claude→GPT bridge column.
+
+### Why
+- Brandon locked A–G plus complete openai/AG independence so one pool's cooldown or pair cap cannot freeze the same OpenAI account in the other pool.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|sanitizePool|ClaudeGPTBridge|Unpooled|admitsScheduleUser|lookupEnabledSmartPolicy|LookupPlatform"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Cooldown|AccountUserSlotKey"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/useSmartSchedulePoolColumnLayout.spec.ts src/composables/__tests__/smartScheduleAddCandidates.spec.ts`
+
+### Affected files
+`backend/migrations/211_user_smart_schedule_account_pk.sql`,
+`backend/internal/service/smart_schedule_lookup_platform.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/repository/concurrency_cache.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`docs/dev/codebase/account.md`
+
 ## 2026-08-22 - fix: smart-schedule PnL balance refreshes on page load
 
 ### What
