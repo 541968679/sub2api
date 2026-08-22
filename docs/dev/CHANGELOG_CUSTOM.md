@@ -1,3 +1,14 @@
+## 2026-08-22 - docs: record production deploy of v0.1.251
+
+### What
+- Production main service is now `ghcr.io/541968679/sub2api:0.1.251` (`52c2f91d1`), digest `sha256:095850c815a9755d2cbdf99418eb3787c9e540d590292a3afb6ce7441a735fe3`.
+
+### Why
+- AG-pool dual-membership + switch-off no-op shipped; `v0.1.250` never published GHCR (`vue-tsc`).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
 ## 2026-08-22 - fix: type smart-schedule resume grace fields on pool draft
 
 ### What
