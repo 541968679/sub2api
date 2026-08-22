@@ -1,5 +1,5 @@
 -- Standing replica window-1: per-group profit control columns (default OFF).
--- Renumbered from catchup 202. Additive only; enabling the gate is opt-in.
+-- Renumbered from catchup 202 / standing 212. Additive only; enabling the gate is opt-in.
 ALTER TABLE groups
     ADD COLUMN IF NOT EXISTS profit_control_enabled BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN IF NOT EXISTS profit_min_margin DECIMAL(10,4) NOT NULL DEFAULT 0,

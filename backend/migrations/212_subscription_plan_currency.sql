@@ -1,5 +1,5 @@
 -- Standing replica window-1: subscription plan currency label (default empty = legacy display).
--- Renumbered from catchup 200 / old-sync 197. main already used 209 for user_quality_snapshots.
+-- Renumbered from catchup 200 / old-sync 197 / standing 210. main already used 210 for ops_attention_alert.
 ALTER TABLE subscription_plans
     ADD COLUMN IF NOT EXISTS currency VARCHAR(16) NOT NULL DEFAULT '';
 

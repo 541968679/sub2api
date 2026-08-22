@@ -10,7 +10,7 @@
 | 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合 `main`、未 push） |
 | branch-point / `--base` | `7f054bc3e` |
 | 窗 1 补丁源 | `7feb1549f` on `sync/upstream-catchup-20260814`（只当补丁源，禁止 merge/rebase） |
-| 窗 1 SQL | `210_subscription_plan_currency.sql`、`211_usage_log_image_input_tokens.sql`、`212_group_profit_control.sql`（`209` 已是 main 的 user_quality_snapshots） |
+| 窗 1 SQL | `212_subscription_plan_currency.sql`、`213_usage_log_image_input_tokens.sql`、`214_group_profit_control.sql`（让号：`main` 已占用 `210_ops_attention_alert` / `211_user_smart_schedule_account_pk`） |
 | 已合入的 large baseline | 上游 `v0.1.152` / `b73d8c3ef` |
 | pending eval window | 仍从 `fbfdcef81` 起（冻结上限不变） |
 | 水位 JSON | [UPSTREAM_BASE.json](./UPSTREAM_BASE.json) |
