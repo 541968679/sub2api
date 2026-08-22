@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -66,11 +67,74 @@ func isRoutingPoolEmpty(status int, phase string) bool {
 
 func SQLRoutingPoolEmptyPredicate(prefix string) string {
 	status, phase, _, _, _ := sqlOpsErrorCols(prefix)
-	return fmt.Sprintf("(COALESCE(%s, 0) = 503 AND LOWER(COALESCE(%s, '')) = 'routing')", status, phase)
+	return fmt.Sprintf("(COALESCE(%s, 0) = 503 AND LOWER(TRIM(COALESCE(%s, ''))) = 'routing')", status, phase)
+}
+
+func isClientInvalidRequest(phase, errorType string) bool {
+	return strings.EqualFold(strings.TrimSpace(errorType), "invalid_request_error") &&
+		strings.EqualFold(strings.TrimSpace(phase), "request")
+}
+
+func SQLClientInvalidRequestPredicate(prefix string) string {
+	_, phase, typ, _, _ := sqlOpsErrorCols(prefix)
+	return fmt.Sprintf(
+		"(LOWER(TRIM(COALESCE(%s, ''))) = 'invalid_request_error' AND LOWER(TRIM(COALESCE(%s, ''))) = 'request')",
+		typ, phase,
+	)
+}
+
+func isClientWrapped400URF(status int, message string) bool {
+	return status == 400 && strings.Contains(strings.ToLower(message), "upstream request failed")
+}
+
+func SQLClientWrapped400URFPredicate(prefix string) string {
+	status, _, _, msg, _ := sqlOpsErrorCols(prefix)
+	return "(COALESCE(" + status + ", 0) = 400 AND " + sqlLowerLike(msg, "upstream request failed") + ")"
+}
+
+func isClientContextTooLong(status int, message string) bool {
+	if status == 413 {
+		return true
+	}
+	msg := strings.ToLower(message)
+	return strings.Contains(msg, "prompt is too long") ||
+		strings.Contains(msg, "context window") ||
+		strings.Contains(msg, "array too long")
+}
+
+func SQLClientContextTooLongPredicate(prefix string) string {
+	status, _, _, msg, _ := sqlOpsErrorCols(prefix)
+	return "(" +
+		"COALESCE(" + status + ", 0) = 413" +
+		" OR " + sqlLowerLike(msg, "prompt is too long") +
+		" OR " + sqlLowerLike(msg, "context window") +
+		" OR " + sqlLowerLike(msg, "array too long") +
+		")"
+}
+
+func isPairConcurrency(status int, message string) bool {
+	return status == 429 && strings.Contains(strings.ToLower(message), "concurrency limit exceeded for account")
+}
+
+func SQLPairConcurrencyPredicate(prefix string) string {
+	status, _, _, msg, _ := sqlOpsErrorCols(prefix)
+	return "(COALESCE(" + status + ", 0) = 429 AND " + sqlLowerLike(msg, "concurrency limit exceeded for account") + ")"
+}
+
+// isHardCountedUpstreamRequestFailed is the safety rail: 502 + that wording
+// always counts toward schedule. Config cannot whitelist it away.
+func isHardCountedUpstreamRequestFailed(status int, message string) bool {
+	return status == 502 && strings.Contains(strings.ToLower(message), "upstream request failed")
+}
+
+func SQLHardCountedUpstreamRequestFailedPredicate(prefix string) string {
+	status, _, _, msg, _ := sqlOpsErrorCols(prefix)
+	return "(COALESCE(" + status + ", 0) = 502 AND " + sqlLowerLike(msg, "upstream request failed") + ")"
 }
 
 // IsOpsAttentionError is the dedicated-ops family: group/model gap, routing miss,
 // routing 503, protocol mismatch. Client noise is not attention.
+// Attention does not follow the schedule whitelist.
 func IsOpsAttentionError(status int, phase, errorType, message, body string) bool {
 	if IsGroupNoAccountForModel(message, body) {
 		return true
@@ -95,64 +159,135 @@ func SQLOpsAttentionPredicate(prefix string) string {
 
 // IsScheduleClientNoise is a bad client/pair-concurrency row. Not hop failure.
 // Attention wording wins so a 400 group-gap is still marked for ops.
+// invalid_request_error only matches error_phase=request.
 func IsScheduleClientNoise(status int, phase, errorType, message, body string) bool {
 	if IsOpsAttentionError(status, phase, errorType, message, body) {
 		return false
 	}
-	typ := strings.ToLower(strings.TrimSpace(errorType))
-	msg := strings.ToLower(message)
-	if typ == "invalid_request_error" {
+	if isClientInvalidRequest(phase, errorType) {
 		return true
 	}
-	if status == 400 && strings.Contains(msg, "upstream request failed") {
+	if isClientWrapped400URF(status, message) {
 		return true
 	}
-	if status == 413 {
+	if isClientContextTooLong(status, message) {
 		return true
 	}
-	if strings.Contains(msg, "prompt is too long") ||
-		strings.Contains(msg, "context window") ||
-		strings.Contains(msg, "array too long") {
+	if isPairConcurrency(status, message) {
 		return true
 	}
-	if status == 429 && strings.Contains(msg, "concurrency limit exceeded for account") {
-		return true
-	}
-	_ = phase
 	_ = body
 	return false
 }
 
 func SQLScheduleClientNoisePredicate(prefix string) string {
-	status, _, typ, msg, _ := sqlOpsErrorCols(prefix)
 	noise := "(" +
-		fmt.Sprintf("LOWER(COALESCE(%s, '')) = 'invalid_request_error'", typ) +
-		" OR (COALESCE(" + status + ", 0) = 400 AND " + sqlLowerLike(msg, "upstream request failed") + ")" +
-		" OR COALESCE(" + status + ", 0) = 413" +
-		" OR " + sqlLowerLike(msg, "prompt is too long") +
-		" OR " + sqlLowerLike(msg, "context window") +
-		" OR " + sqlLowerLike(msg, "array too long") +
-		" OR (COALESCE(" + status + ", 0) = 429 AND " + sqlLowerLike(msg, "concurrency limit exceeded for account") + ")" +
+		SQLClientInvalidRequestPredicate(prefix) +
+		" OR " + SQLClientWrapped400URFPredicate(prefix) +
+		" OR " + SQLClientContextTooLongPredicate(prefix) +
+		" OR " + SQLPairConcurrencyPredicate(prefix) +
 		")"
 	return "(" + noise + " AND NOT " + SQLOpsAttentionPredicate(prefix) + ")"
 }
 
+func matchScheduleErrorFamily(id string, status int, phase, errorType, message, body string) bool {
+	switch id {
+	case ScheduleErrorFamilyClientInvalidRequest:
+		return isClientInvalidRequest(phase, errorType)
+	case ScheduleErrorFamilyClientWrapped400URF:
+		return isClientWrapped400URF(status, message)
+	case ScheduleErrorFamilyClientContextTooLong:
+		return isClientContextTooLong(status, message)
+	case ScheduleErrorFamilyPairConcurrency:
+		return isPairConcurrency(status, message)
+	case ScheduleErrorFamilyGroupNoAccount:
+		return IsGroupNoAccountForModel(message, body)
+	case ScheduleErrorFamilyRoutingModelMiss:
+		return IsAccountQualityRoutingModelMiss(status, phase, errorType, message, body)
+	case ScheduleErrorFamilyRoutingPoolEmpty:
+		return isRoutingPoolEmpty(status, phase)
+	case ScheduleErrorFamilyProtocolMismatch:
+		return IsScheduleProtocolMismatch(message)
+	default:
+		return false
+	}
+}
+
+func sqlScheduleErrorFamilyPredicate(id, prefix string) string {
+	switch id {
+	case ScheduleErrorFamilyClientInvalidRequest:
+		return SQLClientInvalidRequestPredicate(prefix)
+	case ScheduleErrorFamilyClientWrapped400URF:
+		return SQLClientWrapped400URFPredicate(prefix)
+	case ScheduleErrorFamilyClientContextTooLong:
+		return SQLClientContextTooLongPredicate(prefix)
+	case ScheduleErrorFamilyPairConcurrency:
+		return SQLPairConcurrencyPredicate(prefix)
+	case ScheduleErrorFamilyGroupNoAccount:
+		return SQLGroupNoAccountForModelPredicate(prefix)
+	case ScheduleErrorFamilyRoutingModelMiss:
+		return "(" + SQLAccountQualityRoutingModelMissPredicatePrefixed(prefix) + ")"
+	case ScheduleErrorFamilyRoutingPoolEmpty:
+		return SQLRoutingPoolEmptyPredicate(prefix)
+	case ScheduleErrorFamilyProtocolMismatch:
+		return SQLScheduleProtocolMismatchPredicate(prefix)
+	default:
+		return "FALSE"
+	}
+}
+
+// IsScheduleQualityExcluded uses factory-default families (all on).
 func IsScheduleQualityExcluded(status int, phase, errorType, message, body string) bool {
-	return IsOpsAttentionError(status, phase, errorType, message, body) ||
-		IsScheduleClientNoise(status, phase, errorType, message, body) ||
-		IsAccountQualityRoutingModelMiss(status, phase, errorType, message, body)
+	return IsScheduleQualityExcludedWith(status, phase, errorType, message, body, DefaultScheduleErrorWhitelist())
+}
+
+// IsScheduleQualityExcludedWith excludes a row from schedule ErrorCount when
+// an enabled family matches. 502 "Upstream request failed" is never excluded.
+// Attention is independent of this whitelist.
+func IsScheduleQualityExcludedWith(status int, phase, errorType, message, body string, wl ScheduleErrorWhitelist) bool {
+	if isHardCountedUpstreamRequestFailed(status, message) {
+		return false
+	}
+	wl = NormalizeScheduleErrorWhitelist(wl)
+	for _, id := range ScheduleErrorFamilyIDs {
+		if wl.FamilyEnabled(id) && matchScheduleErrorFamily(id, status, phase, errorType, message, body) {
+			return true
+		}
+	}
+	return false
 }
 
 func SQLScheduleQualityExcludedPredicate(prefix string) string {
-	return "(" +
-		SQLOpsAttentionPredicate(prefix) +
-		" OR " + SQLScheduleClientNoisePredicate(prefix) +
-		" OR (" + SQLAccountQualityRoutingModelMissPredicatePrefixed(prefix) + ")" +
-		")"
+	return SQLScheduleQualityExcludedPredicateWith(prefix, DefaultScheduleErrorWhitelist())
+}
+
+func SQLScheduleQualityExcludedPredicateWith(prefix string, wl ScheduleErrorWhitelist) string {
+	wl = NormalizeScheduleErrorWhitelist(wl)
+	parts := make([]string, 0, len(ScheduleErrorFamilyIDs))
+	for _, id := range ScheduleErrorFamilyIDs {
+		if !wl.FamilyEnabled(id) {
+			continue
+		}
+		parts = append(parts, sqlScheduleErrorFamilyPredicate(id, prefix))
+	}
+	if len(parts) == 0 {
+		return "FALSE"
+	}
+	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + ")"
 }
 
 func SQLExcludeAccountQualityScheduleNoise(prefix string) string {
-	return "NOT (" + SQLScheduleQualityExcludedPredicate(prefix) + ")"
+	return SQLExcludeAccountQualityScheduleNoiseWith(prefix, DefaultScheduleErrorWhitelist())
+}
+
+func SQLExcludeAccountQualityScheduleNoiseWith(prefix string, wl ScheduleErrorWhitelist) string {
+	return "NOT (" + SQLScheduleQualityExcludedPredicateWith(prefix, wl) + ")"
+}
+
+// SQLExcludeAccountQualityScheduleNoiseResolved builds the account-dimension
+// 15m ErrorCount guard from the current Settings KV (short-cached).
+func SQLExcludeAccountQualityScheduleNoiseResolved(ctx context.Context, prefix string) string {
+	return SQLExcludeAccountQualityScheduleNoiseWith(prefix, ResolveScheduleErrorWhitelist(ctx))
 }
 
 // SQLAccountQualityRoutingModelMissPredicatePrefixed is the existing miss

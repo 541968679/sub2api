@@ -387,34 +387,12 @@ func (s *GeminiMessagesCompatService) buildPreCheckUsageResultMap(ctx context.Co
 }
 
 // isBetterGeminiAccount 判断 candidate 是否比 current 更优。
-// 规则：优先级更高（数值更小）优先；同优先级时，未使用过的优先（OAuth > 非 OAuth），其次是最久未使用的。
+// 规则：更低上游倍率优先；同倍率再比优先级与 LRU（都未使用时 OAuth 优先）。
 //
 // isBetterGeminiAccount checks if candidate is better than current.
-// Rules: higher priority (lower value) wins; same priority: never used (OAuth > non-OAuth) > least recently used.
+// Rules: lower EffectiveUpstreamRate wins; same rate: priority, then unused OAuth, then LRU.
 func (s *GeminiMessagesCompatService) isBetterGeminiAccount(candidate, current *Account) bool {
-	// 优先级更高（数值更小）
-	if candidate.Priority < current.Priority {
-		return true
-	}
-	if candidate.Priority > current.Priority {
-		return false
-	}
-
-	// 同优先级，比较最后使用时间
-	switch {
-	case candidate.LastUsedAt == nil && current.LastUsedAt != nil:
-		// candidate 从未使用，优先
-		return true
-	case candidate.LastUsedAt != nil && current.LastUsedAt == nil:
-		// current 从未使用，保持
-		return false
-	case candidate.LastUsedAt == nil && current.LastUsedAt == nil:
-		// 都未使用，优先选择 OAuth 账号（更兼容 Code Assist 流程）
-		return candidate.Type == AccountTypeOAuth && current.Type != AccountTypeOAuth
-	default:
-		// 都使用过，选择最久未使用的
-		return candidate.LastUsedAt.Before(*current.LastUsedAt)
-	}
+	return isBetterSchedulableAccount(candidate, current, true)
 }
 
 // isModelSupportedByAccount 根据账户平台检查模型支持

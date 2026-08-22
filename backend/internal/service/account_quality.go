@@ -75,9 +75,9 @@ type AccountQualityStats struct {
 	TTFTSamples int64 `json:"ttft_samples"`
 	// N / WindowN / AccountQualityWindowN are the site-wide last-N size for Q_a.
 	// Aliases exist so the account cell can show k/N without a settings round-trip.
-	N                      int `json:"n,omitempty"`
-	WindowN                int `json:"window_n,omitempty"`
-	AccountQualityWindowN  int `json:"account_quality_window_n,omitempty"`
+	N                     int `json:"n,omitempty"`
+	WindowN               int `json:"window_n,omitempty"`
+	AccountQualityWindowN int `json:"account_quality_window_n,omitempty"`
 	// ResumeUsers is live-cache only: user_id -> unix until. After 立即恢复,
 	// the chip stays 已恢复 until this timestamp.
 	ResumeUsers map[string]int64 `json:"resume_users,omitempty"`
@@ -698,6 +698,8 @@ type OpsErrorCaliberInput struct {
 	Platform      string
 	UpstreamModel string
 	UseFailover   bool
+	// Whitelist is the current schedule-error family config. Nil = factory default.
+	Whitelist *ScheduleErrorWhitelist
 }
 
 // OpsErrorRateCalibers is the three-layer list marking for one error row.
@@ -713,17 +715,20 @@ type OpsErrorRateCalibers struct {
 // User rate = client status>=400. Compare account rate = this hop failed
 // (terminal >=400 or Recovered), excluding model-not-found and bridge.
 // Schedule account rate follows the site-wide failover toggle, then drops
-// client noise and ops-attention families (group/model gap, routing 503,
-// protocol mismatch). Those families still land in ops_error_logs.
+// enabled schedule-error whitelist families. Attention does not follow the
+// whitelist. Those families still land in ops_error_logs.
 func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers {
 	recovered := IsRecoveredOpsError(in.Phase, in.ClientStatus, in.Message)
 	user := in.ClientStatus >= 400
 	routingMiss := IsAccountQualityRoutingModelMiss(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
 	bridge := IsClaudeGPTBridgeError(in.Platform, in.UpstreamModel)
 	attention := IsOpsAttentionError(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
-	noise := IsScheduleClientNoise(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody)
-	scheduleSkip := routingMiss || bridge || attention || noise
-	terminalAccount := user && !routingMiss && !bridge && !attention && !noise
+	wl := DefaultScheduleErrorWhitelist()
+	if in.Whitelist != nil {
+		wl = NormalizeScheduleErrorWhitelist(*in.Whitelist)
+	}
+	scheduleSkip := bridge || IsScheduleQualityExcludedWith(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody, wl)
+	terminalAccount := user && !scheduleSkip
 	compareAccount := !routingMiss && !bridge && (user || recovered)
 	schedule := terminalAccount
 	if in.UseFailover {
@@ -743,7 +748,7 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 	if item == nil {
 		return
 	}
-	cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+	applyOpsErrorRateCalibers(item, OpsErrorCaliberInput{
 		ClientStatus:  clientStatus,
 		Phase:         item.Phase,
 		Type:          item.Type,
@@ -753,6 +758,13 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 		UpstreamModel: item.UpstreamModel,
 		UseFailover:   useFailover,
 	})
+}
+
+func applyOpsErrorRateCalibers(item *OpsErrorLog, in OpsErrorCaliberInput) {
+	if item == nil {
+		return
+	}
+	cals := ClassifyOpsErrorRateCalibers(in)
 	item.IsRecovered = cals.IsRecovered
 	item.CountedInUserErrorRate = cals.CountedInUserErrorRate
 	item.CountedInAccountCompareRate = cals.CountedInAccountCompareRate

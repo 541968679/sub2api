@@ -543,6 +543,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)
 		adminSettings.GET("/quality-hard-close", h.Admin.Setting.GetQualityHardCloseSettings)
 		adminSettings.PUT("/quality-hard-close", h.Admin.Setting.UpdateQualityHardCloseSettings)
+		adminSettings.GET("/schedule-error-whitelist", h.Admin.Setting.GetScheduleErrorWhitelist)
+		adminSettings.PUT("/schedule-error-whitelist", h.Admin.Setting.UpdateScheduleErrorWhitelist)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)

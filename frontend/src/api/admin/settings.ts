@@ -1164,6 +1164,51 @@ export async function updateQualityHardCloseSettings(
   return data;
 }
 
+// ==================== Schedule Error Whitelist ====================
+
+export const SCHEDULE_ERROR_WHITELIST_FAMILY_IDS = [
+  "client_invalid_request",
+  "client_wrapped_400_urf",
+  "client_context_too_long",
+  "pair_concurrency",
+  "group_no_account",
+  "routing_model_miss",
+  "routing_pool_empty",
+  "protocol_mismatch",
+] as const;
+
+export type ScheduleErrorWhitelistFamilyId =
+  (typeof SCHEDULE_ERROR_WHITELIST_FAMILY_IDS)[number];
+
+export interface ScheduleErrorWhitelistSettings {
+  families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
+}
+
+export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings {
+  return {
+    families: Object.fromEntries(
+      SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, true]),
+    ) as ScheduleErrorWhitelistSettings["families"],
+  };
+}
+
+export async function getScheduleErrorWhitelist(): Promise<ScheduleErrorWhitelistSettings> {
+  const { data } = await apiClient.get<ScheduleErrorWhitelistSettings>(
+    "/admin/settings/schedule-error-whitelist",
+  );
+  return data;
+}
+
+export async function updateScheduleErrorWhitelist(
+  settings: ScheduleErrorWhitelistSettings,
+): Promise<ScheduleErrorWhitelistSettings> {
+  const { data } = await apiClient.put<ScheduleErrorWhitelistSettings>(
+    "/admin/settings/schedule-error-whitelist",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1387,6 +1432,8 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
+  getScheduleErrorWhitelist,
+  updateScheduleErrorWhitelist,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

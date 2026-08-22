@@ -1787,6 +1787,10 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
+	if peers, peerErr := s.listSchedulableAccounts(ctx, groupID, eligibility.Platform); peerErr == nil &&
+		s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(peers))) {
+		return nil
+	}
 
 	// 验证账号是否可用于当前请求
 	// Verify account is usable for current request
@@ -1895,36 +1899,12 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 }
 
 // isBetterAccount 判断 candidate 是否比 current 更优。
-// 规则：优先级更高（数值更小）优先；同优先级时，未使用过的优先，其次是最久未使用的。
+// 规则：更低上游倍率优先；同倍率再比优先级（数值更小）与 LRU。
 //
 // isBetterAccount checks if candidate is better than current.
-// Rules: higher priority (lower value) wins; same priority: never used > least recently used.
+// Rules: lower EffectiveUpstreamRate wins; same rate: higher priority then LRU.
 func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool {
-	// 优先级更高（数值更小）
-	// Higher priority (lower value)
-	if candidate.Priority < current.Priority {
-		return true
-	}
-	if candidate.Priority > current.Priority {
-		return false
-	}
-
-	// 同优先级，比较最后使用时间
-	// Same priority, compare last used time
-	switch {
-	case candidate.LastUsedAt == nil && current.LastUsedAt != nil:
-		// candidate 从未使用，优先
-		return true
-	case candidate.LastUsedAt != nil && current.LastUsedAt == nil:
-		// current 从未使用，保持
-		return false
-	case candidate.LastUsedAt == nil && current.LastUsedAt == nil:
-		// 都未使用，保持
-		return false
-	default:
-		// 都使用过，选择最久未使用的
-		return candidate.LastUsedAt.Before(*current.LastUsedAt)
-	}
+	return isBetterSchedulableAccount(candidate, current, false)
 }
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
@@ -2020,6 +2000,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			if err == nil {
 				clearSticky := shouldClearStickySession(account, requestedModel) ||
 					!s.admitsScheduleUser(ctx, account)
+				if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts))) {
+					clearSticky = true
+				}
 				if clearSticky {
 					_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 				}

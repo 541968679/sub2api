@@ -55,10 +55,10 @@ func TestPairQualityBlocks_UnderNAndOr(t *testing.T) {
 	p50 := 100
 	rate := 0.9
 	policy := &SmartSchedulePlatformPolicy{
-		QualityMaxP50TTFTMs:  &p50,
+		QualityMaxP50TTFTMs:   &p50,
 		QualityMinSuccessRate: &rate,
-		QualityWindowSamples: intPtr(3),
-		QualityCondition:     strPtr(QualityHardCloseConditionOr),
+		QualityWindowSamples:  intPtr(3),
+		QualityCondition:      strPtr(QualityHardCloseConditionOr),
 	}
 	live := ApplyPairQualityIngest(nil, 3, true, intPtr(400))
 	require.False(t, pairQualityBlocks(live, policy), "W_ttft count 1 < N must not cool")
@@ -295,6 +295,26 @@ func TestObservePairQualityErrors_ScheduleExclude(t *testing.T) {
 			require.Empty(t, observer.obs)
 		})
 	}
+}
+
+func TestObservePairQualityErrors_GroupNoAccountWhitelistOff(t *testing.T) {
+	t.Parallel()
+	accountID, userID := int64(1719), int64(9)
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Families[ScheduleErrorFamilyGroupNoAccount] = false
+	raw, err := json.Marshal(wl)
+	require.NoError(t, err)
+	repo := newRuntimeSettingRepoStub()
+	repo.values[SettingKeyScheduleErrorWhitelist] = string(raw)
+	observer := &pairObserverStub{}
+	svc := &OpsService{pairQuality: observer, settingRepo: repo}
+	svc.observePairQualityErrors(context.Background(), []*OpsInsertErrorLogInput{{
+		AccountID: &accountID, UserID: &userID,
+		StatusCode: 502, ErrorPhase: "upstream", ErrorType: "upstream_error",
+		ErrorMessage: `Model "gpt-5.6-terra" is not supported by any configured account in this group`,
+	}})
+	require.Len(t, observer.obs, 1)
+	require.False(t, observer.obs[0].Success)
 }
 
 type pairObserverStub struct {

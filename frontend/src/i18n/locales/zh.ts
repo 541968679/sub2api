@@ -7673,6 +7673,48 @@ const zhBase = {
         saved: '质量硬关闭设置保存成功',
         saveFailed: '保存质量硬关闭设置失败'
       },
+      scheduleErrorWhitelist: {
+        title: '调度错误白名单',
+        description:
+          '只影响调度口径。勾选后该类错误不计入配对冷却、账号 last-N 与账号 15 分钟调度 ErrorCount。不影响客户端 HTTP、用户错误率、对照错误率或需运维告警。',
+        checkedHint: '勾选 = 不计入调度错误率 / 不冷却。关掉某一族后该类重新计入调度。',
+        saved: '调度错误白名单已保存',
+        saveFailed: '保存调度错误白名单失败',
+        families: {
+          client_invalid_request: {
+            label: '客户端 invalid_request',
+            hint: 'error_type=invalid_request_error 且 error_phase=request。hop 透传 400（phase=upstream）仍计入调度。',
+          },
+          client_wrapped_400_urf: {
+            label: '客户端包装 400 Upstream request failed',
+            hint: '仅 status=400 且文案含 upstream request failed。502 同类文案永远计入调度。',
+          },
+          client_context_too_long: {
+            label: '上下文过长',
+            hint: '413，或文案含 prompt too long / context window / array too long。',
+          },
+          pair_concurrency: {
+            label: '配对并发上限',
+            hint: '429 且文案含 Concurrency limit exceeded for account。',
+          },
+          group_no_account: {
+            label: '组内无号',
+            hint: '组内没有账号支持该模型。不限 phase/status。仍会打需运维标记。',
+          },
+          routing_model_miss: {
+            label: '路由模型未命中',
+            hint: '安全栏原样：400/403/404/503、phase≠upstream、非 upstream/overloaded/rate_limit，模型不存在/白名单文案。仍会打需运维。',
+          },
+          routing_pool_empty: {
+            label: '路由池空',
+            hint: 'error_phase=routing 且 status=503。仍会打需运维。',
+          },
+          protocol_mismatch: {
+            label: '协议不匹配',
+            hint: 'Chat Completions endpoint / Unsupported content type / Invalid URL。仍会打需运维。',
+          },
+        },
+      },
       streamTimeout: {
         title: '流超时处理',
         description: '配置上游响应超时时的账户处理策略，避免问题账户持续被选中',

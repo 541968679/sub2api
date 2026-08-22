@@ -19,7 +19,9 @@ Admin edit/bulk keep the last-column user-schedule zone and reuse `OpenAIFastPol
 - Create omit → type default. Old Redis snapshots missing the field use the type default, not billing `1.0`.
 - Admin surfaces: create/edit/bulk, accounts list inline column, smart-schedule pool inline column, import/export.
 
-Among already-eligible accounts, selection prefers the lowest upstream rate. Same rate falls through to priority / load / last_used / Sub2 score. Sticky pins that still admit are not broken for a cheaper peer. `fallback_only` stays a hard partition; the overlay applies inside the active partition. See [gateway.md](./gateway.md#upstream-rate-overlay).
+Among already-eligible accounts, selection prefers the lowest upstream rate. Same rate falls through to priority / load / last_used / Sub2 score. `fallback_only` stays a hard partition; the overlay applies inside the active partition.
+
+Unpooled users (`lookupEnabledSmartPolicy(..., account.Platform) == nil`, including `userID<=0` fail-open): if a cheaper schedulable peer has `LoadRate < 100`, **session** sticky on a higher-rate account is cleared and the cheap peer is selected. If the cheap tier is full, the pin stays and that account is used immediately (no extra cheap-tier wait). OpenAI advanced scheduling also acquires a higher-rate account that still has headroom instead of returning a cheap-tier WaitPlan. Pooled users (EnabledPolicy on **that account's platform**, not the group platform) keep today's pin and may still WaitPlan on the cheap tier. `previous_response` sticky is never cleared for a cheaper peer. See [gateway.md](./gateway.md#upstream-rate-overlay).
 
 ## User × platform smart schedule
 

@@ -226,6 +226,19 @@ func TestClassifyOpsErrorRateCalibers(t *testing.T) {
 	require.True(t, terminal.CountedInAccountCompareRate)
 	require.True(t, terminal.CountedInAccountScheduleRate)
 	require.False(t, terminal.NeedsOpsAttention)
+
+	bridge := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus:  502,
+		Phase:         "upstream",
+		Type:          "upstream_error",
+		Message:       "bad gateway",
+		Platform:      PlatformAnthropic,
+		UpstreamModel: "gpt-4.1",
+	})
+	require.True(t, bridge.CountedInUserErrorRate)
+	require.False(t, bridge.CountedInAccountCompareRate)
+	require.False(t, bridge.CountedInAccountScheduleRate)
+	require.False(t, bridge.NeedsOpsAttention)
 }
 
 func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) {
@@ -242,6 +255,14 @@ func TestClassifyOpsErrorRateCalibers_ScheduleExcludeAndAttention(t *testing.T) 
 				ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
 				Message: "missing required parameter",
 			},
+		},
+		{
+			name: "hop_invalid_request_upstream_400",
+			in: OpsErrorCaliberInput{
+				ClientStatus: 400, Phase: "upstream", Type: "invalid_request_error",
+				Message: "invalid json from hop",
+			},
+			schedule: true,
 		},
 		{
 			name: "upstream_request_failed_400",

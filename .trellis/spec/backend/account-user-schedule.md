@@ -265,6 +265,14 @@ return account.AdmitsScheduleUser(userID, live)
 
 **Prevention**: enter probe always HDEL `u:`/`w:`. While `IsProbing`, do not skip evaluate for leftover grace. 豁免期 fail-open is only when there is no probe mark. Tests must cover “N successes in probe + leftover resume → graduate”.
 
+## Common Mistake: unpooled cheap-tier escape uses group platform
+
+**Symptom**: mixed / Claude-GPT bridge clears an Antigravity (or OpenAI) pool session pin because the group is `anthropic`.
+
+**Cause**: `shouldEscapeSessionStickyForCheaperTier` called `lookupEnabledSmartPolicy(..., group.Platform)`.
+
+**Prevention**: same ruler as `admitsScheduleUser` — `lookupEnabledSmartPolicy(ctx, lookup, userID, sticky.Platform)`. `userID<=0` stays today's fail-open (unpooled), not a new pooled policy. `previous_response` must not use this escape.
+
 ## Common Mistake: leftover `AllowsScheduleUser` on a select path
 
 **Symptom**: VIP quality gate works on Anthropic but not OpenAI / Gemini / WS.

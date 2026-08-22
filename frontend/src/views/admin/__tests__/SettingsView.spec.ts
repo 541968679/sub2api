@@ -13,6 +13,8 @@ const {
   getOverloadCooldownSettings,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
+  getScheduleErrorWhitelist,
+  updateScheduleErrorWhitelist,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -35,6 +37,8 @@ const {
   getOverloadCooldownSettings: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
   updateQualityHardCloseSettings: vi.fn(),
+  getScheduleErrorWhitelist: vi.fn(),
+  updateScheduleErrorWhitelist: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -63,6 +67,8 @@ vi.mock("@/api", () => ({
       getOverloadCooldownSettings,
       getQualityHardCloseSettings,
       updateQualityHardCloseSettings,
+      getScheduleErrorWhitelist,
+      updateScheduleErrorWhitelist,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -1393,6 +1399,8 @@ describe("admin SettingsView quality hard-close card", () => {
     getOverloadCooldownSettings.mockReset();
     getQualityHardCloseSettings.mockReset();
     updateQualityHardCloseSettings.mockReset();
+    getScheduleErrorWhitelist.mockReset();
+    updateScheduleErrorWhitelist.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -1438,6 +1446,18 @@ describe("admin SettingsView quality hard-close card", () => {
       min_success_samples: 20,
       min_ttft_samples: 10,
       condition: "or",
+    });
+    getScheduleErrorWhitelist.mockResolvedValue({
+      families: {
+        client_invalid_request: true,
+        client_wrapped_400_urf: true,
+        client_context_too_long: true,
+        pair_concurrency: true,
+        group_no_account: true,
+        routing_model_miss: true,
+        routing_pool_empty: true,
+        protocol_mismatch: true,
+      },
     });
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
@@ -1513,5 +1533,121 @@ describe("admin SettingsView quality hard-close card", () => {
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
     expect(updateQualityHardCloseSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("admin SettingsView schedule error whitelist card", () => {
+  beforeEach(() => {
+    getSettings.mockReset();
+    updateSettings.mockReset();
+    getWebSearchEmulationConfig.mockReset();
+    getAdminApiKey.mockReset();
+    getOverloadCooldownSettings.mockReset();
+    getQualityHardCloseSettings.mockReset();
+    getScheduleErrorWhitelist.mockReset();
+    updateScheduleErrorWhitelist.mockReset();
+    getStreamTimeoutSettings.mockReset();
+    getRectifierSettings.mockReset();
+    getBetaPolicySettings.mockReset();
+    getGroups.mockReset();
+    listProxies.mockReset();
+    getProviders.mockReset();
+    fetchPublicSettings.mockReset();
+    adminSettingsFetch.mockReset();
+    showError.mockReset();
+    showSuccess.mockReset();
+
+    getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    getWebSearchEmulationConfig.mockResolvedValue({
+      enabled: false,
+      providers: [],
+    });
+    getAdminApiKey.mockResolvedValue({ exists: false, masked_key: "" });
+    getOverloadCooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+    });
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
+    getScheduleErrorWhitelist.mockResolvedValue({
+      families: {
+        client_invalid_request: true,
+        client_wrapped_400_urf: true,
+        client_context_too_long: true,
+        pair_concurrency: true,
+        group_no_account: true,
+        routing_model_miss: true,
+        routing_pool_empty: true,
+        protocol_mismatch: true,
+      },
+    });
+    updateScheduleErrorWhitelist.mockResolvedValue({
+      families: {
+        client_invalid_request: true,
+        client_wrapped_400_urf: true,
+        client_context_too_long: true,
+        pair_concurrency: true,
+        group_no_account: false,
+        routing_model_miss: true,
+        routing_pool_empty: true,
+        protocol_mismatch: true,
+      },
+    });
+    getStreamTimeoutSettings.mockResolvedValue({
+      enabled: true,
+      action: "temp_unsched",
+      temp_unsched_minutes: 5,
+      threshold_count: 3,
+      threshold_window_minutes: 10,
+    });
+    getRectifierSettings.mockResolvedValue({
+      enabled: true,
+      thinking_signature_enabled: true,
+      thinking_budget_enabled: true,
+      apikey_signature_enabled: false,
+      apikey_signature_patterns: [],
+    });
+    getBetaPolicySettings.mockResolvedValue({ rules: [] });
+    getGroups.mockResolvedValue([]);
+    listProxies.mockResolvedValue({ items: [] });
+    getProviders.mockResolvedValue({ data: [] });
+    fetchPublicSettings.mockResolvedValue({});
+    adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("saves preset family checkboxes on the existing settings page", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const card = wrapper.get('[data-test="schedule-error-whitelist-card"]');
+    expect(card.text()).toContain("admin.settings.scheduleErrorWhitelist.checkedHint");
+    const groupBox = wrapper.get(
+      '[data-test="schedule-error-whitelist-group_no_account"] input',
+    );
+    await groupBox.setValue(false);
+    await wrapper.get('[data-test="schedule-error-whitelist-save"]').trigger("click");
+    await flushPromises();
+
+    expect(updateScheduleErrorWhitelist).toHaveBeenCalledTimes(1);
+    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith({
+      families: {
+        client_invalid_request: true,
+        client_wrapped_400_urf: true,
+        client_context_too_long: true,
+        pair_concurrency: true,
+        group_no_account: false,
+        routing_model_miss: true,
+        routing_pool_empty: true,
+        protocol_mismatch: true,
+      },
+    });
+    expect(updateSettings).not.toHaveBeenCalled();
   });
 });

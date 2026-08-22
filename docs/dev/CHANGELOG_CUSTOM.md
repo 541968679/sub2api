@@ -1,3 +1,64 @@
+## 2026-08-22 - feat: schedule error whitelist (preset families)
+
+### What
+- New Settings KV `schedule_error_whitelist` (`{ "families": { "<id>": true } }`). true = in whitelist = exclude from pair cooldown / account last-N / account 15m schedule `ErrorCount`.
+- Factory default matches the previous hardcoded exclude, except `invalid_request_error` now requires `error_phase=request` (hop passthrough 400 still counts).
+- Preset families only. Save rejects unknown keys. 502 `Upstream request failed` cannot be whitelisted away.
+- `needs_ops_attention` / `ops_attention_count` stay independent of the whitelist.
+- List second `ApplyOpsErrorRateCalibers` keeps `error_body` so badges match ingest.
+- Existing settings page (Gateway tab) adds a checkbox group; no new route.
+
+### Why
+- Admins need to turn individual false-positive families back on for schedule without inventing custom LIKE needles.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "Caliber|ScheduleError|ScheduleQuality|ObservePairQuality|HopInvalid|GroupNoAccount|UpstreamRequestFailed|ApplyOpsError|ApplyErrorLog"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "ScheduleErrorWhitelist"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "schedule error whitelist"`
+
+### Affected files
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/service/ops_models.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/repository/ops_repo.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`
+
+## 2026-08-22 - feat: unpooled users pick cheap immediately, no cheap-tier wait
+
+### What
+- Unpooled users: among accounts with headroom, pick the lowest `EffectiveUpstreamRate()`.
+- If the cheap tier is full and a higher-rate account has a slot, acquire the expensive account immediately. No WaitPlan on the cheap tier.
+- Session sticky on a higher-rate account escapes when a cheaper schedulable peer has `LoadRate < 100`. Judged with `lookupEnabledSmartPolicy(..., sticky.Platform)` — never the group platform.
+- Pooled users (EnabledPolicy on that account platform) keep today's pin and cheap-tier WaitPlan. `previous_response` sticky is not escaped. Billing / `actual_cost` unchanged.
+
+### Why
+- Session pins and OpenAI advanced WaitPlan were still parking unpooled traffic on expensive accounts or waiting on a full cheap tier.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Unpooled|BetterAccount|StickyEscape|FallbackOnly|UpstreamRate|WaitPlan" -count=1`
+
+### Affected files
+`backend/internal/service/account_unpooled_schedule.go`,
+`backend/internal/service/account_unpooled_schedule_test.go`,
+`backend/internal/service/openai_unpooled_schedule_test.go`,
+`backend/internal/service/gateway_unpooled_schedule_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`docs/dev/codebase/account.md`
+
 ## 2026-08-22 - fix: exclude false pair-cooldown errors + dedicated ops-attention alert
 
 ### What

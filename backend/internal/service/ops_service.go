@@ -215,6 +215,7 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 		return
 	}
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	wl := s.scheduleErrorWhitelist(ctx)
 	for _, entry := range entries {
 		if entry == nil || entry.IsCountTokens || entry.AccountID == nil || entry.UserID == nil {
 			continue
@@ -231,6 +232,7 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 			Platform:      entry.Platform,
 			UpstreamModel: entry.UpstreamModel,
 			UseFailover:   useFailover,
+			Whitelist:     &wl,
 		})
 		if !cals.CountedInAccountScheduleRate {
 			continue
@@ -248,6 +250,7 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 		return
 	}
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	wl := s.scheduleErrorWhitelist(ctx)
 	for _, entry := range entries {
 		if entry == nil || entry.IsCountTokens {
 			continue
@@ -272,6 +275,7 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 			Platform:      entry.Platform,
 			UpstreamModel: entry.UpstreamModel,
 			UseFailover:   useFailover,
+			Whitelist:     &wl,
 		})
 		if !cals.CountedInAccountScheduleRate {
 			continue
@@ -462,11 +466,19 @@ func (s *OpsService) scheduleUseFailoverErrorRate(ctx context.Context) bool {
 	return settings.ScheduleUseFailoverErrorRate
 }
 
+func (s *OpsService) scheduleErrorWhitelist(ctx context.Context) ScheduleErrorWhitelist {
+	if s == nil {
+		return DefaultScheduleErrorWhitelist()
+	}
+	return loadScheduleErrorWhitelistFromRepo(ctx, s.settingRepo)
+}
+
 func (s *OpsService) applyErrorLogCalibers(ctx context.Context, result *OpsErrorLogList) {
 	if result == nil {
 		return
 	}
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	wl := s.scheduleErrorWhitelist(ctx)
 	for _, item := range result.Errors {
 		if item == nil {
 			continue
@@ -475,7 +487,17 @@ func (s *OpsService) applyErrorLogCalibers(ctx context.Context, result *OpsError
 		if clientStatus == 0 && item.StatusCode > 0 && !item.IsRecovered {
 			clientStatus = item.StatusCode
 		}
-		ApplyOpsErrorRateCalibers(item, clientStatus, "", useFailover)
+		applyOpsErrorRateCalibers(item, OpsErrorCaliberInput{
+			ClientStatus:  clientStatus,
+			Phase:         item.Phase,
+			Type:          item.Type,
+			Message:       item.Message,
+			ErrorBody:     item.ErrorBody,
+			Platform:      item.Platform,
+			UpstreamModel: item.UpstreamModel,
+			UseFailover:   useFailover,
+			Whitelist:     &wl,
+		})
 	}
 }
 
@@ -516,7 +538,18 @@ func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLo
 	if clientStatus == 0 && detail.StatusCode > 0 && !detail.IsRecovered {
 		clientStatus = detail.StatusCode
 	}
-	ApplyOpsErrorRateCalibers(&detail.OpsErrorLog, clientStatus, detail.ErrorBody, s.scheduleUseFailoverErrorRate(ctx))
+	wl := s.scheduleErrorWhitelist(ctx)
+	applyOpsErrorRateCalibers(&detail.OpsErrorLog, OpsErrorCaliberInput{
+		ClientStatus:  clientStatus,
+		Phase:         detail.Phase,
+		Type:          detail.Type,
+		Message:       detail.Message,
+		ErrorBody:     detail.ErrorBody,
+		Platform:      detail.Platform,
+		UpstreamModel: detail.UpstreamModel,
+		UseFailover:   s.scheduleUseFailoverErrorRate(ctx),
+		Whitelist:     &wl,
+	})
 	return detail, nil
 }
 

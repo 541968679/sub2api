@@ -372,6 +372,11 @@ const (
 	// quality hard-close (temp unschedulable). Default is fully off.
 	SettingKeyQualityHardCloseSettings = "quality_hard_close_settings"
 
+	// SettingKeyScheduleErrorWhitelist stores JSON of preset schedule-error
+	// families. true = in whitelist = exclude from pair cooldown / last-N /
+	// account 15m schedule ErrorCount. Missing or empty = factory defaults.
+	SettingKeyScheduleErrorWhitelist = "schedule_error_whitelist"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================

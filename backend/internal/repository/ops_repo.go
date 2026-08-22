@@ -369,6 +369,7 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
 		item.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(item.Platform, item.UpstreamModel)
 		item.ClientStatusCode = int(clientStatus.Int64)
+		item.ErrorBody = errorBody
 		service.ApplyOpsErrorRateCalibers(&item, item.ClientStatusCode, errorBody, false)
 		out = append(out, &item)
 	}

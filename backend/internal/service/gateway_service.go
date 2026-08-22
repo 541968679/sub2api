@@ -1747,81 +1747,85 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				if containsInt64(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
 					// 粘性账号在路由列表中，优先使用
 					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
-						var stickyCacheMissReason string
-						if s.clearStickyIfUserScheduleDenied(ctx, stickyAccount) && s.cache != nil && sessionHash != "" {
-							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
-						}
-
-						gatePass := s.isAccountSchedulableForSelection(ctx, stickyAccount) &&
-							s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
-							(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
-							s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
-							s.isAccountSchedulableForQuota(stickyAccount) &&
-							s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true)
-
-						rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
-
-						if rpmPass { // 粘性会话窗口费用+RPM 检查
-							pairFullSticky := isPairConcurrencyFull(ctx, stickyAccount, s.pairCountsForSelection(ctx, []*Account{stickyAccount})[stickyAccount.ID], s.smartScheduleCache)
-							if !pairFullSticky {
-								result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, stickyAccount)
-								if pairFull {
-									pairFullSticky = true
-								} else if err == nil && result.Acquired {
-									// 会话数量限制检查
-									if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
-										result.ReleaseFunc() // 释放槽位
-										stickyCacheMissReason = "session_limit"
-										// 继续到负载感知选择
-									} else {
-										slog.Debug("sticky.layer1_5_hit",
-											"account_id", stickyAccountID,
-											"session", shortSessionHash(sessionHash),
-											"result", "slot_acquired",
-										)
-										if s.debugModelRoutingEnabled() {
-											logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
-										}
-										return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
-									}
-								}
-							}
-
-							if !pairFullSticky && stickyCacheMissReason == "" {
-								waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
-								if waitingCount < cfg.StickySessionMaxWaiting {
-									// 会话数量限制检查（等待计划也需要占用会话配额）
-									if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
-										stickyCacheMissReason = "session_limit"
-										// 会话限制已满，继续到负载感知选择
-									} else {
-										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
-											AccountID:      stickyAccountID,
-											MaxConcurrency: stickyAccount.Concurrency,
-											Timeout:        cfg.StickySessionWaitTimeout,
-											MaxWaiting:     cfg.StickySessionMaxWaiting,
-										})
-									}
-								} else {
-									stickyCacheMissReason = "wait_queue_full"
-								}
-							}
-							// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
-						} else if !gatePass {
-							stickyCacheMissReason = "gate_check"
+						if s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, stickyAccount, routingCandidates) {
+							// Fall through to routed load-aware pick.
 						} else {
-							stickyCacheMissReason = "rpm_red"
-						}
-
-						// 记录粘性缓存未命中的结构化日志
-						if stickyCacheMissReason != "" {
-							baseRPM := stickyAccount.GetBaseRPM()
-							var currentRPM int
-							if count, ok := rpmFromPrefetchContext(ctx, stickyAccount.ID); ok {
-								currentRPM = count
+							var stickyCacheMissReason string
+							if s.clearStickyIfUserScheduleDenied(ctx, stickyAccount) && s.cache != nil && sessionHash != "" {
+								_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 							}
-							logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=%s account_id=%d session=%s current_rpm=%d base_rpm=%d",
-								stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
+
+							gatePass := s.isAccountSchedulableForSelection(ctx, stickyAccount) &&
+								s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
+								(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
+								s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
+								s.isAccountSchedulableForQuota(stickyAccount) &&
+								s.isAccountSchedulableForWindowCost(ctx, stickyAccount, true)
+
+							rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
+
+							if rpmPass { // 粘性会话窗口费用+RPM 检查
+								pairFullSticky := isPairConcurrencyFull(ctx, stickyAccount, s.pairCountsForSelection(ctx, []*Account{stickyAccount})[stickyAccount.ID], s.smartScheduleCache)
+								if !pairFullSticky {
+									result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, stickyAccount)
+									if pairFull {
+										pairFullSticky = true
+									} else if err == nil && result.Acquired {
+										// 会话数量限制检查
+										if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+											result.ReleaseFunc() // 释放槽位
+											stickyCacheMissReason = "session_limit"
+											// 继续到负载感知选择
+										} else {
+											slog.Debug("sticky.layer1_5_hit",
+												"account_id", stickyAccountID,
+												"session", shortSessionHash(sessionHash),
+												"result", "slot_acquired",
+											)
+											if s.debugModelRoutingEnabled() {
+												logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+											}
+											return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
+										}
+									}
+								}
+
+								if !pairFullSticky && stickyCacheMissReason == "" {
+									waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
+									if waitingCount < cfg.StickySessionMaxWaiting {
+										// 会话数量限制检查（等待计划也需要占用会话配额）
+										if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+											stickyCacheMissReason = "session_limit"
+											// 会话限制已满，继续到负载感知选择
+										} else {
+											return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
+												AccountID:      stickyAccountID,
+												MaxConcurrency: stickyAccount.Concurrency,
+												Timeout:        cfg.StickySessionWaitTimeout,
+												MaxWaiting:     cfg.StickySessionMaxWaiting,
+											})
+										}
+									} else {
+										stickyCacheMissReason = "wait_queue_full"
+									}
+								}
+								// 粘性账号槽位满且等待队列已满，继续使用负载感知选择
+							} else if !gatePass {
+								stickyCacheMissReason = "gate_check"
+							} else {
+								stickyCacheMissReason = "rpm_red"
+							}
+
+							// 记录粘性缓存未命中的结构化日志
+							if stickyCacheMissReason != "" {
+								baseRPM := stickyAccount.GetBaseRPM()
+								var currentRPM int
+								if count, ok := rpmFromPrefetchContext(ctx, stickyAccount.ID); ok {
+									currentRPM = count
+								}
+								logger.LegacyPrintf("service.gateway", "[StickyCacheMiss] reason=%s account_id=%d session=%s current_rpm=%d base_rpm=%d",
+									stickyCacheMissReason, stickyAccountID, shortSessionHash(sessionHash), currentRPM, baseRPM)
+							}
 						}
 					} else {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
@@ -1944,7 +1948,18 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		accountID := stickyAccountID
 		if accountID > 0 && !isExcluded(accountID) {
 			account, ok := accountByID[accountID]
+			escapedCheaperTier := false
 			if ok {
+				layer15Candidates := make([]*Account, 0, len(accounts))
+				for i := range accounts {
+					if isExcluded(accounts[i].ID) {
+						continue
+					}
+					layer15Candidates = append(layer15Candidates, &accounts[i])
+				}
+				escapedCheaperTier = s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, layer15Candidates)
+			}
+			if ok && !escapedCheaperTier && account != nil {
 				// 检查账户是否需要清理粘性会话绑定
 				clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 				if clearSticky {
@@ -2044,7 +2059,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						"session", shortSessionHash(sessionHash),
 					)
 				}
-			} else {
+			} else if !ok {
 				slog.Debug("sticky.layer1_5_no_routing_miss",
 					"account_id", accountID,
 					"reason", "account_not_in_map",
@@ -3232,6 +3247,9 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
+						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
+							clearSticky = true
+						}
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3304,27 +3322,8 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 				continue
 			}
-			if selected == nil {
+			if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuth) {
 				selected = acc
-				continue
-			}
-			if acc.Priority < selected.Priority {
-				selected = acc
-			} else if acc.Priority == selected.Priority {
-				switch {
-				case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
-					selected = acc
-				case acc.LastUsedAt != nil && selected.LastUsedAt == nil:
-					// keep selected (never used is preferred)
-				case acc.LastUsedAt == nil && selected.LastUsedAt == nil:
-					if preferOAuth && acc.Type != selected.Type && acc.Type == AccountTypeOAuth {
-						selected = acc
-					}
-				default:
-					if acc.LastUsedAt.Before(*selected.LastUsedAt) {
-						selected = acc
-					}
-				}
 			}
 		}
 
@@ -3351,6 +3350,9 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 				// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
+					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
+						clearSticky = true
+					}
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
@@ -3418,27 +3420,8 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 			continue
 		}
-		if selected == nil {
+		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuth) {
 			selected = acc
-			continue
-		}
-		if acc.Priority < selected.Priority {
-			selected = acc
-		} else if acc.Priority == selected.Priority {
-			switch {
-			case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
-				selected = acc
-			case acc.LastUsedAt != nil && selected.LastUsedAt == nil:
-				// keep selected (never used is preferred)
-			case acc.LastUsedAt == nil && selected.LastUsedAt == nil:
-				if preferOAuth && acc.Type != selected.Type && acc.Type == AccountTypeOAuth {
-					selected = acc
-				}
-			default:
-				if acc.LastUsedAt.Before(*selected.LastUsedAt) {
-					selected = acc
-				}
-			}
 		}
 	}
 
@@ -3490,6 +3473,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
+						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
+							clearSticky = true
+						}
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3564,27 +3550,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 				continue
 			}
-			if selected == nil {
+			preferOAuthThis := preferOAuth && acc.Platform == PlatformGemini && (selected == nil || selected.Platform == PlatformGemini)
+			if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuthThis) {
 				selected = acc
-				continue
-			}
-			if acc.Priority < selected.Priority {
-				selected = acc
-			} else if acc.Priority == selected.Priority {
-				switch {
-				case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
-					selected = acc
-				case acc.LastUsedAt != nil && selected.LastUsedAt == nil:
-					// keep selected (never used is preferred)
-				case acc.LastUsedAt == nil && selected.LastUsedAt == nil:
-					if preferOAuth && acc.Platform == PlatformGemini && selected.Platform == PlatformGemini && acc.Type != selected.Type && acc.Type == AccountTypeOAuth {
-						selected = acc
-					}
-				default:
-					if acc.LastUsedAt.Before(*selected.LastUsedAt) {
-						selected = acc
-					}
-				}
 			}
 		}
 
@@ -3611,6 +3579,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 				// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
+					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
+						clearSticky = true
+					}
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
@@ -3679,27 +3650,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 			continue
 		}
-		if selected == nil {
+		preferOAuthThis := preferOAuth && acc.Platform == PlatformGemini && (selected == nil || selected.Platform == PlatformGemini)
+		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuthThis) {
 			selected = acc
-			continue
-		}
-		if acc.Priority < selected.Priority {
-			selected = acc
-		} else if acc.Priority == selected.Priority {
-			switch {
-			case acc.LastUsedAt == nil && selected.LastUsedAt != nil:
-				selected = acc
-			case acc.LastUsedAt != nil && selected.LastUsedAt == nil:
-				// keep selected (never used is preferred)
-			case acc.LastUsedAt == nil && selected.LastUsedAt == nil:
-				if preferOAuth && acc.Platform == PlatformGemini && selected.Platform == PlatformGemini && acc.Type != selected.Type && acc.Type == AccountTypeOAuth {
-					selected = acc
-				}
-			default:
-				if acc.LastUsedAt.Before(*selected.LastUsedAt) {
-					selected = acc
-				}
-			}
 		}
 	}
 

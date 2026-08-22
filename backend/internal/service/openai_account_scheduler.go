@@ -448,6 +448,12 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "fallback_only_primary_available")
 		return nil, true, nil
 	}
+	peers, peerLoad := s.sessionStickyPeerLoad(ctx, req)
+	if shouldEscapeSessionStickyForCheaperTier(ctx, s.service.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, peers, peerLoad) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "cheaper_tier_available")
+		return nil, true, nil
+	}
 
 	result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, account)
 	if pairFull {
@@ -470,6 +476,11 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			errorRate, ttft, _ := s.stats.snapshot(accountID)
 			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 			slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "concurrency_full", "error_rate", errorRate, "ttft", ttft)
+			return nil, true, nil
+		}
+		if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, peers, peerLoad) {
+			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+			slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "min_rate_full_higher_headroom")
 			return nil, true, nil
 		}
 		return &AccountSelectionResult{
@@ -533,6 +544,37 @@ func (s *defaultOpenAIAccountScheduler) hasPrimaryOpenAIPeer(
 		return true
 	}
 	return false
+}
+
+func (s *defaultOpenAIAccountScheduler) sessionStickyPeerLoad(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+) ([]*Account, map[int64]*AccountLoadInfo) {
+	if s == nil || s.service == nil {
+		return nil, nil
+	}
+	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
+	if err != nil || len(accounts) == 0 {
+		return nil, nil
+	}
+	platform := normalizeOpenAICompatiblePlatform(req.Platform)
+	peers := make([]*Account, 0, len(accounts))
+	for i := range accounts {
+		account := &accounts[i]
+		if req.ExcludedIDs != nil {
+			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
+				continue
+			}
+		}
+		if !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != platform || s.service.isOpenAIAccountRuntimeBlocked(account) {
+			continue
+		}
+		if !s.service.admitsScheduleUser(ctx, account) {
+			continue
+		}
+		peers = append(peers, account)
+	}
+	return peers, scheduleLoadMap(ctx, s.service.concurrencyService, peers)
 }
 
 func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
@@ -1200,6 +1242,66 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 	}
 
+	userID := scheduleUserIDFromContext(ctx, 0)
+	poolAccounts := make([]*Account, 0, len(candidates))
+	poolLoad := make(map[int64]*AccountLoadInfo, len(candidates))
+	for _, item := range candidates {
+		if item.account == nil {
+			continue
+		}
+		poolAccounts = append(poolAccounts, item.account)
+		poolLoad[item.account.ID] = item.loadInfo
+	}
+	minRate, hasMinRate := minSchedulableUpstreamRate(poolAccounts)
+	if hasMinRate {
+		for i := 0; i < len(candidates); i++ {
+			item := candidates[i]
+			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, item.account.Platform) {
+				continue
+			}
+			if item.account.EffectiveUpstreamRate() <= minRate || !accountHasScheduleHeadroom(poolLoad, item.account.ID) {
+				continue
+			}
+			eligibility := openAIAccountRequestEligibility{
+				Platform:                     req.Platform,
+				RequestedModel:               req.RequestedModel,
+				RequireCompact:               req.RequireCompact,
+				RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+			}
+			fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, item.account, eligibility)
+			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
+				continue
+			}
+			fresh = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, eligibility)
+			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
+				continue
+			}
+			if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
+				compactBlocked = true
+				continue
+			}
+			result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, fresh)
+			if acquireErr != nil {
+				return nil, candidateCount, topK, loadSkew, acquireErr
+			}
+			if pairFull {
+				markPairFullID(pairFullIDs, fresh.ID)
+				continue
+			}
+			if result != nil && result.Acquired {
+				if req.SessionHash != "" && !req.PreserveStickyBinding {
+					_ = s.service.BindStickySession(ctx, req.GroupID, req.SessionHash, fresh.ID)
+				}
+				return &AccountSelectionResult{
+					Account:     fresh,
+					Acquired:    true,
+					ReleaseFunc: result.ReleaseFunc,
+				}, candidateCount, topK, loadSkew, nil
+			}
+		}
+	}
+
 	if req.StickyWeighted {
 		for _, stickyID := range []int64{req.StickyPreviousAccountID, req.StickyAccountID} {
 			if stickyID <= 0 {
@@ -1250,6 +1352,10 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				return &AccountSelectionResult{Account: fresh, Acquired: true, ReleaseFunc: result.ReleaseFunc}, candidateCount, topK, loadSkew, nil
 			}
 			if s.service.concurrencyService != nil {
+				if shouldEscapeSessionStickyForCheaperTier(ctx, s.service.smartScheduleCache, userID, fresh, poolAccounts, poolLoad) ||
+					shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, fresh, poolAccounts, poolLoad) {
+					continue
+				}
 				cfg := s.service.schedulingConfig()
 				return &AccountSelectionResult{Account: fresh, WaitPlan: &AccountWaitPlan{
 					AccountID: fresh.ID, MaxConcurrency: fresh.Concurrency,
@@ -1261,7 +1367,32 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 
 	cfg := s.service.schedulingConfig()
 	// WaitPlan.MaxConcurrency 使用 Concurrency（非 EffectiveLoadFactor），因为 WaitPlan 控制的是 Redis 实际并发槽位等待。
-	for _, candidate := range waitOrder {
+	waitPlanOrder := waitOrder
+	if hasMinRate {
+		extended := make([]openAIAccountCandidateScore, 0, len(candidates))
+		seen := make(map[int64]struct{}, len(candidates))
+		appendWaitable := func(item openAIAccountCandidateScore) {
+			if item.account == nil {
+				return
+			}
+			if _, ok := seen[item.account.ID]; ok {
+				return
+			}
+			if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, item.account, poolAccounts, poolLoad) {
+				return
+			}
+			seen[item.account.ID] = struct{}{}
+			extended = append(extended, item)
+		}
+		for _, item := range waitOrder {
+			appendWaitable(item)
+		}
+		for _, item := range candidates {
+			appendWaitable(item)
+		}
+		waitPlanOrder = extended
+	}
+	for _, candidate := range waitPlanOrder {
 		eligibility := openAIAccountRequestEligibility{
 			Platform:                     req.Platform,
 			RequestedModel:               req.RequestedModel,

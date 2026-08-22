@@ -36,7 +36,7 @@ type OpsErrorLog struct {
 
 	Severity string `json:"severity"`
 
-	StatusCode int    `json:"status_code"`
+	StatusCode int `json:"status_code"`
 	// ClientStatusCode is the wire status (200 on Recovered). List StatusCode
 	// may still be COALESCE(upstream, status) for display.
 	ClientStatusCode int    `json:"-"`
@@ -52,6 +52,9 @@ type OpsErrorLog struct {
 	ClientRequestID string `json:"client_request_id"`
 	RequestID       string `json:"request_id"`
 	Message         string `json:"message"`
+	// ErrorBody is used for list-badge classification. Not serialized on list
+	// rows (detail still exposes it on OpsErrorLogDetail).
+	ErrorBody string `json:"-"`
 
 	UserID        *int64 `json:"user_id"`
 	UserEmail     string `json:"user_email"`

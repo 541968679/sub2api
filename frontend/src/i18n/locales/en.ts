@@ -8030,6 +8030,48 @@ const enBase = {
         saved: 'Quality hard-close settings saved',
         saveFailed: 'Failed to save quality hard-close settings'
       },
+      scheduleErrorWhitelist: {
+        title: 'Schedule error whitelist',
+        description:
+          'Schedule caliber only. Checked families are excluded from pair cooldown, account last-N, and the account 15m schedule ErrorCount. Client HTTP, user error rate, compare rate, and needs-ops-attention alerts are unchanged.',
+        checkedHint: 'Checked = do not count toward schedule error rate / cooldown. Uncheck a family to count it again.',
+        saved: 'Schedule error whitelist saved',
+        saveFailed: 'Failed to save schedule error whitelist',
+        families: {
+          client_invalid_request: {
+            label: 'Client invalid_request',
+            hint: 'error_type=invalid_request_error and error_phase=request. Hop-passthrough 400 (phase=upstream) still counts.',
+          },
+          client_wrapped_400_urf: {
+            label: 'Client-wrapped 400 Upstream request failed',
+            hint: 'Only status=400 with wording “upstream request failed”. 502 of the same wording always counts.',
+          },
+          client_context_too_long: {
+            label: 'Context too long',
+            hint: '413, or wording contains prompt too long / context window / array too long.',
+          },
+          pair_concurrency: {
+            label: 'Pair concurrency cap',
+            hint: '429 with “Concurrency limit exceeded for account”.',
+          },
+          group_no_account: {
+            label: 'No account in group',
+            hint: 'No account in the group supports the model. Any phase/status. Still marked needs-ops-attention.',
+          },
+          routing_model_miss: {
+            label: 'Routing model miss',
+            hint: 'Same safety rails: 400/403/404/503, phase≠upstream, type not upstream/overloaded/rate_limit, model-not-found / whitelist wording. Still needs-ops-attention.',
+          },
+          routing_pool_empty: {
+            label: 'Empty routing pool',
+            hint: 'error_phase=routing and status=503. Still needs-ops-attention.',
+          },
+          protocol_mismatch: {
+            label: 'Protocol mismatch',
+            hint: 'Chat Completions endpoint / Unsupported content type / Invalid URL. Still needs-ops-attention.',
+          },
+        },
+      },
       streamTimeout: {
         title: 'Stream Timeout Handling',
         description: 'Configure account handling strategy when upstream response times out',
