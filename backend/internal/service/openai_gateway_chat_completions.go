@@ -667,9 +667,11 @@ func (s *OpenAIGatewayService) handleChatNonStreamResponsesJSON(
 	)
 }
 
-// handleChatBufferedStreamingResponse reads all Responses SSE events from the
-// upstream, finds the terminal event, converts to a Chat Completions JSON
-// response, and writes it to the client.
+// handleChatBufferedStreamingResponse reads Responses SSE events from the
+// upstream until a terminal event, converts to a Chat Completions JSON
+// response, and writes it to the client. completed / done / incomplete
+// return immediately; failed uses the existing finish error path. Missing
+// terminals still wait for EOF, interval timeout, or H2 reset.
 func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
@@ -695,9 +697,9 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	var finalResponse *apicompat.ResponsesResponse
 	acc := apicompat.NewBufferedResponseAccumulator()
 
-	processLine := func(line string) {
+	processLine := func(line string) bool {
 		if !strings.HasPrefix(line, "data: ") || line == "data: [DONE]" {
-			return
+			return false
 		}
 		payload := line[6:]
 
@@ -707,16 +709,21 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
-			return
+			return false
 		}
 
 		acc.ProcessEvent(&event)
 
-		if (event.Type == "response.completed" || event.Type == "response.done" ||
-			event.Type == "response.incomplete" || event.Type == "response.failed") &&
-			event.Response != nil {
+		if isOpenAICompatResponsesTerminalEvent(event.Type) && event.Response != nil {
 			finalResponse = event.Response
+			return true
 		}
+		return false
+	}
+	finish := func() (*OpenAIForwardResult, error) {
+		return s.finishChatCompletionsFromResponsesResponse(
+			resp, c, account, requestID, originalModel, billingModel, upstreamModel, startTime, finalResponse, acc,
+		)
 	}
 
 	timeoutSeconds := 0
@@ -726,14 +733,14 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	interval := chatBufferedStreamInterval(timeoutSeconds)
 	if interval <= 0 {
 		for scanner.Scan() {
-			processLine(scanner.Text())
+			if processLine(scanner.Text()) {
+				return finish()
+			}
 		}
 		if failover := s.handleChatBufferedReadError(c, account, requestID, scanner.Err()); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
 			return nil, failover
 		}
-		return s.finishChatCompletionsFromResponsesResponse(
-			resp, c, account, requestID, originalModel, billingModel, upstreamModel, startTime, finalResponse, acc,
-		)
+		return finish()
 	}
 
 	type scanEvent struct {
@@ -772,28 +779,24 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				return s.finishChatCompletionsFromResponsesResponse(
-					resp, c, account, requestID, originalModel, billingModel, upstreamModel, startTime, finalResponse, acc,
-				)
+				return finish()
 			}
 			if ev.err != nil {
 				if failover := s.handleChatBufferedReadError(c, account, requestID, ev.err); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
 					return nil, failover
 				}
-				return s.finishChatCompletionsFromResponsesResponse(
-					resp, c, account, requestID, originalModel, billingModel, upstreamModel, startTime, finalResponse, acc,
-				)
+				return finish()
 			}
-			processLine(ev.line)
+			if processLine(ev.line) {
+				return finish()
+			}
 		case <-ticker.C:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < interval {
 				continue
 			}
 			if chatBufferedHasUsableTerminal(finalResponse) {
-				return s.finishChatCompletionsFromResponsesResponse(
-					resp, c, account, requestID, originalModel, billingModel, upstreamModel, startTime, finalResponse, acc,
-				)
+				return finish()
 			}
 			logger.L().Warn("openai chat_completions buffered: stream data interval timeout",
 				zap.Int64("account_id", account.ID),

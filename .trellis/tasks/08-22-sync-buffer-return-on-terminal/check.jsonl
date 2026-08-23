@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Quality gate: do not touch billing/display or routing contracts"}
+{"file": ".trellis/spec/backend/openai-apikey-upstream-routing.md", "reason": "AC6: official S2 / shouldForceSyncInboundUpstreamSSE must not change"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Exit condition must reuse Messages helper, not a fork-only heuristic"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/prd.md", "reason": "Acceptance, Q1 default, incomplete-content constraint"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/design.md", "reason": "Adapt upstream true-terminal return; keep S2 and no-terminal failover"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/research/raw-cc-buffer.md", "reason": "Local CC vs Raw routing and usable() vs true terminal"}
+{"file": ".trellis/tasks/08-22-sync-buffer-return-on-terminal/research/upstream-sync-buffer.md", "reason": "Upstream already returns on Responses terminal; no Raw CC SSE buffer"}

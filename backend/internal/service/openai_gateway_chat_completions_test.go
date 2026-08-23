@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -586,6 +587,146 @@ func TestHandleChatBufferedStreamingResponse_TimeoutAfterCompletedReturnsJSON(t 
 	require.Equal(t, "resp_done", result.ResponseID)
 	require.Equal(t, 2, result.Usage.InputTokens)
 	require.NotContains(t, rec.Body.String(), `"error"`)
+	require.Less(t, time.Since(started), 400*time.Millisecond, "usable terminal must return immediately, not wait for interval")
+}
+
+func TestHandleChatBufferedStreamingResponse_DoneAndIncompleteReturnImmediately(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		eventType string
+		status    string
+		id        string
+	}{
+		{eventType: "response.done", status: "completed", id: "resp_done_alias"},
+		{eventType: "response.incomplete", status: "incomplete", id: "resp_incomplete"},
+	} {
+		t.Run(tc.eventType, func(t *testing.T) {
+			svc := &OpenAIGatewayService{cfg: &config.Config{
+				Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1},
+			}}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			body := &sseThenHangCloser{
+				payload: fmt.Sprintf(
+					`data: {"type":%q,"response":{"id":%q,"status":%q,"usage":{"input_tokens":4,"output_tokens":1,"total_tokens":5}}}`+"\n",
+					tc.eventType, tc.id, tc.status,
+				),
+				hang: make(chan struct{}),
+			}
+			t.Cleanup(func() { _ = body.Close() })
+			started := time.Now()
+			result, err := svc.handleChatBufferedStreamingResponse(
+				&http.Response{StatusCode: http.StatusOK, Header: http.Header{"x-request-id": []string{"rid-" + tc.id}}, Body: body},
+				c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now(), &Account{ID: 21, Platform: PlatformOpenAI},
+			)
+			require.NoError(t, err)
+			require.Equal(t, tc.id, result.ResponseID)
+			require.Equal(t, 4, result.Usage.InputTokens)
+			require.Less(t, time.Since(started), 400*time.Millisecond)
+		})
+	}
+}
+
+func TestHandleChatBufferedStreamingResponse_IntervalDisabledReturnsOnCompleted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	body := &sseThenHangCloser{
+		payload: `data: {"type":"response.completed","response":{"id":"resp_sync","status":"completed","usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}}` + "\n",
+		hang:    make(chan struct{}),
+	}
+	t.Cleanup(func() { _ = body.Close() })
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid-completed-sync"}},
+		Body:       body,
+	}
+
+	started := time.Now()
+	done := make(chan struct{})
+	var result *OpenAIForwardResult
+	var err error
+	go func() {
+		defer close(done)
+		result, err = svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now(), &Account{ID: 18, Platform: PlatformOpenAI})
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("interval<=0 must finish on completed, not block on hang")
+	}
+	require.NoError(t, err)
+	require.Equal(t, "resp_sync", result.ResponseID)
+	require.Equal(t, 2, result.Usage.InputTokens)
+	require.Less(t, time.Since(started), 400*time.Millisecond)
+}
+
+func TestHandleChatBufferedStreamingResponse_FailedTerminalDoesNotReturnSuccessJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{
+		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1},
+	}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	body := &sseThenHangCloser{
+		payload: `data: {"type":"response.failed","response":{"id":"resp_fail","status":"failed","error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model."}}}` + "\n",
+		hang:    make(chan struct{}),
+	}
+	t.Cleanup(func() { _ = body.Close() })
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid-failed-hang"}},
+		Body:       body,
+	}
+
+	started := time.Now()
+	result, err := svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now(), &Account{ID: 19, Platform: PlatformOpenAI})
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.NotContains(t, rec.Body.String(), `"chat.completion"`)
+	require.Less(t, time.Since(started), 400*time.Millisecond, "failed terminal must not wait for interval as success JSON")
+}
+
+func TestHandleChatBufferedStreamingResponse_PartialEventsHangDoesNotReturnJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{
+		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1},
+	}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	body := &sseThenHangCloser{
+		payload: strings.Join([]string{
+			`data: {"type":"response.created","response":{"id":"resp_partial","status":"in_progress"}}`,
+			`data: {"type":"response.in_progress","response":{"id":"resp_partial","status":"in_progress"}}`,
+			`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		}, "\n") + "\n",
+		hang: make(chan struct{}),
+	}
+	t.Cleanup(func() { _ = body.Close() })
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid-partial-hang"}},
+		Body:       body,
+	}
+
+	started := time.Now()
+	result, err := svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now(), &Account{ID: 20, Platform: PlatformOpenAI})
+	require.Nil(t, result)
+	var failover *UpstreamFailoverError
+	require.ErrorAs(t, err, &failover)
+	require.Empty(t, rec.Body.String())
+	require.GreaterOrEqual(t, time.Since(started), 800*time.Millisecond, "partial events must not count as a terminal")
 	require.Less(t, time.Since(started), 3*time.Second)
 }
 
@@ -709,6 +850,30 @@ func (r *completedThenHangCloser) Read(p []byte) (int, error) {
 }
 
 func (r *completedThenHangCloser) Close() error {
+	select {
+	case <-r.hang:
+	default:
+		close(r.hang)
+	}
+	return nil
+}
+
+type sseThenHangCloser struct {
+	payload string
+	sent    bool
+	hang    chan struct{}
+}
+
+func (r *sseThenHangCloser) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, r.payload), nil
+	}
+	<-r.hang
+	return 0, io.EOF
+}
+
+func (r *sseThenHangCloser) Close() error {
 	select {
 	case <-r.hang:
 	default:
@@ -918,6 +1083,7 @@ func TestBufferRawChatCompletionsFromSSE_TimeoutAfterUsableReturnsJSON(t *testin
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), "pong")
 	require.NotContains(t, rec.Body.String(), `"error"`)
+	require.GreaterOrEqual(t, time.Since(started), 800*time.Millisecond, "first-delta usable() must not become immediate return")
 	require.Less(t, time.Since(started), 3*time.Second)
 }
 
