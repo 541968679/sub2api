@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking-guide index before adding a new tools/ module"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Collector must reuse one collect.Run for CLI and GUI; do not duplicate scan/redact"}
+{"file": ".trellis/tasks/08-22-claude-client-log-collector/research/windows-claude-log-locations.md", "reason": "Verified Windows Claude Code / Desktop / Obsidian paths and secret-bearing files"}

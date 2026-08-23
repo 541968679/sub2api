@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Quality check should load shared guides before reviewing the new tool"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check that GUI and CLI share collect.Run and that redact happens before zip"}
+{"file": ".trellis/tasks/08-22-claude-client-log-collector/research/windows-claude-log-locations.md", "reason": "Verify whitelist paths, exclusions (.credentials.json, vault notes), and CLAUDE_CONFIG_DIR handling"}
