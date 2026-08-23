@@ -1,3 +1,15 @@
+## 2026-08-23 - deploy: v0.1.255 production (skip sidecars)
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:latest` / `0.1.255`, revision `98103b688`, digest `sha256:e368c03aeb083c99d591721854bf48a39d4d1efbc99bdc27f29928ec433e1c49`, healthy, `/health` ok.
+- `v0.1.254` was tagged then Release failed at `vue-tsc`; no GHCR image. Sidecars were not redeployed.
+
+### Why
+Ship custom schedule-error whitelist to production after the typecheck fix.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
 ## 2026-08-23 - fix: schedule whitelist form.custom required for vue-tsc
 
 ### What
