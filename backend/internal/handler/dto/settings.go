@@ -163,6 +163,7 @@ type SystemSettings struct {
 	OpenAINewAPISlimCompleted           bool    `json:"openai_newapi_slim_completed"`
 	OpenAINewAPISlimCompletedUserIDs    []int64 `json:"openai_newapi_slim_completed_user_ids"`
 	CodexCompactV2FallbackEnabled       bool    `json:"codex_compact_v2_fallback_enabled"`
+	OpenAILongContextBillingEnabled     bool    `json:"openai_long_context_billing_enabled"`
 	GatewayNetworkRetryMax              int     `json:"gateway_network_retry_max"`
 
 	// Web Search Emulation

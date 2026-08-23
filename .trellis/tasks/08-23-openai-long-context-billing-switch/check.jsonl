@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "验收：关开关只停会话级溢价，不改 L1/L2 展示变换算法。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对 admin DTO / KV / billing gate / i18n 四层字段名一致，且不进 public settings。"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Admin Toggle 必须中英 i18n，不得只改 SettingsView。"}

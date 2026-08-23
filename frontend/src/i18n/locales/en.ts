@@ -7309,6 +7309,12 @@ const enBase = {
           enabled: 'Allow users to view error requests',
           enabledHint: 'When off, error requests are still recorded but the user-facing error requests tab is hidden.'
         },
+        openaiLongContextBilling: {
+          title: 'OpenAI long-context billing',
+          description: 'Session-level long-context surcharge for GPT-5.4 / 5.5 / 5.6. On by default, matching current billing.',
+          enabled: 'Enable OpenAI long-context surcharge',
+          enabledHint: 'When on, a session with Input + CacheRead strictly above 272000 bills input/cache at 2.0脳 and output at 1.5脳. When off, base unit prices apply and usage logs keep long_context_applied=false. Channel interval pricing still disables this surcharge on its own. Gemini 200K excess-only doubling is unchanged.',
+        },
         riskControl: {
           title: 'Risk Control',
           description: 'Enable the content moderation menu and gateway audit entry point. Disabled by default.',

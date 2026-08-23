@@ -14,6 +14,22 @@ func newTestBillingService() *BillingService {
 	return NewBillingService(&config.Config{}, nil)
 }
 
+func resetOpenAILongContextBillingCacheForTest() {
+	openAILongContextBillingSF.Forget("openai_long_context_billing")
+	openAILongContextBillingCache.Store(&cachedOpenAILongContextBilling{})
+}
+
+func newTestBillingServiceWithLongContextSetting(raw string, present bool) *BillingService {
+	resetOpenAILongContextBillingCacheForTest()
+	data := map[string]string{}
+	if present {
+		data[SettingKeyOpenAILongContextBillingEnabled] = raw
+	}
+	svc := newTestBillingService()
+	svc.settingService = NewSettingService(&gatewayTTLSettingRepo{data: data}, &config.Config{})
+	return svc
+}
+
 func TestCalculateCost_BasicComputation(t *testing.T) {
 	svc := newTestBillingService()
 
@@ -333,6 +349,62 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesMultiplierToCacheRead(t *tes
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 	require.InDelta(t, expectedCacheRead, cost.CacheReadCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput+expectedCacheRead, cost.TotalCost, 1e-10)
+}
+
+func TestCalculateCost_OpenAILongContextBillingSwitchOffSkipsSessionMultipliers(t *testing.T) {
+	svc := newTestBillingServiceWithLongContextSetting("false", true)
+
+	tokens := UsageTokens{
+		InputTokens:  300000,
+		OutputTokens: 4000,
+	}
+	cost, err := svc.CalculateCost("gpt-5.4-2026-03-05", tokens, 1.0)
+	require.NoError(t, err)
+	require.False(t, cost.LongContextApplied)
+	require.Zero(t, cost.LongContextInputThreshold)
+	require.Zero(t, cost.LongContextInputMultiplier)
+	require.Zero(t, cost.LongContextOutputMultiplier)
+	require.InDelta(t, float64(tokens.InputTokens)*2.5e-6, cost.InputCost, 1e-10)
+	require.InDelta(t, float64(tokens.OutputTokens)*15e-6, cost.OutputCost, 1e-10)
+}
+
+func TestCalculateCost_OpenAILongContextBillingSwitchMissingDefaultsOn(t *testing.T) {
+	svc := newTestBillingServiceWithLongContextSetting("", false)
+
+	cost, err := svc.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:     172001,
+		CacheReadTokens: 100000,
+		OutputTokens:    1000,
+	}, 1.0)
+	require.NoError(t, err)
+	require.True(t, cost.LongContextApplied)
+	require.Equal(t, 272000, cost.LongContextInputThreshold)
+	require.InDelta(t, 2.0, cost.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, cost.LongContextOutputMultiplier, 1e-12)
+}
+
+func TestCalculateCost_OpenAILongContextBillingSwitchInvalidDefaultsOn(t *testing.T) {
+	svc := newTestBillingServiceWithLongContextSetting("bogus", true)
+
+	cost, err := svc.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:  300000,
+		OutputTokens: 1000,
+	}, 1.0)
+	require.NoError(t, err)
+	require.True(t, cost.LongContextApplied)
+}
+
+func TestCalculateCost_OpenAILongContextBillingSwitchOnKeepsExistingMultipliers(t *testing.T) {
+	svc := newTestBillingServiceWithLongContextSetting("true", true)
+
+	cost, err := svc.CalculateCost("gpt-5.4-2026-03-05", UsageTokens{
+		InputTokens:  300000,
+		OutputTokens: 4000,
+	}, 1.0)
+	require.NoError(t, err)
+	require.True(t, cost.LongContextApplied)
+	require.InDelta(t, 300000*2.5e-6*2.0, cost.InputCost, 1e-10)
+	require.InDelta(t, 4000*15e-6*1.5, cost.OutputCost, 1e-10)
 }
 
 func TestCalculateCost_OpenAIGPT54NoLongContextKeepsCacheReadAtBasePrice(t *testing.T) {

@@ -6957,6 +6957,12 @@ const zhBase = {
           enabled: '允许用户查看错误请求',
           enabledHint: '关闭后仍会记录错误请求，但用户端不会展示错误请求标签页。'
         },
+        openaiLongContextBilling: {
+          title: 'OpenAI 长上下文计费',
+          description: 'GPT-5.4 / 5.5 / 5.6 会话级长上下文溢价。默认开启，与现网一致。',
+          enabled: '启用 OpenAI 长上下文溢价',
+          enabledHint: '开启后，Input + CacheRead 严格大于 272000 时整段会话 input/cache ×2.0、output ×1.5。关闭后按基础单价扣费，usage 不再标记 long_context_applied。渠道区间定价仍会自行覆盖该溢价。不影响 Gemini 200K 超额双倍。',
+        },
         riskControl: {
           title: '风控中心',
           description: '启用内容审计菜单和全端点请求审核入口。默认关闭。',

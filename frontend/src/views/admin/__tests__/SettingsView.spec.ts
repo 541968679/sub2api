@@ -190,6 +190,10 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.gatewayForwarding.slimCompletedUserIds": "仅这些用户开启",
     "admin.settings.gatewayForwarding.codexCompactV2Fallback": "Codex 远程压缩兜底",
     "admin.settings.gatewayForwarding.codexCompactV2FallbackHint": "默认开启。",
+    "admin.settings.features.openaiLongContextBilling.title": "OpenAI 长上下文计费",
+    "admin.settings.features.openaiLongContextBilling.description": "会话级长上下文溢价。",
+    "admin.settings.features.openaiLongContextBilling.enabled": "启用 OpenAI 长上下文溢价",
+    "admin.settings.features.openaiLongContextBilling.enabledHint": "默认开启。",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
@@ -422,6 +426,7 @@ const baseSettingsResponse = {
   openai_newapi_slim_completed: false,
   openai_newapi_slim_completed_user_ids: [],
   codex_compact_v2_fallback_enabled: true,
+  openai_long_context_billing_enabled: true,
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -720,6 +725,24 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         enable_client_dateline_normalization: false,
+      }),
+    );
+  });
+
+  it("submits OpenAI long-context billing setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_long_context_billing_enabled: false,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_long_context_billing_enabled: false,
       }),
     );
   });

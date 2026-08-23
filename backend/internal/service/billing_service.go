@@ -169,6 +169,7 @@ type CostBreakdown struct {
 type BillingService struct {
 	cfg            *config.Config
 	pricingService *PricingService
+	settingService *SettingService
 	fallbackPrices map[string]*ModelPricing // 硬编码回退价格
 }
 
@@ -183,6 +184,15 @@ func NewBillingService(cfg *config.Config, pricingService *PricingService) *Bill
 	// 初始化硬编码回退价格（当动态价格不可用时使用）
 	s.initFallbackPricing()
 
+	return s
+}
+
+// ProvideBillingService wires BillingService with the Settings KV reader used by
+// the OpenAI session long-context switch. Tests keep calling NewBillingService
+// and treat a nil SettingService as enabled.
+func ProvideBillingService(cfg *config.Config, pricingService *PricingService, settingService *SettingService) *BillingService {
+	s := NewBillingService(cfg, pricingService)
+	s.settingService = settingService
 	return s
 }
 
@@ -836,7 +846,17 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 	return &cloned
 }
 
+func (s *BillingService) isOpenAILongContextBillingEnabled() bool {
+	if s == nil || s.settingService == nil {
+		return true
+	}
+	return s.settingService.IsOpenAILongContextBillingEnabled(context.Background())
+}
+
 func (s *BillingService) shouldApplySessionLongContextPricing(tokens UsageTokens, pricing *ModelPricing) bool {
+	if !s.isOpenAILongContextBillingEnabled() {
+		return false
+	}
 	if pricing == nil || pricing.LongContextInputThreshold <= 0 {
 		return false
 	}

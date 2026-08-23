@@ -453,6 +453,10 @@ const (
 	SettingKeyEnableClientDatelineNormalization  = "enable_client_dateline_normalization"
 	// SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings stores optional display-only cache generation settings for OpenAI Claude-GPT bridge requests.
 	SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings = "openai_claude_gpt_bridge_cache_display_settings"
+	// SettingKeyOpenAILongContextBillingEnabled is the admin runtime switch for
+	// OpenAI GPT-5.4/5.5/5.6 session-level long-context multipliers.
+	// Default true. Missing/invalid values are treated as enabled. Not a public setting.
+	SettingKeyOpenAILongContextBillingEnabled = "openai_long_context_billing_enabled"
 	// SettingKeyDisplayCacheTokenMaxMult is the global cache_read display amplify cap (M).
 	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
 	// SettingKeyDisplayOutputResidualGrowthRatio is α: max extra output growth from cache residual.

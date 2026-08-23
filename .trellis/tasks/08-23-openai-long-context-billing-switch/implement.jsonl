@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "开关关时改 stored billing，禁止用 display-token 绕过；actual_cost 恒等式仍成立。"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-dev index：settings KV + billing 热路径约定。"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Admin Settings Toggle 走现有 Vue SettingsView + i18n 双文件。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Settings KV → BillingService → usage snapshot → admin UI 跨层字段必须对齐。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用 codex_compact_v2_fallback / backendMode 的 != false 与进程内 cache，不要新配置面。"}

@@ -251,6 +251,27 @@ func TestCalculateCostUnified_UsesPreResolvedPricing(t *testing.T) {
 	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
 }
 
+func TestCalculateCostUnified_OpenAILongContextBillingSwitchOff(t *testing.T) {
+	resetOpenAILongContextBillingCacheForTest()
+	bs := newTestBillingService()
+	bs.settingService = NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
+		SettingKeyOpenAILongContextBillingEnabled: "false",
+	}}, &config.Config{})
+	resolver := NewModelPricingResolver(nil, bs)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "gpt-5.4",
+		Tokens:         UsageTokens{InputTokens: 300000, OutputTokens: 2000},
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+	require.False(t, cost.LongContextApplied)
+	require.Zero(t, cost.LongContextInputMultiplier)
+	require.InDelta(t, 300000*2.5e-6+2000*15e-6, cost.TotalCost, 1e-10)
+}
+
 func TestCalculateCostUnified_ChannelIntervalsDoNotSetLongContextSnapshot(t *testing.T) {
 	bs := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, bs)

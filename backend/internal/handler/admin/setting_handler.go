@@ -251,6 +251,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAINewAPISlimCompleted:                              settings.OpenAINewAPISlimCompleted,
 		OpenAINewAPISlimCompletedUserIDs:                       settings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          settings.CodexCompactV2FallbackEnabled,
+		OpenAILongContextBillingEnabled:                        settings.OpenAILongContextBillingEnabled,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -586,6 +587,7 @@ type UpdateSettingsRequest struct {
 	OpenAINewAPISlimCompleted           *bool    `json:"openai_newapi_slim_completed"`
 	OpenAINewAPISlimCompletedUserIDs    *[]int64 `json:"openai_newapi_slim_completed_user_ids"`
 	CodexCompactV2FallbackEnabled       *bool    `json:"codex_compact_v2_fallback_enabled"`
+	OpenAILongContextBillingEnabled     *bool    `json:"openai_long_context_billing_enabled"`
 	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
@@ -1553,6 +1555,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.CodexCompactV2FallbackEnabled
 		}(),
+		OpenAILongContextBillingEnabled: func() bool {
+			if req.OpenAILongContextBillingEnabled != nil {
+				return *req.OpenAILongContextBillingEnabled
+			}
+			return previousSettings.OpenAILongContextBillingEnabled
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1938,6 +1946,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpenAINewAPISlimCompleted:                              updatedSettings.OpenAINewAPISlimCompleted,
 		OpenAINewAPISlimCompletedUserIDs:                       updatedSettings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          updatedSettings.CodexCompactV2FallbackEnabled,
+		OpenAILongContextBillingEnabled:                        updatedSettings.OpenAILongContextBillingEnabled,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
@@ -2391,6 +2400,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.CodexCompactV2FallbackEnabled != after.CodexCompactV2FallbackEnabled {
 		changed = append(changed, "codex_compact_v2_fallback_enabled")
+	}
+	if before.OpenAILongContextBillingEnabled != after.OpenAILongContextBillingEnabled {
+		changed = append(changed, "openai_long_context_billing_enabled")
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")

@@ -1,3 +1,33 @@
+## 2026-08-23 - feat: OpenAI long-context billing admin switch
+
+### What
+- Admin Settings KV `openai_long_context_billing_enabled` defaults **on** (missing/invalid = on).
+- When off, GPT-5.4/5.5/5.6 session long-context multipliers (272000 / 2.0 / 1.5) are not applied on unified or fallback token billing; usage snapshot stays `long_context_applied=false`.
+- Channel interval pricing still disables session long-context on its own. Gemini 200K excess-only doubling is unchanged.
+- Admin Features page has one Toggle (zh/en). Not a public setting.
+
+### Why
+Ops needed a kill-switch for OpenAI session-level long-context surcharge without editing thresholds/multipliers or asking clients to change protocol.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "OpenAIGPT54LongContext|OpenAILongContextBilling|ChannelIntervalsDoNotSetLongContext" -count=1`
+
+### Affected files
+`backend/internal/service/domain_constants.go`
+`backend/internal/service/settings_view.go`
+`backend/internal/service/setting_service.go`
+`backend/internal/service/setting_openai_long_context.go`
+`backend/internal/service/billing_service.go`
+`backend/internal/service/wire.go`
+`backend/cmd/server/wire_gen.go`
+`backend/internal/handler/dto/settings.go`
+`backend/internal/handler/admin/setting_handler.go`
+`frontend/src/api/admin/settings.ts`
+`frontend/src/views/admin/SettingsView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/billing.md`
+
 ## 2026-08-23 - feat: per-user Q_u window N + P95 on user quality cell
 
 ### What

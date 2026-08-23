@@ -1554,6 +1554,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAIResponsesFlushPreamble] = strconv.FormatBool(settings.OpenAIResponsesFlushPreamble)
 	updates[SettingKeyOpenAINewAPISlimCompleted] = strconv.FormatBool(settings.OpenAINewAPISlimCompleted)
 	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
+	updates[SettingKeyOpenAILongContextBillingEnabled] = strconv.FormatBool(settings.OpenAILongContextBillingEnabled)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
 	if err != nil {
@@ -1691,6 +1692,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		value:     settings.BackendModeEnabled,
 		expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 	})
+	refreshOpenAILongContextBillingCache(settings.OpenAILongContextBillingEnabled)
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 		fingerprintUnification:       settings.EnableFingerprintUnification,
@@ -2493,6 +2495,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAINewAPISlimCompleted:                 "false",
 		SettingKeyOpenAINewAPISlimCompletedUserIDs:          "[]",
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
+		SettingKeyOpenAILongContextBillingEnabled:           "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -2869,6 +2872,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAINewAPISlimCompleted = settings[SettingKeyOpenAINewAPISlimCompleted] == "true"
 	result.OpenAINewAPISlimCompletedUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAINewAPISlimCompletedUserIDs])
 	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
+	result.OpenAILongContextBillingEnabled = parseOpenAILongContextBillingEnabled(settings[SettingKeyOpenAILongContextBillingEnabled])
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])

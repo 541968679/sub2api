@@ -302,7 +302,7 @@ CalculateCostUnified(CostInput)
 | 通道缓存 | 10 分钟 TTL，singleflight 防击穿，O(1) 哈希查找 | `channel_service.go` |
 | 全局覆盖缓存 | 惰性加载整表 map，CUD 触发 Invalidate；O(1) 查询 | `global_model_pricing_cache.go` |
 | 区间匹配 | 左开右闭 (min, max]，500 tokens 在 (0,1000] 区间内 | `channel.go` |
-| Long context | GPT-5.4 超过阈值后 input×2.0、output×1.5 | `billing_service.go` |
+| Long context | GPT-5.4/5.5/5.6 超过阈值后 input×2.0、output×1.5；admin KV `openai_long_context_billing_enabled` 默认 on，关则不应用 | `billing_service.go` |
 | Cache 分级计费 | 5m/1h 两档 cache creation 价格，需 SupportsCacheBreakdown | `billing_service.go` |
 | Priority tier | service_tier="priority" 时使用 priority 价格 | `billing_service.go` |
 | 兜底价格匹配 | 按系列(opus/sonnet)→版本→OpenAI归一化→安全降级 | `billing_service.go` |
@@ -334,6 +334,14 @@ Token billing snapshots long-context pricing on each `usage_logs` row with
 pricing is actually applied. Channel interval pricing keeps
 `long_context_applied=false` because intervals already encode context-window
 price tiers.
+
+Admin Settings KV `openai_long_context_billing_enabled` (default **true**,
+missing/invalid treated as enabled) gates
+`shouldApplySessionLongContextPricing`. When off, unified and fallback token
+billing both skip the 272000 / 2.0 / 1.5 session multipliers and leave
+`long_context_applied=false`. This does not affect Gemini excess-only doubling
+(`CalculateCostWithLongContext`). The switch is admin-only and is not exposed
+on `GET /api/v1/settings/public`.
 
 User-facing display transforms do not re-evaluate long-context rules. Before
 calling `ApplyDisplayTransform`, DTO mapping copies the display price config and
