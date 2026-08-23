@@ -6,9 +6,12 @@ import (
 	"encoding/binary"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
@@ -34,7 +37,7 @@ type ConcurrencyCache interface {
 	GetUserConcurrency(ctx context.Context, userID int64) (int, error)
 
 	// 账号-用户对级槽位
-	// 键格式: concurrency:account_user:{accountID}:{userID}
+	// 键格式: concurrency:account_user:{accountID}:{userID}:{platform}
 	AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error)
 	ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error
 	GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error)
@@ -89,6 +92,111 @@ func generateRequestID() string {
 	return requestIDPrefix + "-" + strconv.FormatUint(seq, 36)
 }
 
+func withSlotOwnerPrefix(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, ctxkey.SlotOwnerPrefix, RequestIDPrefix())
+}
+
+func pairSlotMemberID(ctx context.Context) string {
+	if ctx != nil {
+		if rid, _ := ctx.Value(ctxkey.RequestID).(string); strings.TrimSpace(rid) != "" {
+			return RequestIDPrefix() + "-" + strings.TrimSpace(rid)
+		}
+	}
+	return generateRequestID()
+}
+
+func pairHoldPlatform(ctx context.Context) string {
+	if ctx != nil {
+		if plat, ok := ctx.Value(ctxkey.ScheduleLookupPlatform).(string); ok {
+			return SmartScheduleRedisPlatform(plat)
+		}
+	}
+	return SmartScheduleRedisPlatform("")
+}
+
+func (s *ConcurrencyService) addPairHold(key pairHoldKey) {
+	if s == nil {
+		return
+	}
+	s.pairMu.Lock()
+	defer s.pairMu.Unlock()
+	if s.pairHolds == nil {
+		s.pairHolds = map[pairHoldKey]int{}
+	}
+	s.pairHolds[key]++
+}
+
+func (s *ConcurrencyService) releasePairHold(key pairHoldKey) bool {
+	if s == nil {
+		return true
+	}
+	s.pairMu.Lock()
+	defer s.pairMu.Unlock()
+	n := s.pairHolds[key] - 1
+	if n <= 0 {
+		delete(s.pairHolds, key)
+		return true
+	}
+	s.pairHolds[key] = n
+	return false
+}
+
+func detachPairRedisCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx = withSlotOwnerPrefix(ctx)
+	if parent != nil {
+		if plat, ok := parent.Value(ctxkey.ScheduleLookupPlatform).(string); ok && strings.TrimSpace(plat) != "" {
+			ctx = context.WithValue(ctx, ctxkey.ScheduleLookupPlatform, plat)
+		}
+	}
+	return ctx, cancel
+}
+
+const pairSlotTouchInterval = 30 * time.Second
+
+func startPairSlotTouch(ctx context.Context, cache ConcurrencyCache, accountID, userID int64, maxConcurrency int, requestID string) func() {
+	if cache == nil || ctx == nil || ctx.Done() == nil {
+		return func() {}
+	}
+	var mu sync.Mutex
+	var timer *time.Timer
+	stopped := false
+	var schedule func()
+	stop := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		stopped = true
+		if timer != nil {
+			timer.Stop()
+		}
+	}
+	schedule = func() {
+		mu.Lock()
+		if stopped {
+			mu.Unlock()
+			return
+		}
+		timer = time.AfterFunc(pairSlotTouchInterval, func() {
+			if ctx.Err() != nil {
+				return
+			}
+			touchCtx, cancel := context.WithTimeout(withSlotOwnerPrefix(context.Background()), 2*time.Second)
+			if plat, ok := ctx.Value(ctxkey.ScheduleLookupPlatform).(string); ok && strings.TrimSpace(plat) != "" {
+				touchCtx = context.WithValue(touchCtx, ctxkey.ScheduleLookupPlatform, plat)
+			}
+			_, _ = cache.AcquireAccountUserSlot(touchCtx, accountID, userID, maxConcurrency, requestID)
+			cancel()
+			schedule()
+		})
+		mu.Unlock()
+	}
+	schedule()
+	return stop
+}
+
 func (s *ConcurrencyService) CleanupStaleProcessSlots(ctx context.Context) error {
 	if s == nil || s.cache == nil {
 		return nil
@@ -111,14 +219,26 @@ const (
 	apiKeySlotTrackTimeout        = 2 * time.Second
 )
 
+type pairHoldKey struct {
+	accountID int64
+	userID    int64
+	platform  string
+	requestID string
+}
+
 // ConcurrencyService manages concurrent request limiting for accounts and users
 type ConcurrencyService struct {
-	cache ConcurrencyCache
+	cache     ConcurrencyCache
+	pairMu    sync.Mutex
+	pairHolds map[pairHoldKey]int
 }
 
 // NewConcurrencyService creates a new ConcurrencyService
 func NewConcurrencyService(cache ConcurrencyCache) *ConcurrencyService {
-	return &ConcurrencyService{cache: cache}
+	return &ConcurrencyService{
+		cache:     cache,
+		pairHolds: map[pairHoldKey]int{},
+	}
 }
 
 // AcquireResult represents the result of acquiring a concurrency slot
@@ -461,21 +581,44 @@ func (s *ConcurrencyService) AcquireAccountUserSlot(ctx context.Context, account
 		}, nil
 	}
 
-	requestID := generateRequestID()
+	ctx = withSlotOwnerPrefix(ctx)
+	requestID := pairSlotMemberID(ctx)
 	acquired, err := s.cache.AcquireAccountUserSlot(ctx, accountID, userID, maxConcurrency, requestID)
 	if err != nil {
 		return nil, err
 	}
 	if acquired {
-		return &AcquireResult{
-			Acquired: true,
-			ReleaseFunc: func() {
+		hold := pairHoldKey{
+			accountID: accountID,
+			userID:    userID,
+			platform:  pairHoldPlatform(ctx),
+			requestID: requestID,
+		}
+		s.addPairHold(hold)
+		var once sync.Once
+		stopTouch := startPairSlotTouch(ctx, s.cache, accountID, userID, maxConcurrency, requestID)
+		release := func() {
+			once.Do(func() {
+				stopTouch()
+				if !s.releasePairHold(hold) {
+					return
+				}
 				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				if err := s.cache.ReleaseAccountUserSlot(bgCtx, accountID, userID, requestID); err != nil {
+				if plat, ok := ctx.Value(ctxkey.ScheduleLookupPlatform).(string); ok && strings.TrimSpace(plat) != "" {
+					bgCtx = context.WithValue(bgCtx, ctxkey.ScheduleLookupPlatform, plat)
+				}
+				if err := s.cache.ReleaseAccountUserSlot(withSlotOwnerPrefix(bgCtx), accountID, userID, requestID); err != nil {
 					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account-user slot for %d/%d (req=%s): %v", accountID, userID, requestID, err)
 				}
-			},
+			})
+		}
+		if ctx.Done() != nil {
+			context.AfterFunc(ctx, release)
+		}
+		return &AcquireResult{
+			Acquired:    true,
+			ReleaseFunc: release,
 		}, nil
 	}
 	return &AcquireResult{Acquired: false, ReleaseFunc: nil}, nil
@@ -490,7 +633,7 @@ func (s *ConcurrencyService) GetAccountUserConcurrencyBatch(ctx context.Context,
 	if len(accountIDs) == 0 || userID <= 0 || s == nil || s.cache == nil {
 		return result, nil
 	}
-	redisCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	redisCtx, cancel := detachPairRedisCtx(ctx)
 	defer cancel()
 	counts, err := s.cache.GetAccountUserConcurrencyBatch(redisCtx, accountIDs, userID)
 	if err != nil {

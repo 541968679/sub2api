@@ -1,3 +1,26 @@
+## 2026-08-23 - fix: pair slot live occupancy (stale ZCARD / 0 badge)
+
+### What
+- Pair Get/Acquire now count **live** in-flight members only: 90s score window + current process prefix. Unreleased leftovers inside the old 15min TTL no longer inflate the badge or fill a real pair cap.
+- Same inbound `RequestID` reuses one pair member (failover/retry no longer ZADD extra IDs). Request ctx cancel ZREMs even if `ReleaseFunc` is skipped.
+- `ClearAccountSlots` deletes `concurrency:account_user:{accountID}:*` (close-account no longer leaves pair ZCARD hundreds while account ZCARD is 0).
+- Admin GET hydrate keeps `ScheduleLookupPlatform` on the detached Redis ctx so `current_concurrency` reads `:openai` / `:antigravity`, not `_`.
+
+### Why
+Production user 16 after v0.1.255: Tokenbits 018 pair ZCARD ≈ 677 vs account cap 199; loveapi 009 ≈ 367 vs account ~15. Uncapped `trackSlotScript` + skipped Release + 15min TTL. Admin badge was 0 because hydrate dropped the platform shard.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "AccountUserSlot|ClearAccountSlots|CleanupStaleProcessSlots_RemovesPair" -count=1`
+- `go test -tags=unit ./internal/service -run "Pair|AccountUserSlot|Concurrency|Hydrate|ClearAccount|CleanupStale|AcquireAccountAndPair|AttachPair" -count=1`
+
+### Affected files
+`backend/internal/repository/concurrency_cache.go`
+`backend/internal/repository/concurrency_cache_pair_live_test.go`
+`backend/internal/service/concurrency_service.go`
+`backend/internal/service/concurrency_service_test.go`
+`backend/internal/pkg/ctxkey/ctxkey.go`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-23 - deploy: v0.1.255 production (skip sidecars)
 
 ### What

@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -254,6 +256,68 @@ func TestAcquireAccountUserSlot_InvalidIDsSkipRedis(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Acquired)
 	require.Empty(t, cache.maxes())
+}
+
+func TestAcquireAccountUserSlot_ReusesInboundRequestID(t *testing.T) {
+	cache := &pairOccupancyCache{stubConcurrencyCacheForTest: stubConcurrencyCacheForTest{acquireResult: true}}
+	svc := NewConcurrencyService(cache)
+	ctx := context.WithValue(context.Background(), ctxkey.RequestID, "http-req-16")
+
+	first, err := svc.AcquireAccountUserSlot(ctx, 11, 16, 0)
+	require.NoError(t, err)
+	require.True(t, first.Acquired)
+	second, err := svc.AcquireAccountUserSlot(ctx, 11, 16, 0)
+	require.NoError(t, err)
+	require.True(t, second.Acquired)
+	require.Equal(t, 1, cache.count(11), "retry/failover must refresh the same pair member, not leak a second ID")
+
+	first.ReleaseFunc()
+	require.Equal(t, 1, cache.count(11), "shared pair member stays until the last holder releases")
+	second.ReleaseFunc()
+	require.Equal(t, 0, cache.count(11))
+}
+
+func TestAcquireAccountUserSlot_ContextDoneReleasesWithoutCaller(t *testing.T) {
+	cache := &pairOccupancyCache{stubConcurrencyCacheForTest: stubConcurrencyCacheForTest{acquireResult: true}}
+	svc := NewConcurrencyService(cache)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	result, err := svc.AcquireAccountUserSlot(ctx, 11, 16, 0)
+	require.NoError(t, err)
+	require.True(t, result.Acquired)
+	require.Equal(t, 1, cache.count(11))
+
+	cancel()
+	require.Eventually(t, func() bool {
+		return cache.count(11) == 0
+	}, time.Second, 10*time.Millisecond, "request ctx cancel must ZREM even when ReleaseFunc is skipped")
+}
+
+type platformAwarePairCache struct {
+	stubConcurrencyCacheForTest
+	lastPlatform string
+}
+
+func (c *platformAwarePairCache) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
+	if plat, ok := ctx.Value(ctxkey.ScheduleLookupPlatform).(string); ok {
+		c.lastPlatform = plat
+	}
+	out := make(map[int64]int, len(accountIDs))
+	for _, id := range accountIDs {
+		out[id] = 3
+	}
+	return out, nil
+}
+
+func TestGetAccountUserConcurrencyBatch_PreservesLookupPlatform(t *testing.T) {
+	cache := &platformAwarePairCache{}
+	svc := NewConcurrencyService(cache)
+	ctx := WithScheduleLookupPlatform(context.Background(), PlatformOpenAI)
+
+	counts, err := svc.GetAccountUserConcurrencyBatch(ctx, []int64{1730}, 16)
+	require.NoError(t, err)
+	require.Equal(t, 3, counts[1730])
+	require.Equal(t, PlatformOpenAI, cache.lastPlatform, "detached Redis ctx must keep openai vs _ pairing shard")
 }
 
 func TestGenerateRequestID_UsesStablePrefixAndMonotonicCounter(t *testing.T) {

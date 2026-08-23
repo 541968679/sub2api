@@ -49,6 +49,10 @@ const (
 	// (openai vs antigravity). Pair occupancy keys read this value.
 	ScheduleLookupPlatform Key = "ctx_schedule_lookup_platform"
 
+	// SlotOwnerPrefix is this process's concurrency request-ID prefix.
+	// Pair Get/Acquire drop members that do not start with this prefix.
+	SlotOwnerPrefix Key = "ctx_slot_owner_prefix"
+
 	// IsMaxTokensOneHaikuRequest 标识当前请求是否为 max_tokens=1 + haiku 模型的探测请求
 	// 用于 ClaudeCodeOnly 验证绕过（绕过 system prompt 检查，但仍需验证 User-Agent）
 	IsMaxTokensOneHaikuRequest Key = "ctx_is_max_tokens_one_haiku"
