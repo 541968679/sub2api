@@ -545,6 +545,7 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/quality-hard-close", h.Admin.Setting.UpdateQualityHardCloseSettings)
 		adminSettings.GET("/schedule-error-whitelist", h.Admin.Setting.GetScheduleErrorWhitelist)
 		adminSettings.PUT("/schedule-error-whitelist", h.Admin.Setting.UpdateScheduleErrorWhitelist)
+		adminSettings.POST("/schedule-error-whitelist/from-error", h.Admin.Setting.AddScheduleErrorWhitelistFromError)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)

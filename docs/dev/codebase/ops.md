@@ -29,6 +29,7 @@ List contract (`/errors` and `/request-errors`):
   - `counted_in_account_compare_rate`: `COALESCE(upstream, status)>=400` and not routing-miss / bridge (Recovered = true).
   - `counted_in_account_schedule_rate`: follows `quality_hard_close_settings.schedule_use_failover_error_rate` (default false → Recovered stays out of the schedule rate).
 - `is_recovered` plus those flags drive Usage / Ops badges: Recovered always「未计入用户错误率」; schedule chip says whether the row entered **current** `ErrorCount`.
+- Schedule ErrorCount also follows Settings KV `schedule_error_whitelist`: 7 preset families plus `custom[]` (literal AND rules). `POST /admin/settings/schedule-error-whitelist/from-error` builds a rule from an `ops_error_logs` row. 502 `upstream request failed` cannot be excluded. Attention / user / compare rates do not follow the whitelist.
 
 Do not repeat the SSH playbook here.
 

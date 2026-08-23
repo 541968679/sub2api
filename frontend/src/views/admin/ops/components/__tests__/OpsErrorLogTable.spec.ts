@@ -51,7 +51,8 @@ describe('OpsErrorLogTable', () => {
       global: {
         stubs: {
           Pagination: true,
-          ElTooltip: TooltipStub
+          ElTooltip: TooltipStub,
+          AddScheduleErrorWhitelistDialog: true
         }
       }
     })
@@ -79,7 +80,8 @@ describe('OpsErrorLogTable', () => {
       global: {
         stubs: {
           Pagination: true,
-          ElTooltip: TooltipStub
+          ElTooltip: TooltipStub,
+          AddScheduleErrorWhitelistDialog: true
         }
       }
     })
@@ -102,7 +104,7 @@ describe('OpsErrorLogTable', () => {
     }
     const wrapper = mount(OpsErrorLogTable, {
       props: { rows: [recovered], total: 1, loading: false, page: 1, pageSize: 20 },
-      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
     })
     expect(wrapper.text()).toContain('admin.ops.errorLog.typeRecovered')
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberUserExcluded')
@@ -126,7 +128,7 @@ describe('OpsErrorLogTable', () => {
     }
     const wrapper = mount(OpsErrorLogTable, {
       props: { rows: [miss], total: 1, loading: false, page: 1, pageSize: 20 },
-      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
     })
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberUserIncluded')
     expect(wrapper.text()).toContain('admin.ops.errorLog.caliberCompareExcluded')
@@ -145,7 +147,7 @@ describe('OpsErrorLogTable', () => {
     }
     const wrapper = mount(OpsErrorLogTable, {
       props: { rows: [mapped], total: 1, loading: false, page: 1, pageSize: 20 },
-      global: { stubs: { Pagination: true, ElTooltip: TooltipStub } }
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
     })
     expect(wrapper.text()).toContain('channel:no_available_key')
     expect(wrapper.text()).toContain('no enabled keys')
@@ -153,5 +155,15 @@ describe('OpsErrorLogTable', () => {
     expect(wrapper.text()).toContain('admin.ops.errorDetail.downstreamMapped')
     expect(wrapper.text()).not.toContain('"type":"new_api_error"')
     expect(wrapper.html()).not.toContain('error_body')
+  })
+
+  it('offers add-to-whitelist on each row', () => {
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [row], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
+    })
+    expect(wrapper.get('[data-test="schedule-error-whitelist-from-log-open"]').text()).toContain(
+      'admin.ops.scheduleErrorWhitelist.addFromLog'
+    )
   })
 })

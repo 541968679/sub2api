@@ -41,8 +41,8 @@ func TestClassify_HopInvalidRequestCounts_RequestPhaseFollowsWhitelist(t *testin
 	allOn := whitelistAll(true)
 	clientOn := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
 		ClientStatus: 400, Phase: "request", Type: "invalid_request_error",
-		Message: "invalid json from hop",
-		Whitelist:    &allOn,
+		Message:   "invalid json from hop",
+		Whitelist: &allOn,
 	})
 	require.False(t, clientOn.CountedInAccountScheduleRate)
 	require.False(t, clientOn.NeedsOpsAttention)
@@ -249,4 +249,155 @@ func TestParseScheduleErrorWhitelistJSON_EmptyIsDefault(t *testing.T) {
 	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyClientInvalidRequest))
 	require.False(t, got.FamilyEnabled(ScheduleErrorFamilyGroupNoAccount))
 	require.Equal(t, DefaultScheduleErrorWhitelist(), got)
+}
+
+func TestClassify_CustomMessageContainsExcludes(t *testing.T) {
+	t.Parallel()
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Custom = []ScheduleErrorCustomRule{{
+		Enabled: true, MessageContains: "no available key",
+	}}
+	in := OpsErrorCaliberInput{
+		ClientStatus: 400, Phase: "upstream", Type: "upstream_error",
+		Message:           "mapped downstream",
+		ProviderErrorCode: "channel:no_available_key",
+		Whitelist:         &wl,
+	}
+	got := ClassifyOpsErrorRateCalibers(in)
+	require.False(t, got.CountedInAccountScheduleRate)
+
+	off := DefaultScheduleErrorWhitelist()
+	off.Custom = []ScheduleErrorCustomRule{{
+		Enabled: false, MessageContains: "no available key",
+	}}
+	in.Whitelist = &off
+	require.True(t, ClassifyOpsErrorRateCalibers(in).CountedInAccountScheduleRate)
+}
+
+func TestClassify_CustomStructuredAND(t *testing.T) {
+	t.Parallel()
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Custom = []ScheduleErrorCustomRule{{
+		Enabled: true, ErrorType: "upstream_error", Phase: "upstream", StatusCode: 400,
+		ProviderErrorCode: "channel:no_available_key",
+	}}
+	hit := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 400, Phase: "upstream", Type: "upstream_error",
+		ProviderErrorCode: "channel:no_available_key",
+		Whitelist:         &wl,
+	})
+	require.False(t, hit.CountedInAccountScheduleRate)
+
+	missPhase := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 400, Phase: "request", Type: "upstream_error",
+		ProviderErrorCode: "channel:no_available_key",
+		Whitelist:         &wl,
+	})
+	require.True(t, missPhase.CountedInAccountScheduleRate)
+}
+
+func TestClassify_CustomCannotExclude502URF(t *testing.T) {
+	t.Parallel()
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Custom = []ScheduleErrorCustomRule{{
+		Enabled: true, ErrorType: "upstream_error", Phase: "upstream", StatusCode: 502,
+		MessageContains: "upstream request failed",
+	}}
+	got := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
+		ClientStatus: 502, Phase: "upstream", Type: "upstream_error",
+		Message:   "Upstream request failed",
+		Whitelist: &wl,
+	})
+	require.True(t, got.CountedInAccountScheduleRate)
+}
+
+func TestSQLCustomRule_EscapesLikeMetacharacters(t *testing.T) {
+	t.Parallel()
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Custom = []ScheduleErrorCustomRule{{
+		Enabled: true, MessageContains: `100%_fail'`,
+	}}
+	pred := SQLScheduleQualityExcludedPredicateWith("", wl)
+	require.Contains(t, pred, `ESCAPE '\'`)
+	require.Contains(t, pred, `%100\%\_fail''%`)
+	require.NotContains(t, pred, `%100%_fail'%`)
+}
+
+func TestValidateScheduleErrorWhitelist_RejectsEmptyCustom(t *testing.T) {
+	t.Parallel()
+	err := ValidateScheduleErrorWhitelist(&ScheduleErrorWhitelist{
+		Families: map[string]bool{},
+		Custom:   []ScheduleErrorCustomRule{{Enabled: true}},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "at least one match field")
+}
+
+func TestSetScheduleErrorWhitelist_PersistsCustom(t *testing.T) {
+	t.Parallel()
+	repo := newRuntimeSettingRepoStub()
+	svc := NewSettingService(repo, nil)
+	wl := DefaultScheduleErrorWhitelist()
+	wl.Custom = []ScheduleErrorCustomRule{{
+		Enabled: true, MessageContains: "quota exceeded",
+	}}
+	require.NoError(t, svc.SetScheduleErrorWhitelist(context.Background(), &wl))
+	got, err := svc.GetScheduleErrorWhitelist(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got.Custom, 1)
+	require.True(t, got.Custom[0].Enabled)
+	require.Equal(t, "quota exceeded", got.Custom[0].MessageContains)
+	require.NotEmpty(t, got.Custom[0].ID)
+}
+
+func TestUpsertScheduleErrorCustomRule_DedupEnables(t *testing.T) {
+	t.Parallel()
+	repo := newRuntimeSettingRepoStub()
+	svc := NewSettingService(repo, nil)
+	first, err := svc.UpsertScheduleErrorCustomRule(context.Background(), ScheduleErrorCustomRule{
+		Enabled: false, MessageContains: "quota exceeded",
+	})
+	require.NoError(t, err)
+	require.Len(t, first.Custom, 1)
+	id := first.Custom[0].ID
+	first.Custom[0].Enabled = false
+	require.NoError(t, svc.SetScheduleErrorWhitelist(context.Background(), first))
+
+	second, err := svc.UpsertScheduleErrorCustomRule(context.Background(), ScheduleErrorCustomRule{
+		MessageContains: "Quota Exceeded",
+	})
+	require.NoError(t, err)
+	require.Len(t, second.Custom, 1)
+	require.Equal(t, id, second.Custom[0].ID)
+	require.True(t, second.Custom[0].Enabled)
+}
+
+func TestBuildScheduleErrorCustomRuleFromLog(t *testing.T) {
+	t.Parallel()
+	log := &OpsErrorLog{
+		Type: "upstream_error", Phase: "upstream", StatusCode: 400,
+		ClientStatusCode:     400,
+		ProviderErrorCode:    "channel:no_available_key",
+		UpstreamErrorMessage: "no available key",
+		Message:              "mapped",
+	}
+	structured, err := BuildScheduleErrorCustomRuleFromLog(log, ScheduleErrorFromErrorStructured)
+	require.NoError(t, err)
+	require.Equal(t, "upstream_error", structured.ErrorType)
+	require.Equal(t, "upstream", structured.Phase)
+	require.Equal(t, 400, structured.StatusCode)
+	require.Equal(t, "channel:no_available_key", structured.ProviderErrorCode)
+	require.Empty(t, structured.MessageContains)
+
+	msg, err := BuildScheduleErrorCustomRuleFromLog(log, ScheduleErrorFromErrorMessage)
+	require.NoError(t, err)
+	require.Equal(t, "channel:no_available_key no available key", msg.MessageContains)
+	require.Empty(t, msg.ErrorType)
+
+	_, err = BuildScheduleErrorCustomRuleFromLog(&OpsErrorLog{
+		Type: "upstream_error", Phase: "upstream", StatusCode: 502,
+		ClientStatusCode: 502, Message: "Upstream request failed",
+	}, ScheduleErrorFromErrorStructured)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be whitelisted")
 }

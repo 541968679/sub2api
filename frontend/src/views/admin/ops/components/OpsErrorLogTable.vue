@@ -227,6 +227,14 @@
               <!-- Actions -->
               <td class="whitespace-nowrap px-4 py-2 text-right" @click.stop>
                 <div class="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    class="text-xs font-bold text-gray-600 hover:text-gray-900 dark:text-gray-300"
+                    data-test="schedule-error-whitelist-from-log-open"
+                    @click="openWhitelist(log)"
+                  >
+                    {{ t('admin.ops.scheduleErrorWhitelist.addFromLog') }}
+                  </button>
                   <button type="button" class="text-primary-600 hover:text-primary-700 dark:text-primary-400 text-xs font-bold" @click="emit('openErrorDetail', log.id)">
                     {{ t('admin.ops.errorLog.details') }}
                   </button>
@@ -249,12 +257,21 @@
         />
       </div>
     </div>
+
+    <AddScheduleErrorWhitelistDialog
+      :show="whitelistLog != null"
+      :log="whitelistLog"
+      :z-index="70"
+      @close="whitelistLog = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Pagination from '@/components/common/Pagination.vue'
+import AddScheduleErrorWhitelistDialog from '@/components/admin/usage/AddScheduleErrorWhitelistDialog.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import { errorLogCaliberBadges, isRecoveredErrorLog } from './errorLogCaliberBadges'
 import { getSeverityClass, formatDateTime } from '../utils/opsFormatters'
@@ -375,6 +392,11 @@ interface Emits {
 
 defineProps<Props>()
 const emit = defineEmits<Emits>()
+const whitelistLog = ref<OpsErrorLog | null>(null)
+
+function openWhitelist(log: OpsErrorLog) {
+  whitelistLog.value = log
+}
 
 function getStatusClass(code: number): string {
   if (code >= 500) return 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-500/30'

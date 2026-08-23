@@ -21,6 +21,7 @@ func IsScheduleProtocolMismatch(message string) bool
 func IsOpsAttentionError(status int, phase, errorType, message, body string) bool
 func IsScheduleQualityExcluded(status int, phase, errorType, message, body string) bool
 func IsScheduleQualityExcludedWith(status int, phase, errorType, message, body string, wl ScheduleErrorWhitelist) bool
+func IsScheduleQualityExcludedMatch(in ScheduleErrorMatchInput, wl ScheduleErrorWhitelist) bool
 
 func SQLGroupNoAccountForModelPredicate() string
 func SQLScheduleClientNoisePredicate() string
@@ -40,7 +41,7 @@ Not a percent metric.
 
 Default seeded rule name: `需运维：组模型/路由/协议`. Unique on `ops_alert_rules.name`. `ON CONFLICT (name) DO NOTHING`.
 
-### 2.1 Schedule error whitelist (preset families only)
+### 2.1 Schedule error whitelist (preset families + custom rules)
 
 Settings KV key: `schedule_error_whitelist` (`SettingKeyScheduleErrorWhitelist`).
 
@@ -56,17 +57,34 @@ JSON shape:
     "group_no_account": false,
     "routing_pool_empty": false,
     "protocol_mismatch": false
-  }
+  },
+  "custom": [
+    {
+      "id": "c_01h...",
+      "enabled": true,
+      "error_type": "upstream_error",
+      "phase": "upstream",
+      "status_code": 400,
+      "provider_error_code": "channel:no_available_key",
+      "message_contains": ""
+    }
+  ]
 }
 ```
 
-`true` = in whitelist = **exclude** from pair cooldown / account last-N / account 15m schedule `ErrorCount` (`CountedInAccountScheduleRate`).  
+`families` `true` = in whitelist = **exclude** from pair cooldown / account last-N / account 15m schedule `ErrorCount` (`CountedInAccountScheduleRate`).  
 Uncheck a family = that family counts toward schedule again.  
-Missing key / `{}` / `families: {}` / invalid JSON / all `false` = **no new excludes**. Same schedule ingest as production before this feature.
+Missing key / `{}` / `families: {}` / invalid JSON / all `false` + empty `custom` = **no new excludes**. Same schedule ingest as production before this feature.
 
 Legacy `IsAccountQualityRoutingModelMiss` (phase≠upstream, status∈400/403/404/503, model-not-found / whitelist wording) is **hardcoded** and is **not** a checkbox. Putting it on the whitelist with default false would let 404 `model_not_found` cool accounts again. Save may still accept `routing_model_miss` from old payloads; it is dropped on persist and has no effect.
 
-No free-text needles. No custom LIKE. No new admin page — checkbox group as a tab inside the account/user action-bar error modal (`UsageErrorInspectDialog`, opened by 「错误」). Not in `OpsErrorDetailsModal`. Save accepts only known family ids + bool. UI opens with every new family unchecked.
+Custom rules: filled fields AND. Empty field = do not constrain. `message_contains` is a case-insensitive **literal** substring against `error_message` / `error_body` / `upstream_error_message` / `provider_error_code`. SQL LIKE must escape `\` `%` `_` `'`; no free wildcards / raw SQL. Cap 50 rules; message ≤ 200. Disabled rules persist but do not match.
+
+PUT `/admin/settings/schedule-error-whitelist`: omit `custom` = keep existing custom; `custom: []` = clear. Unknown family ids still 400.
+
+POST `/admin/settings/schedule-error-whitelist/from-error` `{error_id, mode: structured|message}`: server re-reads the log. `structured` prefills `error_type` + `phase` + `status_code` + `provider_error_code` (no full message). `message` uses the list primary text. Same fingerprint → enable existing. 502 + `upstream request failed` is rejected.
+
+UI: checkbox group + custom list in `ScheduleErrorWhitelistPanel` (`UsageErrorInspectDialog` whitelist tab). From-log actions live on `OpsErrorLogTable` and `OpsErrorDetailModal` (Ops / Usage / inspect share the table). Not a SettingsView card. UI opens with every new family unchecked.
 
 | id | Default on | Match |
 | --- | --- | --- |
@@ -78,14 +96,16 @@ No free-text needles. No custom LIKE. No new admin page — checkbox group as a 
 | `routing_pool_empty` | no | `error_phase=routing` and status=503 |
 | `protocol_mismatch` | no | Chat Completions endpoint / Unsupported content type / Invalid URL |
 
-Hot read: short cache or settings invalidation. `ClassifyOpsErrorRateCalibers` and `SQLScheduleQualityExcludedPredicateWith` must use the same snapshot. Account 15m `ErrorCount` uses the generated exclude; user-dimension quality SQL must not.
+Hot read: short cache or settings invalidation. `ClassifyOpsErrorRateCalibers` and `SQLScheduleQualityExcludedPredicateWith` must use the same snapshot, including `provider_error_code` / `upstream_error_message` on the Go input. Account 15m `ErrorCount` uses the generated exclude; user-dimension quality SQL must not. List badges / 15m SQL recompute on the next read after save. Pair / account last-N live windows are not rewritten; only later `Observe*(Success=false)` ingest sees the new custom rule.
 
 ### 2.2 Safety rails (hard)
 
-- SQL needles are code constants only. Admins cannot inject custom LIKE.
+- Preset family needles stay code constants.
+- Custom `message_contains` is a literal substring only. Escape before SQL LIKE. Admins cannot inject `%` `_` wildcards or raw SQL.
 - Never exclude `Upstream request failed` without looking at status.
-- status=502 `Upstream request failed` **always counts toward schedule**. Config cannot whitelist it away (`AND NOT` hard rail in SQL; Go returns false from exclude).
+- status=502 `Upstream request failed` **always counts toward schedule**. Config / custom rules cannot whitelist it away (`AND NOT` hard rail in SQL; Go returns false from exclude).
 - Save rejects unknown family keys.
+- PUT that omits `custom` must not wipe custom rules (old family-only clients).
 
 ### 3. Contracts
 
@@ -151,6 +171,9 @@ Alert rule create: `ops_attention_count` allowed; threshold ≥ 0; not clamped t
 - List second `Apply` with body-only group-no-account text → `needs_ops_attention=true`.
 - Recovered / bridge / `UseFailover` unchanged.
 - Settings validate rejects unknown family ids.
+- Custom message / structured AND excludes schedule; 502 URF still counts when a matching custom rule exists.
+- SQL custom predicate escapes LIKE metacharacters.
+- PUT omitting `custom` keeps existing custom; `custom: []` clears.
 - SQL predicate strings contain the 502-unrestricted group-no-account fragment and do **not** require `error_phase <> 'upstream'` for that fragment.
 - Pair/account observe: 502 group-no-account does not call `Observe*(Success=false)` when family on; 502 `Upstream request failed` does.
 - Error list filter: `needs_ops_attention=true` is applied in SQL.

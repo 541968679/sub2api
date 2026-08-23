@@ -1179,8 +1179,21 @@ export const SCHEDULE_ERROR_WHITELIST_FAMILY_IDS = [
 export type ScheduleErrorWhitelistFamilyId =
   (typeof SCHEDULE_ERROR_WHITELIST_FAMILY_IDS)[number];
 
+export type ScheduleErrorFromErrorMode = "structured" | "message";
+
+export interface ScheduleErrorCustomRule {
+  id?: string;
+  enabled: boolean;
+  error_type?: string;
+  phase?: string;
+  status_code?: number;
+  provider_error_code?: string;
+  message_contains?: string;
+}
+
 export interface ScheduleErrorWhitelistSettings {
   families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
+  custom?: ScheduleErrorCustomRule[];
 }
 
 export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings {
@@ -1188,6 +1201,7 @@ export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings 
     families: Object.fromEntries(
       SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, false]),
     ) as ScheduleErrorWhitelistSettings["families"],
+    custom: [],
   };
 }
 
@@ -1204,6 +1218,17 @@ export async function updateScheduleErrorWhitelist(
   const { data } = await apiClient.put<ScheduleErrorWhitelistSettings>(
     "/admin/settings/schedule-error-whitelist",
     settings,
+  );
+  return data;
+}
+
+export async function addScheduleErrorWhitelistFromError(
+  errorId: number,
+  mode: ScheduleErrorFromErrorMode,
+): Promise<ScheduleErrorWhitelistSettings> {
+  const { data } = await apiClient.post<ScheduleErrorWhitelistSettings>(
+    "/admin/settings/schedule-error-whitelist/from-error",
+    { error_id: errorId, mode },
   );
   return data;
 }

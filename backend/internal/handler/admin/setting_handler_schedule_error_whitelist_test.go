@@ -4,6 +4,7 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -64,6 +65,63 @@ func TestSettingHandler_UpdateScheduleErrorWhitelist_RoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyGroupNoAccount))
 	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyClientInvalidRequest))
+}
+
+func TestSettingHandler_UpdateScheduleErrorWhitelist_OmitsCustomKeepsExisting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := newScheduleErrorWhitelistSettingHandler()
+	custom := []service.ScheduleErrorCustomRule{{
+		Enabled: true, MessageContains: "keep-me",
+	}}
+	require.NoError(t, handler.settingService.SetScheduleErrorWhitelist(context.Background(), &service.ScheduleErrorWhitelist{
+		Families: map[string]bool{service.ScheduleErrorFamilyGroupNoAccount: true},
+		Custom:   custom,
+	}))
+
+	payload, err := json.Marshal(map[string]any{
+		"families": map[string]any{"group_no_account": false},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings/schedule-error-whitelist", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+	handler.UpdateScheduleErrorWhitelist(c)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var body struct {
+		Data service.ScheduleErrorWhitelist `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	require.False(t, body.Data.FamilyEnabled(service.ScheduleErrorFamilyGroupNoAccount))
+	require.Len(t, body.Data.Custom, 1)
+	require.Equal(t, "keep-me", body.Data.Custom[0].MessageContains)
+}
+
+func TestSettingHandler_UpdateScheduleErrorWhitelist_EmptyCustomClears(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := newScheduleErrorWhitelistSettingHandler()
+	require.NoError(t, handler.settingService.SetScheduleErrorWhitelist(context.Background(), &service.ScheduleErrorWhitelist{
+		Custom: []service.ScheduleErrorCustomRule{{Enabled: true, MessageContains: "drop-me"}},
+	}))
+
+	payload, err := json.Marshal(map[string]any{
+		"families": map[string]any{},
+		"custom":   []any{},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings/schedule-error-whitelist", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+	handler.UpdateScheduleErrorWhitelist(c)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var body struct {
+		Data service.ScheduleErrorWhitelist `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	require.Empty(t, body.Data.Custom)
 }
 
 func TestSettingHandler_UpdateScheduleErrorWhitelist_RejectsUnknownFamily(t *testing.T) {

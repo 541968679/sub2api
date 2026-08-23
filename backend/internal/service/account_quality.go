@@ -690,14 +690,16 @@ func IsRecoveredOpsError(phase string, clientStatus int, message string) bool {
 
 // OpsErrorCaliberInput is one ops_error_logs row for list-flag classification.
 type OpsErrorCaliberInput struct {
-	ClientStatus  int
-	Phase         string
-	Type          string
-	Message       string
-	ErrorBody     string
-	Platform      string
-	UpstreamModel string
-	UseFailover   bool
+	ClientStatus         int
+	Phase                string
+	Type                 string
+	Message              string
+	ErrorBody            string
+	ProviderErrorCode    string
+	UpstreamErrorMessage string
+	Platform             string
+	UpstreamModel        string
+	UseFailover          bool
 	// Whitelist is the current schedule-error family config. Nil = factory
 	// default (all new families off; legacy routing miss stays hardcoded).
 	Whitelist *ScheduleErrorWhitelist
@@ -729,7 +731,15 @@ func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers 
 	if in.Whitelist != nil {
 		wl = NormalizeScheduleErrorWhitelist(*in.Whitelist)
 	}
-	scheduleSkip := bridge || IsScheduleQualityExcludedWith(in.ClientStatus, in.Phase, in.Type, in.Message, in.ErrorBody, wl)
+	scheduleSkip := bridge || IsScheduleQualityExcludedMatch(ScheduleErrorMatchInput{
+		Status:               in.ClientStatus,
+		Phase:                in.Phase,
+		Type:                 in.Type,
+		Message:              in.Message,
+		Body:                 in.ErrorBody,
+		ProviderErrorCode:    in.ProviderErrorCode,
+		UpstreamErrorMessage: in.UpstreamErrorMessage,
+	}, wl)
 	terminalAccount := user && !scheduleSkip
 	compareAccount := !routingMiss && !bridge && (user || recovered)
 	schedule := terminalAccount
@@ -751,14 +761,16 @@ func ApplyOpsErrorRateCalibers(item *OpsErrorLog, clientStatus int, errorBody st
 		return
 	}
 	applyOpsErrorRateCalibers(item, OpsErrorCaliberInput{
-		ClientStatus:  clientStatus,
-		Phase:         item.Phase,
-		Type:          item.Type,
-		Message:       item.Message,
-		ErrorBody:     errorBody,
-		Platform:      item.Platform,
-		UpstreamModel: item.UpstreamModel,
-		UseFailover:   useFailover,
+		ClientStatus:         clientStatus,
+		Phase:                item.Phase,
+		Type:                 item.Type,
+		Message:              item.Message,
+		ErrorBody:            errorBody,
+		ProviderErrorCode:    item.ProviderErrorCode,
+		UpstreamErrorMessage: item.UpstreamErrorMessage,
+		Platform:             item.Platform,
+		UpstreamModel:        item.UpstreamModel,
+		UseFailover:          useFailover,
 	})
 }
 

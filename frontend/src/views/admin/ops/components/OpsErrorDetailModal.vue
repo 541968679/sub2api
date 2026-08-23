@@ -12,6 +12,16 @@
     </div>
 
     <div v-else class="space-y-6 p-6">
+      <div class="flex justify-end">
+        <button
+          type="button"
+          class="btn btn-secondary text-xs"
+          data-test="schedule-error-whitelist-from-log-open"
+          @click="whitelistOpen = true"
+        >
+          {{ t('admin.ops.scheduleErrorWhitelist.addFromLog') }}
+        </button>
+      </div>
       <!-- Summary -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
@@ -195,6 +205,12 @@
         </div>
       </div>
     </div>
+    <AddScheduleErrorWhitelistDialog
+      :show="whitelistOpen && detail != null"
+      :log="detail"
+      :z-index="(zIndex || 50) + 10"
+      @close="whitelistOpen = false"
+    />
   </BaseDialog>
 </template>
 
@@ -202,6 +218,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import AddScheduleErrorWhitelistDialog from '@/components/admin/usage/AddScheduleErrorWhitelistDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 import { opsAPI, type OpsErrorDetail } from '@/api/admin/ops'
@@ -233,6 +250,7 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const detail = ref<OpsErrorDetail | null>(null)
+const whitelistOpen = ref(false)
 
 const showUpstreamList = computed(() => props.errorType === 'request')
 

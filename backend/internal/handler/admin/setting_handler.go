@@ -3105,9 +3105,11 @@ func (h *SettingHandler) GetScheduleErrorWhitelist(c *gin.Context) {
 	response.Success(c, settings)
 }
 
-// UpdateScheduleErrorWhitelistRequest 只接受已知 family id + bool。
+// UpdateScheduleErrorWhitelistRequest 预置 family + 可选 custom。
+// custom 省略则保留已有自定义；[] 清空。
 type UpdateScheduleErrorWhitelistRequest struct {
-	Families map[string]bool `json:"families"`
+	Families map[string]bool                    `json:"families"`
+	Custom   *[]service.ScheduleErrorCustomRule `json:"custom"`
 }
 
 // UpdateScheduleErrorWhitelist 更新调度错误白名单
@@ -3119,6 +3121,18 @@ func (h *SettingHandler) UpdateScheduleErrorWhitelist(c *gin.Context) {
 		return
 	}
 	settings := &service.ScheduleErrorWhitelist{Families: req.Families}
+	if req.Custom != nil {
+		settings.Custom = *req.Custom
+	} else {
+		current, err := h.settingService.GetScheduleErrorWhitelist(c.Request.Context())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if current != nil {
+			settings.Custom = current.Custom
+		}
+	}
 	if err := h.settingService.SetScheduleErrorWhitelist(c.Request.Context(), settings); err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -3126,6 +3140,46 @@ func (h *SettingHandler) UpdateScheduleErrorWhitelist(c *gin.Context) {
 	updated, err := h.settingService.GetScheduleErrorWhitelist(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, updated)
+}
+
+// AddScheduleErrorWhitelistFromErrorRequest 从一条错误日志生成自定义规则。
+type AddScheduleErrorWhitelistFromErrorRequest struct {
+	ErrorID int64  `json:"error_id"`
+	Mode    string `json:"mode"`
+}
+
+// AddScheduleErrorWhitelistFromError 从错误日志加入白名单
+// POST /api/v1/admin/settings/schedule-error-whitelist/from-error
+func (h *SettingHandler) AddScheduleErrorWhitelistFromError(c *gin.Context) {
+	var req AddScheduleErrorWhitelistFromErrorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.ErrorID <= 0 {
+		response.BadRequest(c, "error_id is required")
+		return
+	}
+	if h.opsService == nil {
+		response.BadRequest(c, "ops service not ready")
+		return
+	}
+	detail, err := h.opsService.GetErrorLogByID(c.Request.Context(), req.ErrorID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	rule, err := service.BuildScheduleErrorCustomRuleFromLog(&detail.OpsErrorLog, req.Mode)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.UpsertScheduleErrorCustomRule(c.Request.Context(), rule)
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	response.Success(c, updated)

@@ -224,15 +224,17 @@ func (s *OpsService) observePairQualityErrors(ctx context.Context, entries []*Op
 			continue
 		}
 		cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
-			ClientStatus:  entry.StatusCode,
-			Phase:         entry.ErrorPhase,
-			Type:          entry.ErrorType,
-			Message:       entry.ErrorMessage,
-			ErrorBody:     entry.ErrorBody,
-			Platform:      entry.Platform,
-			UpstreamModel: entry.UpstreamModel,
-			UseFailover:   useFailover,
-			Whitelist:     &wl,
+			ClientStatus:         entry.StatusCode,
+			Phase:                entry.ErrorPhase,
+			Type:                 entry.ErrorType,
+			Message:              entry.ErrorMessage,
+			ErrorBody:            entry.ErrorBody,
+			ProviderErrorCode:    derefString(entry.ProviderErrorCode),
+			UpstreamErrorMessage: derefString(entry.UpstreamErrorMessage),
+			Platform:             entry.Platform,
+			UpstreamModel:        entry.UpstreamModel,
+			UseFailover:          useFailover,
+			Whitelist:            &wl,
 		})
 		if !cals.CountedInAccountScheduleRate {
 			continue
@@ -272,15 +274,17 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 			continue
 		}
 		cals := ClassifyOpsErrorRateCalibers(OpsErrorCaliberInput{
-			ClientStatus:  entry.StatusCode,
-			Phase:         entry.ErrorPhase,
-			Type:          entry.ErrorType,
-			Message:       entry.ErrorMessage,
-			ErrorBody:     entry.ErrorBody,
-			Platform:      entry.Platform,
-			UpstreamModel: entry.UpstreamModel,
-			UseFailover:   useFailover,
-			Whitelist:     &wl,
+			ClientStatus:         entry.StatusCode,
+			Phase:                entry.ErrorPhase,
+			Type:                 entry.ErrorType,
+			Message:              entry.ErrorMessage,
+			ErrorBody:            entry.ErrorBody,
+			ProviderErrorCode:    derefString(entry.ProviderErrorCode),
+			UpstreamErrorMessage: derefString(entry.UpstreamErrorMessage),
+			Platform:             entry.Platform,
+			UpstreamModel:        entry.UpstreamModel,
+			UseFailover:          useFailover,
+			Whitelist:            &wl,
 		})
 		if !cals.CountedInAccountScheduleRate {
 			continue
@@ -501,15 +505,17 @@ func (s *OpsService) applyErrorLogCalibers(ctx context.Context, result *OpsError
 			clientStatus = item.StatusCode
 		}
 		applyOpsErrorRateCalibers(item, OpsErrorCaliberInput{
-			ClientStatus:  clientStatus,
-			Phase:         item.Phase,
-			Type:          item.Type,
-			Message:       item.Message,
-			ErrorBody:     item.ErrorBody,
-			Platform:      item.Platform,
-			UpstreamModel: item.UpstreamModel,
-			UseFailover:   useFailover,
-			Whitelist:     &wl,
+			ClientStatus:         clientStatus,
+			Phase:                item.Phase,
+			Type:                 item.Type,
+			Message:              item.Message,
+			ErrorBody:            item.ErrorBody,
+			ProviderErrorCode:    item.ProviderErrorCode,
+			UpstreamErrorMessage: item.UpstreamErrorMessage,
+			Platform:             item.Platform,
+			UpstreamModel:        item.UpstreamModel,
+			UseFailover:          useFailover,
+			Whitelist:            &wl,
 		})
 	}
 }
@@ -553,15 +559,17 @@ func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLo
 	}
 	wl := s.scheduleErrorWhitelist(ctx)
 	applyOpsErrorRateCalibers(&detail.OpsErrorLog, OpsErrorCaliberInput{
-		ClientStatus:  clientStatus,
-		Phase:         detail.Phase,
-		Type:          detail.Type,
-		Message:       detail.Message,
-		ErrorBody:     detail.ErrorBody,
-		Platform:      detail.Platform,
-		UpstreamModel: detail.UpstreamModel,
-		UseFailover:   s.scheduleUseFailoverErrorRate(ctx),
-		Whitelist:     &wl,
+		ClientStatus:         clientStatus,
+		Phase:                detail.Phase,
+		Type:                 detail.Type,
+		Message:              detail.Message,
+		ErrorBody:            detail.ErrorBody,
+		ProviderErrorCode:    detail.ProviderErrorCode,
+		UpstreamErrorMessage: detail.UpstreamErrorMessage,
+		Platform:             detail.Platform,
+		UpstreamModel:        detail.UpstreamModel,
+		UseFailover:          s.scheduleUseFailoverErrorRate(ctx),
+		Whitelist:            &wl,
 	})
 	return detail, nil
 }

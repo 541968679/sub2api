@@ -18,6 +18,70 @@ func sqlLowerLike(col, needle string) string {
 	return fmt.Sprintf("LOWER(COALESCE(%s, '')) LIKE '%%%s%%'", col, needle)
 }
 
+func sqlQuoteLiteral(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+func sqlLikeLiteral(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return sqlQuoteLiteral(s)
+}
+
+func sqlLowerEq(col, value string) string {
+	return fmt.Sprintf("LOWER(TRIM(COALESCE(%s, ''))) = '%s'", col, sqlQuoteLiteral(strings.ToLower(strings.TrimSpace(value))))
+}
+
+func sqlCustomMessageContainsPredicate(prefix, needle string) string {
+	_, _, _, msg, body := sqlOpsErrorCols(prefix)
+	code := prefix + "provider_error_code"
+	up := prefix + "upstream_error_message"
+	n := sqlLikeLiteral(strings.ToLower(strings.TrimSpace(needle)))
+	like := func(col string) string {
+		return fmt.Sprintf("LOWER(COALESCE(%s, '')) LIKE '%%%s%%' ESCAPE '\\'", col, n)
+	}
+	return "(" + like(msg) + " OR " + like(body) + " OR " + like(up) + " OR " + like(code) + ")"
+}
+
+// ScheduleErrorMatchInput is one ops_error_logs row for schedule-exclude.
+type ScheduleErrorMatchInput struct {
+	Status               int
+	Phase                string
+	Type                 string
+	Message              string
+	Body                 string
+	ProviderErrorCode    string
+	UpstreamErrorMessage string
+}
+
+func sqlCustomRulePredicate(prefix string, rule ScheduleErrorCustomRule) string {
+	if !rule.Enabled || !rule.HasCondition() {
+		return "FALSE"
+	}
+	status, phase, typ, _, _ := sqlOpsErrorCols(prefix)
+	parts := make([]string, 0, 5)
+	if t := strings.TrimSpace(rule.ErrorType); t != "" {
+		parts = append(parts, sqlLowerEq(typ, t))
+	}
+	if p := strings.TrimSpace(rule.Phase); p != "" {
+		parts = append(parts, sqlLowerEq(phase, p))
+	}
+	if rule.StatusCode > 0 {
+		parts = append(parts, fmt.Sprintf("COALESCE(%s, 0) = %d", status, rule.StatusCode))
+	}
+	if c := strings.TrimSpace(rule.ProviderErrorCode); c != "" {
+		parts = append(parts, sqlLowerEq(prefix+"provider_error_code", c))
+	}
+	if n := strings.TrimSpace(rule.MessageContains); n != "" {
+		parts = append(parts, sqlCustomMessageContainsPredicate(prefix, n))
+	}
+	if len(parts) == 0 {
+		return "FALSE"
+	}
+	return "(" + strings.Join(parts, " AND ") + ")"
+}
+
 func sqlMsgOrBodyLike(msg, body, needle string) string {
 	return "(" + sqlLowerLike(msg, needle) + " OR " + sqlLowerLike(body, needle) + ")"
 }
@@ -247,16 +311,32 @@ func IsScheduleQualityExcluded(status int, phase, errorType, message, body strin
 // 502 "Upstream request failed" is never excluded.
 // Attention is independent of this whitelist.
 func IsScheduleQualityExcludedWith(status int, phase, errorType, message, body string, wl ScheduleErrorWhitelist) bool {
-	if isHardCountedUpstreamRequestFailed(status, message) {
+	return IsScheduleQualityExcludedMatch(ScheduleErrorMatchInput{
+		Status:  status,
+		Phase:   phase,
+		Type:    errorType,
+		Message: message,
+		Body:    body,
+	}, wl)
+}
+
+// IsScheduleQualityExcludedMatch is the full exclude (preset + custom).
+func IsScheduleQualityExcludedMatch(in ScheduleErrorMatchInput, wl ScheduleErrorWhitelist) bool {
+	if isHardCountedUpstreamRequestFailed(in.Status, in.Message) {
 		return false
 	}
 	// Pre-68060fbfb safety rail: keep excluding regardless of whitelist.
-	if IsAccountQualityRoutingModelMiss(status, phase, errorType, message, body) {
+	if IsAccountQualityRoutingModelMiss(in.Status, in.Phase, in.Type, in.Message, in.Body) {
 		return true
 	}
 	wl = NormalizeScheduleErrorWhitelist(wl)
 	for _, id := range ScheduleErrorFamilyIDs {
-		if wl.FamilyEnabled(id) && matchScheduleErrorFamily(id, status, phase, errorType, message, body) {
+		if wl.FamilyEnabled(id) && matchScheduleErrorFamily(id, in.Status, in.Phase, in.Type, in.Message, in.Body) {
+			return true
+		}
+	}
+	for _, rule := range wl.Custom {
+		if rule.Match(in) {
 			return true
 		}
 	}
@@ -275,6 +355,12 @@ func SQLScheduleQualityExcludedPredicateWith(prefix string, wl ScheduleErrorWhit
 			continue
 		}
 		parts = append(parts, sqlScheduleErrorFamilyPredicate(id, prefix))
+	}
+	for _, rule := range wl.Custom {
+		if !rule.Enabled || !rule.HasCondition() {
+			continue
+		}
+		parts = append(parts, sqlCustomRulePredicate(prefix, rule))
 	}
 	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + ")"
 }

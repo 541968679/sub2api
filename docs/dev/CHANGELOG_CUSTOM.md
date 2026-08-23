@@ -1,3 +1,35 @@
+## 2026-08-23 - feat: schedule error whitelist custom rules + add from error log
+
+### What
+- Settings KV `schedule_error_whitelist` now stores `custom[]` beside the 7 preset families. Filled fields AND-match. Manual add is literal `message_contains` (case-insensitive substring on message / body / upstream message / provider code). From-log structured rules use `error_type` + `phase` + `status_code` + optional `provider_error_code`.
+- `POST /admin/settings/schedule-error-whitelist/from-error` rebuilds the rule from `error_id` on the server. PUT that omits `custom` keeps existing custom rules. 502 + `upstream request failed` still cannot be excluded.
+- Admin whitelist panel can add/disable/delete custom rules. Error log table and detail (Ops / Usage / inspect) can add a row to the whitelist after confirm.
+
+### Why
+- Preset families could not cover new noise types. Operators needed to add a phrase by hand, or promote the row they were looking at, without opening a free SQL LIKE hole.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "ScheduleError|ClassifyOpsErrorRateCalibers|ObservePairQuality|BuildScheduleError|SQLCustom" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run ScheduleErrorWhitelist -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts src/components/admin/usage/__tests__/ScheduleErrorWhitelistPanel.spec.ts src/components/admin/usage/__tests__/AddScheduleErrorWhitelistDialog.spec.ts src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/ops_service.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/AddScheduleErrorWhitelistDialog.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`,
+`docs/dev/codebase/ops.md`
+
 ## 2026-08-23 - docs: isolation worktree is upstream-sync only, not ordinary product work
 
 ### What
