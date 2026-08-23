@@ -1,3 +1,19 @@
+## 2026-08-23 - fix: schedule whitelist form.custom required for vue-tsc
+
+### What
+- `ScheduleErrorWhitelistSettings.custom` is required on GET/form state. Family-only PUT uses `ScheduleErrorWhitelistUpdate` so it can still omit `custom`.
+- Unblocks Release `vue-tsc -b`. Tag `v0.1.254` exists but never published GHCR; next ship is `v0.1.255`.
+
+### Why
+Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `custom?`.
+
+### Verification
+- `pnpm --dir frontend exec vue-tsc -b`
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/ScheduleErrorWhitelistPanel.spec.ts src/components/admin/usage/__tests__/AddScheduleErrorWhitelistDialog.spec.ts src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`
+
+### Affected files
+`frontend/src/api/admin/settings.ts`
+
 ## 2026-08-23 - feat: schedule error whitelist custom rules + add from error log
 
 ### What

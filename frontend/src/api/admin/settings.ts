@@ -1193,8 +1193,13 @@ export interface ScheduleErrorCustomRule {
 
 export interface ScheduleErrorWhitelistSettings {
   families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
-  custom?: ScheduleErrorCustomRule[];
+  custom: ScheduleErrorCustomRule[];
 }
+
+export type ScheduleErrorWhitelistUpdate = {
+  families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
+  custom?: ScheduleErrorCustomRule[];
+};
 
 export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings {
   return {
@@ -1213,7 +1218,7 @@ export async function getScheduleErrorWhitelist(): Promise<ScheduleErrorWhitelis
 }
 
 export async function updateScheduleErrorWhitelist(
-  settings: ScheduleErrorWhitelistSettings,
+  settings: ScheduleErrorWhitelistUpdate,
 ): Promise<ScheduleErrorWhitelistSettings> {
   const { data } = await apiClient.put<ScheduleErrorWhitelistSettings>(
     "/admin/settings/schedule-error-whitelist",
