@@ -135,6 +135,10 @@ func (User) Fields() []ent.Field {
 		field.Float("display_cache_token_max_mult").
 			Optional().
 			Nillable(),
+		// User override for Q_u last-N window (NULL = inherit site account_quality_window_n).
+		field.Int("quality_window_n").
+			Optional().
+			Nillable(),
 	}
 }
 

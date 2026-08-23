@@ -8,6 +8,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResolveUserQualityWindowN(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, DefaultAccountQualityWindowN, ResolveUserQualityWindowN(nil, DefaultAccountQualityWindowN))
+	require.Equal(t, 10, ResolveUserQualityWindowN(intPtr(10), 20))
+	require.Equal(t, 20, ResolveUserQualityWindowN(nil, 20))
+	require.Equal(t, 1, ResolveUserQualityWindowN(intPtr(0), 20))
+	require.Equal(t, 100, ResolveUserQualityWindowN(intPtr(250), 20))
+}
+
+func TestProjectAccountQualityLastN_TrimsToResolvedN(t *testing.T) {
+	t.Parallel()
+	live := ApplyAccountQualityLastNIngest(nil, 20, true, intPtr(100))
+	for i := 0; i < 7; i++ {
+		live = ApplyAccountQualityLastNIngest(live, 20, true, intPtr(100+i))
+	}
+	require.Equal(t, 8, live.OKCount)
+	projected := ProjectAccountQualityLastN(live, 3)
+	require.Equal(t, 3, projected.N)
+	require.Equal(t, 3, projected.OKCount)
+	require.Equal(t, 3, projected.TTFTCount)
+}
+
 func TestNormalizeAccountQualityWindowN(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, DefaultAccountQualityWindowN, NormalizeAccountQualityWindowN(nil, nil, nil))

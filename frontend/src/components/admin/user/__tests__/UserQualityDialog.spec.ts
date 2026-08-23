@@ -8,21 +8,29 @@ const {
   getQualityHistory,
   getBatchQualityStats,
   getQualityHardCloseSettings,
+  getById,
+  updateUser,
   accountsGetQualityHistory,
-  showError
+  showError,
+  showSuccess
 } = vi.hoisted(() => ({
   getQualityHistory: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
+  getById: vi.fn(),
+  updateUser: vi.fn(),
   accountsGetQualityHistory: vi.fn(),
-  showError: vi.fn()
+  showError: vi.fn(),
+  showSuccess: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     users: {
       getQualityHistory,
-      getBatchQualityStats
+      getBatchQualityStats,
+      getById,
+      update: updateUser
     },
     settings: {
       getQualityHardCloseSettings
@@ -37,7 +45,7 @@ vi.mock('@/api/admin', () => ({
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError,
-    showSuccess: vi.fn()
+    showSuccess
   })
 }))
 
@@ -114,8 +122,12 @@ describe('UserQualityDialog', () => {
     getQualityHistory.mockReset()
     getBatchQualityStats.mockReset()
     getQualityHardCloseSettings.mockReset()
+    getById.mockReset()
+    updateUser.mockReset()
     accountsGetQualityHistory.mockReset()
     showError.mockReset()
+    showSuccess.mockReset()
+    getById.mockResolvedValue({ id: 42, quality_window_n: null })
     getQualityHistory.mockResolvedValue({
       items: [],
       from: '2026-08-20T00:00:00Z',
@@ -153,6 +165,7 @@ describe('UserQualityDialog', () => {
     expect(getBatchQualityStats).toHaveBeenCalledWith([42])
     expect(accountsGetQualityHistory).not.toHaveBeenCalled()
     expect(wrapper.get('[data-test="user-quality-window-scope"]').text()).toBe('window:20')
+    expect((wrapper.get('[data-test="user-quality-window-n-inherit"]').element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.get('[data-test="stability-failover-rate"]').text()).toContain('20.0%')
     expect(wrapper.get('[data-test="stability-empty"]').exists()).toBe(true)
   })
@@ -180,5 +193,21 @@ describe('UserQualityDialog', () => {
 
     expect(wrapper.get('[data-test="stability-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="stability-empty"]').exists()).toBe(false)
+  })
+
+  it('saves a per-user window N override', async () => {
+    getById.mockResolvedValue({ id: 42, quality_window_n: 20 })
+    updateUser.mockResolvedValue({ id: 42, quality_window_n: 8 })
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-test="user-quality-window-n-inherit"]').setValue(false)
+    await wrapper.get('[data-test="user-quality-window-n"]').setValue(8)
+    await wrapper.get('[data-test="user-quality-window-n-save"]').trigger('click')
+    await flushPromises()
+
+    expect(updateUser).toHaveBeenCalledWith(42, { quality_window_n: 8 })
+    expect(showSuccess).toHaveBeenCalled()
+    expect(getBatchQualityStats).toHaveBeenCalledTimes(2)
   })
 })

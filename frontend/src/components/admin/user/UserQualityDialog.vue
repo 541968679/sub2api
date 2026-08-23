@@ -55,6 +55,46 @@
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-test="user-quality-window-scope">
           {{ t('admin.users.quality.windowScope', { n: liveWindowN }) }}
         </p>
+        <div
+          class="mt-2 flex flex-wrap items-end gap-2"
+          data-test="user-quality-window-n-editor"
+        >
+          <label class="min-w-0 flex-1">
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.users.quality.windowN') }}
+            </span>
+            <input
+              v-model.number="draftWindowN"
+              type="number"
+              min="1"
+              max="100"
+              :disabled="inheritSiteN || savingWindowN"
+              class="input mt-1 w-full !px-2 !py-1"
+              data-test="user-quality-window-n"
+            />
+          </label>
+          <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+            <input
+              v-model="inheritSiteN"
+              type="checkbox"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              data-test="user-quality-window-n-inherit"
+            />
+            {{ t('admin.users.quality.windowNInherit') }}
+          </label>
+          <button
+            type="button"
+            class="btn btn-primary !px-2 !py-1 text-xs"
+            :disabled="savingWindowN"
+            data-test="user-quality-window-n-save"
+            @click="saveWindowN"
+          >
+            {{ t('admin.users.quality.windowNSave') }}
+          </button>
+        </div>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.users.quality.windowNHint') }}
+        </p>
       </section>
 
       <section
@@ -203,6 +243,9 @@ const loading = ref(false)
 const historyItems = ref<AccountQualityHistoryItem[]>([])
 const liveQualityStats = ref<AccountQualityStats | null>(null)
 const siteWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
+const draftWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
+const inheritSiteN = ref(true)
+const savingWindowN = ref(false)
 const showP95 = ref(readShowP95Preference())
 
 const dialogTitle = computed(() =>
@@ -364,6 +407,32 @@ const liveWindowN = computed(() =>
   })
 )
 
+function applyWindowNDraft(override: number | null | undefined, resolved: number) {
+  inheritSiteN.value = override == null
+  draftWindowN.value = inheritSiteN.value ? resolved : resolveAccountQualityWindowN({ n: override })
+}
+
+async function saveWindowN() {
+  if (!props.userId) return
+  savingWindowN.value = true
+  try {
+    const updated = await adminAPI.users.update(props.userId, {
+      quality_window_n: inheritSiteN.value ? 0 : resolveAccountQualityWindowN({ n: Number(draftWindowN.value) })
+    })
+    const resolved = inheritSiteN.value
+      ? siteWindowN.value
+      : resolveAccountQualityWindowN({ n: updated.quality_window_n })
+    applyWindowNDraft(updated.quality_window_n, resolved)
+    const qualityBatch = await adminAPI.users.getBatchQualityStats([props.userId])
+    liveQualityStats.value = qualityBatch.stats?.[String(props.userId)] ?? liveQualityStats.value
+    appStore.showSuccess(t('admin.users.quality.windowNSaved'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.users.quality.windowNSaveFailed')))
+  } finally {
+    savingWindowN.value = false
+  }
+}
+
 const samplesSummary = computed(() => {
   const last = historyItems.value[historyItems.value.length - 1]
   if (!last) return ''
@@ -415,18 +484,27 @@ async function load() {
   historyItems.value = []
   liveQualityStats.value = null
   try {
-    const [history, qualityBatch, template] = await Promise.all([
+    const [history, qualityBatch, template, user] = await Promise.all([
       adminAPI.users.getQualityHistory(props.userId),
       adminAPI.users.getBatchQualityStats([props.userId]),
       adminAPI.settings?.getQualityHardCloseSettings
         ? adminAPI.settings.getQualityHardCloseSettings().catch(() => null)
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      adminAPI.users.getById(props.userId).catch(() => null)
     ])
     historyItems.value = history.items ?? []
     liveQualityStats.value = qualityBatch.stats?.[String(props.userId)] ?? null
     if (template) {
       siteWindowN.value = resolveAccountQualityWindowN(template)
     }
+    applyWindowNDraft(
+      user?.quality_window_n,
+      resolveAccountQualityWindowN({
+        ...liveQualityStats.value,
+        account_quality_window_n:
+          liveQualityStats.value?.account_quality_window_n ?? siteWindowN.value
+      })
+    )
   } catch (error: unknown) {
     if (isCanceled(error)) return
     appStore.showError(extractApiErrorMessage(error, t('admin.users.quality.loadFailed')))

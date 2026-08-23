@@ -64,9 +64,9 @@ func TestUserQualityLastN_IngestIsolatesUsersAndSharesAccounts(t *testing.T) {
 	ctx := context.Background()
 	ttft := 40
 
-	cache.IngestUserLastN(ctx, 16, 4, true, &ttft, true)
-	cache.IngestUserLastN(ctx, 16, 4, false, nil, true)
-	cache.IngestUserLastN(ctx, 17, 4, true, &ttft, true)
+	cache.IngestUserLastN(ctx, 16, 4, true, &ttft, true, nil)
+	cache.IngestUserLastN(ctx, 16, 4, false, nil, true, nil)
+	cache.IngestUserLastN(ctx, 17, 4, true, &ttft, true, nil)
 
 	batch := cache.GetUserLastNBatch(ctx, []int64{16, 17, 18})
 	require.Equal(t, 2, batch[16].OKCount)

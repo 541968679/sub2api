@@ -98,6 +98,9 @@ type User struct {
 	// DisplayCacheTokenMaxMult user override for cache_read amplify cap M (nil = inherit global).
 	DisplayCacheTokenMaxMult *float64
 
+	// QualityWindowN user override for Q_u last-N (nil = inherit site account_quality_window_n).
+	QualityWindowN *int
+
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
 }

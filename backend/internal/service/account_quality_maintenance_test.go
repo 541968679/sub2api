@@ -110,8 +110,22 @@ func (s *lastNCacheStub) GetUserLastNBatch(ctx context.Context, userIDs []int64)
 	return s.GetLastNBatch(ctx, userIDs)
 }
 
-func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN {
-	return s.IngestLastN(ctx, userID, n, success, firstTokenMs, useFailover)
+func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool, override *int) *AccountQualityLastN {
+	live := s.IngestLastN(ctx, userID, n, success, firstTokenMs, useFailover)
+	if live != nil {
+		live.OverrideN = CopyIntPtr(override)
+	}
+	return live
+}
+
+func (s *lastNCacheStub) ResizeUserLastN(_ context.Context, userID int64, n int, override *int) *AccountQualityLastN {
+	if s.byID == nil {
+		s.byID = map[int64]*AccountQualityLastN{}
+	}
+	live := ProjectAccountQualityLastN(s.byID[userID], n)
+	live.OverrideN = CopyIntPtr(override)
+	s.byID[userID] = live
+	return live
 }
 
 func (s *lastNCacheStub) ListUserLastNIDs(ctx context.Context) []int64 {
@@ -472,7 +486,7 @@ func TestAccountQualityMaintenance_GetUserLastNStatsBatch_StampsGlobalNAndFailov
 	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
 	svc.SetUserLastNCache(userLastN)
 
-	live := userLastN.IngestUserLastN(context.Background(), 16, DefaultAccountQualityWindowN, false, nil, true)
+	live := userLastN.IngestUserLastN(context.Background(), 16, DefaultAccountQualityWindowN, false, nil, true, nil)
 	require.True(t, live.UseFailover)
 	stats := live.ToAccountQualityStats()
 	require.Equal(t, int64(1), stats.ErrorCount)
@@ -514,4 +528,64 @@ func TestAccountQualityMaintenance_RunTick_SnapshotsUserLastN(t *testing.T) {
 	require.NoError(t, svc.RunTick(context.Background(), now))
 	require.Contains(t, userRepo.rows, userSnapshotKey{userID: 16, capturedAt: now})
 	require.Equal(t, int64(2), userRepo.rows[userSnapshotKey{userID: 16, capturedAt: now}].SuccessCount)
+}
+
+type userWindowNLookupStub struct {
+	byID map[int64]*int
+}
+
+func (s userWindowNLookupStub) GetQualityWindowNBatch(_ context.Context, userIDs []int64) map[int64]*int {
+	out := map[int64]*int{}
+	for _, id := range userIDs {
+		if v, ok := s.byID[id]; ok {
+			out[id] = CopyIntPtr(v)
+		}
+	}
+	return out
+}
+
+func TestAccountQualityMaintenance_UserWindowN_OverrideVsInherit(t *testing.T) {
+	userLastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserLastNCache(userLastN)
+	ten := 10
+	svc.SetUserWindowNLookup(userWindowNLookupStub{byID: map[int64]*int{16: &ten}})
+
+	ttft := 40
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{UserID: 16, Success: true, FirstTokenMs: &ttft})
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{UserID: 17, Success: true, FirstTokenMs: &ttft})
+
+	require.Equal(t, 10, userLastN.byID[16].N)
+	require.NotNil(t, userLastN.byID[16].OverrideN)
+	require.Equal(t, 10, *userLastN.byID[16].OverrideN)
+	require.Equal(t, DefaultAccountQualityWindowN, userLastN.byID[17].N)
+	require.Nil(t, userLastN.byID[17].OverrideN)
+
+	out, err := svc.GetUserLastNStatsBatch(context.Background(), []int64{16, 17})
+	require.NoError(t, err)
+	require.Equal(t, 10, out[16].WindowN)
+	require.Equal(t, DefaultAccountQualityWindowN, out[17].WindowN)
+}
+
+func TestAccountQualityMaintenance_ApplyUserQualityWindowN_ResizesLive(t *testing.T) {
+	userLastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.SetUserLastNCache(userLastN)
+
+	for i := 0; i < 6; i++ {
+		ttft := 100 + i
+		userLastN.IngestUserLastN(context.Background(), 16, 20, true, &ttft, false, nil)
+	}
+	require.Equal(t, 6, userLastN.byID[16].OKCount)
+
+	eight := 8
+	svc.ApplyUserQualityWindowN(context.Background(), 16, &eight)
+	require.Equal(t, 8, userLastN.byID[16].N)
+	require.Equal(t, 6, userLastN.byID[16].OKCount)
+	require.NotNil(t, userLastN.byID[16].OverrideN)
+	require.Equal(t, 8, *userLastN.byID[16].OverrideN)
+
+	svc.ApplyUserQualityWindowN(context.Background(), 16, nil)
+	require.Equal(t, DefaultAccountQualityWindowN, userLastN.byID[16].N)
+	require.Nil(t, userLastN.byID[16].OverrideN)
 }

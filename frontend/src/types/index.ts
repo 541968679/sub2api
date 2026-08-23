@@ -112,6 +112,8 @@ export interface AdminUser extends User {
   downstream_usage_token_mode?: DownstreamUsageTokenMode
   // User override for display cache amplify cap M (null = inherit global)
   display_cache_token_max_mult?: number | null
+  // User override for Q_u last-N (null = inherit site account_quality_window_n)
+  quality_window_n?: number | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
   // 用户专属分组展示倍率配置 (group_id -> display_rate_multiplier)
@@ -1975,6 +1977,8 @@ export interface UpdateUserRequest {
   downstream_usage_token_mode?: DownstreamUsageTokenMode
   /** >0 set override; 0 clear override (inherit global); omit leave unchanged */
   display_cache_token_max_mult?: number
+  /** >0 set Q_u override; 0 inherit site account_quality_window_n; omit leave unchanged */
+  quality_window_n?: number | null
   status?: UserStatus
   pinned?: boolean
   allowed_groups?: number[] | null

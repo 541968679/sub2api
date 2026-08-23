@@ -127,9 +127,11 @@ type UpdateUserRequest struct {
 	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult"`
 	// DisplayCacheTokenMaxMultPresent is set by handler when the key is present in JSON.
 	// Not a client field — internal.
-	Status        string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
-	Pinned        *bool    `json:"pinned"`
-	AllowedGroups *[]int64 `json:"allowed_groups"`
+	// QualityWindowN: omit = unchanged; 0/negative = inherit site N; 1–100 = Q_u override.
+	QualityWindowN *int     `json:"quality_window_n"`
+	Status         string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
+	Pinned         *bool    `json:"pinned"`
+	AllowedGroups  *[]int64 `json:"allowed_groups"`
 	// GroupRates 用户专属分组倍率配置（兼容旧格式）
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64 `json:"group_rates"`
@@ -475,10 +477,20 @@ func (h *UserHandler) Update(c *gin.Context) {
 			input.DisplayCacheTokenMaxMult = req.DisplayCacheTokenMaxMult
 		}
 	}
+	if req.QualityWindowN != nil {
+		input.QualityWindowNSet = true
+		if *req.QualityWindowN > 0 {
+			n := service.ClampAccountQualityWindowN(*req.QualityWindowN)
+			input.QualityWindowN = &n
+		}
+	}
 	user, err := h.adminService.UpdateUser(c.Request.Context(), userID, input)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if input.QualityWindowNSet && h.qualityMaintenance != nil && user != nil {
+		h.qualityMaintenance.ApplyUserQualityWindowN(c.Request.Context(), userID, user.QualityWindowN)
 	}
 
 	response.Success(c, dto.UserFromServiceAdmin(user))

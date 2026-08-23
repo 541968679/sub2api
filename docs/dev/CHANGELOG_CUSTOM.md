@@ -1,3 +1,31 @@
+## 2026-08-23 - feat: per-user Q_u window N + P95 on user quality cell
+
+### What
+- User-global quality \(Q_u\) last-N is per-user: `users.quality_window_n` (1–100) or inherit site `account_quality_window_n`.
+- `UserQualityDialog` can save / inherit that N; Redis FIFO resizes immediately.
+- User quality `combined` cell now shows P95. Account combined cell layout is unchanged.
+- Pair quality \(Q_{a,u}\) and stored billing are unchanged.
+
+### Why
+Admins needed this user's statistical window to be adjustable instead of sharing one site N, and needed P95 visible on the user quality cell.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "ResolveUserQualityWindowN|ProjectAccountQualityLastN|UserWindowN|ApplyUserQualityWindowN|GetUserLastNStatsBatch" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/admin/user/__tests__/UserQualityDialog.spec.ts`
+
+### Affected files
+`backend/migrations/212_user_quality_window_n.sql`
+`backend/ent/schema/user.go`
+`backend/internal/service/account_quality_last_n.go`
+`backend/internal/service/account_quality_maintenance.go`
+`backend/internal/service/account_quality_user_window_n.go`
+`backend/internal/repository/user_quality_last_n_cache.go`
+`backend/internal/repository/user_repo.go`
+`backend/internal/handler/admin/user_handler.go`
+`frontend/src/components/account/AccountQualityCell.vue`
+`frontend/src/components/admin/user/UserQualityDialog.vue`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-23 - deploy: v0.1.256 production (skip sidecars)
 
 ### What

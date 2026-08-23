@@ -48,6 +48,8 @@ type AdminUser struct {
 	DownstreamUsageTokenMode string     `json:"downstream_usage_token_mode"`
 	// DisplayCacheTokenMaxMult user override for cache amplify cap M (null = inherit global).
 	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult"`
+	// QualityWindowN user override for Q_u last-N (null = inherit site account_quality_window_n).
+	QualityWindowN *int `json:"quality_window_n"`
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
 	GroupRates map[int64]float64 `json:"group_rates,omitempty"`

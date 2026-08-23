@@ -42,12 +42,23 @@ func (s *userLastNCacheStub) GetUserLastNBatch(_ context.Context, userIDs []int6
 	return out
 }
 
-func (s *userLastNCacheStub) IngestUserLastN(_ context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *service.AccountQualityLastN {
+func (s *userLastNCacheStub) IngestUserLastN(_ context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool, override *int) *service.AccountQualityLastN {
 	if s.byID == nil {
 		s.byID = map[int64]*service.AccountQualityLastN{}
 	}
 	live := service.ApplyAccountQualityLastNIngest(s.byID[userID], n, success, firstTokenMs)
 	live.UseFailover = useFailover
+	live.OverrideN = service.CopyIntPtr(override)
+	s.byID[userID] = live
+	return live
+}
+
+func (s *userLastNCacheStub) ResizeUserLastN(_ context.Context, userID int64, n int, override *int) *service.AccountQualityLastN {
+	if s.byID == nil {
+		s.byID = map[int64]*service.AccountQualityLastN{}
+	}
+	live := service.ProjectAccountQualityLastN(s.byID[userID], n)
+	live.OverrideN = service.CopyIntPtr(override)
 	s.byID[userID] = live
 	return live
 }
@@ -133,7 +144,7 @@ func TestUserHandler_GetBatchQualityStats_LastNNotFifteenMinuteSQL(t *testing.T)
 	sqlRepo := &usageSQLMustNotRun{}
 	usageSvc := service.NewAccountUsageService(nil, sqlRepo, nil, nil, nil, nil, nil, nil, nil)
 	lastN := &userLastNCacheStub{}
-	lastN.IngestUserLastN(context.Background(), 16, service.DefaultAccountQualityWindowN, false, nil, true)
+	lastN.IngestUserLastN(context.Background(), 16, service.DefaultAccountQualityWindowN, false, nil, true, nil)
 	svc := service.NewAccountQualityMaintenanceService(&qualityHistoryRepoStub{}, nil, nil)
 	svc.SetUserLastNCache(lastN)
 	handler := NewUserHandler(newStubAdminService(), nil, usageSvc)

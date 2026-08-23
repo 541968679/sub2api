@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/user-quality-last-n.md", "reason": "Q_u last-N 契约：本任务把全站同一 N 改成每用户覆盖。"}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "Q_a 仍用全站 N；禁止把用户覆盖写进账号窗口。"}
+{"file": ".trellis/spec/backend/account-quality-hard-close.md", "reason": "硬关闭继续读 Q_a；不要把 users.quality_window_n 接到账号暂停。"}
+{"file": ".trellis/spec/frontend/account-stability-window.md", "reason": "质量弹窗/格子合同；用户弹窗加 N，账号 combined 不加 P95 行。"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "禁止把本任务改动写进 actual_cost / 展示变换。"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用 ClampAccountQualityWindowN / last-N FIFO / display-cache 覆盖语义，不要第二套窗口算法。"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "DB 覆盖 + Redis override_n + stats stamp + 弹窗/格子必须同一颗生效 N。"}
+{"file": "docs/dev/codebase/account.md", "reason": "账号文档里的用户 last-N 格子说明要改成每用户 N。"}

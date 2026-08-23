@@ -24,6 +24,8 @@ type AccountQualityLastN struct {
 	TTFTCount   int       `json:"ttft_count"`
 	OKCount     int       `json:"ok_count"`
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+	// OverrideN is Q_u only: explicit per-user window. nil = inherit site N.
+	OverrideN *int `json:"override_n,omitempty"`
 }
 
 // AccountQualityObservation is one completed request for the account window.
@@ -49,11 +51,12 @@ type AccountQualityLastNCache interface {
 }
 
 // UserQualityLastNCache stores user-global FIFO windows Q_u (this user, all accounts).
-// It reuses the same last-N math and site-wide N as Q_a.
+// Window N is per-user (override) or the site-wide account-quality N (inherit).
 type UserQualityLastNCache interface {
 	GetUserLastN(ctx context.Context, userID int64) *AccountQualityLastN
 	GetUserLastNBatch(ctx context.Context, userIDs []int64) map[int64]*AccountQualityLastN
-	IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN
+	IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool, override *int) *AccountQualityLastN
+	ResizeUserLastN(ctx context.Context, userID int64, n int, override *int) *AccountQualityLastN
 	ListUserLastNIDs(ctx context.Context) []int64
 }
 
@@ -86,6 +89,37 @@ func NormalizeAccountQualityWindowN(window, minSuccess, minTTFT *int) int {
 func EchoAccountQualityWindowN(n int) (window, minSuccess, minTTFT int) {
 	n = ClampAccountQualityWindowN(n)
 	return n, n, n
+}
+
+// ResolveUserQualityWindowN is Q_u: explicit per-user override, else site account-quality N.
+func ResolveUserQualityWindowN(override *int, siteN int) int {
+	if override != nil {
+		return ClampAccountQualityWindowN(*override)
+	}
+	return ClampAccountQualityWindowN(siteN)
+}
+
+func CopyIntPtr(v *int) *int {
+	if v == nil {
+		return nil
+	}
+	copied := *v
+	return &copied
+}
+
+func ProjectAccountQualityLastN(live *AccountQualityLastN, n int) *AccountQualityLastN {
+	if live == nil {
+		empty := &AccountQualityLastN{N: ClampAccountQualityWindowN(n)}
+		RecomputeAccountQualityLastN(empty)
+		return empty
+	}
+	projected := *live
+	projected.TTFTMs = append([]int(nil), live.TTFTMs...)
+	projected.OK = append([]bool(nil), live.OK...)
+	projected.N = ClampAccountQualityWindowN(n)
+	projected.OverrideN = CopyIntPtr(live.OverrideN)
+	RecomputeAccountQualityLastN(&projected)
+	return &projected
 }
 
 func (s *QualityHardCloseSettings) explicitWindowN() *int {

@@ -27,20 +27,26 @@ type AccountQualityHardCloseEvaluator interface {
 
 // AccountQualityMaintenanceService periodically snapshots the live 15-minute quality window.
 type AccountQualityMaintenanceService struct {
-	repo        AccountQualitySnapshotRepository
-	usageLogs   UsageLogRepository
-	timingWheel *TimingWheelService
-	lockCache   LeaderLockCache
-	db          *sql.DB
-	instanceID  string
-	hardClose      AccountQualityHardCloseEvaluator
-	liveCache      AccountQualityLiveCache
-	lastN          AccountQualityLastNCache
-	userLastN      UserQualityLastNCache
-	userSnapshots  UserQualitySnapshotRepository
-	settings       *SettingService
-	running     int32
-	stopped     int32
+	repo          AccountQualitySnapshotRepository
+	usageLogs     UsageLogRepository
+	timingWheel   *TimingWheelService
+	lockCache     LeaderLockCache
+	db            *sql.DB
+	instanceID    string
+	hardClose     AccountQualityHardCloseEvaluator
+	liveCache     AccountQualityLiveCache
+	lastN         AccountQualityLastNCache
+	userLastN     UserQualityLastNCache
+	userSnapshots UserQualitySnapshotRepository
+	settings      *SettingService
+	windowNLookup UserQualityWindowNLookup
+	running       int32
+	stopped       int32
+}
+
+// UserQualityWindowNLookup loads per-user Q_u overrides (nil = inherit site N).
+type UserQualityWindowNLookup interface {
+	GetQualityWindowNBatch(ctx context.Context, userIDs []int64) map[int64]*int
 }
 
 // NewAccountQualityMaintenanceService creates the snapshot maintenance service.
@@ -103,6 +109,13 @@ func (s *AccountQualityMaintenanceService) SetUserSnapshotRepo(repo UserQualityS
 	s.userSnapshots = repo
 }
 
+func (s *AccountQualityMaintenanceService) SetUserWindowNLookup(lookup UserQualityWindowNLookup) {
+	if s == nil {
+		return
+	}
+	s.windowNLookup = lookup
+}
+
 func (s *AccountQualityMaintenanceService) windowN(ctx context.Context) int {
 	if s == nil || s.settings == nil {
 		return DefaultAccountQualityWindowN
@@ -121,7 +134,8 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 	n := s.windowN(ctx)
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	if s.userLastN != nil && obs.UserID > 0 {
-		s.userLastN.IngestUserLastN(ctx, obs.UserID, n, obs.Success, obs.FirstTokenMs, useFailover)
+		userN, override := s.userWindowN(ctx, obs.UserID, n)
+		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, obs.FirstTokenMs, useFailover, override)
 	}
 	if s.lastN == nil || obs.AccountID <= 0 {
 		return
@@ -165,27 +179,81 @@ func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Contex
 // GetUserLastNStatsBatch returns last-N Q_u for user list cells. Missing keys are empty stats with N stamped.
 func (s *AccountQualityMaintenanceService) GetUserLastNStatsBatch(ctx context.Context, userIDs []int64) (map[int64]*AccountQualityStats, error) {
 	ids := normalizeQualityBatchIDs(userIDs)
-	n := s.windowN(ctx)
+	siteN := s.windowN(ctx)
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	byID := map[int64]*AccountQualityLastN{}
 	if s != nil && s.userLastN != nil {
 		byID = s.userLastN.GetUserLastNBatch(ctx, ids)
 	}
+	needLookup := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if live := byID[id]; live == nil || live.OverrideN == nil {
+			needLookup = append(needLookup, id)
+		}
+	}
+	overrides := s.lookupUserWindowNBatch(ctx, needLookup)
 	out := make(map[int64]*AccountQualityStats, len(ids))
 	for _, id := range ids {
+		resolved, _ := s.resolveUserWindowN(byID[id], overrides[id], siteN)
 		if live := byID[id]; live != nil {
-			st := live.ToAccountQualityStats()
-			StampAccountQualityWindowN(st, n)
+			st := ProjectAccountQualityLastN(live, resolved).ToAccountQualityStats()
+			StampAccountQualityWindowN(st, resolved)
 			ApplyAccountQualityScheduleCaliber(st, useFailover)
 			out[id] = st
 			continue
 		}
 		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
-		StampAccountQualityWindowN(st, n)
+		StampAccountQualityWindowN(st, resolved)
 		ApplyAccountQualityScheduleCaliber(st, useFailover)
 		out[id] = st
 	}
 	return out, nil
+}
+
+// ApplyUserQualityWindowN writes the Q_u override into the live Redis window and trims FIFO.
+func (s *AccountQualityMaintenanceService) ApplyUserQualityWindowN(ctx context.Context, userID int64, override *int) {
+	if s == nil || s.userLastN == nil || userID <= 0 {
+		return
+	}
+	n := ResolveUserQualityWindowN(override, s.windowN(ctx))
+	s.userLastN.ResizeUserLastN(ctx, userID, n, override)
+}
+
+func (s *AccountQualityMaintenanceService) userWindowN(ctx context.Context, userID int64, siteN int) (int, *int) {
+	if userID <= 0 {
+		return ClampAccountQualityWindowN(siteN), nil
+	}
+	var live *AccountQualityLastN
+	if s != nil && s.userLastN != nil {
+		live = s.userLastN.GetUserLastN(ctx, userID)
+	}
+	var dbOverride *int
+	if live == nil || live.OverrideN == nil {
+		dbOverride = s.lookupUserWindowNBatch(ctx, []int64{userID})[userID]
+	}
+	return s.resolveUserWindowN(live, dbOverride, siteN)
+}
+
+func (s *AccountQualityMaintenanceService) resolveUserWindowN(live *AccountQualityLastN, dbOverride *int, siteN int) (int, *int) {
+	if live != nil && live.OverrideN != nil {
+		n := ClampAccountQualityWindowN(*live.OverrideN)
+		return n, CopyIntPtr(live.OverrideN)
+	}
+	if dbOverride != nil {
+		n := ClampAccountQualityWindowN(*dbOverride)
+		return n, CopyIntPtr(&n)
+	}
+	return ClampAccountQualityWindowN(siteN), nil
+}
+
+func (s *AccountQualityMaintenanceService) lookupUserWindowNBatch(ctx context.Context, userIDs []int64) map[int64]*int {
+	if s == nil || len(userIDs) == 0 {
+		return map[int64]*int{}
+	}
+	if s.windowNLookup != nil {
+		return s.windowNLookup.GetQualityWindowNBatch(ctx, userIDs)
+	}
+	return queryUserQualityWindowNBatch(ctx, s.db, userIDs)
 }
 
 // SetQualitySettings lets the tick apply the failover-as-schedule toggle
@@ -406,8 +474,9 @@ func (s *AccountQualityMaintenanceService) snapshotUserLastN(ctx context.Context
 				if live == nil {
 					continue
 				}
-				st := live.ToAccountQualityStats()
-				StampAccountQualityWindowN(st, n)
+				resolved, _ := s.resolveUserWindowN(live, nil, n)
+				st := ProjectAccountQualityLastN(live, resolved).ToAccountQualityStats()
+				StampAccountQualityWindowN(st, resolved)
 				if !HasAccountQualitySamples(st) {
 					continue
 				}

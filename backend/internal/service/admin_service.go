@@ -176,7 +176,10 @@ type UpdateUserInput struct {
 	// Simpler: DisplayCacheTokenMaxMultSet marks presence; value nil clears override.
 	DisplayCacheTokenMaxMultSet bool
 	DisplayCacheTokenMaxMult    *float64
-	Status                      string
+	// QualityWindowNSet marks presence; value nil clears the Q_u override (inherit site N).
+	QualityWindowNSet bool
+	QualityWindowN    *int
+	Status            string
 	// Pinned: nil = unchanged; true = pin (or re-pin) now; false = unpin.
 	Pinned        *bool
 	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
@@ -1009,6 +1012,15 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 			user.DisplayCacheTokenMaxMult = &m
 		} else {
 			user.DisplayCacheTokenMaxMult = nil
+		}
+	}
+
+	if input.QualityWindowNSet {
+		if input.QualityWindowN != nil {
+			n := ClampAccountQualityWindowN(*input.QualityWindowN)
+			user.QualityWindowN = &n
+		} else {
+			user.QualityWindowN = nil
 		}
 	}
 

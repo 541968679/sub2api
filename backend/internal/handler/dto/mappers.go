@@ -74,6 +74,7 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		PinnedAt:                 u.PinnedAt,
 		DownstreamUsageTokenMode: service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
 		DisplayCacheTokenMaxMult: u.DisplayCacheTokenMaxMult,
+		QualityWindowN:           u.QualityWindowN,
 		GroupRates:               u.GroupRates,
 		GroupDisplayRates:        u.GroupDisplayRates,
 	}

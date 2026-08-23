@@ -17,13 +17,14 @@ const (
 )
 
 type accountQualityLastNState struct {
-	N           int     `json:"n"`
-	UseFailover bool    `json:"use_failover,omitempty"`
-	TTFT        []int   `json:"ttft"`
-	OK          []uint8 `json:"ok"`
-	P50         *int    `json:"p50_ttft_ms,omitempty"`
+	N           int      `json:"n"`
+	UseFailover bool     `json:"use_failover,omitempty"`
+	TTFT        []int    `json:"ttft"`
+	OK          []uint8  `json:"ok"`
+	P50         *int     `json:"p50_ttft_ms,omitempty"`
 	Rate        *float64 `json:"success_rate,omitempty"`
-	UpdatedAt   int64   `json:"updated_at"`
+	UpdatedAt   int64    `json:"updated_at"`
+	OverrideN   *int     `json:"override_n,omitempty"`
 }
 
 func accountQualityLastNKey(accountID int64) string {
@@ -155,6 +156,7 @@ func encodeAccountQualityLastN(live *service.AccountQualityLastN) accountQuality
 		P50:         live.P50TTFTMs,
 		Rate:        live.SuccessRate,
 		UpdatedAt:   updated,
+		OverrideN:   live.OverrideN,
 	}
 }
 
@@ -174,6 +176,7 @@ func decodeAccountQualityLastN(raw []byte) *service.AccountQualityLastN {
 		OK:          ok,
 		P50TTFTMs:   stored.P50,
 		SuccessRate: stored.Rate,
+		OverrideN:   stored.OverrideN,
 	}
 	if stored.UpdatedAt > 0 {
 		live.UpdatedAt = time.Unix(stored.UpdatedAt, 0).UTC()

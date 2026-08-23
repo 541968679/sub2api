@@ -63,12 +63,23 @@ func (c *accountQualityLiveCache) GetUserLastNBatch(ctx context.Context, userIDs
 	return out
 }
 
-func (c *accountQualityLiveCache) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool) *service.AccountQualityLastN {
+func (c *accountQualityLiveCache) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool, override *int) *service.AccountQualityLastN {
 	if c == nil || userID <= 0 {
 		return nil
 	}
 	live := service.ApplyAccountQualityLastNIngest(c.GetUserLastN(ctx, userID), n, success, firstTokenMs)
 	live.UseFailover = useFailover
+	live.OverrideN = service.CopyIntPtr(override)
+	c.storeUserLastN(ctx, userID, live)
+	return live
+}
+
+func (c *accountQualityLiveCache) ResizeUserLastN(ctx context.Context, userID int64, n int, override *int) *service.AccountQualityLastN {
+	if c == nil || userID <= 0 {
+		return nil
+	}
+	live := service.ProjectAccountQualityLastN(c.GetUserLastN(ctx, userID), n)
+	live.OverrideN = service.CopyIntPtr(override)
 	c.storeUserLastN(ctx, userID, live)
 	return live
 }

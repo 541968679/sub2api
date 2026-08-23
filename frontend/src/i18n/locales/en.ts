@@ -2265,7 +2265,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'User last-N quality (this user, all accounts): p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is the site-wide account_quality_window_n shared with account quality. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
+          'User last-N quality (this user, all accounts): p50 and p95 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
         clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
         openShort: 'Open',
         openAria: 'Open user quality window',
@@ -2273,6 +2273,12 @@ const enBase = {
         chartHint: 'Each point is this user’s all-account last-N window at that time (adjacent points overlap), not a disjoint bucket.',
         noDataHint: 'No persisted user-quality snapshots in this range. Idle users do not write empty points.',
         windowScope: 'Last {n} completions (this user, all accounts)',
+        windowN: 'User quality window N',
+        windowNHint: 'Last-N for this user across all accounts. Range 1–100. Inherit uses the site-wide account quality N. Not the smart-schedule pair N.',
+        windowNInherit: 'Inherit site N',
+        windowNSave: 'Save window N',
+        windowNSaved: 'Saved this user’s quality window N',
+        windowNSaveFailed: 'Failed to save user quality window N',
         failoverTitle: 'User error-rate comparison',
         bridgeHint: 'Live last-N window for this user across all accounts. Display-only; not used by smart-schedule gates or hard-close.',
         loadFailed: 'Failed to load user quality data'

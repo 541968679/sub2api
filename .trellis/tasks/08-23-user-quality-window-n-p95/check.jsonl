@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/user-quality-last-n.md", "reason": "验收：每用户覆盖、继承全站、batch 不走 15m SQL、A/B 窗口隔离。"}
+{"file": ".trellis/spec/backend/account-quality-snapshots.md", "reason": "验收：Q_a ingest 仍用全站 N；tick 不 Replace live from SQL。"}
+{"file": ".trellis/spec/frontend/account-stability-window.md", "reason": "验收：用户格子有 P95；账号 combined 不加行；弹窗能改/清 N。"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "验收：无计费/展示变换字段。"}
+{"file": "frontend/src/components/account/__tests__/AccountQualityCell.spec.ts", "reason": "用户 combined 必须断言 p95；账号 combined 不得新增 p95 行。"}
+{"file": "frontend/src/components/admin/user/__tests__/UserQualityDialog.spec.ts", "reason": "弹窗保存/继承 N。"}
+{"file": "backend/internal/service/account_quality_last_n_test.go", "reason": "ResolveUserQualityWindowN 与 stamp。"}
+{"file": "backend/internal/service/account_quality_maintenance_test.go", "reason": "Q_u ingest 用用户 N，Q_a 用全站 N。"}

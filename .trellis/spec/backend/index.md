@@ -25,7 +25,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Account User Schedule](./account-user-schedule.md) | Independent allow/deny/pair-cap/quality-gate plus user×platform smart-schedule; AG pool may hold OpenAI accounts with isolated Redis | Active |
 | [Ops Schedule Error Caliber](./ops-schedule-error-caliber.md) | Pair/account schedule exclude vs `needs_ops_attention` + `ops_attention_count` | Active |
 | [Account Quality Snapshots](./account-quality-snapshots.md) | last-N \(Q_a\) (site-wide N, default 20) persisted every 5m + history API | Active |
-| [User Quality Last-N](./user-quality-last-n.md) | last-N \(Q_u\) (same N, this user all accounts) + user history API | Active |
+| [User Quality Last-N](./user-quality-last-n.md) | last-N \(Q_u\) (per-user N or inherit site N; this user all accounts) + user history API | Active |
 | [Account Quality Hard Close](./account-quality-hard-close.md) | Opt-in last-N pause via TempUnschedulableUntil (same stats as the grid) | Active |
 | [Pool Mode Hard-Error Eviction](./pool-mode-hard-eviction.md) | Opt-in SetError for pool-mode billing/tenant-dead errors; default off | Active |
 | [Schedule PnL](./schedule-pnl.md) | `true_cost` ingest + admin this-user×this-account schedule profit APIs | Active |

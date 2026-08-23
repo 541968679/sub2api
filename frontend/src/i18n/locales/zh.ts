@@ -2115,7 +2115,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '用户 last-N 质量（该用户、全部账号）：上行 p50 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 与账号质量共用全站 account_quality_window_n。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线与两套错误率。不是智能调度配对质量，也不是单账号质量。',
+          '用户 last-N 质量（该用户、全部账号）：上行 p50、p95 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。不是智能调度配对质量，也不是单账号质量。',
         clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
         openShort: '打开',
         openAria: '打开用户质量窗口',
@@ -2123,6 +2123,12 @@ const zhBase = {
         chartHint: '每个点都是当时该用户、全部账号的 last-N 窗口快照（相邻点会重叠），不是互斥时间桶。',
         noDataHint: '该时段没有已落库的用户质量快照。无流量用户不会写入空点。',
         windowScope: '最近 {n} 条（该用户、全部账号）',
+        windowN: '用户质量窗口 N',
+        windowNHint: '该用户、全部账号的 last-N。1–100。未覆盖则继承全站账号质量 N。不是智能调度配对 N。',
+        windowNInherit: '继承全站',
+        windowNSave: '保存窗口 N',
+        windowNSaved: '已保存该用户质量窗口 N',
+        windowNSaveFailed: '保存用户质量窗口 N 失败',
         failoverTitle: '用户错误率对照',
         bridgeHint: '当前 last-N live 窗口（该用户、全部账号）。只展示，不进智能调度门槛或硬关闭。',
         loadFailed: '加载用户质量数据失败'

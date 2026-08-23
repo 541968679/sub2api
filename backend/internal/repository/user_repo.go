@@ -134,6 +134,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
 	}
+	r.attachQualityWindowN(ctx, out)
 	return out, nil
 }
 
@@ -154,6 +155,7 @@ func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
 	}
+	r.attachQualityWindowN(ctx, out)
 	return out, nil
 }
 
@@ -181,6 +183,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
 	}
+	r.attachQualityWindowN(ctx, out)
 	return out, nil
 }
 
@@ -271,6 +274,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 
 	// Persist display cache amplify cap via SQL until ent mutation builders include the field.
 	if err := setUserDisplayCacheTokenMaxMultSQL(txCtx, txClient, updated.ID, userIn.DisplayCacheTokenMaxMult); err != nil {
+		return err
+	}
+	if err := setUserQualityWindowNSQL(txCtx, txClient, updated.ID, userIn.QualityWindowN); err != nil {
 		return err
 	}
 
@@ -544,6 +550,7 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 			u.AllowedGroups = groups
 		}
 	}
+	r.attachQualityWindowN(ctx, valuesOfUserMap(userMap)...)
 
 	return outUsers, paginationResultFromTotal(int64(total), params), nil
 }
@@ -1025,6 +1032,70 @@ func setUserDisplayCacheTokenMaxMultSQL(ctx context.Context, client *dbent.Clien
 		return err
 	}
 	_, err := client.ExecContext(ctx, "UPDATE users SET display_cache_token_max_mult = $1 WHERE id = $2", *value, userID)
+	return err
+}
+
+func valuesOfUserMap(userMap map[int64]*service.User) []*service.User {
+	out := make([]*service.User, 0, len(userMap))
+	for _, u := range userMap {
+		if u != nil {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+func (r *userRepository) attachQualityWindowN(ctx context.Context, users ...*service.User) {
+	if r == nil || r.sql == nil || len(users) == 0 {
+		return
+	}
+	ids := make([]int64, 0, len(users))
+	byID := make(map[int64]*service.User, len(users))
+	for _, u := range users {
+		if u == nil || u.ID <= 0 {
+			continue
+		}
+		ids = append(ids, u.ID)
+		byID[u.ID] = u
+	}
+	if len(ids) == 0 {
+		return
+	}
+	rows, err := r.sql.QueryContext(ctx, `
+		SELECT id, quality_window_n FROM users WHERE id = ANY($1)
+	`, pq.Array(ids))
+	if err != nil {
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		var n sql.NullInt64
+		if err := rows.Scan(&id, &n); err != nil {
+			return
+		}
+		u := byID[id]
+		if u == nil {
+			continue
+		}
+		if n.Valid {
+			value := int(n.Int64)
+			u.QualityWindowN = &value
+		} else {
+			u.QualityWindowN = nil
+		}
+	}
+}
+
+func setUserQualityWindowNSQL(ctx context.Context, client *dbent.Client, userID int64, value *int) error {
+	if client == nil || userID <= 0 {
+		return nil
+	}
+	if value == nil {
+		_, err := client.ExecContext(ctx, "UPDATE users SET quality_window_n = NULL WHERE id = $1", userID)
+		return err
+	}
+	_, err := client.ExecContext(ctx, "UPDATE users SET quality_window_n = $1 WHERE id = $2", *value, userID)
 	return err
 }
 

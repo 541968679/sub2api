@@ -380,7 +380,7 @@ export async function resetPlatformQuotaWindow(
 
 /**
  * Batch fetch user last-N quality metrics (this user, all accounts).
- * Window N is the site-wide `account_quality_window_n`.
+ * Window N is this user's Q_u override, or the site-wide `account_quality_window_n` when inherited.
  */
 export type SmartSchedulePlatform = PlatformQuotaPlatform
 
