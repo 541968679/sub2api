@@ -1,3 +1,15 @@
+## 2026-08-23 - deploy: v0.1.256 production (skip sidecars)
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:latest` / `0.1.256`, revision `02af57230`, digest `sha256:60e166b38bb1896dd18cd49777487c57d3a4370d366f3a15643269d06ae3d7f2`, healthy, `/health` ok.
+- Sidecars were not redeployed. Rollback digest is `sha256:e368c03aeb083c99d591721854bf48a39d4d1efbc99bdc27f29928ec433e1c49` (`v0.1.255`).
+
+### Why
+Ship the pair-slot live occupancy fix so recreate leftovers stop inflating pair ZCARD / blocking caps, and hydrate reads `:openai` not `_`.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`
+
 ## 2026-08-23 - fix: pair slot live occupancy (stale ZCARD / 0 badge)
 
 ### What
