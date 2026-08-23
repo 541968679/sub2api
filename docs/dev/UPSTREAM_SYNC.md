@@ -2,19 +2,36 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
-## 当前状态（2026-08-22 standing，已 fold main）
+## 当前状态（2026-08-23 standing，窗 2 T0–T3）
 
 | 项 | 值 |
 |----|----|
-| 本仓 `main` | 占用 checkout 保持 `main`；本次合入 `1b3965a71` / VERSION **0.1.252** |
+| 本仓 `main` | 占用 checkout 保持 `main` `6fa10b136` / VERSION **0.1.252** |
 | 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合回真正 `main`、未 push） |
-| branch-point / `--base` | `1b3965a71` |
-| 窗 1 补丁源 | `7feb1549f` on `sync/upstream-catchup-20260814`（只当补丁源，禁止 merge/rebase） |
-| 窗 1 SQL | `212_subscription_plan_currency.sql`、`213_usage_log_image_input_tokens.sql`、`214_group_profit_control.sql`（让号：`main` 已占用 `210_ops_attention_alert` / `211_user_smart_schedule_account_pk`） |
-| 已合入的 large baseline | 上游 `v0.1.152` / `b73d8c3ef` |
-| pending eval window | 仍从 `fbfdcef81` 起（冻结上限不变） |
+| branch-point / `--base` | `6fa10b136` |
+| 窗 2 已叠 | **T0** fold occupied `6fa10b136`；**T1** `b228b93e9` 终态前读失败换号；**T2** `76a13a5a8` SSE overload 529；**T3** `40c26f343` 空 capabilities |
+| 窗 2 未叠 | 其余已确认 A/B（N-cap / N-pool / N-team / N-sticky / N-id / N-proto / N-img / N-ops / N-guard / N-compact / N-dash）；C 只入目录 |
+| 冻结天花板 | 上游 `d45135d87` / VERSION **0.1.179**。本窗 **不是** 0.1.179 全量等价 |
+| 窗 1 SQL | 仍为 `212` / `213` / `214`。本窗 **无新 SQL** |
+| 已合入的 large baseline | 仍是上游 `v0.1.152` / `b73d8c3ef` |
+| pending eval window | 仍从 `fbfdcef81` 起，天花板 `d45135d87`；只收口到已叠的 T0–T3 |
+| 合真正 `main` | **仍锁**。T0–T3 做完 ≠ 可合 main |
 | 水位 JSON | [UPSTREAM_BASE.json](./UPSTREAM_BASE.json) |
-| 代码状态 | **窗 1 P1–P5 仍在，且已叠到 0.1.252 main**（利润门/安全审计默认关；image tokens 与 `true_cost`/`true_first_token_ms` 共存；AG/unpooled/Ops 原文错误来自 main） |
+| 代码状态 | 窗 1 P1–P5 + fold 的 AG/unpooled/Ops 原文仍在；再叠 T0 真终态立刻回 JSON + T1 终态前换号 + T2 SSE 529 + T3 空 capabilities |
+
+## 2026-08-23 - Window 2 T0–T3 on standing replica
+
+- **T0**: merged occupied `main` `6fa10b136` into the replica (main→copy only). Responses true-terminal now returns Chat Completions JSON immediately.
+- **T1**: overlay of upstream `b228b93e9`. Pre-terminal unexpected EOF / H2 reset → failover. Client cancel and oversized lines do not switch accounts. Messages buffered reads stay raw errors. Official S2 / no-terminal H2/180s / Raw `usable()` unchanged.
+- **T2**: overlay of upstream `76a13a5a8` on `gateway_service.go` (this fork has no `gateway_forward.go`). Pre-output Anthropic SSE `overloaded_error` uses semantic 529; post-output keeps 403.
+- **T3**: overlay of upstream `40c26f343`. Empty `openai_capabilities` (`{}` / `[]` / `[]string{}`) matches unset. Explicit `chat_completions:false` still excludes. Image extra gate unchanged.
+- **Not stacked**: remaining freeze-range A/B, any C theme, old N1–N13.
+- **SQL / VERSION**: no new migration. Fork VERSION stays **0.1.252**, not 0.1.179.
+- **Not done**: merge isolation branch onto real `main`, `git push`, deploy, window 3.
+
+## 2026-08-22 standing fold (superseded status table)
+
+Previous status after folding `1b3965a71` is below; `--base` is now `6fa10b136`.
 
 ## 2026-08-22 - Fold occupied main 0.1.252 into standing replica
 

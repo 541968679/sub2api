@@ -1,3 +1,31 @@
+## 2026-08-23 - sync: window 2 T0–T3 on standing replica
+
+### What
+- **T0**: folded occupied `main` `6fa10b136` into `sync/upstream-standing-20260821` (main→copy only).
+- **T1**: Chat buffered read errors before a Responses terminal now failover (`b228b93e9`). Client cancel / oversized line / Messages path unchanged.
+- **T2**: pre-output Anthropic SSE `overloaded_error` uses semantic 529; post-output keeps 403 (`76a13a5a8`).
+- **T3**: empty `openai_capabilities` matches unset so OAuth text accounts stay schedulable (`40c26f343`).
+- Pending eval still starts at `fbfdcef81`. This is not full upstream 0.1.179. Merge-to-real-main stays locked.
+
+### Why
+- Occupied main already had true-terminal return; T1 had to stack on that same file. The three A-lane hotfixes are independently testable without absorbing the rest of the 305-commit freeze range.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestHandleChatBufferedStreamingResponse_|TestChatCompletionsBufferedResponsesReadError|TestGatewayService_Forward_PreOutputSSEOverloaded|TestGatewayService_Forward_PostOutputSSEOverloaded|TestAccountSupportsOpenAIEndpointCapability"`
+- `go run ./tools/upstream-sync-guard --base 6fa10b136`
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_stream_read_error.go`,
+`backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/gateway_forward_sse_overload_test.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/openai_images_test.go`,
+`docs/dev/UPSTREAM_BASE.json`,
+`docs/dev/UPSTREAM_SYNC.md`,
+this changelog.
+
 ## 2026-08-22 - fix: return Chat Completions JSON as soon as Responses buffer sees a terminal
 
 ### What
