@@ -531,6 +531,53 @@ func (s *OpenAIGatewayService) handleChatBufferedReadError(
 	return nil
 }
 
+// newOpenAICompatBufferedReadFailoverError maps a pre-terminal Chat buffered
+// read failure onto UpstreamFailoverError. Client cancel, oversized lines,
+// and body-too-large stay as the original error so they do not switch accounts.
+// This is the Chat CC overlay of upstream b228b93e9; Messages keeps raw errors.
+func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
+	c *gin.Context,
+	account *Account,
+	resp *http.Response,
+	requestID string,
+	err error,
+) error {
+	if err == nil || errors.Is(err, bufio.ErrTooLong) {
+		return err
+	}
+	var requestContext context.Context
+	if c != nil && c.Request != nil {
+		requestContext = c.Request.Context()
+	}
+	if !shouldClassifyOpenAIUpstreamStreamReadError(err, requestContext) {
+		return err
+	}
+
+	logger.L().Warn("openai chat_completions buffered: read error",
+		zap.Error(err),
+		zap.String("request_id", requestID),
+		zap.Int64("account_id", account.ID),
+	)
+	classifiedErr := newOpenAIUpstreamStreamReadError(err)
+	code, message, ok := OpenAIUpstreamStreamReadErrorDetails(classifiedErr)
+	if !ok {
+		return err
+	}
+	payload, _ := json.Marshal(gin.H{
+		"error": gin.H{
+			"type":    "upstream_error",
+			"code":    code,
+			"message": message,
+		},
+	})
+	failoverErr := s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
+	failoverErr.ResponseBody = payload
+	if resp != nil {
+		failoverErr.ResponseHeaders = resp.Header
+	}
+	return failoverErr
+}
+
 // finishChatCompletionsFromResponsesResponse converts a terminal Responses
 // object to Chat Completions JSON. Shared by SSE-buffer and non-stream JSON.
 func (s *OpenAIGatewayService) finishChatCompletionsFromResponsesResponse(
@@ -737,8 +784,8 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				return finish()
 			}
 		}
-		if failover := s.handleChatBufferedReadError(c, account, requestID, scanner.Err()); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
-			return nil, failover
+		if err := scanner.Err(); err != nil && !chatBufferedHasUsableTerminal(finalResponse) {
+			return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, err)
 		}
 		return finish()
 	}
@@ -782,10 +829,10 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				return finish()
 			}
 			if ev.err != nil {
-				if failover := s.handleChatBufferedReadError(c, account, requestID, ev.err); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
-					return nil, failover
+				if chatBufferedHasUsableTerminal(finalResponse) {
+					return finish()
 				}
-				return finish()
+				return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, ev.err)
 			}
 			if processLine(ev.line) {
 				return finish()
