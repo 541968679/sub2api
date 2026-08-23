@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/08-23-claude-gpt-bridge-context-loss/research/logic-chain.md", "reason": "复核 AC 是否仍覆盖 d54f649c / d7005e89 / e47e796f 三种观测"}
+{"file": ".trellis/tasks/08-23-claude-gpt-bridge-context-loss/research/upstream-and-when.md", "reason": "复核不要误关 OAuth 续链；API Key 走 2204 已写的完整 replay 退路"}
+{"file": ".trellis/spec/backend/anthropic-messages-sse.md", "reason": "无可见输出必须 error 事件"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "确认没有改存储计费"}

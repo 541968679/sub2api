@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -337,4 +338,105 @@ func TestEmptyVisibleOutputError_WritesSSEAfterTransportStarted(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "event: error")
 	require.NotContains(t, rec.Body.String(), "event: message_stop")
 	require.True(t, OpenAIAnthropicResponseTerminated(c))
+}
+
+func TestOpenAIMessagesStreamEmptyVisiblePingAndEmptyLinesIsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"X-Request-Id": []string{"rid-empty-interval"}},
+		Body:       pr,
+	}
+	cfg := rawChatCompletionsTestConfig()
+	cfg.Gateway.StreamKeepaliveInterval = 1
+	cfg.Gateway.StreamDataIntervalTimeout = 2
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		for {
+			if _, err := pw.Write([]byte(":\n\n")); err != nil {
+				return
+			}
+			time.Sleep(150 * time.Millisecond)
+		}
+	}()
+
+	done := make(chan struct{})
+	var result *OpenAIForwardResult
+	var err error
+	go func() {
+		defer close(done)
+		result, err = svc.handleAnthropicStreamingResponse(
+			resp, c, rawChatCompletionsTestAccount(), true,
+			"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+		)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		_ = pw.Close()
+		t.Fatal("interval timeout did not fire on empty/comment lines")
+	}
+	_ = pw.Close()
+	<-writerDone
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.ClientOutputStarted)
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
+	require.Contains(t, rec.Body.String(), "event: error")
+	require.True(t, OpenAIAnthropicTransportStreamStarted(c))
+}
+
+func TestOpenAIMessagesStreamClientCancelStopsUpstreamRead(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil).WithContext(ctx)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"X-Request-Id": []string{"rid-client-cancel"}},
+		Body:       pr,
+	}
+	cfg := rawChatCompletionsTestConfig()
+	cfg.Gateway.StreamKeepaliveInterval = 10
+	cfg.Gateway.StreamDataIntervalTimeout = 180
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	done := make(chan struct{})
+	var result *OpenAIForwardResult
+	var err error
+	go func() {
+		defer close(done)
+		result, err = svc.handleAnthropicStreamingResponse(
+			resp, c, rawChatCompletionsTestAccount(), true,
+			"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+		)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		_ = pw.Close()
+		t.Fatal("client cancel did not stop the upstream body read")
+	}
+	_ = pw.Close()
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	require.NotContains(t, rec.Body.String(), "event: message_stop")
 }

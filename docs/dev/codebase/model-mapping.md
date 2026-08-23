@@ -28,6 +28,14 @@ not edited on Antigravity groups. Whitelist-style self mappings such as
 `"claude-opus-4-8": "claude-opus-4-8"` do not enable the bridge, because they
 would not hide a distinct GPT upstream model.
 
+API Key Anthropic→Responses (`ForwardAsAnthropic`) must full-replay the client
+`messages` (including system). It must not apply the 12-message replay guard,
+must not trim to latest-turn, and must not attach in-memory `previous_response_id`
+while `store=false`. The gateway may still bind `response.id` in memory, but the
+API Key HTTP bridge must not read that id to trim or attach. OAuth/Codex
+continuation (`session_id` / `x-codex-turn-state`) is unchanged. Do not flip
+`store=true` as the memory fix.
+
 ## OpenAI GPT-5.6 Model Mapping (2026-07-10)
 
 OpenAI model lists and presets include `gpt-5.6-sol`, `gpt-5.6-terra`, and

@@ -12,11 +12,13 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
@@ -145,15 +147,43 @@ func logClaudeGPTBridgeRawUsage(stage, requestID string, accountID int64, origin
 	)
 }
 
-func logClaudeGPTBridgeUpstreamRequest(req *http.Request, promptCacheKey string, accountID int64, originalModel, billingModel, upstreamModel string, body []byte) {
+func ginContextRequestID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if c.Request != nil {
+		if id, _ := c.Request.Context().Value(ctxkey.RequestID).(string); strings.TrimSpace(id) != "" {
+			return strings.TrimSpace(id)
+		}
+	}
+	return strings.TrimSpace(c.GetHeader("X-Request-ID"))
+}
+
+func requestContextRequestID(req *http.Request) string {
+	if req == nil {
+		return ""
+	}
+	if id, _ := req.Context().Value(ctxkey.RequestID).(string); strings.TrimSpace(id) != "" {
+		return strings.TrimSpace(id)
+	}
+	return strings.TrimSpace(req.Header.Get("X-Request-ID"))
+}
+
+func logClaudeGPTBridgeUpstreamRequest(c *gin.Context, req *http.Request, promptCacheKey string, accountID int64, originalModel, billingModel, upstreamModel string, body []byte) {
 	if req == nil {
 		return
 	}
+	requestID := requestContextRequestID(req)
+	if requestID == "" {
+		requestID = ginContextRequestID(c)
+	}
 	logger.L().Info("openai claude-gpt bridge upstream request diagnostics",
+		zap.String("request_id", requestID),
 		zap.Int64("account_id", accountID),
 		zap.String("original_model", originalModel),
 		zap.String("billing_model", billingModel),
 		zap.String("upstream_model", upstreamModel),
+		zap.Bool("store", gjson.GetBytes(body, "store").Bool()),
 		zap.Bool("body_has_prompt_cache_key", strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()) != ""),
 		zap.String("body_prompt_cache_key_sha256", hashSensitiveValueForLog(gjson.GetBytes(body, "prompt_cache_key").String())),
 		zap.Bool("arg_has_prompt_cache_key", strings.TrimSpace(promptCacheKey) != ""),
@@ -312,8 +342,8 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return nil, fmt.Errorf("parse anthropic request: %w", err)
 	}
 	anthropicDigestReq := cloneAnthropicRequestForDigest(&anthropicReq)
-	// Keep the untouched transcript for compact recovery. API-key compatibility
-	// may trim the forwarding copy to the latest 12 messages below.
+	// Keep the untouched transcript for compact recovery. API Key HTTP bridge
+	// full-replays; OAuth/non-full-replay paths may still trim a forwarding copy.
 	anthropicCompactReq := cloneAnthropicRequestForDigest(&anthropicReq)
 	originalModel := anthropicReq.Model
 	if bridgeMode {
@@ -381,8 +411,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	compatReplayTrimmed := false
 	compatReplayGuardEnabled := shouldAutoInjectPromptCacheKeyForCompat(upstreamModel)
 	compatContinuationEnabled := openAICompatContinuationEnabled(account, upstreamModel)
+	apiKeyFullReplay := anthropicAPIKeyMustFullReplay(account, nil, "")
 	previousResponseID := ""
-	if compatContinuationEnabled {
+	// API Key HTTP bridge must not READ a memory previous_response_id to trim
+	// or attach. Binding after a successful turn is still allowed.
+	if compatContinuationEnabled && !apiKeyFullReplay {
 		previousResponseID = s.getOpenAICompatSessionResponseID(ctx, c, account, promptCacheKey)
 	}
 	compatContinuationDisabled := compatContinuationEnabled &&
@@ -391,7 +424,8 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// OAuth/Plus relies on session_id + x-codex-turn-state; trimming to a
 	// sliding 12-message window makes the cached prefix stall at system/tools.
 	// Keep full replay there so upstream prompt caching can grow turn by turn.
-	if compatReplayGuardEnabled && account.Type != AccountTypeOAuth && previousResponseID == "" && !compatContinuationDisabled {
+	// API Key also full-replays: store=false cannot reconstruct trimmed history.
+	if !apiKeyFullReplay && compatReplayGuardEnabled && account.Type != AccountTypeOAuth && previousResponseID == "" && !compatContinuationDisabled {
 		compatReplayTrimmed = applyAnthropicCompatFullReplayGuard(&anthropicReq)
 	}
 
@@ -439,7 +473,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// Haiku → GPT-5.* bridge: low-effort default already applied at convert time;
 	// raise max_output_tokens floor and strip sampling params for reasoning models.
 	apicompat.ApplyClaudeHaikuBridgeUpstreamAdjustments(responsesReq, originalModel)
-	if previousResponseID != "" {
+	if previousResponseID != "" && !anthropicAPIKeyMustFullReplay(account, responsesReq.Store, previousResponseID) {
 		responsesReq.PreviousResponseID = previousResponseID
 		trimAnthropicCompatResponsesInputToLatestTurn(responsesReq)
 	}
@@ -479,7 +513,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			zap.Int("compat_messages_after_trim", len(anthropicReq.Messages)),
 		)
 	}
-	if previousResponseID != "" {
+	if previousResponseID != "" && responsesReq.PreviousResponseID != "" {
 		logFields = append(logFields,
 			zap.Bool("compat_previous_response_id_attached", true),
 			zap.String("compat_previous_response_id", truncateOpenAIWSLogValue(previousResponseID, openAIWSIDValueMaxLen)),
@@ -488,7 +522,22 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if compatTurnState != "" {
 		logFields = append(logFields, zap.Bool("compat_turn_state_attached", true))
 	}
-	logger.L().Debug("openai messages: model mapping applied", logFields...)
+	storeEnabled := false
+	if responsesReq.Store != nil {
+		storeEnabled = *responsesReq.Store
+	}
+	inputItemCount := len(gjson.ParseBytes(responsesReq.Input).Array())
+	logFields = append(logFields,
+		zap.String("request_id", ginContextRequestID(c)),
+		zap.Int("anthropic_message_count", len(anthropicReq.Messages)),
+		zap.Int("input_item_count", inputItemCount),
+		zap.Bool("store", storeEnabled),
+	)
+	if compatReplayTrimmed || (previousResponseID != "" && responsesReq.PreviousResponseID != "") {
+		logger.L().Info("openai messages: model mapping applied", logFields...)
+	} else {
+		logger.L().Debug("openai messages: model mapping applied", logFields...)
+	}
 
 	// 4. Marshal Responses request body, then apply OAuth codex transform
 	responsesBody, err := json.Marshal(responsesReq)
@@ -658,7 +707,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 	if bridgeMode {
 		upstreamReq.Header.Del("conversation_id")
-		logClaudeGPTBridgeUpstreamRequest(upstreamReq, promptCacheKey, account.ID, originalModel, billingModel, upstreamModel, responsesBody)
+		logClaudeGPTBridgeUpstreamRequest(c, upstreamReq, promptCacheKey, account.ID, originalModel, billingModel, upstreamModel, responsesBody)
 	}
 
 	// 7. Send request
@@ -697,6 +746,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		})
 		writeAnthropicError(c, http.StatusBadGateway, "api_error", "Upstream request failed")
 		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+	}
+	if c != nil && c.Request != nil && resp != nil && resp.Body != nil {
+		resp.Body = bindUpstreamBodyToClientContext(c.Request.Context(), resp.Body)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1387,6 +1439,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Header().Set("X-Accel-Buffering", "no")
 		c.Writer.WriteHeader(http.StatusOK)
+		MarkOpenAIAnthropicTransportStreamStarted(c)
 	}
 
 	state := apicompat.NewResponsesEventToAnthropicState()
@@ -1406,6 +1459,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	streamDiag := newOpenAIMessagesStreamDiagnostic()
 	resetKeepaliveTimer := func() {}
 
+	if resp != nil && resp.Body != nil && c != nil && c.Request != nil {
+		resp.Body = bindUpstreamBodyToClientContext(c.Request.Context(), resp.Body)
+	}
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
@@ -1729,6 +1785,10 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		return resultWithUsage(), nil
 	}
 
+	failWithoutVisible := func(message string) (*OpenAIForwardResult, error) {
+		return resultWithUsage(), s.newOpenAIEmptyVisibleOutputError(c, account, requestID, message)
+	}
+
 	// handleScanErr logs scanner errors if meaningful.
 	handleScanErr := func(err error) {
 		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1745,7 +1805,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		message := "Upstream messages stream ended before a terminal event"
 		if !clientVisibleOutputStarted {
-			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
+			return failWithoutVisible(message)
 		}
 		s.recordOpenAIMessagesStreamUpstreamError(c, account, requestID, "stream_missing_terminal", message)
 		return result, fmt.Errorf("stream usage incomplete: missing terminal event")
@@ -1779,6 +1839,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		if err := scanner.Err(); err != nil {
 			handleScanErr(err)
+			if !clientVisibleOutputStarted {
+				return failWithoutVisible("Upstream messages stream ended without assistant content or tool output")
+			}
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
 		}
 		if frame, ok := parser.Finish(); ok {
@@ -1812,7 +1875,6 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	go func() {
 		defer close(events)
 		for scanner.Scan() {
-			atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
 			if !sendEvent(scanEvent{line: scanner.Text()}) {
 				return
 			}
@@ -1845,6 +1907,10 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		keepaliveTimer.Reset(keepaliveInterval)
 	}
 	var parser openAICompatSSEFrameParser
+	var clientDone <-chan struct{}
+	if c != nil && c.Request != nil {
+		clientDone = c.Request.Context().Done()
+	}
 
 	for {
 		select {
@@ -1855,6 +1921,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					if strings.TrimSpace(frame.Data) == "[DONE]" {
 						return missingTerminalErr()
 					}
+					if isOpenAICompatResponsesDataFrame(frame) {
+						atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
+					}
 					if processFrame(frame) {
 						return finalizeStream()
 					}
@@ -1863,6 +1932,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			}
 			if ev.err != nil {
 				handleScanErr(ev.err)
+				if !clientVisibleOutputStarted {
+					return failWithoutVisible("Upstream messages stream ended without assistant content or tool output")
+				}
 				return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", ev.err)
 			}
 			line := ev.line
@@ -1872,6 +1944,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			frame, ok := parser.AddLine(line)
 			if !ok {
 				continue
+			}
+			if isOpenAICompatResponsesDataFrame(frame) {
+				atomic.StoreInt64(&lastReadAt, time.Now().UnixNano())
 			}
 			if processFrame(frame) {
 				return finalizeStream()
@@ -1890,13 +1965,18 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				zap.String("model", originalModel),
 				zap.Duration("interval", streamInterval),
 			)
+			if !clientVisibleOutputStarted {
+				return failWithoutVisible("Upstream messages stream stalled without assistant content or tool output")
+			}
+			writeAnthropicError(c, http.StatusBadGateway, "api_error", "Upstream messages stream stalled")
 			return resultWithUsage(), fmt.Errorf("stream data interval timeout")
 
 		case <-keepaliveCh:
 			if clientDisconnected {
 				continue
 			}
-			// Send Anthropic-format ping event
+			// Send Anthropic-format ping event. Ping is not visible output and
+			// must not refresh the data-interval clock.
 			writeStreamHeaders()
 			if _, err := fmt.Fprint(c.Writer, "event: ping\ndata: {\"type\":\"ping\"}\n\n"); err != nil {
 				// Client disconnected
@@ -1909,8 +1989,76 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			MarkOpenAIAnthropicTransportStreamStarted(c)
 			c.Writer.Flush()
 			resetKeepaliveTimer()
+
+		case <-clientDone:
+			if !clientVisibleOutputStarted {
+				return failWithoutVisible("Client canceled the messages stream before assistant content or tool output")
+			}
+			if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+				return resultWithUsage(), c.Request.Context().Err()
+			}
+			return resultWithUsage(), context.Canceled
 		}
 	}
+}
+
+func isOpenAICompatResponsesDataFrame(frame openAICompatSSEFrame) bool {
+	data := strings.TrimSpace(frame.Data)
+	if data == "" || data == "[DONE]" {
+		return false
+	}
+	return gjson.Valid(data)
+}
+
+type clientCancelBody struct {
+	ctx   context.Context
+	inner io.ReadCloser
+	stop  chan struct{}
+	once  sync.Once
+}
+
+func bindUpstreamBodyToClientContext(ctx context.Context, body io.ReadCloser) io.ReadCloser {
+	if body == nil || ctx == nil {
+		return body
+	}
+	stop := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = body.Close()
+		case <-stop:
+		}
+	}()
+	return &clientCancelBody{ctx: ctx, inner: body, stop: stop}
+}
+
+func (b *clientCancelBody) Read(p []byte) (int, error) {
+	if b == nil || b.inner == nil {
+		return 0, io.EOF
+	}
+	if err := b.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := b.inner.Read(p)
+	if err != nil && b.ctx.Err() != nil {
+		return n, b.ctx.Err()
+	}
+	return n, err
+}
+
+func (b *clientCancelBody) Close() error {
+	if b == nil {
+		return nil
+	}
+	b.once.Do(func() {
+		if b.stop != nil {
+			close(b.stop)
+		}
+	})
+	if b.inner == nil {
+		return nil
+	}
+	return b.inner.Close()
 }
 
 func anthropicStreamEventHasVisibleOutput(evt apicompat.AnthropicStreamEvent) bool {

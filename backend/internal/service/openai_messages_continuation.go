@@ -27,6 +27,14 @@ func openAICompatContinuationEnabled(account *Account, model string) bool {
 	return shouldAutoInjectPromptCacheKeyForCompat(model)
 }
 
+// anthropicAPIKeyMustFullReplay reports whether the Anthropic→Responses HTTP
+// bridge must send the full converted input and must not attach
+// previous_response_id. API Key accounts always full-replay in this task
+// (store=false is not treated as a continuation warrant).
+func anthropicAPIKeyMustFullReplay(account *Account, _ *bool, _ string) bool {
+	return account != nil && account.Type == AccountTypeAPIKey
+}
+
 func trimAnthropicCompatResponsesInputToLatestTurn(req *apicompat.ResponsesRequest) {
 	if req == nil || len(req.Input) == 0 {
 		return

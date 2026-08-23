@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/08-23-claude-gpt-bridge-context-loss/research/logic-chain.md", "reason": "生产 input_item_count=2/3 与三条请求的完整因果，实现时对照不得再裁成 latest-turn"}
+{"file": ".trellis/tasks/08-23-claude-gpt-bridge-context-loss/research/upstream-and-when.md", "reason": "上游 PR 2204 / #2337 证明 400 后路与间歇性工具跳，实现应对齐 unsupported→full replay"}
+{"file": ".trellis/spec/backend/anthropic-messages-sse.md", "reason": "断流收口必须走 Anthropic SSE error，不能 200 空等"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "展示 cache 人造层不可当历史证据，禁止顺手改 actual_cost"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Desktop messages → 桥裁剪 → Responses input 的层边界"}
+{"file": ".trellis/spec/guides/production-incident-thinking-guide.md", "reason": "验收对照必须先对生产 request_id，再改热路径"}

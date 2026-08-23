@@ -1,0 +1,32 @@
+{
+  "id": "claude-gpt-bridge-context-loss",
+  "name": "claude-gpt-bridge-context-loss",
+  "title": "Claude-GPT桥接裁剪导致Desktop失忆与断流",
+  "description": "Desktop 3p /antigravity/v1/messages 经 Claude-GPT 桥后失忆与断流。根因在桥接裁剪/续链，不在第三方 API 本身。先出完整逻辑链与方案，未授权不改代码。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "kayn",
+  "assignee": "kayn",
+  "createdAt": "2026-08-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/internal/service/openai_gateway_messages.go",
+    "backend/internal/service/openai_messages_continuation.go",
+    "backend/internal/service/openai_messages_replay_guard.go",
+    "backend/internal/pkg/apicompat/anthropic_to_responses.go",
+    "backend/internal/handler/openai_gateway_handler.go"
+  ],
+  "notes": "Planning artifacts complete. Brandon authorized implementation on occupied main; isolation worktree is not required.",
+  "meta": {}
+}

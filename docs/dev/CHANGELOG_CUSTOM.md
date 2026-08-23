@@ -1,3 +1,40 @@
+## 2026-08-23 - docs: isolation worktree is upstream-sync only, not ordinary product work
+
+### What
+- Agent rules now state that ordinary features / bugfixes / docs are written on the occupied checkout (`E:\cursor project\api2sub`), on `main` or a normal feature branch. Isolation worktree is required only for upstream-sync tasks (pulling from Wei-Shaw/sub2api).
+- Tightened the always-apply upstream-sync rule trigger: mentioning `worktree` / gateway "sync" / HTTP "upstream" no longer activates the sync playbook. Real sync hard-bans are unchanged.
+- Current Trellis task `08-23-claude-gpt-bridge-context-loss` no longer forbids working on occupied `main`.
+
+### Why
+- Agents were copying the sync Workspace paragraph into every Trellis implement.md and refusing to edit product code on this checkout.
+
+### Affected files
+`AGENTS.md`,
+`.cursor/rules/upstream-sync.mdc`,
+`.trellis/tasks/08-23-claude-gpt-bridge-context-loss/{implement,prd,design}.md`,
+`.trellis/tasks/08-23-claude-gpt-bridge-context-loss/task.json`
+
+## 2026-08-23 - fix: Claude-GPT API Key bridge full-replay + stream closeout
+
+### What
+- API Key `ForwardAsAnthropic` no longer applies the 12-message replay guard, latest-turn trim, or in-memory `previous_response_id` attach. `store` stays `false`. Todo-guard may still insert a developer note without deleting history. OAuth turn-state continuation is unchanged.
+- Trim/attach flags and the Claude-GPT upstream diagnostic now log `request_id`, `anthropic_message_count`, `input_item_count`, and `store` at Info when those flags fire.
+- Messages bridge streams with no visible thinking/text/tool_use now finish with an Anthropic `event: error` (or JSON error before headers). Interval timeout ignores empty/comment lines and keepalive pings. After client cancel, body read follows `c.Request.Context()` instead of `WithoutCancel` for 15 minutes.
+
+### Why
+- Production Desktop `/antigravity/v1/messages` on API Key + gpt-5.5 forwarded 200KB+ Anthropic bodies as `input_item_count` 2 or 3 (`store=false` + memory `previous_response_id` + latest-turn). That caused amnesia and a 900s empty 200.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "AnthropicCompat|ForwardAsAnthropic|ReplayGuard|Continuation|EmptyVisible|ClientCancel"`
+
+### Affected files
+`backend/internal/service/openai_gateway_messages.go`,
+`backend/internal/service/openai_messages_continuation.go`,
+`backend/internal/service/openai_gateway_messages_full_replay_test.go`,
+`backend/internal/service/openai_gateway_messages_empty_output_test.go`,
+`backend/internal/service/openai_gateway_messages_compact_test.go`,
+`docs/dev/codebase/model-mapping.md`
+
 ## 2026-08-23 - fix: account test mapping display, no status writes, keep whitelist on save
 
 ### What

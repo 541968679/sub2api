@@ -250,8 +250,8 @@ func TestForwardAsAnthropic_APIKeyCompactFallbackUsesUntrimmedTranscript(t *test
 	require.Equal(t, "gpt-5.4-mini", result.UpstreamModel)
 	require.Contains(t, rec.Body.String(), "usable final summary")
 	require.Len(t, upstream.bodies, 3)
-	require.NotContains(t, string(upstream.bodies[0]), "EARLY_CONTEXT_MUST_SURVIVE",
-		"normal API-key forwarding should still use the replay guard")
+	require.Contains(t, string(upstream.bodies[0]), "EARLY_CONTEXT_MUST_SURVIVE",
+		"API Key Claude-GPT bridge must full-replay; the 12-message guard is disabled")
 	require.Contains(t, string(upstream.bodies[1]), "EARLY_CONTEXT_MUST_SURVIVE",
 		"compact fallback must use the request captured before replay-guard trimming")
 	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.bodies[0], "model").String())
