@@ -184,4 +184,32 @@ describe('AccountTestModal', () => {
     ])
     expect((wrapper.vm as any).selectedModelId).toBe('opus48')
   })
+
+  it('sends a custom model name instead of the dropdown selection', async () => {
+    const wrapper = mountModal({
+      name: 'Claude API Key',
+      platform: 'anthropic',
+      type: 'apikey',
+      credentials: {
+        model_mapping: { 'claude-haiku-4-5-20251001': 'claude-haiku-4-5-20251001' }
+      }
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.testModelListHintClaudeApiKeyMapped')
+
+    const customInput = wrapper.find('input[type="text"]')
+    expect(customInput.exists()).toBe(true)
+    await customInput.setValue('claude-haiku-4-5')
+
+    const buttons = wrapper.findAll('button')
+    const startButton = buttons.find((button) => button.text().includes('admin.accounts.startTest'))
+    await startButton!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    const [, request] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(request.body).model_id).toBe('claude-haiku-4-5')
+  })
 })

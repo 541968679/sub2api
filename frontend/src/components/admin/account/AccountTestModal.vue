@@ -54,6 +54,21 @@
           searchable
           :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
         />
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ testModelListHint }}</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.customTestModel') }}
+        </label>
+        <input
+          v-model="customModelId"
+          type="text"
+          :disabled="status === 'connecting'"
+          :placeholder="t('admin.accounts.customTestModelPlaceholder')"
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700 dark:text-gray-100"
+        />
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.customTestModelHint') }}</p>
       </div>
 
       <div v-if="supportsImageTest" class="space-y-1.5">
@@ -195,10 +210,10 @@
         </button>
         <button
           @click="startTest"
-          :disabled="status === 'connecting' || !selectedModelId"
+          :disabled="status === 'connecting' || !canStartTest"
           :class="[
             'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-            status === 'connecting' || !selectedModelId
+            status === 'connecting' || !canStartTest
               ? 'cursor-not-allowed bg-primary-400 text-white'
               : status === 'success'
                 ? 'bg-green-500 text-white hover:bg-green-600'
@@ -272,20 +287,71 @@ const streamingContent = ref('')
 const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
+const customModelId = ref('')
 const testPrompt = ref('')
 const loadingModels = ref(false)
 let abortController: AbortController | null = null
 const generatedImages = ref<PreviewImage[]>([])
 const previewImageUrl = ref('')
+const effectiveTestModelId = computed(() => customModelId.value.trim() || selectedModelId.value)
+const canStartTest = computed(() => Boolean(effectiveTestModelId.value))
+
+const hasAccountMapping = computed(() => {
+  const raw = props.account?.credentials?.model_mapping
+  return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw as object).length > 0)
+})
+
+const testModelListHint = computed(() => {
+  const platform = props.account?.platform
+  const type = props.account?.type
+  const passthrough = Boolean(props.account?.extra?.openai_passthrough)
+  if (platform === 'anthropic' && type === 'apikey' && hasAccountMapping.value) {
+    return t('admin.accounts.testModelListHintClaudeApiKeyMapped')
+  }
+  if (platform === 'anthropic') {
+    return t('admin.accounts.testModelListHintClaudeDefault')
+  }
+  if (platform === 'openai' && passthrough) {
+    return t('admin.accounts.testModelListHintOpenAIPassthrough')
+  }
+  if (platform === 'openai') {
+    return t('admin.accounts.testModelListHintOpenAI')
+  }
+  if (platform === 'gemini' && type === 'apikey' && hasAccountMapping.value) {
+    return t('admin.accounts.testModelListHintGeminiMapped')
+  }
+  if (platform === 'antigravity') {
+    return t('admin.accounts.testModelListHintAntigravity')
+  }
+  return t('admin.accounts.testModelListHintGeneric')
+})
+
+const mappingSourceLabel = (source?: string) => {
+  switch (source) {
+    case 'account':
+      return t('admin.accounts.mappingSourceAccount')
+    case 'platform_default':
+      return t('admin.accounts.mappingSourcePlatformDefault')
+    case 'prefix':
+      return t('admin.accounts.mappingSourcePrefix')
+    case 'vertex':
+      return t('admin.accounts.mappingSourceVertex')
+    case 'none':
+      return t('admin.accounts.mappingSourceNone')
+    default:
+      return source || ''
+  }
+}
+
 const supportsGeminiImageTest = computed(() => {
-  const modelID = selectedModelId.value.toLowerCase()
+  const modelID = effectiveTestModelId.value.toLowerCase()
   if (!modelID.startsWith('gemini-') || !modelID.includes('-image')) return false
 
   return props.account?.platform === 'gemini' || (props.account?.platform === 'antigravity' && props.account?.type === 'apikey')
 })
 
 const supportsOpenAIImageTest = computed(() => {
-  const modelID = selectedModelId.value.toLowerCase()
+  const modelID = effectiveTestModelId.value.toLowerCase()
   if (!modelID.startsWith('gpt-image-')) return false
   return props.account?.platform === 'openai'
 })
@@ -298,6 +364,7 @@ watch(
   async (newVal) => {
     if (newVal && props.account) {
       testPrompt.value = ''
+      customModelId.value = ''
       resetState()
       await loadAvailableModels()
     } else {
@@ -306,7 +373,7 @@ watch(
   }
 )
 
-watch(selectedModelId, () => {
+watch(effectiveTestModelId, () => {
   if (supportsImageTest.value && !testPrompt.value.trim()) {
     testPrompt.value = t('admin.accounts.imagePromptDefault')
   }
@@ -368,7 +435,7 @@ const scrollToBottom = async () => {
 }
 
 const startTest = async () => {
-  if (!props.account || !selectedModelId.value) return
+  if (!props.account || !effectiveTestModelId.value) return
 
   resetState()
   status.value = 'connecting'
@@ -392,7 +459,7 @@ const startTest = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-              model_id: selectedModelId.value,
+              model_id: effectiveTestModelId.value,
               prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
             }),
       signal: abortController.signal
@@ -448,6 +515,9 @@ const handleEvent = (event: {
   type: string
   text?: string
   model?: string
+  selected_model?: string
+  mapped_model?: string
+  mapping_source?: string
   success?: boolean
   error?: string
   image_url?: string
@@ -456,7 +526,20 @@ const handleEvent = (event: {
   switch (event.type) {
     case 'test_start':
       addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
-      if (event.model) {
+      if (event.selected_model || event.mapped_model || event.mapping_source) {
+        if (event.selected_model) {
+          addLine(t('admin.accounts.testSelectedModel', { model: event.selected_model }), 'text-cyan-400')
+        }
+        if (event.mapped_model) {
+          addLine(t('admin.accounts.testMappedModel', { model: event.mapped_model }), 'text-cyan-400')
+        }
+        if (event.mapping_source) {
+          addLine(
+            t('admin.accounts.testMappingSource', { source: mappingSourceLabel(event.mapping_source) }),
+            'text-cyan-400'
+          )
+        }
+      } else if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
       }
       addLine(

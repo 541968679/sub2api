@@ -38,16 +38,19 @@ const (
 
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Model    string `json:"model,omitempty"`
-	Status   string `json:"status,omitempty"`
-	Code     string `json:"code,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
-	MimeType string `json:"mime_type,omitempty"`
-	Data     any    `json:"data,omitempty"`
-	Success  bool   `json:"success,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Type          string `json:"type"`
+	Text          string `json:"text,omitempty"`
+	Model         string `json:"model,omitempty"`
+	SelectedModel string `json:"selected_model,omitempty"`
+	MappedModel   string `json:"mapped_model,omitempty"`
+	MappingSource string `json:"mapping_source,omitempty"`
+	Status        string `json:"status,omitempty"`
+	Code          string `json:"code,omitempty"`
+	ImageURL      string `json:"image_url,omitempty"`
+	MimeType      string `json:"mime_type,omitempty"`
+	Data          any    `json:"data,omitempty"`
+	Success       bool   `json:"success,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 const (
@@ -213,13 +216,8 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, "HTTP upstream not configured")
 	}
 
-	testModelID := strings.TrimSpace(modelID)
-	if testModelID == "" {
-		testModelID = grokDefaultResponsesModel
-	}
-	if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
-		testModelID = mapped
-	}
+	resolution := resolveAccountTestModel(account, modelID)
+	testModelID := resolution.Mapped
 
 	var authToken string
 	switch account.Type {
@@ -257,7 +255,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
 	}
 
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Grok request")
@@ -277,21 +275,6 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok upstream request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
-
-	now := time.Now()
-	snapshot := parseGrokQuotaSnapshot(resp.Header, resp.StatusCode, now)
-	if snapshot != nil && s.accountRepo != nil {
-		resetAt, limited := grokRateLimitResetAt(snapshot, now)
-		if limited {
-			normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
-		}
-		_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
-			grokQuotaSnapshotExtraKey: snapshot,
-		})
-		if limited {
-			persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
-		}
-	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -339,24 +322,21 @@ func buildGrokAccountTestPayload(modelID string, chatCompletions bool) ([]byte, 
 func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account *Account, modelID string) error {
 	ctx := c.Request.Context()
 
-	// Determine the model to use
-	testModelID := modelID
-	if testModelID == "" {
-		testModelID = claude.DefaultTestModel
-	}
-
-	// API Key 账号测试连接时也需要应用通配符模型映射。
-	if account.Type == "apikey" {
-		testModelID = account.GetMappedModel(testModelID)
+	selectedModelID := strings.TrimSpace(modelID)
+	if selectedModelID == "" {
+		selectedModelID = claude.DefaultTestModel
 	}
 
 	// Bedrock accounts use a separate test path
 	if account.IsBedrock() {
-		return s.testBedrockAccountConnection(c, ctx, account, testModelID)
+		return s.testBedrockAccountConnection(c, ctx, account, selectedModelID)
 	}
 	if account.Type == AccountTypeServiceAccount {
-		return s.testClaudeVertexServiceAccountConnection(c, ctx, account, testModelID)
+		return s.testClaudeVertexServiceAccountConnection(c, ctx, account, selectedModelID)
 	}
+
+	resolution := resolveAccountTestModel(account, selectedModelID)
+	testModelID := resolution.Mapped
 
 	// Determine authentication method and API URL
 	var authToken string
@@ -402,8 +382,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
-	// Send test_start event
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -446,12 +425,6 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		errMsg := fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body))
-
-		// 403 表示账号被上游封禁，标记为 error 状态
-		if resp.StatusCode == http.StatusForbidden {
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
-
 		return s.sendErrorAndEnd(c, errMsg)
 	}
 
@@ -460,11 +433,8 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 }
 
 func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Context, ctx context.Context, account *Account, testModelID string) error {
-	if mappedModel, matched := account.ResolveMappedModel(testModelID); matched {
-		testModelID = mappedModel
-	} else {
-		testModelID = normalizeVertexAnthropicModelID(claude.NormalizeModelID(testModelID))
-	}
+	resolution := resolveAccountTestModel(account, testModelID)
+	testModelID = resolution.Mapped
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
@@ -495,7 +465,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Vertex URL: %s", err.Error()))
 	}
 
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(vertexBody))
 	if err != nil {
@@ -518,9 +488,6 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		errMsg := fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body))
-		if resp.StatusCode == http.StatusForbidden {
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
 		return s.sendErrorAndEnd(c, errMsg)
 	}
 
@@ -529,11 +496,13 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 
 // testBedrockAccountConnection tests a Bedrock (SigV4 or API Key) account using non-streaming invoke
 func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx context.Context, account *Account, testModelID string) error {
+	resolution := resolveAccountTestModel(account, testModelID)
 	region := bedrockRuntimeRegion(account)
-	resolvedModelID, ok := ResolveBedrockModelID(account, testModelID)
+	resolvedModelID, ok := ResolveBedrockModelID(account, resolution.Mapped)
 	if !ok {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Bedrock model: %s", testModelID))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Bedrock model: %s", resolution.Mapped))
 	}
+	resolution.Mapped = resolvedModelID
 	testModelID = resolvedModelID
 
 	// Set SSE headers (test UI expects SSE)
@@ -565,7 +534,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 	// Use non-streaming endpoint (response is standard Claude JSON)
 	apiURL := BuildBedrockURL(region, testModelID, false)
 
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(bedrockBody))
 	if err != nil {
@@ -635,18 +604,14 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 
-	// Default to openai.DefaultTestModel for OpenAI testing
-	testModelID := modelID
-	if testModelID == "" {
-		testModelID = openai.DefaultTestModel
-	}
-
-	// Align test routing with gateway behavior: OpenAI accounts apply normal
-	// account model mapping, and compact mode applies compact-only mapping on top.
-	testModelID = account.GetMappedModel(testModelID)
+	resolution := resolveAccountTestModel(account, modelID)
+	testModelID := resolution.Mapped
 	if mode == AccountTestModeCompact {
-		testModelID = resolveOpenAICompactForwardModel(account, testModelID)
-		return s.testOpenAICompactConnection(c, account, testModelID)
+		compactModel := resolveOpenAICompactForwardModel(account, testModelID)
+		if compactModel != "" {
+			resolution.Mapped = compactModel
+		}
+		return s.testOpenAICompactConnection(c, account, resolution)
 	}
 
 	// Route to image generation test if an image model is selected
@@ -656,9 +621,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 			imagePrompt = defaultOpenAIImageTestPrompt
 		}
 		if account.Type == "apikey" {
-			return s.testOpenAIImageAPIKey(c, ctx, account, testModelID, imagePrompt)
+			return s.testOpenAIImageAPIKey(c, ctx, account, resolution, imagePrompt)
 		}
-		return s.testOpenAIImageOAuth(c, ctx, account, testModelID, imagePrompt)
+		return s.testOpenAIImageOAuth(c, ctx, account, resolution, imagePrompt)
 	}
 
 	// Determine authentication method and API URL
@@ -695,7 +660,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		// 其余与今天相同（auto+Rsupp false → CC）。
 		if openai_compat.ResponsesSupportModeFromExtra(account.Extra) != openai_compat.ResponsesSupportModePassthrough &&
 			!openai_compat.ShouldUseResponsesAPI(account.Extra) {
-			return s.testOpenAIChatCompletionsAPIKey(c, ctx, account, testModelID, prompt, normalizedBaseURL)
+			return s.testOpenAIChatCompletionsAPIKey(c, ctx, account, resolution, prompt, normalizedBaseURL)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
 	} else {
@@ -713,8 +678,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	payload := createOpenAITestPayload(testModelID, isOAuth)
 	payloadBytes, _ := json.Marshal(payload)
 
-	// Send test_start event
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -759,14 +723,6 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
-		// 401 Unauthorized: 标记账号为永久错误
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
@@ -774,7 +730,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	return s.processOpenAIStream(c, resp.Body)
 }
 
-func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx context.Context, account *Account, modelID string, prompt string, normalizedBaseURL string) error {
+func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx context.Context, account *Account, resolution accountTestModelResolution, prompt string, normalizedBaseURL string) error {
 	authToken := account.GetOpenAIApiKey()
 	if authToken == "" {
 		return s.sendErrorAndEnd(c, "No API key available")
@@ -786,9 +742,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payload := createOpenAIChatCompletionsTestPayload(modelID, prompt)
+	payload := createOpenAIChatCompletionsTestPayload(resolution.Mapped, prompt)
 	payloadBytes, _ := json.Marshal(payload)
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, buildOpenAIChatCompletionsURL(normalizedBaseURL), bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -817,13 +773,6 @@ func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
@@ -832,8 +781,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx
 
 // testOpenAICompactConnection probes /responses/compact and persists the
 // resulting capability state on the account.
-func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account *Account, testModelID string) error {
+func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account *Account, resolution accountTestModelResolution) error {
 	ctx := c.Request.Context()
+	testModelID := resolution.Mapped
 
 	authToken := ""
 	apiURL := ""
@@ -872,7 +822,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	c.Writer.Flush()
 
 	payloadBytes, _ := json.Marshal(createOpenAICompactProbePayload(testModelID))
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -925,17 +875,9 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
 			mergeAccountExtra(account, updates)
 		}
-		// 探测如返回 429,主动同步限流状态,避免后续短时间内继续选中。
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
@@ -944,58 +886,12 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	return nil
 }
 
-func (s *AccountTestService) reconcileOpenAI429State(ctx context.Context, account *Account, headers http.Header, body []byte) {
-	if s == nil || s.accountRepo == nil || account == nil {
-		return
-	}
-
-	var resetAt *time.Time
-	if calculated := calculateOpenAI429ResetTime(headers); calculated != nil {
-		resetAt = calculated
-	} else if unixTs := parseOpenAIRateLimitResetTime(body); unixTs != nil {
-		t := time.Unix(*unixTs, 0)
-		resetAt = &t
-	}
-	if resetAt == nil {
-		return
-	}
-
-	if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
-		return
-	}
-
-	now := time.Now()
-	account.RateLimitedAt = &now
-	account.RateLimitResetAt = resetAt
-
-	if account.Status == StatusError {
-		if err := s.accountRepo.ClearError(ctx, account.ID); err != nil {
-			return
-		}
-		account.Status = StatusActive
-		account.ErrorMessage = ""
-	}
-}
-
 // testGeminiAccountConnection tests a Gemini account's connection
 func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	ctx := c.Request.Context()
 
-	// Determine the model to use
-	testModelID := modelID
-	if testModelID == "" {
-		testModelID = geminicli.DefaultTestModel
-	}
-
-	// For static upstream credentials with model mapping, map the model
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mapping := account.GetModelMapping()
-		if len(mapping) > 0 {
-			if mappedModel, exists := mapping[testModelID]; exists {
-				testModelID = mappedModel
-			}
-		}
-	}
+	resolution := resolveAccountTestModel(account, modelID)
+	testModelID := resolution.Mapped
 
 	// Set SSE headers
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
@@ -1026,8 +922,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build request: %s", err.Error()))
 	}
 
-	// Send test_start event
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
 	// Get proxy and execute request
 	proxyURL := ""
@@ -1067,11 +962,7 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	ctx := c.Request.Context()
 
-	// 默认模型：Claude 使用 claude-sonnet-4-5，Gemini 使用 gemini-3-pro-preview
-	testModelID := modelID
-	if testModelID == "" {
-		testModelID = "claude-sonnet-4-5"
-	}
+	resolution := resolveAccountTestModel(account, modelID)
 
 	if s.antigravityGatewayService == nil {
 		return s.sendErrorAndEnd(c, "Antigravity gateway service not configured")
@@ -1084,11 +975,10 @@ func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, ac
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	// Send test_start event
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendTestStart(c, account, resolution)
 
-	// 调用 AntigravityGatewayService.TestConnection（复用协议转换逻辑）
-	result, err := s.antigravityGatewayService.TestConnection(ctx, account, testModelID, prompt)
+	// Pass the selected name so TestConnection can apply its own whitelist map.
+	result, err := s.antigravityGatewayService.TestConnection(ctx, account, resolution.Selected, prompt)
 	if err != nil {
 		return s.sendErrorAndEnd(c, err.Error())
 	}
@@ -1659,7 +1549,8 @@ func (s *AccountTestService) emitOpenAIChatCompletionsTestEvent(c *gin.Context, 
 }
 
 // testOpenAIImageAPIKey tests OpenAI image generation using an API Key account.
-func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.Context, account *Account, modelID, prompt string) error {
+func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.Context, account *Account, resolution accountTestModelResolution, prompt string) error {
+	modelID := resolution.Mapped
 	authToken := account.GetOpenAIApiKey()
 	if authToken == "" {
 		return s.sendErrorAndEnd(c, "No API key available")
@@ -1682,7 +1573,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
+	s.sendTestStart(c, account, resolution)
 
 	payload := map[string]any{
 		"model":           modelID,
@@ -1755,7 +1646,8 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 }
 
 // testOpenAIImageOAuth tests OpenAI image generation using an OAuth account via Codex /responses API.
-func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Context, account *Account, modelID, prompt string) error {
+func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Context, account *Account, resolution accountTestModelResolution, prompt string) error {
+	modelID := resolution.Mapped
 	authToken := account.GetOpenAIAccessToken()
 	if authToken == "" {
 		return s.sendErrorAndEnd(c, "No access token available")
@@ -1768,7 +1660,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
+	s.sendTestStart(c, account, resolution)
 	s.sendEvent(c, TestEvent{Type: "content", Text: "Calling Codex /responses image tool...\n"})
 
 	parsed := &OpenAIImagesRequest{

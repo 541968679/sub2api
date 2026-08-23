@@ -556,7 +556,7 @@
                     ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500'
                 ]"
-                @click="modelRestrictionMode = 'mapping'"
+                @click="switchToMappingMode"
               >
                 <svg
                   class="mr-1.5 inline h-4 w-4"
@@ -1683,6 +1683,7 @@ import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolic
 import Icon from '@/components/icons/Icon.vue'
 import {
   buildModelMappingObject as buildModelMappingPayload,
+  seedWhitelistIntoMappings,
   getPresetMappingsByPlatform,
   applyOpenAIClaudeGPTBridgeTemplateToMappings,
   loadOpenAIClaudeGPTBridgeTemplate,
@@ -1978,8 +1979,16 @@ const openAIAPIKeyWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiAPIKeyResponsesWebSocketV2Mode.value)
 )
 
+const switchToMappingMode = () => {
+  if (modelRestrictionMode.value === 'whitelist') {
+    modelMappings.value = seedWhitelistIntoMappings(allowedModels.value, modelMappings.value)
+  }
+  modelRestrictionMode.value = 'mapping'
+}
+
 // Model mapping helpers
 const addModelMapping = () => {
+  switchToMappingMode()
   modelMappings.value.push({ from: '', to: '' })
 }
 
@@ -2096,7 +2105,10 @@ const applyOpenAIClaudeGPTBridgeTemplateToSelected = async () => {
   }
 
   // Also mirror into the bulk form mapping list so the UI reflects the template.
-  const formResult = applyOpenAIClaudeGPTBridgeTemplateToMappings(modelMappings.value, template)
+  const formResult = applyOpenAIClaudeGPTBridgeTemplateToMappings(
+    seedWhitelistIntoMappings(allowedModels.value, modelMappings.value),
+    template
+  )
   modelMappings.value = formResult.mappings
   modelRestrictionMode.value = 'mapping'
 

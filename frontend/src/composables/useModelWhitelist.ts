@@ -662,27 +662,50 @@ export function normalizeModelMappingRecord(raw: unknown): Record<string, string
   return Object.keys(mapping).length > 0 ? mapping : null
 }
 
+export type ModelMappingRow = { from: string; to: string }
+
+/** Seed identity rows from the whitelist without overwriting an existing `from`. */
+export function seedWhitelistIntoMappings(
+  allowedModels: string[],
+  modelMappings: ModelMappingRow[]
+): ModelMappingRow[] {
+  const seeded = modelMappings.map((row) => ({ from: row.from, to: row.to }))
+  const existingFrom = new Set(seeded.map((row) => row.from.trim()).filter(Boolean))
+  for (const model of allowedModels) {
+    const from = String(model ?? '').trim()
+    if (!from || existingFrom.has(from)) continue
+    seeded.push({ from, to: from })
+    existingFrom.add(from)
+  }
+  return seeded
+}
+
+export function splitModelMappingEntries(mapping: Record<string, string>): {
+  identityKeys: string[]
+  rows: ModelMappingRow[]
+  hasRewrite: boolean
+} {
+  const rows = Object.entries(mapping).map(([from, to]) => ({ from, to }))
+  const identityKeys = rows.filter((row) => row.from === row.to).map((row) => row.from)
+  return {
+    identityKeys,
+    rows,
+    hasRewrite: rows.some((row) => row.from !== row.to)
+  }
+}
+
 export function buildModelMappingObject(
   mode: 'whitelist' | 'mapping',
   allowedModels: string[],
-  modelMappings: { from: string; to: string }[]
+  modelMappings: ModelMappingRow[]
 ): Record<string, string> | null {
   const mapping: Record<string, string> = {}
 
-  if (mode === 'whitelist') {
-    appendWhitelistModels(mapping, allowedModels)
-    // Mode-tab mismatch safety: if whitelist is empty but mapping rows were filled,
-    // still persist the mapping rows instead of silently deleting model_mapping.
-    if (Object.keys(mapping).length === 0) {
-      appendMappingRows(mapping, modelMappings)
-    }
-  } else {
-    appendMappingRows(mapping, modelMappings)
-    // Symmetric fallback for the opposite mismatch.
-    if (Object.keys(mapping).length === 0) {
-      appendWhitelistModels(mapping, allowedModels)
-    }
-  }
+  // Union: identities first, mapping rows last so a rewrite wins the same `from`.
+  // `mode` is kept for callers; both tabs persist the same merged object.
+  void mode
+  appendWhitelistModels(mapping, allowedModels)
+  appendMappingRows(mapping, modelMappings)
 
   return Object.keys(mapping).length > 0 ? mapping : null
 }

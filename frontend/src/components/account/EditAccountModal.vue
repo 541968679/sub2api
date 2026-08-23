@@ -479,7 +479,7 @@
               </button>
               <button
                 type="button"
-                @click="modelRestrictionMode = 'mapping'"
+                @click="switchToMappingMode"
                 :class="[
                   'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                   modelRestrictionMode === 'mapping'
@@ -654,7 +654,7 @@
             </button>
             <button
               type="button"
-              @click="modelRestrictionMode = 'mapping'"
+              @click="switchToMappingMode"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'mapping'
@@ -791,7 +791,7 @@
             </button>
             <button
               type="button"
-              @click="modelRestrictionMode = 'mapping'"
+              @click="switchToMappingMode"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'mapping'
@@ -954,7 +954,7 @@
             </button>
             <button
               type="button"
-              @click="modelRestrictionMode = 'mapping'"
+              @click="switchToMappingMode"
               :class="[
                 'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
                 modelRestrictionMode === 'mapping'
@@ -3033,6 +3033,8 @@ import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
+  seedWhitelistIntoMappings,
+  splitModelMappingEntries,
   normalizeModelMappingRecord,
   isValidWildcardPattern,
   applyOpenAIClaudeGPTBridgeTemplateToMappings,
@@ -3824,16 +3826,15 @@ const applyModelRestrictionFromCredentials = (credentials?: Record<string, unkno
     return false
   }
 
-  const entries = Object.entries(existingMappings)
-  const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-  if (isWhitelistMode) {
+  const { identityKeys, rows, hasRewrite } = splitModelMappingEntries(existingMappings)
+  if (!hasRewrite) {
     modelRestrictionMode.value = 'whitelist'
-    allowedModels.value = entries.map(([from]) => from)
+    allowedModels.value = identityKeys
     modelMappings.value = []
   } else {
     modelRestrictionMode.value = 'mapping'
-    modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-    allowedModels.value = []
+    modelMappings.value = rows
+    allowedModels.value = identityKeys
   }
   return true
 }
@@ -4242,8 +4243,16 @@ watch(
   { flush: 'sync' }
 )
 
+const switchToMappingMode = () => {
+  if (modelRestrictionMode.value === 'whitelist') {
+    modelMappings.value = seedWhitelistIntoMappings(allowedModels.value, modelMappings.value)
+  }
+  modelRestrictionMode.value = 'mapping'
+}
+
 // Model mapping helpers
 const addModelMapping = () => {
+  switchToMappingMode()
   modelMappings.value.push({ from: '', to: '' })
 }
 
@@ -4305,19 +4314,7 @@ const applyOpenAIClaudeGPTBridgePreset = () => {
     openAIClaudeGPTBridgeTemplateDraft.value = saveOpenAIClaudeGPTBridgeTemplate(template)
   }
 
-  const seedMappings = [...modelMappings.value]
-  if (modelRestrictionMode.value === 'whitelist') {
-    const existingFrom = new Set(
-      seedMappings.map((mapping) => mapping.from.trim()).filter(Boolean)
-    )
-    for (const model of allowedModels.value.map((m) => m.trim()).filter(Boolean)) {
-      if (!existingFrom.has(model)) {
-        seedMappings.push({ from: model, to: model })
-        existingFrom.add(model)
-      }
-    }
-    allowedModels.value = []
-  }
+  const seedMappings = seedWhitelistIntoMappings(allowedModels.value, modelMappings.value)
 
   modelRestrictionMode.value = 'mapping'
   const result = applyOpenAIClaudeGPTBridgeTemplateToMappings(seedMappings, template)

@@ -6,6 +6,8 @@ vi.mock('@/api/admin/accounts', () => ({
 
 import {
   buildModelMappingObject,
+  seedWhitelistIntoMappings,
+  splitModelMappingEntries,
   normalizeModelMappingRecord,
   applyOpenAIClaudeGPTBridgeTemplateToMappings,
   getDefaultOpenAIClaudeGPTBridgeTemplate,
@@ -173,6 +175,47 @@ describe('useModelWhitelist', () => {
   it('buildModelMappingObject falls back to whitelist when mapping rows are empty', () => {
     const mapping = buildModelMappingObject('mapping', ['gpt-5.5'], [])
     expect(mapping).toEqual({ 'gpt-5.5': 'gpt-5.5' })
+  })
+
+  it('mapping mode keeps whitelist identities and lets a rewrite win the same from', () => {
+    const mapping = buildModelMappingObject(
+      'mapping',
+      ['claude-haiku-4-5-20251001', 'claude-fable-5'],
+      [{ from: 'claude-haiku-4-5-20251001', to: 'claude-haiku-4-5' }]
+    )
+    expect(mapping).toEqual({
+      'claude-haiku-4-5-20251001': 'claude-haiku-4-5',
+      'claude-fable-5': 'claude-fable-5'
+    })
+  })
+
+  it('does not let leftover identity overwrite a newer mapping for the same from', () => {
+    const mapping = buildModelMappingObject(
+      'mapping',
+      ['claude-haiku-4-5-20251001'],
+      [{ from: 'claude-haiku-4-5-20251001', to: 'claude-haiku-4-5' }]
+    )
+    expect(mapping?.['claude-haiku-4-5-20251001']).toBe('claude-haiku-4-5')
+  })
+
+  it('seedWhitelistIntoMappings skips from keys that already have a mapping row', () => {
+    const seeded = seedWhitelistIntoMappings(
+      ['claude-haiku-4-5-20251001', 'claude-fable-5'],
+      [{ from: 'claude-haiku-4-5-20251001', to: 'claude-haiku-4-5' }]
+    )
+    expect(seeded).toEqual([
+      { from: 'claude-haiku-4-5-20251001', to: 'claude-haiku-4-5' },
+      { from: 'claude-fable-5', to: 'claude-fable-5' }
+    ])
+  })
+
+  it('splitModelMappingEntries returns identity keys for mixed JSON', () => {
+    const split = splitModelMappingEntries({
+      'claude-haiku-4-5-20251001': 'claude-haiku-4-5',
+      'claude-fable-5': 'claude-fable-5'
+    })
+    expect(split.hasRewrite).toBe(true)
+    expect(split.identityKeys).toEqual(['claude-fable-5'])
   })
 
   it('normalizeModelMappingRecord accepts object and JSON string forms', () => {

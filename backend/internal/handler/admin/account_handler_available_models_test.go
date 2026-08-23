@@ -243,6 +243,46 @@ func TestAccountHandlerGetAvailableModels_AntigravityUsesEffectiveMappingKeys(t 
 	require.False(t, ids["claude-opus-4-8"], "models absent from the effective mapping are not schedulable")
 }
 
+func TestAccountHandlerGetAvailableModels_ClaudeAPIKeyMappingIsKeyUnionOnly(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == domain.PlatformAnthropic {
+			return map[string]string{"claude-haiku-4-5-20251001": "claude-haiku-4-5"}
+		}
+		return nil
+	}
+	t.Cleanup(func() { domain.GetPlatformDefaultMappingOverride = oldOverride })
+
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       1650,
+			Name:     "pomoai-fable5",
+			Platform: service.PlatformAnthropic,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-haiku-4-5-20251001": "claude-haiku-4-5-20251001",
+					"claude-fable-5":            "claude-fable-5",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/1650/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	ids := availableModelIDs(t, rec)
+	require.True(t, ids["claude-haiku-4-5-20251001"], "account mapping key must be listed")
+	require.True(t, ids["claude-fable-5"])
+	require.False(t, ids["claude-haiku-4-5"], "platform mapping value / short name is not a list key")
+	require.False(t, ids["claude-sonnet-4-5-20250929"], "DefaultModels are excluded when API Key mapping is set")
+}
+
 func TestAccountHandlerGetAvailableModels_GrokReturnsGrokModels(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),

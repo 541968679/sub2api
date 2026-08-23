@@ -487,12 +487,11 @@ func TestAccountTestService_OpenAI429PersistsSnapshotAndRateLimitState(t *testin
 	require.Error(t, err)
 	require.NotEmpty(t, repo.updatedExtra)
 	require.Equal(t, 100.0, repo.updatedExtra["codex_5h_used_percent"])
-	require.Equal(t, account.ID, repo.rateLimitedID)
-	require.NotNil(t, repo.rateLimitedAt)
-	require.Equal(t, account.ID, repo.clearedErrorID)
-	require.Equal(t, StatusActive, account.Status)
-	require.Empty(t, account.ErrorMessage)
-	require.NotNil(t, account.RateLimitResetAt)
+	require.Zero(t, repo.rateLimitedID)
+	require.Nil(t, repo.rateLimitedAt)
+	require.Zero(t, repo.clearedErrorID)
+	require.Equal(t, StatusError, account.Status)
+	require.Nil(t, account.RateLimitResetAt)
 }
 
 func TestAccountTestService_OpenAI429BodyOnlyPersistsRateLimitAndClearsStaleError(t *testing.T) {
@@ -516,12 +515,12 @@ func TestAccountTestService_OpenAI429BodyOnlyPersistsRateLimitAndClearsStaleErro
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
 	require.Error(t, err)
-	require.Equal(t, account.ID, repo.rateLimitedID)
-	require.NotNil(t, repo.rateLimitedAt)
-	require.Equal(t, account.ID, repo.clearedErrorID)
-	require.Equal(t, StatusActive, account.Status)
-	require.Empty(t, account.ErrorMessage)
-	require.NotNil(t, account.RateLimitResetAt)
+	require.Zero(t, repo.rateLimitedID)
+	require.Nil(t, repo.rateLimitedAt)
+	require.Zero(t, repo.clearedErrorID)
+	require.Equal(t, StatusError, account.Status)
+	require.Equal(t, "Access forbidden (403): account may be suspended or lack permissions", account.ErrorMessage)
+	require.Nil(t, account.RateLimitResetAt)
 	require.Empty(t, repo.updatedExtra)
 }
 
@@ -545,11 +544,11 @@ func TestAccountTestService_OpenAI429ActiveAccountDoesNotClearError(t *testing.T
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
 	require.Error(t, err)
-	require.Equal(t, account.ID, repo.rateLimitedID)
-	require.NotNil(t, repo.rateLimitedAt)
+	require.Zero(t, repo.rateLimitedID)
+	require.Nil(t, repo.rateLimitedAt)
 	require.Zero(t, repo.clearedErrorID)
 	require.Equal(t, StatusActive, account.Status)
-	require.NotNil(t, account.RateLimitResetAt)
+	require.Nil(t, account.RateLimitResetAt)
 }
 
 func TestAccountTestService_OpenAI429WithoutResetSignalDoesNotMutateRuntimeState(t *testing.T) {
@@ -601,8 +600,8 @@ func TestAccountTestService_OpenAI401SetsPermanentErrorOnly(t *testing.T) {
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
 	require.Error(t, err)
-	require.Equal(t, account.ID, repo.setErrorID)
-	require.Contains(t, repo.setErrorMsg, "Authentication failed (401)")
+	require.Zero(t, repo.setErrorID)
+	require.Empty(t, repo.setErrorMsg)
 	require.Zero(t, repo.rateLimitedID)
 	require.Zero(t, repo.clearedErrorID)
 	require.Nil(t, account.RateLimitResetAt)

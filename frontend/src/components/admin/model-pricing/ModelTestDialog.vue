@@ -193,7 +193,19 @@ async function runTest() {
               if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight
             })
           } else if (event.type === 'test_start') {
-            appendOutput(`> Testing model: ${event.model || props.model}`, 'text-cyan-400')
+            if (event.selected_model || event.mapped_model || event.mapping_source) {
+              if (event.selected_model) {
+                appendOutput(`> ${t('admin.accounts.testSelectedModel', { model: event.selected_model })}`, 'text-cyan-400')
+              }
+              if (event.mapped_model) {
+                appendOutput(`> ${t('admin.accounts.testMappedModel', { model: event.mapped_model })}`, 'text-cyan-400')
+              }
+              if (event.mapping_source) {
+                appendOutput(`> ${t('admin.accounts.testMappingSource', { source: event.mapping_source })}`, 'text-cyan-400')
+              }
+            } else {
+              appendOutput(`> Testing model: ${event.model || props.model}`, 'text-cyan-400')
+            }
           } else if (event.type === 'test_complete') {
             appendOutput('')
             if (event.success) {

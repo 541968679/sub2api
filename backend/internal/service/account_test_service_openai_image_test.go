@@ -43,7 +43,11 @@ func TestAccountTestService_OpenAIImageOAuthHandlesOutputItemDoneFallback(t *tes
 		},
 	}
 
-	err := svc.testOpenAIImageOAuth(c, context.Background(), account, "gpt-image-2", "draw a cat")
+	err := svc.testOpenAIImageOAuth(c, context.Background(), account, accountTestModelResolution{
+		Selected: "gpt-image-2",
+		Mapped:   "gpt-image-2",
+		Source:   AccountTestMappingSourceNone,
+	}, "draw a cat")
 	require.NoError(t, err)
 	require.Contains(t, rec.Body.String(), "Calling Codex /responses image tool")
 	require.Contains(t, rec.Body.String(), "data:image/png;base64,aGVsbG8=")
@@ -80,7 +84,11 @@ func TestAccountTestService_OpenAIImageAPIKeyUsesConfiguredV1BaseURL(t *testing.
 		},
 	}
 
-	err := svc.testOpenAIImageAPIKey(c, context.Background(), account, "gpt-image-2", "draw a cat")
+	err := svc.testOpenAIImageAPIKey(c, context.Background(), account, accountTestModelResolution{
+		Selected: "gpt-image-2",
+		Mapped:   "gpt-image-2",
+		Source:   AccountTestMappingSourceNone,
+	}, "draw a cat")
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, "https://image-upstream.example/v1/images/generations", upstream.lastReq.URL.String())

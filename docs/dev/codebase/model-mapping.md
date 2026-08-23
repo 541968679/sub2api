@@ -260,18 +260,26 @@ account.ResolveMappedModel():
 | 模型迁移 | 默认映射中旧模型自动指向新模型（如 opus-4-5 → opus-4-6-thinking） | `domain/constants.go:72-115` |
 | 持久化映射回填 | 新增官方模型时，已有 `credentials.model_mapping` 账号需要 migration 补同名映射，避免严格模式漏调度 | `backend/migrations/146_add_opus48_to_model_mapping.sql` |
 
-## 测试连接模型列表 (2026-07-04)
+## 测试连接模型列表 (2026-07-04 / 2026-08-23)
 
 `GET /api/v1/admin/accounts/:id/models`（账号管理 → 测试连接的模型下拉）在原有
 账号级 `credentials.model_mapping` / 默认模型集的基础上，统一并入平台级默认映射
-的请求模型名，保证模型配置页新增的映射能被选中测试：
+的**请求模型名（键）**，保证模型配置页新增的映射能被选中测试。平台映射的**值**
+不进列表；价目表名字也不进列表。列表外名称用自定义输入。
 
-- Antigravity 非透传账号：可测模型 = 生效映射表的请求模型名（账号自定义映射
-  优先，否则 `ResolveAntigravityDefaultMapping()`），Claude 模型追加 [1m]/[2m]
-  变体（`antigravity.ModelsForMappingKeys`）。不再使用滞后的静态
-  `antigravity.DefaultModels()`。
-- Claude / Gemini / OpenAI 账号：默认模型集或账号映射键 ∪ 对应平台默认映射键。
-- OpenAI 自动透传与 Kiro 反代透传保持原行为（透传绕过映射改写）。
+组成公式（不要改）：
+
+- Claude API Key + 非空 mapping：账号映射键 ∪ 平台默认映射键（**不含** `DefaultModels`）
+- Claude OAuth / 无 mapping：`DefaultModels` ∪ 平台默认映射键
+- OpenAI 非透传：账号映射键 ∪ 平台键 ∪ `DefaultModels`
+- OpenAI 透传：仅 `DefaultModels`
+- Gemini API Key + mapping：账号键 ∪ 平台键
+- Antigravity 非透传：生效映射表的请求模型名（+ 既有 1m/2m 变体）
+
+测试请求按账号类型走与线上同类账号相同的解析函数，SSE `test_start` 带
+`selected_model` / `mapped_model` / `mapping_source`；`model` 仍是映射后的上游名。
+测试失败不写账号 `status` / 限流 / Grok quota extra。成功后的
+`RecoverAccountAfterSuccessfulTest` 仍保留。
 
 ## 已知陷阱
 
@@ -299,6 +307,10 @@ account.ResolveMappedModel():
 - **Sonnet 5 production-only sync (2026-07-02)**：`claude-sonnet-5` 通过 Claude 默认模型列表和前端白名单预设暴露。Bedrock 默认映射为 `us.anthropic.claude-sonnet-5-v1`，再由 `ResolveBedrockModelID` 按账号 `aws_region` 替换区域前缀。默认 `context-1m-2025-08-07` beta 策略放行 Sonnet 5 与 Opus 4.8/5（强制 1M）；其余 Sonnet 4.x、Opus 4.7 及更早、Haiku、legacy Sonnet 仍会过滤该 beta。
 - **Antigravity 默认映射更新滞后**：上游新增模型时，`DefaultAntigravityModelMapping` 可能未及时更新，需手动添加映射
 - **迁移编号分叉**：合并上游模型回填迁移时，先检查本 fork 最新 migration 编号；如上游编号已被二开占用，保留 SQL 逻辑并改用本地下一编号。
-- **白名单 vs 映射混淆**：白名单模式本质是映射到自身，前端 `buildModelMappingObject` 统一输出为映射格式
+- **白名单 vs 映射混淆**：白名单即 `credentials.model_mapping` 的恒等键
+  (`from===to`)。普通「添加映射」必须先并入未冲突的恒等键，再写映射行；同一
+  `from` 以新映射覆盖恒等。严格映射下丢掉恒等键 = 那些模型不再调度。
+  `buildModelMappingObject` 先写白名单恒等、再写 mapping 行（后者覆盖）。
+  加载混合 JSON 时恒等键回填白名单 Tab，避免显示「支持所有模型」。
 - **账号级严格调度开关 (2026-08-07)**：`accounts.extra.model_mapping_strict_scheduling`（默认缺失/false）。关：非空 `model_mapping` 未命中时仍可走平台默认映射 / OpenAI DefaultModels 兜底。开：该账号非空 mapping 为严格调度白名单。空 mapping 始终允许全部。在账号编辑「其他功能」中按账号切换；`Account.IsModelSupported` 读取 `IsModelMappingStrictScheduling()`。
 - **通配符贪婪匹配**：`claude-*` 会匹配所有 claude 开头的模型，可能匹配到不期望的模型

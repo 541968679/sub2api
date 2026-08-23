@@ -156,8 +156,7 @@ func TestAccountTestService_Grok429PersistsRateLimitReset(t *testing.T) {
 	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
 
 	require.Error(t, err)
-	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, time.Now().Add(45*time.Second), repo.resetAt, time.Second)
+	require.Zero(t, repo.rateLimitedCalls)
 }
 
 func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T) {
@@ -182,11 +181,9 @@ func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/15/test", nil)
-	before := time.Now()
 
 	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
 
 	require.Error(t, err)
-	require.Equal(t, 1, repo.rateLimitedCalls)
-	require.WithinDuration(t, before.Add(grokRateLimitFallbackCooldown), repo.resetAt, time.Second)
+	require.Zero(t, repo.rateLimitedCalls)
 }

@@ -1,3 +1,27 @@
+## 2026-08-23 - fix: account test mapping display, no status writes, keep whitelist on save
+
+### What
+- Account connection tests now resolve models the same way as the live gateway for that account type, emit `selected_model` / `mapped_model` / `mapping_source` on `test_start`, and never call `SetError` / `SetRateLimited` / Grok test quota snapshots.
+- Test UI shows list-source copy plus a custom model field; pricing-page test dialog shows the three SSE fields.
+- Saving 「模型映射」 unions leftover whitelist identity keys; a rewrite for the same `from` wins.
+
+### Why
+- Testing `claude-haiku-4-5` on a whitelist-only API Key passed the short name through (no mapping key) and a 403 marked the account error even in pool mode. Adding a mapping used to drop identity keys from `model_mapping`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestAccountTest|TestResolveAccountTestModel|TestClaudeAccount" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "GetAvailableModels" -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useModelWhitelist.spec.ts src/components/admin/account/__tests__/AccountTestModal.spec.ts --reporter=dot`
+
+### Affected files
+`backend/internal/service/account_test_service.go`,
+`backend/internal/service/account_test_model_resolution.go`,
+`frontend/src/composables/useModelWhitelist.ts`,
+`frontend/src/components/account/{Edit,Create,BulkEdit}AccountModal.vue`,
+`frontend/src/components/admin/account/AccountTestModal.vue`,
+`frontend/src/components/admin/model-pricing/ModelTestDialog.vue`,
+`docs/dev/codebase/model-mapping.md`
+
 ## 2026-08-22 - fix: return Chat Completions JSON as soon as Responses buffer sees a terminal
 
 ### What
