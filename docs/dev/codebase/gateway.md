@@ -16,7 +16,7 @@ the parent supplies authentication identity and the inherited proxy.
 Two production entrypoints share the same admission function (`admitsScheduleUser`) and then rank differently.
 
 1. Request gates: group / platform / model allow-list / Claude Code fallback group / channel pricing.
-2. Account alive: `IsSchedulable()` (active, switch, expiry pause, 429/529, temp-unschedulable, API-key quota). Do not fold user policy into this.
+2. Account alive: `IsSchedulable()` (active, switch, expiry pause, 429/529, temp-unschedulable, API-key quota). Do not fold user policy into this. OAuth fleet **soft** 429 Redis excludes are not part of this check.
 3. Capability: platform, model mapping, window cost, RPM, OpenAI transport/compact/capability.
 4. User admission: enabled smart-schedule with a non-empty pool is a closed allow-list + pair cooldown + pool pair-cap. The pool key is `SmartScheduleLookupPlatform` (OpenAI + Claude-GPT bridge or AG-group → `antigravity` only while AG is enabled with members; otherwise those requests keep `openai`. Native OpenAI groups stay `openai`). AG off/empty/missing does not fail-open to account-side. Once AG is on, a pool miss rejects and never falls back to another platform pool.
 5. `fallback_only` hard partition (`preferPrimaryAccounts`) on load-aware Layer 2 and the OpenAI scheduler. Anthropic **model-routing Layer 1** currently ranks routed IDs without this partition.
@@ -25,6 +25,10 @@ Two production entrypoints share the same admission function (`admitsScheduleUse
 8. Account slot: account-concurrency full may `WaitPlan` on the Claude load-aware path; pair-full never waits. WaitPlan wake must attach the pair slot before forwarding.
 9. Upstream-rate overlay among the remaining set (lower `EffectiveUpstreamRate` first). Not billing `rate_multiplier`.
 10. Same rate: Claude/Gemini layered filter (priority → load → LRU; Gemini also prefers OAuth). OpenAI advanced scheduler uses the admin-editable score weights, then TopK weighted random. If that scheduler is off, OpenAI uses the same layered filter.
+
+## OAuth fleet soft 429
+
+After `IsSchedulable` has already produced the live set, `SelectAccount*` / the OpenAI scheduler unions Redis `oauth-soft-429:{accountID}` into `excludedIDs` unless hard affinity exists. Hard affinity is an **existing sticky binding** or a `previous_response_id` — a non-empty `sessionHash` is not affinity (almost every request generates one). Soft 429 never writes `rate_limit_reset_at` or `temp_unschedulable_until`. Layer-1 still uses `failedAccountIDs`. Do not set `RetryableOnSameAccount` for OAuth 429. Gemini/Antigravity 429 paths that used to skip `HandleUpstreamError` call `TryHandleOAuthFleetSoft429` before their local `SetRateLimited`. Classify runs before wide temp-unsched rules. Factory policy is off; empty KV is off. See [account.md](./account.md#oauth-fleet-soft-429).
 
 ## Upstream rate overlay
 

@@ -1841,6 +1841,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity(previousResponseID, oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	if requireClaudeGPTBridge {
 		ctx = withRequireClaudeGPTBridge(ctx, true)

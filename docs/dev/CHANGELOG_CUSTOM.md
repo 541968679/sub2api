@@ -1,3 +1,42 @@
+## 2026-08-24 - feat(gateway): OAuth fleet soft 429 (factory off)
+
+### What
+- Instant OAuth 429s can skip `rate_limit_reset_at` / `temp_unschedulable_until`. The current request still failovers via `failedAccountIDs`; a Redis key `oauth-soft-429:{accountID}` excludes the account from new selection for `ttl_seconds` (default 20, range 5–300). Soft exclude is a scheduler filter only and does not enter `IsSchedulable()`.
+- Factory `DefaultOAuthFleetSoft429Settings().Enabled = false`. Empty/missing/bad Settings KV is OFF (unlike 529 overload cooldown). Account `extra.oauth_fleet_soft_429` is tri-state: unset inherits global; `true` is a canary even when global is off; `false` keeps current `handle429`.
+- Hard stays persisted: Anthropic official window, Codex 100%, quota death / `额度已用完`, `hard_body_codes`, and `long_reset_policy=hard` or threshold. Classify runs before `tryTempUnschedulable`. Layer-2 skips only an existing sticky binding or `previous_response` (not a generated `sessionHash`). `IsPoolMode()` and same-account 429 retry are unchanged.
+- Claude `SelectAccount*` and OpenAI `SelectAccount*` / scheduler now merge the Redis exclude set so the next request does not stampede the same blip-429 account.
+
+### Why
+A blip 429 was taking the whole OAuth account out of the pool. Fleet rotation should look more like API-key pool failover without opening `IsPoolMode()` to OAuth.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "OAuthFleetSoft429|HandleUpstreamError|handle429|PoolMode|OAuth401|AnthropicWindow|CodexRateLimit|GetPublicSettings" -count=1`
+- `go test -tags=unit ./internal/handler ./internal/handler/admin -run "Failover|failedAccount|PoolMode|OAuthFleetSoft429" -count=1`
+- `go test -tags=unit ./internal/repository -run "OAuthFleetSoft429" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "oauth fleet"`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts -t "oauth fleet"`
+
+### Affected files
+`backend/internal/service/oauth_fleet_soft_429.go`
+`backend/internal/service/oauth_fleet_soft_429_test.go`
+`backend/internal/service/gateway_service.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/openai_account_scheduler.go`
+`backend/internal/service/ratelimit_service.go`
+`backend/internal/service/settings_view.go`
+`backend/internal/service/setting_service.go`
+`backend/internal/service/domain_constants.go`
+`backend/internal/repository/oauth_fleet_soft_429_cache.go`
+`backend/internal/handler/admin/setting_handler.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/views/admin/SettingsView.vue`
+`frontend/src/components/account/EditAccountModal.vue`
+`frontend/src/api/admin/settings.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/gateway.md`
+
 ## 2026-08-24 - feat(smart-schedule): split pair-quality N into TTFT N and success N
 
 ### What

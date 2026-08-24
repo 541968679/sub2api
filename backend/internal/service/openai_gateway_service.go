@@ -1404,6 +1404,7 @@ func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupI
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 // SelectAccountForModelWithExclusions 选择支持指定模型的账号，同时排除指定的账号。
 func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
 	return s.selectAccountForModelWithExclusions(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, sessionHash, requestedModel, excludedIDs, false, 0)
 }
 
@@ -1916,6 +1917,7 @@ func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
 func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
 	return s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, excludedIDs, false)
 }
 
