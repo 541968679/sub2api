@@ -130,7 +130,9 @@ backend/.installed
 tests
 CLAUDE.md
 .claude
-scripts
+# Ignore local helper scripts, but keep the LoveAPI H2 concurrency repro.
+scripts/*
+!scripts/repro-loveapi-h2-concurrency.sh
 .code-review-state
 #openspec/
 code-reviews/
