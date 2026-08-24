@@ -541,6 +541,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 529过载冷却配置
 		adminSettings.GET("/overload-cooldown", h.Admin.Setting.GetOverloadCooldownSettings)
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)
+		adminSettings.GET("/oauth-fleet-soft-429", h.Admin.Setting.GetOAuthFleetSoft429Settings)
+		adminSettings.PUT("/oauth-fleet-soft-429", h.Admin.Setting.UpdateOAuthFleetSoft429Settings)
 		adminSettings.GET("/quality-hard-close", h.Admin.Setting.GetQualityHardCloseSettings)
 		adminSettings.PUT("/quality-hard-close", h.Admin.Setting.UpdateQualityHardCloseSettings)
 		adminSettings.GET("/schedule-error-whitelist", h.Admin.Setting.GetScheduleErrorWhitelist)

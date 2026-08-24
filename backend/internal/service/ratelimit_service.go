@@ -27,8 +27,9 @@ type RateLimitService struct {
 	tempUnschedCache      TempUnschedCache
 	timeoutCounterCache   TimeoutCounterCache
 	openAI403CounterCache OpenAI403CounterCache
-	settingService        *SettingService
-	tokenCacheInvalidator TokenCacheInvalidator
+	settingService           *SettingService
+	tokenCacheInvalidator    TokenCacheInvalidator
+	oauthFleetSoft429Cache   OAuthFleetSoft429Cache
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 }
@@ -362,6 +363,14 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 		}
 		return ErrorPolicySkipped
 	}
+	if statusCode == http.StatusTooManyRequests {
+		fleetAccount := s.resolveOAuthFleetAccount(ctx, account)
+		if oauthFleetSoft429Applies(fleetAccount, s.loadOAuthFleetSoft429Settings(ctx)) {
+			// Soft and hard OAuth 429 both skip temp-unsched writes.
+			// HandleUpstreamError performs Redis / SetRateLimited.
+			return ErrorPolicyNone
+		}
+	}
 	if s.tryTempUnschedulable(ctx, account, statusCode, responseBody) {
 		return ErrorPolicyTempUnscheduled
 	}
@@ -417,9 +426,34 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		}
 	}
 
+	// OAuth fleet soft 429: classify before wide temp-unsched rules so a
+	// "rate limit" keyword cannot steal a soft 429 into TempUnschedulableUntil.
+	skipTempUnschedForOAuth429 := false
+	if statusCode == http.StatusTooManyRequests {
+		fleetAccount := s.resolveOAuthFleetAccount(ctx, account)
+		fleetSettings := s.loadOAuthFleetSoft429Settings(ctx)
+		if oauthFleetSoft429Applies(fleetAccount, fleetSettings) {
+			class, reason := classifyOAuth429(fleetAccount, fleetSettings, statusCode, headers, responseBody)
+			override := "unset"
+			if v := boolOverrideFromMap(fleetAccount.Extra, AccountExtraOAuthFleetSoft429); v != nil {
+				if *v {
+					override = "true"
+				} else {
+					override = "false"
+				}
+			}
+			if class == oauth429Soft {
+				s.persistOAuthFleetSoft429(ctx, fleetAccount, fleetSettings, reason, account)
+				return false
+			}
+			s.logOAuthFleetHard429(fleetAccount, reason, override)
+			skipTempUnschedForOAuth429 = true
+		}
+	}
+
 	// 先尝试临时不可调度规则（401除外）
 	// 如果匹配成功，直接返回，不执行后续禁用逻辑
-	if statusCode != 401 {
+	if statusCode != 401 && !skipTempUnschedForOAuth429 {
 		if s.tryTempUnschedulable(ctx, account, statusCode, responseBody) {
 			return true
 		}

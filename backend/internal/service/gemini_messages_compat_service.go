@@ -111,6 +111,13 @@ func (s *GeminiMessagesCompatService) SelectAccountForModel(ctx context.Context,
 }
 
 func (s *GeminiMessagesCompatService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+	stickyID := int64(0)
+	if s.cache != nil && strings.TrimSpace(sessionHash) != "" {
+		if id, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), "gemini:"+sessionHash); err == nil {
+			stickyID = id
+		}
+	}
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", stickyID))
 	ctx = withScheduleUserID(ctx, 0)
 	// 1. 确定目标平台和调度模式
 	// Determine target platform and scheduling mode
@@ -2750,6 +2757,9 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	}
 	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
 		s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body)
+		return
+	}
+	if statusCode == 429 && s.rateLimitService != nil && s.rateLimitService.TryHandleOAuthFleetSoft429(ctx, account, statusCode, headers, body) {
 		return
 	}
 	if statusCode != 429 {

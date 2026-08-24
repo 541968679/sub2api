@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "检查 pair/quality 没有被折进 IsSchedulable 或软排除键"}
+{"file": ".trellis/spec/backend/pool-mode-hard-eviction.md", "reason": "检查 IsPoolMode / 同账号重试 / 硬驱逐没有被 OAuth 软429 改写"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "检查 actual_cost 与展示计费未被本任务改动"}
+{"file": ".trellis/spec/backend/ops-schedule-error-caliber.md", "reason": "软429 排除不得冒充 ops/quality 调度口径"}
+{"file": ".trellis/spec/backend/oauth-fleet-soft-429.md", "reason": "检查软429 Settings 七段合约、layer-2 排除、sessionHash 不是硬亲和"}
+{"file": ".trellis/tasks/08-24-oauth-fleet-soft-429/research/oauth-fleet-soft-429-current-behavior.md", "reason": "对照保留项、v1 不做清单、以及 Settings/extra 配置面（不写死、不进 public）做回归"}

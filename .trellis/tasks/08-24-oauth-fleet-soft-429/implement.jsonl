@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/account-user-schedule.md", "reason": "pair cap / quality gate 必须留在 admission，禁止折进 IsSchedulable() 或软 429 Redis"}
+{"file": ".trellis/spec/backend/pool-mode-hard-eviction.md", "reason": "禁止把 IsPoolMode() 扩到 OAuth；API Key 池模式早退与硬驱逐必须原样回归"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "本任务不得改展示变换或 actual_cost"}
+{"file": ".trellis/tasks/08-24-oauth-fleet-soft-429/research/oauth-fleet-soft-429-current-behavior.md", "reason": "现网 429/池模式/必须保留项 + Settings KV/extra 配置面锚点，实现时按此分类不要重猎"}

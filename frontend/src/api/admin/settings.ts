@@ -1133,6 +1133,41 @@ export async function updateOverloadCooldownSettings(
   return data;
 }
 
+// ==================== OAuth Fleet Soft 429 Settings ====================
+
+export type OAuthFleetSoft429LongResetPolicy = "soft" | "hard" | "threshold";
+export type OAuthFleetSoft429Scope = "all_oauth" | "opt_in";
+
+export interface OAuthFleetSoft429Settings {
+  enabled: boolean;
+  ttl_seconds: number;
+  long_reset_policy: OAuthFleetSoft429LongResetPolicy;
+  long_reset_threshold_seconds: number;
+  scope: OAuthFleetSoft429Scope;
+  platforms: string[];
+  include_setup_token: boolean;
+  soft_status_codes: number[];
+  soft_body_codes: string[];
+  hard_body_codes: string[];
+}
+
+export async function getOAuthFleetSoft429Settings(): Promise<OAuthFleetSoft429Settings> {
+  const { data } = await apiClient.get<OAuthFleetSoft429Settings>(
+    "/admin/settings/oauth-fleet-soft-429",
+  );
+  return data;
+}
+
+export async function updateOAuthFleetSoft429Settings(
+  settings: OAuthFleetSoft429Settings,
+): Promise<OAuthFleetSoft429Settings> {
+  const { data } = await apiClient.put<OAuthFleetSoft429Settings>(
+    "/admin/settings/oauth-fleet-soft-429",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Quality Hard-Close Settings ====================
 
 export type QualityHardCloseCondition = "or" | "and";
@@ -1468,6 +1503,8 @@ export const settingsAPI = {
   deleteAdminApiKey,
   getOverloadCooldownSettings,
   updateOverloadCooldownSettings,
+  getOAuthFleetSoft429Settings,
+  updateOAuthFleetSoft429Settings,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
   getScheduleErrorWhitelist,

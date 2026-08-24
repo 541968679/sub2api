@@ -368,6 +368,20 @@ type OverloadCooldownSettings struct {
 	CooldownMinutes int  `json:"cooldown_minutes"`
 }
 
+// OAuthFleetSoft429Settings is the admin DTO for OAuth fleet soft-429 policy.
+type OAuthFleetSoft429Settings struct {
+	Enabled                   bool     `json:"enabled"`
+	TTLSeconds                int      `json:"ttl_seconds"`
+	LongResetPolicy           string   `json:"long_reset_policy"`
+	LongResetThresholdSeconds int      `json:"long_reset_threshold_seconds"`
+	Scope                     string   `json:"scope"`
+	Platforms                 []string `json:"platforms"`
+	IncludeSetupToken         bool     `json:"include_setup_token"`
+	SoftStatusCodes           []int    `json:"soft_status_codes"`
+	SoftBodyCodes             []string `json:"soft_body_codes"`
+	HardBodyCodes             []string `json:"hard_body_codes"`
+}
+
 // QualityHardCloseSettings is the admin DTO for the global quality hard-close template.
 type QualityHardCloseSettings struct {
 	Enabled                      bool     `json:"enabled"`

@@ -3708,6 +3708,45 @@ func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyOverloadCooldownSettings, string(data))
 }
 
+// GetOAuthFleetSoft429Settings returns the OAuth fleet soft-429 policy.
+// Missing row, empty value, or bad JSON fall back to Default* (Enabled=false).
+func (s *SettingService) GetOAuthFleetSoft429Settings(ctx context.Context) (*OAuthFleetSoft429Settings, error) {
+	if s == nil || s.settingRepo == nil {
+		return DefaultOAuthFleetSoft429Settings(), nil
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOAuthFleetSoft429Settings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOAuthFleetSoft429Settings(), nil
+		}
+		return nil, fmt.Errorf("get oauth fleet soft 429 settings: %w", err)
+	}
+	if strings.TrimSpace(value) == "" {
+		return DefaultOAuthFleetSoft429Settings(), nil
+	}
+	var settings OAuthFleetSoft429Settings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultOAuthFleetSoft429Settings(), nil
+	}
+	return normalizeOAuthFleetSoft429SettingsForGet(&settings), nil
+}
+
+// SetOAuthFleetSoft429Settings validates and persists the OAuth fleet soft-429 policy.
+func (s *SettingService) SetOAuthFleetSoft429Settings(ctx context.Context, settings *OAuthFleetSoft429Settings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalized, err := normalizeOAuthFleetSoft429SettingsForSet(settings)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal oauth fleet soft 429 settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOAuthFleetSoft429Settings, string(data))
+}
+
 // GetOIDCConnectOAuthConfig 返回用于登录的“最终生效” OIDC 配置。
 //
 // 优先级：

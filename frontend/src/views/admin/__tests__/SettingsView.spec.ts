@@ -11,6 +11,8 @@ const {
   updateWebSearchEmulationConfig,
   getAdminApiKey,
   getOverloadCooldownSettings,
+  getOAuthFleetSoft429Settings,
+  updateOAuthFleetSoft429Settings,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
   getScheduleErrorWhitelist,
@@ -35,6 +37,8 @@ const {
   updateWebSearchEmulationConfig: vi.fn(),
   getAdminApiKey: vi.fn(),
   getOverloadCooldownSettings: vi.fn(),
+  getOAuthFleetSoft429Settings: vi.fn(),
+  updateOAuthFleetSoft429Settings: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
   updateQualityHardCloseSettings: vi.fn(),
   getScheduleErrorWhitelist: vi.fn(),
@@ -56,6 +60,19 @@ const {
 
 const localeRef = vi.hoisted(() => ({ value: "zh-CN" }));
 
+const defaultOAuthFleetSoft429Settings = {
+  enabled: false,
+  ttl_seconds: 20,
+  long_reset_policy: "soft",
+  long_reset_threshold_seconds: 60,
+  scope: "all_oauth",
+  platforms: ["anthropic", "openai", "gemini", "antigravity", "grok"],
+  include_setup_token: true,
+  soft_status_codes: [429],
+  soft_body_codes: ["rate_limit_exceeded"],
+  hard_body_codes: ["usage_limit_reached"],
+};
+
 vi.mock("@/api", () => ({
   adminAPI: {
     settings: {
@@ -65,6 +82,8 @@ vi.mock("@/api", () => ({
       updateWebSearchEmulationConfig,
       getAdminApiKey,
       getOverloadCooldownSettings,
+      getOAuthFleetSoft429Settings,
+      updateOAuthFleetSoft429Settings,
       getQualityHardCloseSettings,
       updateQualityHardCloseSettings,
       getScheduleErrorWhitelist,
@@ -551,6 +570,7 @@ describe("admin SettingsView payment visible method controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -587,6 +607,9 @@ describe("admin SettingsView payment visible method controls", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
     });
     getQualityHardCloseSettings.mockResolvedValue({
       enabled: false,
@@ -1031,6 +1054,7 @@ describe("admin SettingsView wechat connect controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1070,6 +1094,9 @@ describe("admin SettingsView wechat connect controls", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
     });
     getQualityHardCloseSettings.mockResolvedValue({
       enabled: false,
@@ -1262,6 +1289,7 @@ describe("admin SettingsView platform quota matrix", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
@@ -1287,6 +1315,9 @@ describe("admin SettingsView platform quota matrix", () => {
     updateWebSearchEmulationConfig.mockResolvedValue({ enabled: false, providers: [] });
     getAdminApiKey.mockResolvedValue({ exists: false, masked_key: "" });
     getOverloadCooldownSettings.mockResolvedValue({});
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
+    });
     getQualityHardCloseSettings.mockResolvedValue({
       enabled: false,
       max_p50_ttft_ms: 3000,
@@ -1422,6 +1453,8 @@ describe("admin SettingsView quality hard-close card", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
+    updateOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     updateQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
@@ -1451,6 +1484,9 @@ describe("admin SettingsView quality hard-close card", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
     });
     getQualityHardCloseSettings.mockResolvedValue({
       enabled: false,
@@ -1547,6 +1583,126 @@ describe("admin SettingsView quality hard-close card", () => {
   });
 });
 
+describe("admin SettingsView oauth fleet soft 429 card", () => {
+  beforeEach(() => {
+    getSettings.mockReset();
+    updateSettings.mockReset();
+    getWebSearchEmulationConfig.mockReset();
+    getAdminApiKey.mockReset();
+    getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
+    updateOAuthFleetSoft429Settings.mockReset();
+    getQualityHardCloseSettings.mockReset();
+    updateQualityHardCloseSettings.mockReset();
+    getStreamTimeoutSettings.mockReset();
+    getRectifierSettings.mockReset();
+    getBetaPolicySettings.mockReset();
+    getGroups.mockReset();
+    listProxies.mockReset();
+    getProviders.mockReset();
+    fetchPublicSettings.mockReset();
+    adminSettingsFetch.mockReset();
+    showError.mockReset();
+    showSuccess.mockReset();
+
+    getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    updateSettings.mockImplementation(async (payload) => ({
+      ...baseSettingsResponse,
+      ...payload,
+    }));
+    getWebSearchEmulationConfig.mockResolvedValue({
+      enabled: false,
+      providers: [],
+    });
+    getAdminApiKey.mockResolvedValue({ exists: false, masked_key: "" });
+    getOverloadCooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+    });
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
+    });
+    updateOAuthFleetSoft429Settings.mockResolvedValue({
+      enabled: true,
+      ttl_seconds: 30,
+      long_reset_policy: "soft",
+      long_reset_threshold_seconds: 60,
+      scope: "all_oauth",
+      platforms: ["anthropic", "openai", "gemini", "antigravity", "grok"],
+      include_setup_token: true,
+      soft_status_codes: [429],
+      soft_body_codes: ["rate_limit_exceeded"],
+      hard_body_codes: ["usage_limit_reached"],
+    });
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
+    getStreamTimeoutSettings.mockResolvedValue({
+      enabled: true,
+      action: "temp_unsched",
+      temp_unsched_minutes: 5,
+      threshold_count: 3,
+      threshold_window_minutes: 10,
+    });
+    getRectifierSettings.mockResolvedValue({
+      enabled: true,
+      thinking_signature_enabled: true,
+      thinking_budget_enabled: true,
+      apikey_signature_enabled: false,
+      apikey_signature_patterns: [],
+    });
+    getBetaPolicySettings.mockResolvedValue({ rules: [] });
+    getGroups.mockResolvedValue([]);
+    listProxies.mockResolvedValue({ items: [] });
+    getProviders.mockResolvedValue({ data: [] });
+    fetchPublicSettings.mockResolvedValue({});
+    adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("saves oauth fleet settings from the card only", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const card = wrapper.get('[data-test="oauth-fleet-soft-429-card"]');
+    expect(card.text()).toContain("admin.settings.oauthFleetSoft429.title");
+    const toggles = card.findAll(".toggle-stub");
+    expect(toggles.length).toBeGreaterThanOrEqual(1);
+    await toggles[0].setValue(true);
+    await flushPromises();
+    await wrapper.get('[data-test="oauth-fleet-soft-429-ttl"]').setValue("30");
+    await wrapper.get('[data-test="oauth-fleet-soft-429-save"]').trigger("click");
+    await flushPromises();
+
+    expect(updateOAuthFleetSoft429Settings).toHaveBeenCalledTimes(1);
+    expect(updateOAuthFleetSoft429Settings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        ttl_seconds: 30,
+        long_reset_policy: "soft",
+        soft_status_codes: [429],
+      }),
+    );
+    expect(updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("does not write oauth fleet from the page-level save", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateOAuthFleetSoft429Settings).not.toHaveBeenCalled();
+  });
+});
+
 describe("admin SettingsView schedule error whitelist", () => {
   beforeEach(() => {
     getSettings.mockReset();
@@ -1554,6 +1710,7 @@ describe("admin SettingsView schedule error whitelist", () => {
     getWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getScheduleErrorWhitelist.mockReset();
     updateScheduleErrorWhitelist.mockReset();
@@ -1577,6 +1734,9 @@ describe("admin SettingsView schedule error whitelist", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getOAuthFleetSoft429Settings.mockResolvedValue({
+      ...defaultOAuthFleetSoft429Settings,
     });
     getQualityHardCloseSettings.mockResolvedValue({
       enabled: false,

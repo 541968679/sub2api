@@ -989,6 +989,43 @@ describe('EditAccountModal', () => {
     ])
   })
 
+  it('writes oauth fleet extra as inherit / force-on / force-off', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { preserved_setting: 'keep-me', oauth_fleet_soft_429: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const override = wrapper.get('[data-testid="oauth-fleet-soft-429-override"]')
+    expect(override.exists()).toBe(true)
+    const mode = wrapper.get<HTMLSelectElement>('[data-testid="oauth-fleet-soft-429-mode"]')
+    expect(mode.element.value).toBe('enabled')
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      preserved_setting: 'keep-me',
+      oauth_fleet_soft_429: true
+    })
+
+    await mode.setValue('disabled')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.oauth_fleet_soft_429).toBe(false)
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.preserved_setting).toBe('keep-me')
+
+    await mode.setValue('inherit')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[2]?.[1]?.extra?.oauth_fleet_soft_429).toBeUndefined()
+    expect(updateAccountMock.mock.calls[2]?.[1]?.extra?.preserved_setting).toBe('keep-me')
+  })
+
+  it('hides oauth fleet override on API Key accounts', () => {
+    const wrapper = mountModal(buildAccount())
+    expect(wrapper.find('[data-testid="oauth-fleet-soft-429-override"]').exists()).toBe(false)
+  })
+
   it('saves New API wallet credentials and can keep or clear the token', async () => {
     const account = buildAccount()
     account.credentials = {

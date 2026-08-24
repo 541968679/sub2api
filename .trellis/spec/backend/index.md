@@ -28,6 +28,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [User Quality Last-N](./user-quality-last-n.md) | last-N \(Q_u\) (per-user N or inherit site N; this user all accounts) + user history API | Active |
 | [Account Quality Hard Close](./account-quality-hard-close.md) | Opt-in last-N pause via TempUnschedulableUntil (same stats as the grid) | Active |
 | [Pool Mode Hard-Error Eviction](./pool-mode-hard-eviction.md) | Opt-in SetError for pool-mode billing/tenant-dead errors; default off | Active |
+| [OAuth Fleet Soft 429](./oauth-fleet-soft-429.md) | OAuth blip 429 = request failover + Redis exclude; empty KV = off; never `IsPoolMode()` | Active |
 | [Schedule PnL](./schedule-pnl.md) | `true_cost` ingest + admin this-user×this-account schedule profit APIs | Active |
 
 ---

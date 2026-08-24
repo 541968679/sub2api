@@ -368,6 +368,15 @@ const (
 	// SettingKeyOverloadCooldownSettings stores JSON config for 529 overload cooldown handling.
 	SettingKeyOverloadCooldownSettings = "overload_cooldown_settings"
 
+	// SettingKeyOAuthFleetSoft429Settings stores JSON config for OAuth fleet
+	// soft-429 request exclude + short Redis memory. Default Enabled=false
+	// (empty/missing KV = policy OFF). Do not copy 529's empty-KV=on default.
+	SettingKeyOAuthFleetSoft429Settings = "oauth_fleet_soft_429_settings"
+
+	// AccountExtraOAuthFleetSoft429 is the account extra tri-state override
+	// (true / false / unset). Must live in extra, not credentials.
+	AccountExtraOAuthFleetSoft429 = "oauth_fleet_soft_429"
+
 	// SettingKeyQualityHardCloseSettings stores JSON config for opt-in account
 	// quality hard-close (temp unschedulable). Default is fully off.
 	SettingKeyQualityHardCloseSettings = "quality_hard_close_settings"

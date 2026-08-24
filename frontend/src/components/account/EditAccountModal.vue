@@ -285,6 +285,25 @@
         </div>
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyInfo') }}</p>
       </div>
+      <div
+        v-if="account?.type === 'oauth' || account?.type === 'setup-token'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        data-testid="oauth-fleet-soft-429-override"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.oauthFleetSoft429.label') }}</label>
+            <p class="input-hint mb-0">{{ t('admin.accounts.oauthFleetSoft429.hint') }}</p>
+          </div>
+          <div class="w-44">
+            <Select
+              v-model="oauthFleetSoft429Mode"
+              :options="oauthFleetSoft429Options"
+              data-testid="oauth-fleet-soft-429-mode"
+            />
+          </div>
+        </div>
+      </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div>
           <label class="input-label">{{ t('common.status') }}</label>
@@ -3247,6 +3266,8 @@ const codexCLIOnlyEnabled = ref(false)
 const codexCLIOnlyAllowAppServer = ref(false)
 type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
 const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
+type OAuthFleetSoft429Mode = 'inherit' | 'enabled' | 'disabled'
+const oauthFleetSoft429Mode = ref<OAuthFleetSoft429Mode>('inherit')
 const anthropicPassthroughEnabled = ref(false)
 const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>('x_api_key')
 const webSearchEmulationMode = ref('default')
@@ -3334,6 +3355,11 @@ const codexImageGenerationBridgeOptions = computed(() => [
   { value: 'inherit', label: t('admin.accounts.openai.codexImageGenerationBridgeInherit') },
   { value: 'enabled', label: t('admin.accounts.openai.codexImageGenerationBridgeEnabled') },
   { value: 'disabled', label: t('admin.accounts.openai.codexImageGenerationBridgeDisabled') }
+])
+const oauthFleetSoft429Options = computed(() => [
+  { value: 'inherit', label: t('admin.accounts.oauthFleetSoft429.inherit') },
+  { value: 'enabled', label: t('admin.accounts.oauthFleetSoft429.forceOn') },
+  { value: 'disabled', label: t('admin.accounts.oauthFleetSoft429.forceOff') }
 ])
 const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
   { value: 'chat_completions', label: t('admin.accounts.openai.capabilityChatCompletions') },
@@ -3905,6 +3931,13 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   allowOverages.value = false
   const extra = newAccount.extra as Record<string, unknown> | undefined
   fallbackOnly.value = newAccount.fallback_only === true || extra?.fallback_only === true
+  if (extra?.oauth_fleet_soft_429 === true) {
+    oauthFleetSoft429Mode.value = 'enabled'
+  } else if (extra?.oauth_fleet_soft_429 === false) {
+    oauthFleetSoft429Mode.value = 'disabled'
+  } else {
+    oauthFleetSoft429Mode.value = 'inherit'
+  }
   mixedScheduling.value = extra?.mixed_scheduling === true
   allowOverages.value = extra?.allow_overages === true
   autoPause5hThreshold.value = typeof extra?.auto_pause_5h_threshold === 'number' ? extra.auto_pause_5h_threshold * 100 : null
@@ -5429,6 +5462,20 @@ const handleSubmit = async () => {
         newExtra.fallback_only = true
       } else {
         delete newExtra.fallback_only
+      }
+      updatePayload.extra = newExtra
+    }
+
+    if (props.account.type === 'oauth' || props.account.type === 'setup-token') {
+      const currentExtra =
+        (updatePayload.extra as Record<string, unknown>) ||
+        (props.account.extra as Record<string, unknown>) ||
+        {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      if (oauthFleetSoft429Mode.value === 'inherit') {
+        delete newExtra.oauth_fleet_soft_429
+      } else {
+        newExtra.oauth_fleet_soft_429 = oauthFleetSoft429Mode.value === 'enabled'
       }
       updatePayload.extra = newExtra
     }

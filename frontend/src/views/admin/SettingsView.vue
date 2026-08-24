@@ -291,6 +291,282 @@
             </div>
           </div>
 
+          <!-- OAuth Fleet Soft 429 -->
+          <div class="card" data-test="oauth-fleet-soft-429-card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.oauthFleetSoft429.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.oauthFleetSoft429.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="oauthFleetSoft429Loading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.oauthFleetSoft429.enabled")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.oauthFleetSoft429.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="oauthFleetSoft429Form.enabled" />
+                </div>
+
+                <div
+                  v-if="oauthFleetSoft429Form.enabled"
+                  class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.ttlSeconds") }}
+                    </label>
+                    <input
+                      v-model.number="oauthFleetSoft429Form.ttl_seconds"
+                      type="number"
+                      min="5"
+                      max="300"
+                      class="input w-32"
+                      data-test="oauth-fleet-soft-429-ttl"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.oauthFleetSoft429.ttlSecondsHint") }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.longResetPolicy") }}
+                    </label>
+                    <select
+                      v-model="oauthFleetSoft429Form.long_reset_policy"
+                      class="input w-64"
+                      data-test="oauth-fleet-soft-429-long-reset"
+                    >
+                      <option value="soft">
+                        {{ t("admin.settings.oauthFleetSoft429.longResetSoft") }}
+                      </option>
+                      <option value="hard">
+                        {{ t("admin.settings.oauthFleetSoft429.longResetHard") }}
+                      </option>
+                      <option value="threshold">
+                        {{
+                          t("admin.settings.oauthFleetSoft429.longResetThreshold")
+                        }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div
+                    v-if="oauthFleetSoft429Form.long_reset_policy === 'threshold'"
+                  >
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.oauthFleetSoft429.longResetThresholdSeconds",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        oauthFleetSoft429Form.long_reset_threshold_seconds
+                      "
+                      type="number"
+                      min="5"
+                      max="86400"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.oauthFleetSoft429.longResetThresholdHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.scope") }}
+                    </label>
+                    <select
+                      v-model="oauthFleetSoft429Form.scope"
+                      class="input w-64"
+                    >
+                      <option value="all_oauth">
+                        {{ t("admin.settings.oauthFleetSoft429.scopeAllOAuth") }}
+                      </option>
+                      <option value="opt_in">
+                        {{ t("admin.settings.oauthFleetSoft429.scopeOptIn") }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div v-if="oauthFleetSoft429Form.scope === 'opt_in'">
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.platforms") }}
+                    </label>
+                    <div class="flex flex-wrap gap-3">
+                      <label
+                        v-for="platform in oauthFleetSoft429PlatformOptions"
+                        :key="platform"
+                        class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="
+                            oauthFleetSoft429Form.platforms.includes(platform)
+                          "
+                          @change="
+                            toggleOAuthFleetSoft429Platform(
+                              platform,
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+                        {{ platform }}
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <label class="font-medium text-gray-900 dark:text-white">{{
+                        t("admin.settings.oauthFleetSoft429.includeSetupToken")
+                      }}</label>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{
+                          t(
+                            "admin.settings.oauthFleetSoft429.includeSetupTokenHint",
+                          )
+                        }}
+                      </p>
+                    </div>
+                    <Toggle v-model="oauthFleetSoft429Form.include_setup_token" />
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.softBodyCodes") }}
+                    </label>
+                    <div
+                      v-for="(_, index) in oauthFleetSoft429Form.soft_body_codes"
+                      :key="'soft-' + index"
+                      class="mb-2 flex items-center gap-2"
+                    >
+                      <input
+                        v-model="oauthFleetSoft429Form.soft_body_codes[index]"
+                        type="text"
+                        class="input input-sm flex-1"
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs text-red-500"
+                        @click="
+                          oauthFleetSoft429Form.soft_body_codes.splice(index, 1)
+                        "
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs text-primary-600"
+                      @click="oauthFleetSoft429Form.soft_body_codes.push('')"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.oauthFleetSoft429.hardBodyCodes") }}
+                    </label>
+                    <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.oauthFleetSoft429.codesHint") }}
+                    </p>
+                    <div
+                      v-for="(_, index) in oauthFleetSoft429Form.hard_body_codes"
+                      :key="'hard-' + index"
+                      class="mb-2 flex items-center gap-2"
+                    >
+                      <input
+                        v-model="oauthFleetSoft429Form.hard_body_codes[index]"
+                        type="text"
+                        class="input input-sm flex-1"
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs text-red-500"
+                        @click="
+                          oauthFleetSoft429Form.hard_body_codes.splice(index, 1)
+                        "
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs text-primary-600"
+                      @click="oauthFleetSoft429Form.hard_body_codes.push('')"
+                    >
+                      +
+                    </button>
+                    <p class="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                      {{ t("admin.settings.oauthFleetSoft429.invariantHint") }}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    data-test="oauth-fleet-soft-429-save"
+                    :disabled="oauthFleetSoft429Saving"
+                    class="btn btn-primary btn-sm"
+                    @click="saveOAuthFleetSoft429Settings"
+                  >
+                    {{
+                      oauthFleetSoft429Saving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Quality Hard Close Settings -->
           <div class="card" data-test="quality-hard-close-card">
             <div
@@ -6555,6 +6831,33 @@ const overloadCooldownForm = reactive({
   cooldown_minutes: 10,
 });
 
+const oauthFleetSoft429Loading = ref(true);
+const oauthFleetSoft429Saving = ref(false);
+const oauthFleetSoft429PlatformOptions = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "antigravity",
+  "grok",
+] as const;
+const oauthFleetSoft429Form = reactive({
+  enabled: false,
+  ttl_seconds: 20,
+  long_reset_policy: "soft" as "soft" | "hard" | "threshold",
+  long_reset_threshold_seconds: 60,
+  scope: "all_oauth" as "all_oauth" | "opt_in",
+  platforms: [...oauthFleetSoft429PlatformOptions] as string[],
+  include_setup_token: true,
+  soft_status_codes: [429],
+  soft_body_codes: ["rate_limit_exceeded"],
+  hard_body_codes: [
+    "insufficient_quota",
+    "usage_limit_exceeded",
+    "usage_limit_reached",
+    "api_key_quota_exhausted",
+  ],
+});
+
 const qualityHardCloseLoading = ref(true);
 const qualityHardCloseSaving = ref(false);
 const qualityHardCloseForm = reactive({
@@ -8329,6 +8632,75 @@ async function saveOverloadCooldownSettings() {
   }
 }
 
+async function loadOAuthFleetSoft429Settings() {
+  oauthFleetSoft429Loading.value = true;
+  try {
+    const settings = await adminAPI.settings.getOAuthFleetSoft429Settings();
+    Object.assign(oauthFleetSoft429Form, {
+      ...settings,
+      platforms: Array.isArray(settings.platforms)
+        ? [...settings.platforms]
+        : [...oauthFleetSoft429PlatformOptions],
+      soft_body_codes: Array.isArray(settings.soft_body_codes)
+        ? [...settings.soft_body_codes]
+        : ["rate_limit_exceeded"],
+      hard_body_codes: Array.isArray(settings.hard_body_codes)
+        ? [...settings.hard_body_codes]
+        : [],
+      soft_status_codes: [429],
+    });
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults (policy off)
+  } finally {
+    oauthFleetSoft429Loading.value = false;
+  }
+}
+
+function toggleOAuthFleetSoft429Platform(platform: string, checked: boolean) {
+  const current = oauthFleetSoft429Form.platforms;
+  if (checked && !current.includes(platform)) {
+    current.push(platform);
+    return;
+  }
+  if (!checked) {
+    oauthFleetSoft429Form.platforms = current.filter((item) => item !== platform);
+  }
+}
+
+async function saveOAuthFleetSoft429Settings() {
+  oauthFleetSoft429Saving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateOAuthFleetSoft429Settings({
+      enabled: oauthFleetSoft429Form.enabled,
+      ttl_seconds: oauthFleetSoft429Form.ttl_seconds,
+      long_reset_policy: oauthFleetSoft429Form.long_reset_policy,
+      long_reset_threshold_seconds:
+        oauthFleetSoft429Form.long_reset_threshold_seconds,
+      scope: oauthFleetSoft429Form.scope,
+      platforms: [...oauthFleetSoft429Form.platforms],
+      include_setup_token: oauthFleetSoft429Form.include_setup_token,
+      soft_status_codes: [429],
+      soft_body_codes: oauthFleetSoft429Form.soft_body_codes
+        .map((item) => item.trim())
+        .filter(Boolean),
+      hard_body_codes: oauthFleetSoft429Form.hard_body_codes
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+    Object.assign(oauthFleetSoft429Form, updated);
+    appStore.showSuccess(t("admin.settings.oauthFleetSoft429.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.oauthFleetSoft429.saveFailed"),
+      ),
+    );
+  } finally {
+    oauthFleetSoft429Saving.value = false;
+  }
+}
+
 async function loadQualityHardCloseSettings() {
   qualityHardCloseLoading.value = true;
   try {
@@ -9022,6 +9394,7 @@ onMounted(() => {
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadOverloadCooldownSettings();
+  loadOAuthFleetSoft429Settings();
   loadQualityHardCloseSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();

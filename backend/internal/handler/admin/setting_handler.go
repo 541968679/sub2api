@@ -3050,6 +3050,82 @@ func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 	})
 }
 
+func oauthFleetSoft429SettingsDTO(settings *service.OAuthFleetSoft429Settings) dto.OAuthFleetSoft429Settings {
+	if settings == nil {
+		settings = service.DefaultOAuthFleetSoft429Settings()
+	}
+	return dto.OAuthFleetSoft429Settings{
+		Enabled:                   settings.Enabled,
+		TTLSeconds:                settings.TTLSeconds,
+		LongResetPolicy:           settings.LongResetPolicy,
+		LongResetThresholdSeconds: settings.LongResetThresholdSeconds,
+		Scope:                     settings.Scope,
+		Platforms:                 settings.Platforms,
+		IncludeSetupToken:         settings.IncludeSetupToken,
+		SoftStatusCodes:           settings.SoftStatusCodes,
+		SoftBodyCodes:             settings.SoftBodyCodes,
+		HardBodyCodes:             settings.HardBodyCodes,
+	}
+}
+
+// GetOAuthFleetSoft429Settings 获取 OAuth fleet 软 429 配置
+// GET /api/v1/admin/settings/oauth-fleet-soft-429
+func (h *SettingHandler) GetOAuthFleetSoft429Settings(c *gin.Context) {
+	settings, err := h.settingService.GetOAuthFleetSoft429Settings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, oauthFleetSoft429SettingsDTO(settings))
+}
+
+type UpdateOAuthFleetSoft429SettingsRequest struct {
+	Enabled                   bool     `json:"enabled"`
+	TTLSeconds                int      `json:"ttl_seconds"`
+	LongResetPolicy           string   `json:"long_reset_policy"`
+	LongResetThresholdSeconds int      `json:"long_reset_threshold_seconds"`
+	Scope                     string   `json:"scope"`
+	Platforms                 []string `json:"platforms"`
+	IncludeSetupToken         bool     `json:"include_setup_token"`
+	SoftStatusCodes           []int    `json:"soft_status_codes"`
+	SoftBodyCodes             []string `json:"soft_body_codes"`
+	HardBodyCodes             []string `json:"hard_body_codes"`
+}
+
+// UpdateOAuthFleetSoft429Settings 更新 OAuth fleet 软 429 配置
+// PUT /api/v1/admin/settings/oauth-fleet-soft-429
+func (h *SettingHandler) UpdateOAuthFleetSoft429Settings(c *gin.Context) {
+	var req UpdateOAuthFleetSoft429SettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.OAuthFleetSoft429Settings{
+		Enabled:                   req.Enabled,
+		TTLSeconds:                req.TTLSeconds,
+		LongResetPolicy:           req.LongResetPolicy,
+		LongResetThresholdSeconds: req.LongResetThresholdSeconds,
+		Scope:                     req.Scope,
+		Platforms:                 req.Platforms,
+		IncludeSetupToken:         req.IncludeSetupToken,
+		SoftStatusCodes:           req.SoftStatusCodes,
+		SoftBodyCodes:             req.SoftBodyCodes,
+		HardBodyCodes:             req.HardBodyCodes,
+	}
+	if err := h.settingService.SetOAuthFleetSoft429Settings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updated, err := h.settingService.GetOAuthFleetSoft429Settings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, oauthFleetSoft429SettingsDTO(updated))
+}
+
 func qualityHardCloseSettingsDTO(settings *service.QualityHardCloseSettings) dto.QualityHardCloseSettings {
 	if settings == nil {
 		settings = service.DefaultQualityHardCloseSettings()

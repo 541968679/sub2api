@@ -488,6 +488,54 @@ func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	}
 }
 
+const (
+	OAuthFleetSoft429LongResetSoft      = "soft"
+	OAuthFleetSoft429LongResetHard      = "hard"
+	OAuthFleetSoft429LongResetThreshold = "threshold"
+	OAuthFleetSoft429ScopeAllOAuth      = "all_oauth"
+	OAuthFleetSoft429ScopeOptIn         = "opt_in"
+
+	oauthFleetSoft429DefaultTTLSeconds       = 20
+	oauthFleetSoft429MinTTLSeconds           = 5
+	oauthFleetSoft429MaxTTLSeconds           = 300
+	oauthFleetSoft429DefaultThresholdSeconds = 60
+	oauthFleetSoft429MinThresholdSeconds     = 5
+	oauthFleetSoft429MaxThresholdSeconds     = 86400
+	oauthFleetSoft429MaxBodyCodes            = 32
+)
+
+// OAuthFleetSoft429Settings is the admin-configurable OAuth fleet soft-429 policy.
+// Empty/missing KV falls back to DefaultOAuthFleetSoft429Settings (Enabled=false).
+type OAuthFleetSoft429Settings struct {
+	Enabled                    bool     `json:"enabled"`
+	TTLSeconds                 int      `json:"ttl_seconds"`
+	LongResetPolicy            string   `json:"long_reset_policy"`
+	LongResetThresholdSeconds  int      `json:"long_reset_threshold_seconds"`
+	Scope                      string   `json:"scope"`
+	Platforms                  []string `json:"platforms"`
+	IncludeSetupToken          bool     `json:"include_setup_token"`
+	SoftStatusCodes            []int    `json:"soft_status_codes"`
+	SoftBodyCodes              []string `json:"soft_body_codes"`
+	HardBodyCodes              []string `json:"hard_body_codes"`
+}
+
+// DefaultOAuthFleetSoft429Settings returns factory defaults. Enabled is false:
+// empty/missing Settings KV means the policy is OFF (unlike 529 overload cooldown).
+func DefaultOAuthFleetSoft429Settings() *OAuthFleetSoft429Settings {
+	return &OAuthFleetSoft429Settings{
+		Enabled:                   false,
+		TTLSeconds:                oauthFleetSoft429DefaultTTLSeconds,
+		LongResetPolicy:           OAuthFleetSoft429LongResetSoft,
+		LongResetThresholdSeconds: oauthFleetSoft429DefaultThresholdSeconds,
+		Scope:                     OAuthFleetSoft429ScopeAllOAuth,
+		Platforms:                 append([]string(nil), oauthFleetSoft429DefaultPlatforms...),
+		IncludeSetupToken:         true,
+		SoftStatusCodes:           []int{429},
+		SoftBodyCodes:             []string{"rate_limit_exceeded"},
+		HardBodyCodes:             append([]string(nil), oauthFleetSoft429DefaultHardBodyCodes...),
+	}
+}
+
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置
 func DefaultBetaPolicySettings() *BetaPolicySettings {
 	return &BetaPolicySettings{
