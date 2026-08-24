@@ -5220,6 +5220,13 @@ const enBase = {
         'When enabled, this account is selected only if every other schedulable peer is unavailable',
       fallbackOnlyInfo:
         'Unlike soft priority weights, a fallback-only account is never load-balanced while any non-fallback candidate remains. Use for spare or high-cost upstreams.',
+      oauthFleetSoft429: {
+        label: 'OAuth soft 429',
+        hint: 'Inherit global, force on (canary even when global is off), or force off (current handle429).',
+        inherit: 'Inherit global',
+        forceOn: 'Force on',
+        forceOff: 'Force off'
+      },
       billingRateMultiplier: 'Billing Rate Multiplier',
       billingRateMultiplierHint: '0 = free, affects account billing only',
       upstreamRateMultiplier: 'Upstream Rate',
@@ -7332,7 +7339,7 @@ const enBase = {
           title: 'OpenAI long-context billing',
           description: 'Session-level long-context surcharge for GPT-5.4 / 5.5 / 5.6. On by default, matching current billing.',
           enabled: 'Enable OpenAI long-context surcharge',
-          enabledHint: 'When on, a session with Input + CacheRead strictly above 272000 bills input/cache at 2.0脳 and output at 1.5脳. When off, base unit prices apply and usage logs keep long_context_applied=false. Channel interval pricing still disables this surcharge on its own. Gemini 200K excess-only doubling is unchanged.',
+          enabledHint: 'When on, a session with Input + CacheRead strictly above 272000 bills input/cache at 2.0× and output at 1.5×. When off, base unit prices apply and usage logs keep long_context_applied=false. Channel interval pricing still disables this surcharge on its own. Gemini 200K excess-only doubling is unchanged.',
         },
         riskControl: {
           title: 'Risk Control',
@@ -8121,6 +8128,33 @@ const enBase = {
         cooldownMinutesHint: 'Duration to pause account scheduling (1-120 minutes)',
         saved: 'Overload cooldown settings saved',
         saveFailed: 'Failed to save overload cooldown settings'
+      },
+      oauthFleetSoft429: {
+        title: 'OAuth fleet soft 429',
+        description:
+          'Treat blip 429s as this-request failover plus a short Redis exclude, without taking the account out of the global pool. Factory default is off; empty KV stays off.',
+        enabled: 'Enable OAuth soft 429',
+        enabledHint: 'Off by default. Empty Settings KV is also off. Turn this on for uncovered OAuth accounts.',
+        ttlSeconds: 'Soft-exclude TTL (seconds)',
+        ttlSecondsHint: 'How long new requests avoid the account after a soft 429. Range 5–300, default 20.',
+        longResetPolicy: 'Long reset with no hard signal',
+        longResetSoft: 'Always treat as soft',
+        longResetHard: 'Persist whenever a reset can be parsed',
+        longResetThreshold: 'Persist only when reset exceeds threshold',
+        longResetThresholdSeconds: 'Long-reset threshold (seconds)',
+        longResetThresholdHint: 'Used only for the threshold policy. Range 5–86400.',
+        scope: 'Scope',
+        scopeAllOAuth: 'All OAuth (setup-token still follows the toggle below)',
+        scopeOptIn: 'Selected platforms only',
+        platforms: 'Platforms',
+        includeSetupToken: 'Include setup-token accounts',
+        includeSetupTokenHint: 'When off, setup-token inherits current handle429 unless forced on.',
+        softBodyCodes: 'Soft body codes',
+        hardBodyCodes: 'Hard body codes',
+        codesHint: 'Case-insensitive. Hard wins if a code is in both lists.',
+        invariantHint: 'Window 100% / quota death / OAuth 401 stay hard. Soft codes cannot override them.',
+        saved: 'OAuth soft 429 settings saved',
+        saveFailed: 'Failed to save OAuth soft 429 settings'
       },
       qualityHardClose: {
         title: 'Quality hard-close',

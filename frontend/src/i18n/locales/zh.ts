@@ -4960,6 +4960,13 @@ const zhBase = {
       fallbackOnlyHint: '开启后，仅当同分组内其他可调度账号都不可用时才会选中本账号',
       fallbackOnlyInfo:
         '与优先级软权重不同：兜底账号在存在任何「非兜底」候选时都不会被负载均衡选中。适合备用中转/高成本渠道。',
+      oauthFleetSoft429: {
+        label: 'OAuth 软 429',
+        hint: '继承全局 / 强制开（全局关时也可金丝雀）/ 强制关（走现网 handle429）',
+        inherit: '继承全局',
+        forceOn: '强制开',
+        forceOff: '强制关'
+      },
       billingRateMultiplier: '账号计费倍率',
       billingRateMultiplierHint: '0 表示不计费，仅影响账号计费',
       upstreamRateMultiplier: '上游倍率',
@@ -7764,6 +7771,33 @@ const zhBase = {
         cooldownMinutesHint: '账号暂停调度的持续时间（1-120 分钟）',
         saved: '过载冷却设置保存成功',
         saveFailed: '保存过载冷却设置失败'
+      },
+      oauthFleetSoft429: {
+        title: 'OAuth 车队软 429',
+        description:
+          '瞬时 429 只换本请求的号并记短 Redis 排除，不要立刻把整号打出调度池。出厂关闭，空配置等于关。',
+        enabled: '启用 OAuth 软 429',
+        enabledHint: '出厂关闭；空 Settings KV 也是关。打开后才对未覆盖的 OAuth 号生效。',
+        ttlSeconds: '软排除时长（秒）',
+        ttlSecondsHint: '跨请求避开刚 429 的号，范围 5–300 秒，默认 20。',
+        longResetPolicy: '长 reset 无硬信号时',
+        longResetSoft: '一律当软 429',
+        longResetHard: '能解析 reset 就整号出池',
+        longResetThreshold: '超过阈值才整号出池',
+        longResetThresholdSeconds: '长 reset 阈值（秒）',
+        longResetThresholdHint: '仅阈值策略使用，范围 5–86400。',
+        scope: '生效范围',
+        scopeAllOAuth: '全部 OAuth（含 setup-token，受下方开关约束）',
+        scopeOptIn: '仅勾选的平台',
+        platforms: '平台',
+        includeSetupToken: '包含 setup-token',
+        includeSetupTokenHint: '关闭后 setup-token 默认走现网 handle429，除非账号强制开。',
+        softBodyCodes: '软 body 码',
+        hardBodyCodes: '硬 body 码',
+        codesHint: '大小写不敏感。同一码同时在软/硬表时硬优先。',
+        invariantHint: '窗口 100% / quota 死亡 / OAuth 401 永远硬，软码表改不掉。',
+        saved: 'OAuth 软 429 设置保存成功',
+        saveFailed: '保存 OAuth 软 429 设置失败'
       },
       qualityHardClose: {
         title: '质量硬关闭',
