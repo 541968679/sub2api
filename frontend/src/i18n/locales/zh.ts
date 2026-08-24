@@ -5004,6 +5004,17 @@ const zhBase = {
       bedrockApiKeyLeaveEmpty: '留空以保持当前密钥',
       apiKeyIsRequired: 'API Key 是必需的',
       leaveEmptyToKeep: '留空以保持当前密钥',
+      newapiWallet: {
+        title: 'New API 用户钱包',
+        hint: '无限令牌读不到剩余时，填系统访问令牌和用户 id，探测会优先读 /api/user/self 钱包。仅展示，不改扣费。',
+        userId: 'New API 用户 ID',
+        userIdPlaceholder: '例如 952',
+        accessToken: '系统访问令牌',
+        accessTokenPlaceholder: '个人中心生成的访问令牌，不是 sk-',
+        accessTokenKeep: '已保存，留空不改',
+        clear: '清除钱包凭据',
+        clearHint: '清除后这张号回到令牌额度探测。'
+      },
       // Upstream type
       upstream: {
         baseUrl: '上游 Base URL',

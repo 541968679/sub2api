@@ -84,6 +84,13 @@
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
+        <NewAPIWalletFields
+          v-if="isNewAPIWalletEligible(account.platform, account.type)"
+          v-model:user-id="editNewAPIWalletUserId"
+          v-model:access-token="editNewAPIWalletAccessToken"
+          :has-saved-token="editNewAPIWalletHasSavedToken"
+          @clear="clearNewAPIWalletFields"
+        />
       </div>
       <!-- Upstream fields (only for upstream type) -->
       <div v-if="account.type === 'upstream'" class="space-y-4">
@@ -3004,9 +3011,14 @@ import {
   validateHeaderOverrideRows,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
+  applyNewAPIWalletCredentials,
+  hasNewAPIWalletToken,
+  isNewAPIWalletEligible,
+  readNewAPIWalletUserId,
   type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
+import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
 import {
@@ -3098,6 +3110,17 @@ const zone3Expanded = ref(true)
 const zoneScheduleExpanded = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
+const editNewAPIWalletUserId = ref('')
+const editNewAPIWalletAccessToken = ref('')
+const editNewAPIWalletHasSavedToken = ref(false)
+const editNewAPIWalletCleared = ref(false)
+
+const clearNewAPIWalletFields = () => {
+  editNewAPIWalletUserId.value = ''
+  editNewAPIWalletAccessToken.value = ''
+  editNewAPIWalletHasSavedToken.value = false
+  editNewAPIWalletCleared.value = true
+}
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -4095,6 +4118,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     headerOverrideRows.value = splitHeaderOverridesObject(
       credentials[HEADER_OVERRIDES_CREDENTIAL_KEY]
     )
+    editNewAPIWalletUserId.value = readNewAPIWalletUserId(credentials)
+    editNewAPIWalletAccessToken.value = ''
+    editNewAPIWalletHasSavedToken.value = hasNewAPIWalletToken(credentials)
+    editNewAPIWalletCleared.value = false
   } else if (newAccount.type === 'bedrock' && newAccount.credentials) {
     const bedrockCreds = newAccount.credentials as Record<string, unknown>
     const authMode = (bedrockCreds.auth_mode as string) || 'sigv4'
@@ -4159,6 +4186,12 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     selectedErrorCodes.value = []
   }
   editApiKey.value = ''
+  if (!(newAccount.type === 'apikey' && newAccount.credentials)) {
+    editNewAPIWalletUserId.value = ''
+    editNewAPIWalletAccessToken.value = ''
+    editNewAPIWalletHasSavedToken.value = false
+    editNewAPIWalletCleared.value = false
+  }
 
   // After flags + group_ids are hydrated, drop invalid bridge-only groups.
   // Must run here (not only in watchers) so same-platform account switches still clean up.
@@ -4917,6 +4950,17 @@ const handleSubmit = async () => {
 
       // Add intercept warmup requests setting
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
+      if (isNewAPIWalletEligible(props.account.platform, props.account.type)) {
+        applyNewAPIWalletCredentials(
+          newCredentials,
+          {
+            userId: editNewAPIWalletUserId.value,
+            accessToken: editNewAPIWalletAccessToken.value,
+            clear: editNewAPIWalletCleared.value
+          },
+          currentCredentials
+        )
+      }
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }

@@ -198,17 +198,23 @@ account `base_url` (not Console session cookies):
 ```
 GET /admin/accounts/:id/usage
   -> getAPIKeyBalanceUsage
-  -> ProbeUpstreamBalance (third-party host order)
+  -> ProbeUpstreamBalance
+       0) {origin}/api/user/self when credentials.newapi_access_token + newapi_user_id are set
+            quota / quota_per_unit → remaining USD; used_quota / unit → used; source=newapi_user_self; unlimited=false
+            Bearer is the system access token (not sk-); header New-Api-User must match data.id
        1) {base}/v1/usage → balance|remaining (Sub2API / ZeroCode)
        2) {origin}/api/usage/token → New API token_usage (token-bits / one-api)
             total_available / quota_per_unit → USD; unlimited_quota → balance_unlimited
        3) {base}/v1/dashboard/billing/credit_grants → total_available
        4) subscription + usage → hard_limit_usd - total_usage/100
+            do not treat the unlimited-token fake $100000000 as the wallet
   -> burn_samples ring in account.extra + ComputeBurnRate
 ```
 
+Wallet step 0 is display-only. Empty access-token input on edit keeps the saved secret; clearing deletes both keys and returns to token-quota probing. Lite list never includes the access token. Failures keep a short error (no token) and fall back to steps 1–4.
+
 `origin` strips trailing `/v1` from account `base_url` so New API routes are not nested under `/v1`.
-Official `api.openai.com` / `api.anthropic.com` try OpenAI-shape billing first.
+Official `api.openai.com` / `api.anthropic.com` try OpenAI-shape billing first unless step 0 applies.
 
 Auth: OpenAI Bearer; Anthropic uses existing `x-api-key` / Bearer scheme.
 Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0|false|off`.

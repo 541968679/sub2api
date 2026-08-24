@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,11 @@ const (
 	balanceSourceSub2APIUsage = "sub2api_v1_usage"
 	// New API / one-api style: GET /api/usage/token with API key (Bearer sk-...).
 	balanceSourceNewAPITokenUsage = "newapi_usage_token"
+	// New API user wallet: GET /api/user/self with system access token + New-Api-User.
+	balanceSourceNewAPIUserSelf = "newapi_user_self"
+
+	credentialKeyNewAPIAccessToken = "newapi_access_token"
+	credentialKeyNewAPIUserID      = "newapi_user_id"
 
 	// Default New API quota unit: 500000 internal units == $1 USD (from /api/status.quota_per_unit).
 	defaultNewAPIQuotaPerUnit = 500000.0
@@ -145,13 +151,14 @@ func originFromBaseURL(baseURL string) string {
 
 // ProbeUpstreamBalance fetches prepaid-style balance via compatible billing APIs.
 //
-// Probe order for third-party / self-hosted:
+// Probe order:
+//  0. GET {origin}/api/user/self when credentials.newapi_access_token + newapi_user_id are set
 //  1. GET {base}/v1/usage  → balance / remaining (Sub2API / ZeroCode)
 //  2. GET {origin}/api/usage/token → New API token_usage (token-bits / one-api)
 //  3. GET {base}/v1/dashboard/billing/credit_grants
 //  4. subscription + usage (OpenAI-shape hard_limit - spent)
 //
-// Official OpenAI/Anthropic hosts skip steps 1–2 first.
+// Official OpenAI/Anthropic hosts skip steps 1–2 first unless step 0 applies.
 func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalanceResult {
 	now := time.Now().UTC()
 	result := UpstreamBalanceResult{FetchedAt: now}
@@ -200,6 +207,20 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		} else {
 			result.Error = probeErr
 		}
+	}
+
+	if accessToken, userID, ok := newAPIUserWalletCreds(account); ok {
+		bal, used, hasUsed, probeOK, probeErr := fetchNewAPIUserSelfBalance(ctx, client, account, accessToken, userID, baseURL)
+		if probeOK {
+			result.BalanceUSD = bal
+			result.UsedUSD = used
+			result.HasUsed = hasUsed
+			result.Unlimited = false
+			result.Source = balanceSourceNewAPIUserSelf
+			result.Error = ""
+			return result
+		}
+		appendErr(probeErr)
 	}
 
 	// 1–2) Third-party first: Sub2API then New API (credit_grants often 404 there).
@@ -276,6 +297,82 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		result.Error = "balance probe failed"
 	}
 	return result
+}
+
+func newAPIUserWalletCreds(account *Account) (token, userID string, ok bool) {
+	if account == nil {
+		return "", "", false
+	}
+	token = strings.TrimSpace(account.GetCredential(credentialKeyNewAPIAccessToken))
+	id := account.GetCredentialAsInt64(credentialKeyNewAPIUserID)
+	if token == "" || id < 1 {
+		return "", "", false
+	}
+	return token, strconv.FormatInt(id, 10), true
+}
+
+type newAPIUserSelfResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    *struct {
+		ID        int64   `json:"id"`
+		Quota     float64 `json:"quota"`
+		UsedQuota float64 `json:"used_quota"`
+	} `json:"data"`
+}
+
+func fetchNewAPIUserSelfBalance(ctx context.Context, client *http.Client, account *Account, accessToken, userID, baseURL string) (balance, used float64, hasUsed, ok bool, errMsg string) {
+	origin := originFromBaseURL(baseURL)
+	if origin == "" {
+		return 0, 0, false, false, "newapi user/self: empty origin"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/api/user/self", nil)
+	if err != nil {
+		return 0, 0, false, false, "newapi user/self: bad request"
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("New-Api-User", userID)
+	req.Header.Set("Accept", "application/json")
+	body, status, err := doBalanceRequest(client, req)
+	if err != nil {
+		return 0, 0, false, false, "newapi user/self: " + err.Error()
+	}
+	if status != http.StatusOK {
+		return 0, 0, false, false, fmt.Sprintf("newapi user/self status %d: %s", status, truncateForErr(body, 200))
+	}
+	if looksLikeHTML(body) {
+		return 0, 0, false, false, "newapi user/self returned HTML"
+	}
+	var resp newAPIUserSelfResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return 0, 0, false, false, "newapi user/self decode failed"
+	}
+	if !resp.Success || resp.Data == nil {
+		msg := strings.TrimSpace(resp.Message)
+		if msg == "" {
+			msg = "not ok"
+		}
+		return 0, 0, false, false, "newapi user/self: " + msg
+	}
+	if resp.Data.ID != 0 {
+		want, convErr := strconv.ParseInt(userID, 10, 64)
+		if convErr != nil || resp.Data.ID != want {
+			return 0, 0, false, false, "newapi user/self id mismatch"
+		}
+	}
+	unit := resolveNewAPIQuotaPerUnit(ctx, client, account, strings.TrimSpace(account.GetCredential("api_key")), origin)
+	if unit <= 0 {
+		unit = defaultNewAPIQuotaPerUnit
+	}
+	balanceUSD := resp.Data.Quota / unit
+	if balanceUSD < 0 {
+		balanceUSD = 0
+	}
+	usedUSD := resp.Data.UsedQuota / unit
+	if usedUSD < 0 {
+		usedUSD = 0
+	}
+	return balanceUSD, usedUSD, true, true, ""
 }
 
 // newAPITokenUsageResponse matches New API GET /api/usage/token JSON.

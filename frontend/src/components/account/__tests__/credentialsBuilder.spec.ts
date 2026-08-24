@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
+  applyNewAPIWalletCredentials,
+  hasNewAPIWalletToken,
+  isNewAPIWalletEligible,
+  readNewAPIWalletUserId,
   applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
   applyInterceptWarmup,
@@ -283,5 +287,37 @@ describe('validateHeaderOverrideRows session isolation headers', () => {
 
   it('rejects oversized names', () => {
     expect(validateHeaderOverrideRows([{ name: 'x'.repeat(201), value: 'v' }])).toBe('invalidName')
+  })
+})
+
+describe('New API wallet credentials', () => {
+  it('is only eligible for openai/anthropic api keys', () => {
+    expect(isNewAPIWalletEligible('openai', 'apikey')).toBe(true)
+    expect(isNewAPIWalletEligible('anthropic', 'apikey')).toBe(true)
+    expect(isNewAPIWalletEligible('openai', 'oauth')).toBe(false)
+    expect(isNewAPIWalletEligible('gemini', 'apikey')).toBe(false)
+  })
+
+  it('keeps the saved token when the input is empty', () => {
+    const creds: Record<string, unknown> = { api_key: 'sk' }
+    applyNewAPIWalletCredentials(
+      creds,
+      { userId: '952', accessToken: '', clear: false },
+      { newapi_access_token: 'saved-token', newapi_user_id: '1' }
+    )
+    expect(creds.newapi_user_id).toBe('952')
+    expect(creds.newapi_access_token).toBe('saved-token')
+    expect(hasNewAPIWalletToken(creds)).toBe(true)
+    expect(readNewAPIWalletUserId(creds)).toBe('952')
+  })
+
+  it('clears both keys', () => {
+    const creds: Record<string, unknown> = {
+      api_key: 'sk',
+      newapi_access_token: 'saved-token',
+      newapi_user_id: '952'
+    }
+    applyNewAPIWalletCredentials(creds, { userId: '952', accessToken: '', clear: true }, creds)
+    expect(creds).toEqual({ api_key: 'sk' })
   })
 })

@@ -1,3 +1,28 @@
+## 2026-08-24 - feat(account): New API user-wallet balance probe
+
+### What
+- OpenAI/Anthropic API-key accounts can store `credentials.newapi_access_token` + `newapi_user_id`. `ProbeUpstreamBalance` then prefers `GET /api/user/self` (Bearer access token + `New-Api-User`) and writes remaining/used from `quota` / `used_quota` divided by `/api/status` `quota_per_unit`.
+- Success source is `newapi_user_self` with `unlimited=false`, so usage cells and smart-schedule balance use wallet remaining instead of unlimited-token `$0`. Wallet failure falls back to the existing token/billing probe; subscription `$1e8` is not treated as the wallet.
+- Create/edit forms add user id + access token + clear. Empty token on edit keeps the saved secret. Display-only: no `actual_cost` / scheduler / billing change.
+
+### Why
+New API unlimited tokens have no remaining quota; money lives on the user wallet. Token-only probes made xiaoyao-style keys look empty in the usage column and schedule PnL.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "ProbeUpstreamBalance|ShouldRefreshUpstreamBalance|NewAPI"`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/credentialsBuilder.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/composables/__tests__/schedulePnl.spec.ts`
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`
+`backend/internal/service/upstream_balance_probe_test.go`
+`frontend/src/components/account/credentialsBuilder.ts`
+`frontend/src/components/account/NewAPIWalletFields.vue`
+`frontend/src/components/account/CreateAccountModal.vue`
+`frontend/src/components/account/EditAccountModal.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-24 - feat(billing): display-layer joint input+cache cap (default off)
 
 ### What

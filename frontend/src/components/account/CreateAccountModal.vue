@@ -1319,6 +1319,12 @@
           />
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
+        <NewAPIWalletFields
+          v-if="isNewAPIWalletEligible(form.platform, form.type)"
+          v-model:user-id="createNewAPIWalletUserId"
+          v-model:access-token="createNewAPIWalletAccessToken"
+          @clear="clearCreateNewAPIWalletFields"
+        />
 
         <!-- Gemini API Key tier selection -->
         <div v-if="form.platform === 'gemini'">
@@ -3795,9 +3801,12 @@ import {
   getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
   validateHeaderOverrideRows,
+  applyNewAPIWalletCredentials,
+  isNewAPIWalletEligible,
   type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
+import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
@@ -3931,6 +3940,13 @@ const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acco
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const createNewAPIWalletUserId = ref('')
+const createNewAPIWalletAccessToken = ref('')
+
+const clearCreateNewAPIWalletFields = () => {
+  createNewAPIWalletUserId.value = ''
+  createNewAPIWalletAccessToken.value = ''
+}
 
 const syncPreviewCredentials = computed(() => {
   if (!apiKeyValue.value) return undefined
@@ -5033,6 +5049,8 @@ const resetForm = () => {
   addMethod.value = 'oauth'
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  createNewAPIWalletUserId.value = ''
+  createNewAPIWalletAccessToken.value = ''
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -5511,6 +5529,13 @@ const handleSubmit = async () => {
   }
 
   applyPoolModeCredentials(credentials)
+  if (isNewAPIWalletEligible(form.platform, form.type)) {
+    applyNewAPIWalletCredentials(credentials, {
+      userId: createNewAPIWalletUserId.value,
+      accessToken: createNewAPIWalletAccessToken.value,
+      clear: false
+    })
+  }
 
   // Add custom error codes if enabled
   if (customErrorCodesEnabled.value) {

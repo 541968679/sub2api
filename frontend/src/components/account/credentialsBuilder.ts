@@ -206,3 +206,46 @@ export function applyHeaderOverride(
     delete credentials[HEADER_OVERRIDES_CREDENTIAL_KEY]
   }
 }
+
+export const NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY = 'newapi_access_token'
+export const NEWAPI_USER_ID_CREDENTIAL_KEY = 'newapi_user_id'
+
+export function isNewAPIWalletEligible(platform?: string, type?: string): boolean {
+  return type === 'apikey' && (platform === 'openai' || platform === 'anthropic')
+}
+
+export function readNewAPIWalletUserId(credentials?: Record<string, unknown> | null): string {
+  const raw = credentials?.[NEWAPI_USER_ID_CREDENTIAL_KEY]
+  if (raw == null || raw === '') return ''
+  return String(raw).trim()
+}
+
+export function hasNewAPIWalletToken(credentials?: Record<string, unknown> | null): boolean {
+  return String(credentials?.[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY] ?? '').trim() !== ''
+}
+
+export function applyNewAPIWalletCredentials(
+  credentials: Record<string, unknown>,
+  input: { userId: string; accessToken: string; clear: boolean },
+  existing?: Record<string, unknown> | null
+): void {
+  if (input.clear) {
+    delete credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY]
+    delete credentials[NEWAPI_USER_ID_CREDENTIAL_KEY]
+    return
+  }
+  const userId = input.userId.trim()
+  if (userId) {
+    credentials[NEWAPI_USER_ID_CREDENTIAL_KEY] = userId
+  } else {
+    delete credentials[NEWAPI_USER_ID_CREDENTIAL_KEY]
+  }
+  const token = input.accessToken.trim()
+  if (token) {
+    credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY] = token
+  } else if (hasNewAPIWalletToken(existing)) {
+    credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY] = existing?.[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY]
+  } else {
+    delete credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY]
+  }
+}

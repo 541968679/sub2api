@@ -988,4 +988,46 @@ describe('EditAccountModal', () => {
       { user_id: 1, max_concurrency: 5 }
     ])
   })
+
+  it('saves New API wallet credentials and can keep or clear the token', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      newapi_access_token: 'saved-token',
+      newapi_user_id: '1'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    expect(wrapper.find('[data-testid="newapi-wallet-fields"]').exists()).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="newapi-wallet-user-id"]').element.value).toBe(
+      '1'
+    )
+
+    await wrapper.get('[data-testid="newapi-wallet-user-id"]').setValue('952')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_key: 'sk-test',
+      newapi_user_id: '952',
+      newapi_access_token: 'saved-token'
+    })
+
+    await wrapper.get('[data-testid="newapi-wallet-access-token"]').setValue('new-wallet-token')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.credentials?.newapi_access_token).toBe(
+      'new-wallet-token'
+    )
+
+    await wrapper.get('[data-testid="newapi-wallet-clear"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    const cleared = updateAccountMock.mock.calls[2]?.[1]?.credentials as Record<string, unknown>
+    expect(cleared.newapi_access_token).toBeUndefined()
+    expect(cleared.newapi_user_id).toBeUndefined()
+  })
 })

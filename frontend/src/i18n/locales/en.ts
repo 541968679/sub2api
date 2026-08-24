@@ -5266,6 +5266,17 @@ const enBase = {
       bedrockApiKeyLeaveEmpty: 'Leave empty to keep current key',
       apiKeyIsRequired: 'API Key is required',
       leaveEmptyToKeep: 'Leave empty to keep current key',
+      newapiWallet: {
+        title: 'New API user wallet',
+        hint: 'When an unlimited token has no remaining quota, store the system access token and user id so probes prefer GET /api/user/self. Display only; billing is unchanged.',
+        userId: 'New API user ID',
+        userIdPlaceholder: 'e.g. 952',
+        accessToken: 'System access token',
+        accessTokenPlaceholder: 'Profile access token, not the sk- key',
+        accessTokenKeep: 'Saved; leave empty to keep',
+        clear: 'Clear wallet credentials',
+        clearHint: 'After clearing, this account falls back to token-quota probing.'
+      },
       // Upstream type
       upstream: {
         baseUrl: 'Upstream Base URL',
