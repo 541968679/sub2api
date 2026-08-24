@@ -542,6 +542,9 @@ type UsageLog struct {
 	LongContextInputThreshold   int      `json:"long_context_input_threshold,omitempty"`
 	LongContextInputMultiplier  float64  `json:"long_context_input_multiplier,omitempty"`
 	LongContextOutputMultiplier float64  `json:"long_context_output_multiplier,omitempty"`
+	DisplayTokenCapApplied      bool     `json:"display_token_cap_applied,omitempty"`
+	DisplayContextTokenMaxUsed  int64    `json:"display_context_token_max_used,omitempty"`
+	DisplayOutputTokenMaxUsed   int64    `json:"display_output_token_max_used,omitempty"`
 
 	BillingType  int8   `json:"billing_type"`
 	RequestType  string `json:"request_type"`

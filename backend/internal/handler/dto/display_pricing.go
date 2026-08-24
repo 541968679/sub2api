@@ -321,6 +321,55 @@ func BuildUserVisibleUsage(d *UsageLog, cfg *DisplayPricingConfig, displayRate *
 	if displayRate != nil {
 		ApplyUserDisplayRateWithCap(d, *displayRate, billingRealCache, m)
 	}
+	applyStoredDisplayTokenCap(d, cfg)
+}
+
+// applyStoredDisplayTokenCap replays the write-time joint/output cap only when
+// the row was marked applied. Historical rows (applied=false) stay on L1+L2.
+func applyStoredDisplayTokenCap(d *UsageLog, cfg *DisplayPricingConfig) {
+	if d == nil || !d.DisplayTokenCapApplied {
+		return
+	}
+	if d.DisplayContextTokenMaxUsed <= 0 && d.DisplayOutputTokenMaxUsed <= 0 {
+		return
+	}
+	var inPrice, cachePrice, outPrice *float64
+	if cfg != nil {
+		inPrice = firstPrice(cfg.UnitInputPrice, cfg.DisplayInputPrice)
+		cachePrice = firstPrice(cfg.UnitCacheReadPrice, cfg.DisplayCacheReadPrice)
+		outPrice = firstPrice(cfg.UnitOutputPrice, cfg.DisplayOutputPrice)
+	}
+	if d.DisplayInputPrice != nil {
+		inPrice = d.DisplayInputPrice
+	}
+	if d.DisplayCacheReadPrice != nil {
+		cachePrice = d.DisplayCacheReadPrice
+	}
+	if d.DisplayOutputPrice != nil {
+		outPrice = d.DisplayOutputPrice
+	}
+	oldComponent := d.InputCost + d.CacheReadCost + d.OutputCost
+	capped := service.ApplyDisplayContextTokenCap(service.DisplayContextTokenCapInput{
+		InputTokens:           d.InputTokens,
+		CacheReadTokens:       d.CacheReadTokens,
+		OutputTokens:          d.OutputTokens,
+		InputCost:             d.InputCost,
+		CacheReadCost:         d.CacheReadCost,
+		OutputCost:            d.OutputCost,
+		DisplayInputPrice:     inPrice,
+		DisplayCacheReadPrice: cachePrice,
+		DisplayOutputPrice:    outPrice,
+		ContextTokenMax:       d.DisplayContextTokenMaxUsed,
+		OutputTokenMax:        d.DisplayOutputTokenMaxUsed,
+		Seed:                  d.RequestID,
+	})
+	d.InputTokens = capped.InputTokens
+	d.CacheReadTokens = capped.CacheReadTokens
+	d.OutputTokens = capped.OutputTokens
+	d.InputCost = capped.InputCost
+	d.CacheReadCost = capped.CacheReadCost
+	d.OutputCost = capped.OutputCost
+	d.TotalCost += (capped.InputCost + capped.CacheReadCost + capped.OutputCost) - oldComponent
 }
 
 // ComputeDisplayFields computes display values for admin DTO (for dual-column comparison).

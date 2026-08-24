@@ -162,6 +162,13 @@ type UsageLog struct {
 	TrueCost *float64
 	// TrueCostRate is the EffectiveUpstreamRate() snapshot used for TrueCost.
 	TrueCostRate *float64
+	// DisplayTokenCapApplied is true only when the joint/output absolute cap bound
+	// this row at write time. Historical rows stay false and must not replay the cap.
+	DisplayTokenCapApplied bool
+	// DisplayContextTokenMaxUsed is the configured joint cap snapshotted on bind.
+	DisplayContextTokenMaxUsed int64
+	// DisplayOutputTokenMaxUsed is the configured output cap snapshotted on bind.
+	DisplayOutputTokenMaxUsed int64
 
 	BillingType      int8
 	RequestType      RequestType

@@ -97,6 +97,9 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // true_cost
 			sqlmock.AnyArg(), // true_cost_rate
+			sqlmock.AnyArg(), // display_token_cap_applied
+			sqlmock.AnyArg(), // display_context_token_max_used
+			sqlmock.AnyArg(), // display_output_token_max_used
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -187,6 +190,9 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // account_stats_cost
 			sqlmock.AnyArg(), // true_cost
 			sqlmock.AnyArg(), // true_cost_rate
+			sqlmock.AnyArg(), // display_token_cap_applied
+			sqlmock.AnyArg(), // display_context_token_max_used
+			sqlmock.AnyArg(), // display_output_token_max_used
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -650,8 +656,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int16(service.RequestTypeWSV2),
 			false, // legacy stream
 			false, // legacy openai ws
-			sql.NullInt64{},
-			sql.NullInt64{},
+			sql.NullInt64{}, // duration_ms
+			sql.NullInt64{}, // first_token_ms
+			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,
@@ -676,6 +683,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullFloat64{}, // true_cost
 			sql.NullFloat64{}, // true_cost_rate
+			false,             // display_token_cap_applied
+			int64(0),          // display_context_token_max_used
+			int64(0),          // display_output_token_max_used
 			now,
 		}})
 		require.NoError(t, err)
@@ -708,8 +718,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int16(service.RequestTypeUnknown),
 			true,
 			false,
-			sql.NullInt64{},
-			sql.NullInt64{},
+			sql.NullInt64{}, // duration_ms
+			sql.NullInt64{}, // first_token_ms
+			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,
@@ -734,6 +745,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullFloat64{}, // true_cost
 			sql.NullFloat64{}, // true_cost_rate
+			false,             // display_token_cap_applied
+			int64(0),          // display_context_token_max_used
+			int64(0),          // display_output_token_max_used
 			now,
 		}})
 		require.NoError(t, err)
@@ -766,8 +780,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int16(service.RequestTypeSync),
 			false,
 			false,
-			sql.NullInt64{},
-			sql.NullInt64{},
+			sql.NullInt64{}, // duration_ms
+			sql.NullInt64{}, // first_token_ms
+			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
 			0,
@@ -792,6 +807,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullFloat64{}, // account_stats_cost
 			sql.NullFloat64{}, // true_cost
 			sql.NullFloat64{}, // true_cost_rate
+			false,             // display_token_cap_applied
+			int64(0),          // display_context_token_max_used
+			int64(0),          // display_output_token_max_used
 			now,
 		}})
 		require.NoError(t, err)
@@ -834,8 +852,9 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 		int16(service.RequestTypeSync),
 		false,
 		false,
-		sql.NullInt64{},
-		sql.NullInt64{},
+		sql.NullInt64{}, // duration_ms
+		sql.NullInt64{}, // first_token_ms
+		sql.NullInt64{}, // true_first_token_ms
 		sql.NullString{},
 		sql.NullString{},
 		0,
@@ -857,7 +876,12 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 		sql.NullInt64{Valid: true, Int64: 272000},
 		sql.NullFloat64{Valid: true, Float64: 2.0},
 		sql.NullFloat64{Valid: true, Float64: 1.5},
-		sql.NullFloat64{},
+		sql.NullFloat64{}, // account_stats_cost
+		sql.NullFloat64{}, // true_cost
+		sql.NullFloat64{}, // true_cost_rate
+		false,             // display_token_cap_applied
+		int64(0),          // display_context_token_max_used
+		int64(0),          // display_output_token_max_used
 		now,
 	}})
 

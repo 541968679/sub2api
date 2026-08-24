@@ -569,6 +569,13 @@ func (s *OpenAIGatewayService) GetUserGroupDisplayRateMultiplier(ctx context.Con
 	return *displayRate
 }
 
+func (s *OpenAIGatewayService) GetDisplayTokenCapSettings(ctx context.Context) (contextMax, outputMax int64) {
+	if s == nil || s.settingService == nil {
+		return DefaultDisplayContextTokenMax, DefaultDisplayOutputTokenMax
+	}
+	return s.settingService.GetDisplayTokenCapSettings(ctx)
+}
+
 func (s *OpenAIGatewayService) checkChannelPricingRestriction(ctx context.Context, groupID *int64, requestedModel string) bool {
 	if groupID == nil || s.channelService == nil || requestedModel == "" {
 		return false
@@ -7246,6 +7253,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if subscription != nil {
 		usageLog.SubscriptionID = &subscription.ID
 	}
+
+	applyDisplayTokenCapToCharge(ctx, usageLog, cost, user, apiKey, s.resolver, s.settingService, s.GetUserGroupDisplayRateMultiplier)
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {

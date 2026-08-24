@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality-check entry"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "Must not break L1+L2, M/α, or actual_cost history freeze"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer charge vs display consistency"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Admin settings and i18n quality"}
+{"file": ".trellis/tasks/08-23-display-token-amplify-cap/research/display-token-distribution.md", "reason": "Verify joint-cap numbers and default-off"}

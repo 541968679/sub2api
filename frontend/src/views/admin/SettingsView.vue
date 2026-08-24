@@ -5370,6 +5370,34 @@
                   {{ t("admin.settings.displayLayer.outputResidualGrowthRatioHint") }}
                 </p>
               </div>
+              <div>
+                <label class="input-label">{{ t("admin.settings.displayLayer.contextTokenMax") }}</label>
+                <input
+                  v-model.number="form.display_context_token_max"
+                  type="number"
+                  min="0"
+                  max="1000000000"
+                  step="1"
+                  class="input text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.displayLayer.contextTokenMaxHint") }}
+                </p>
+              </div>
+              <div>
+                <label class="input-label">{{ t("admin.settings.displayLayer.outputTokenMax") }}</label>
+                <input
+                  v-model.number="form.display_output_token_max"
+                  type="number"
+                  min="0"
+                  max="1000000000"
+                  step="1"
+                  class="input text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.displayLayer.outputTokenMaxHint") }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -6623,6 +6651,8 @@ type SettingsForm = Omit<
   openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
   display_cache_token_max_mult: number;
   display_output_residual_growth_ratio: number;
+  display_context_token_max: number;
+  display_output_token_max: number;
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
 
@@ -6822,6 +6852,8 @@ const form = reactive<SettingsForm>({
   },
   display_cache_token_max_mult: 1.3,
   display_output_residual_growth_ratio: 1.5,
+  display_context_token_max: 0,
+  display_output_token_max: 0,
   // Balance & quota notification
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -7935,6 +7967,20 @@ async function saveSettings() {
           Number.isFinite(Number(form.display_output_residual_growth_ratio))
             ? Number(form.display_output_residual_growth_ratio)
             : 1.5,
+        ),
+      ),
+      display_context_token_max: Math.max(
+        0,
+        Math.min(
+          1_000_000_000,
+          Math.floor(Number(form.display_context_token_max) || 0),
+        ),
+      ),
+      display_output_token_max: Math.max(
+        0,
+        Math.min(
+          1_000_000_000,
+          Math.floor(Number(form.display_output_token_max) || 0),
         ),
       ),
       // Payment configuration

@@ -603,6 +603,8 @@ export interface SystemSettings {
   openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
   display_cache_token_max_mult: number;
   display_output_residual_growth_ratio: number;
+  display_context_token_max: number;
+  display_output_token_max: number;
 
   // Balance & quota notification
   balance_low_notify_enabled: boolean;
@@ -824,6 +826,8 @@ export interface UpdateSettingsRequest {
   openai_claude_gpt_bridge_cache_display_settings?: OpenAIClaudeGPTBridgeCacheDisplaySettings;
   display_cache_token_max_mult?: number;
   display_output_residual_growth_ratio?: number;
+  display_context_token_max?: number;
+  display_output_token_max?: number;
   // Balance & quota notification
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -978,6 +982,8 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
       s.openai_claude_gpt_bridge_cache_display_settings,
     display_cache_token_max_mult: s.display_cache_token_max_mult,
     display_output_residual_growth_ratio: s.display_output_residual_growth_ratio,
+    display_context_token_max: s.display_context_token_max ?? 0,
+    display_output_token_max: s.display_output_token_max ?? 0,
     payment_enabled: s.payment_enabled,
     payment_min_amount: s.payment_min_amount,
     payment_max_amount: s.payment_max_amount,

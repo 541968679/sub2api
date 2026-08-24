@@ -7280,11 +7280,15 @@ const enBase = {
       },
       displayLayer: {
         title: 'Display token amplification',
-        description: 'Controls user-visible usage / downstream display-mode cache amplify and residual sink. Does not change real billing.',
+        description: 'Controls user-visible usage / downstream display-mode cache amplify, residual sink, and optional joint input+cache / output absolute caps. Caps default off; when enabled, new requests charge the capped display bill. History is frozen.',
         cacheTokenMaxMult: 'Cache amplify cap (M)',
         cacheTokenMaxMultHint: 'display_cache_read ≤ real_cache_read × M. Default 1.3; set 1.0 to keep cache_read unamplified.',
         outputResidualGrowthRatio: 'Output residual growth ratio (α)',
         outputResidualGrowthRatioHint: 'After own output amplify, at most α× that growth may absorb cache residual; overflow goes to input. Default 1.5; typical 0–3.',
+        contextTokenMax: 'Input+cache joint cap',
+        contextTokenMaxHint: 'Display-layer joint input+cache token cap. 0 = off (code default). Recommended ops value 1000000 — do not enable by default.',
+        outputTokenMax: 'Output cap',
+        outputTokenMaxHint: 'Display-layer independent output token cap. 0 = off (code default). Recommended ops value 80000 — do not enable by default.',
       },
       features: {
         channelMonitor: {

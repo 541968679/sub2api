@@ -8314,6 +8314,13 @@ func (s *GatewayService) GetUserGroupDisplayRateMultiplier(ctx context.Context, 
 	return *displayRate
 }
 
+func (s *GatewayService) GetDisplayTokenCapSettings(ctx context.Context) (contextMax, outputMax int64) {
+	if s == nil || s.settingService == nil {
+		return DefaultDisplayContextTokenMax, DefaultDisplayOutputTokenMax
+	}
+	return s.settingService.GetDisplayTokenCapSettings(ctx)
+}
+
 // RecordUsageInput 记录使用量的输入参数
 type RecordUsageInput struct {
 	Result             *ForwardResult
@@ -8894,6 +8901,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, tokenMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost, opts)
+	applyDisplayTokenCapToCharge(ctx, usageLog, cost, user, apiKey, s.resolver, s.settingService, s.GetUserGroupDisplayRateMultiplier)
 
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index and pre-dev checklist"}
+{"file": ".trellis/spec/backend/display-token-pricing.md", "reason": "L1+L2 display transform contracts this cap stacks after"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Additive migration + Ent schema conventions"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking guides before coding"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Write path, read path, settings, and usage_logs must stay consistent"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Admin settings UI lives on frontend"}
+{"file": ".trellis/tasks/08-23-display-token-amplify-cap/research/display-token-distribution.md", "reason": "Joint-cap research and recommended ops values"}

@@ -205,6 +205,12 @@ func (UsageLog) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
+		field.Bool("display_token_cap_applied").
+			Default(false),
+		field.Int64("display_context_token_max_used").
+			Default(0),
+		field.Int64("display_output_token_max_used").
+			Default(0),
 	}
 }
 

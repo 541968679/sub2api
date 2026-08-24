@@ -1015,3 +1015,74 @@ func TestApplyDisplayTransform_SingleDisplayPriceKeepsCostExactPath(t *testing.T
 	}
 	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.0125)
 }
+
+func TestBuildUserVisibleUsage_HistoryPathUnchangedWhenNotApplied(t *testing.T) {
+	inPrice := 4e-6
+	cachePrice := 4e-7
+	log := UsageLog{
+		RequestID:         "hist-1",
+		InputTokens:       900_000,
+		CacheReadTokens:   600_000,
+		OutputTokens:      10_000,
+		InputCost:         3.6,
+		CacheReadCost:     0.24,
+		OutputCost:        0.2,
+		TotalCost:         4.04,
+		ActualCost:        0.5656,
+		RateMultiplier:    0.14,
+		DisplayInputPrice: &inPrice,
+		DisplayCacheReadPrice: &cachePrice,
+	}
+	before := log
+	BuildUserVisibleUsage(&log, &DisplayPricingConfig{
+		DisplayInputPrice:     &inPrice,
+		DisplayCacheReadPrice: &cachePrice,
+		CacheTokenMaxMult:     1.0,
+	}, nil)
+	if log.DisplayTokenCapApplied {
+		t.Fatal("historical rows must stay applied=false")
+	}
+	if log.InputTokens == 0 || log.CacheReadTokens == 0 {
+		t.Fatal("history path must not zero tokens")
+	}
+	// Without applied=true the absolute cap is not replayed, so S can stay > 1M.
+	if log.InputTokens+log.CacheReadTokens <= 1_000_000 && before.InputTokens+before.CacheReadTokens > 1_000_000 {
+		t.Fatalf("history path must not invent a joint cap, got in=%d cache=%d", log.InputTokens, log.CacheReadTokens)
+	}
+	assertClose(t, "actual_cost", log.ActualCost, before.ActualCost)
+}
+
+func TestBuildUserVisibleUsage_ReplaysStoredJointCap(t *testing.T) {
+	inPrice := 4e-6
+	cachePrice := 4e-7
+	outPrice := 2e-5
+	displayRate := 0.14
+	log := UsageLog{
+		RequestID:                  "replay-1",
+		InputTokens:                900_000,
+		CacheReadTokens:            600_000,
+		OutputTokens:               10_000,
+		InputCost:                  900_000 * inPrice,
+		CacheReadCost:              600_000 * cachePrice,
+		OutputCost:                 10_000 * outPrice,
+		TotalCost:                  900_000*inPrice + 600_000*cachePrice + 10_000*outPrice,
+		ActualCost:                 1,
+		RateMultiplier:             0.14,
+		DisplayTokenCapApplied:     true,
+		DisplayContextTokenMaxUsed: 1_000_000,
+	}
+	cfg := &DisplayPricingConfig{
+		DisplayInputPrice:     &inPrice,
+		DisplayOutputPrice:    &outPrice,
+		DisplayCacheReadPrice: &cachePrice,
+		CacheTokenMaxMult:     1.0,
+	}
+	BuildUserVisibleUsage(&log, cfg, &displayRate)
+	if log.InputTokens+log.CacheReadTokens > 1_000_000 {
+		t.Fatalf("replayed joint sum must be <= configured cap, got %d", log.InputTokens+log.CacheReadTokens)
+	}
+	if log.OutputTokens < 10_000 {
+		t.Fatalf("output must stay independent of joint cap, got %d", log.OutputTokens)
+	}
+	assertClose(t, "actual_cost", log.ActualCost, 1)
+}

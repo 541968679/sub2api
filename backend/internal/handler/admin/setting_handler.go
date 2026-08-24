@@ -283,6 +283,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAIAdvancedSchedulerEffectiveWeightSessionSticky:    settings.OpenAIAdvancedSchedulerEffectiveWeightSessionSticky,
 		DisplayCacheTokenMaxMult:                               settings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       settings.DisplayOutputResidualGrowthRatio,
+		DisplayContextTokenMax:                                 settings.DisplayContextTokenMax,
+		DisplayOutputTokenMax:                                  settings.DisplayOutputTokenMax,
 		OpenAIClaudeGPTBridgeCacheDisplaySettings: openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(
 			settings.OpenAIClaudeGPTBridgeCacheDisplaySettings,
 		),
@@ -617,6 +619,8 @@ type UpdateSettingsRequest struct {
 	// Display-layer token amplify controls
 	DisplayCacheTokenMaxMult         *float64 `json:"display_cache_token_max_mult"`
 	DisplayOutputResidualGrowthRatio *float64 `json:"display_output_residual_growth_ratio"`
+	DisplayContextTokenMax           *int64   `json:"display_context_token_max"`
+	DisplayOutputTokenMax            *int64   `json:"display_output_token_max"`
 
 	// Balance low notification
 	BalanceLowNotifyEnabled     *bool                   `json:"balance_low_notify_enabled"`
@@ -1579,6 +1583,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.DisplayOutputResidualGrowthRatio
 		}(),
+		DisplayContextTokenMax: func() int64 {
+			if req.DisplayContextTokenMax != nil {
+				return service.ResolveDisplayTokenCap(*req.DisplayContextTokenMax)
+			}
+			return previousSettings.DisplayContextTokenMax
+		}(),
+		DisplayOutputTokenMax: func() int64 {
+			if req.DisplayOutputTokenMax != nil {
+				return service.ResolveDisplayTokenCap(*req.DisplayOutputTokenMax)
+			}
+			return previousSettings.DisplayOutputTokenMax
+		}(),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -1950,6 +1966,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
+		DisplayContextTokenMax:                                 updatedSettings.DisplayContextTokenMax,
+		DisplayOutputTokenMax:                                  updatedSettings.DisplayOutputTokenMax,
 		PaymentVisibleMethodAlipaySource:                       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:                        updatedSettings.PaymentVisibleMethodWxpaySource,
 		PaymentVisibleMethodAlipayEnabled:                      updatedSettings.PaymentVisibleMethodAlipayEnabled,
@@ -2412,6 +2430,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.DisplayOutputResidualGrowthRatio != after.DisplayOutputResidualGrowthRatio {
 		changed = append(changed, "display_output_residual_growth_ratio")
+	}
+	if before.DisplayContextTokenMax != after.DisplayContextTokenMax {
+		changed = append(changed, "display_context_token_max")
+	}
+	if before.DisplayOutputTokenMax != after.DisplayOutputTokenMax {
+		changed = append(changed, "display_output_token_max")
 	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")

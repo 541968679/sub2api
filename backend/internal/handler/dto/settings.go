@@ -206,6 +206,8 @@ type SystemSettings struct {
 	// Display-layer token amplify controls
 	DisplayCacheTokenMaxMult         float64 `json:"display_cache_token_max_mult"`
 	DisplayOutputResidualGrowthRatio float64 `json:"display_output_residual_growth_ratio"`
+	DisplayContextTokenMax           int64   `json:"display_context_token_max"`
+	DisplayOutputTokenMax            int64   `json:"display_output_token_max"`
 
 	// Payment configuration
 	PaymentEnabled                   bool                `json:"payment_enabled"`

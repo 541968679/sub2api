@@ -6928,11 +6928,15 @@ const zhBase = {
       },
       displayLayer: {
         title: '展示 Token 放大',
-        description: '控制用户可见 usage / 下游 display 模式下的 cache 放大与溢价折入策略，不影响真实扣费。',
+        description: '控制用户可见 usage / 下游 display 模式下的 cache 放大、溢价折入，以及可选的 input+cache 合计 / output 绝对上限。上限默认关闭；开启后新请求按封顶后的展示账扣费，历史行不改。',
         cacheTokenMaxMult: 'Cache 放大倍率上限 (M)',
         cacheTokenMaxMultHint: 'display_cache_read ≤ real_cache_read × M。默认 1.3；设为 1.0 则不放大 cache_read。',
         outputResidualGrowthRatio: 'Output 附加增长比例 (α)',
         outputResidualGrowthRatioHint: '输出在自身放大后，最多再接 α×自身增量 的 cache 残差 token；超出回 input。默认 1.5，建议 0～3。',
+        contextTokenMax: 'Input+Cache 合计上限',
+        contextTokenMaxHint: '展示层 input+cache 合计 token 上限。0 = 关闭（代码默认）。推荐运营值 1000000，不要当成默认开启。',
+        outputTokenMax: 'Output 上限',
+        outputTokenMaxHint: '展示层 output token 独立上限。0 = 关闭（代码默认）。推荐运营值 80000，不要当成默认开启。',
       },
       features: {
         channelMonitor: {

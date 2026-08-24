@@ -461,6 +461,12 @@ const (
 	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
 	// SettingKeyDisplayOutputResidualGrowthRatio is α: max extra output growth from cache residual.
 	SettingKeyDisplayOutputResidualGrowthRatio = "display_output_residual_growth_ratio"
+	// SettingKeyDisplayContextTokenMax is the display-layer joint input+cache token cap.
+	// 0/empty = off (code default). Recommended ops value 1000000 is not a code default.
+	SettingKeyDisplayContextTokenMax = "display_context_token_max"
+	// SettingKeyDisplayOutputTokenMax is the display-layer independent output token cap.
+	// 0/empty = off (code default). Recommended ops value 80000 is not a code default.
+	SettingKeyDisplayOutputTokenMax = "display_output_token_max"
 	// SettingKeyGatewayNetworkRetryMax controls retry count for upstream transport/network errors.
 	SettingKeyGatewayNetworkRetryMax = "gateway_network_retry_max"
 	// SettingKeyOpenAIResponsesFlushPreamble, when true, flushes native Responses

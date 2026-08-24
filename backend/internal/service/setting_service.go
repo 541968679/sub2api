@@ -1573,6 +1573,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyDisplayCacheTokenMaxMult] = strconv.FormatFloat(settings.DisplayCacheTokenMaxMult, 'f', -1, 64)
 	settings.DisplayOutputResidualGrowthRatio = ResolveDisplayOutputResidualGrowthRatio(settings.DisplayOutputResidualGrowthRatio, true)
 	updates[SettingKeyDisplayOutputResidualGrowthRatio] = strconv.FormatFloat(settings.DisplayOutputResidualGrowthRatio, 'f', -1, 64)
+	settings.DisplayContextTokenMax = ResolveDisplayTokenCap(settings.DisplayContextTokenMax)
+	updates[SettingKeyDisplayContextTokenMax] = strconv.FormatInt(settings.DisplayContextTokenMax, 10)
+	settings.DisplayOutputTokenMax = ResolveDisplayTokenCap(settings.DisplayOutputTokenMax)
+	updates[SettingKeyDisplayOutputTokenMax] = strconv.FormatInt(settings.DisplayOutputTokenMax, 10)
 	bridgeCacheDisplay, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings.OpenAIClaudeGPTBridgeCacheDisplaySettings)
 	if err != nil {
 		return nil, err
@@ -2504,6 +2508,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":false,"min_percent":0,"max_percent":0}`,
 		SettingKeyDisplayCacheTokenMaxMult:                  strconv.FormatFloat(DefaultDisplayCacheTokenMaxMult, 'f', -1, 64),
 		SettingKeyDisplayOutputResidualGrowthRatio:          strconv.FormatFloat(DefaultDisplayOutputResidualGrowthRatio, 'f', -1, 64),
+		SettingKeyDisplayContextTokenMax:                    strconv.FormatInt(DefaultDisplayContextTokenMax, 10),
+		SettingKeyDisplayOutputTokenMax:                     strconv.FormatInt(DefaultDisplayOutputTokenMax, 10),
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -2876,6 +2882,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])
+	result.DisplayContextTokenMax = ParseDisplayTokenCap(settings[SettingKeyDisplayContextTokenMax])
+	result.DisplayOutputTokenMax = ParseDisplayTokenCap(settings[SettingKeyDisplayOutputTokenMax])
 	result.OpenAIClaudeGPTBridgeCacheDisplaySettings = parseOpenAIClaudeGPTBridgeCacheDisplaySettings(settings[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings])
 
 	// Web search emulation: quick enabled check from the JSON config
@@ -3021,6 +3029,23 @@ func (s *SettingService) GetDisplayTokenAllocSettings(ctx context.Context) (m fl
 	}
 	return ParseDisplayCacheTokenMaxMult(values[SettingKeyDisplayCacheTokenMaxMult]),
 		ParseDisplayOutputResidualGrowthRatio(values[SettingKeyDisplayOutputResidualGrowthRatio])
+}
+
+// GetDisplayTokenCapSettings returns the joint input+cache cap and independent
+// output cap. Missing/invalid values are 0 (off).
+func (s *SettingService) GetDisplayTokenCapSettings(ctx context.Context) (contextMax, outputMax int64) {
+	if s == nil || s.settingRepo == nil {
+		return DefaultDisplayContextTokenMax, DefaultDisplayOutputTokenMax
+	}
+	values, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyDisplayContextTokenMax,
+		SettingKeyDisplayOutputTokenMax,
+	})
+	if err != nil {
+		return DefaultDisplayContextTokenMax, DefaultDisplayOutputTokenMax
+	}
+	return ParseDisplayTokenCap(values[SettingKeyDisplayContextTokenMax]),
+		ParseDisplayTokenCap(values[SettingKeyDisplayOutputTokenMax])
 }
 
 func parseLegalConsentSettings(settings map[string]string) LegalConsentSettings {

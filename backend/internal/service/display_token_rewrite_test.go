@@ -650,3 +650,36 @@ func TestDisplayToken_UserCacheWrite1hPriceFeedsMultipliers(t *testing.T) {
 	require.NotNil(t, mult)
 	require.InDelta(t, 3.2, mult.CacheCreate1hMult, 1e-12)
 }
+
+func TestDisplayToken_ContextCapDefaultOffLeavesTokens(t *testing.T) {
+	in, out, cache, create := computeSeparatedDisplayUsage(900_000, 10_000, 600_000, 0, &DisplayTokenMultipliers{
+		InputMult:       1,
+		OutputMult:      1,
+		CacheReadMult:   1,
+		CacheCreateMult: 1,
+		RateScale:       1,
+		RateScaleSet:    true,
+	})
+	require.Equal(t, 900_000, in)
+	require.Equal(t, 10_000, out)
+	require.Equal(t, 600_000, cache)
+	require.Equal(t, 0, create)
+}
+
+func TestDisplayToken_ContextCapShrinksJointAfterRateScale(t *testing.T) {
+	in, out, cache, create := computeSeparatedDisplayUsage(900_000, 10_000, 600_000, 0, &DisplayTokenMultipliers{
+		InputMult:       1,
+		OutputMult:      1,
+		CacheReadMult:   1,
+		CacheCreateMult: 1,
+		RateScale:       1,
+		RateScaleSet:    true,
+		ContextTokenMax: 1_000_000,
+		CapSeed:         "rewrite-joint",
+	})
+	require.Equal(t, in+cache, JitteredDisplayTokenCap(1_000_000, "rewrite-joint", displayTokenCapLaneJoint))
+	require.Equal(t, 10_000, out)
+	require.Equal(t, 0, create)
+	require.LessOrEqual(t, in, 900_000)
+	require.LessOrEqual(t, cache, 600_000)
+}

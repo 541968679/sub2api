@@ -427,6 +427,8 @@ const baseSettingsResponse = {
   openai_newapi_slim_completed_user_ids: [],
   codex_compact_v2_fallback_enabled: true,
   openai_long_context_billing_enabled: true,
+  display_context_token_max: 0,
+  display_output_token_max: 0,
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,

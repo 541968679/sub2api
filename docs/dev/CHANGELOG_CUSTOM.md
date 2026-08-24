@@ -1,3 +1,46 @@
+## 2026-08-24 - feat(billing): display-layer joint input+cache cap (default off)
+
+### What
+- After existing L1+L2 amplify, optional joint cap on `display_input + display_cache` and a separate output cap.
+- Joint shrink is proportional (`in' = round(in×C/S)`, `cache' = C−in'`). Jitter hits the **sum cap** only (`hash(request_id+"|joint")`, 92%–100%). Output uses `|output`.
+- New token requests: charge follows capped display tokens × display prices × display rate. Leftover is discarded (no residual fold). `actual_cost` decreases vs uncapped. Billing-real token columns unchanged.
+- History frozen: old `usage_logs` stay `display_token_cap_applied=false` and the read path does not invent a lower bill. Bound new rows snapshot used configured caps and replay jitter from `request_id`.
+- Admin Settings (展示层): `display_context_token_max` + `display_output_token_max`. **Code default 0/off**. Recommended ops values 1_000_000 / 80_000 are hints only. Does not touch `openai_long_context_billing_enabled`.
+
+### Why
+Display tokens were amplifying into multi-million tails. The product constraint is a GPT-like ~1M **joint** window, not two independent absolute caps.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "AllocateDisplayTokens|DisplayContextTokenCap|DisplayToken|ApplyDisplayTokenCap" -count=1`
+- `go test -tags=unit ./internal/handler/dto -run "DisplayTransform|UserVisible|DisplayRate|ContextTokenCap|BuildUserVisibleUsage" -count=1`
+
+### Affected files
+`backend/internal/service/display_token_cap.go`
+`backend/internal/service/display_token_cap_test.go`
+`backend/internal/service/display_token_alloc.go` (unchanged M/α)
+`backend/internal/service/display_token_rewrite.go`
+`backend/internal/service/gateway_service.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/setting_service.go`
+`backend/internal/service/settings_view.go`
+`backend/internal/service/domain_constants.go`
+`backend/internal/service/usage_log.go`
+`backend/internal/handler/dto/display_pricing.go`
+`backend/internal/handler/dto/display_pricing_test.go`
+`backend/internal/handler/dto/settings.go`
+`backend/internal/handler/dto/types.go`
+`backend/internal/handler/dto/mappers.go`
+`backend/internal/handler/admin/setting_handler.go`
+`backend/internal/repository/usage_log_repo.go`
+`backend/migrations/213_usage_log_display_token_cap.sql`
+`backend/ent/schema/usage_log.go`
+`frontend/src/views/admin/SettingsView.vue`
+`frontend/src/api/admin/settings.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/billing.md`
+`.trellis/spec/backend/display-token-pricing.md`
+
 ## 2026-08-23 - feat: OpenAI long-context billing admin switch
 
 ### What

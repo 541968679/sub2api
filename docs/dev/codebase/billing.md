@@ -248,29 +248,33 @@ CalculateCostUnified(CostInput)
 
 ### 展示变换体系
 
-展示变换用于**修改用户看到的使用记录**，不影响真实扣费（`actual_cost` 永远不变）。
+展示变换用于**修改用户看到的使用记录**。L1+L2 读路径不改存储的 `actual_cost`。叠在 L1+L2 之后的绝对 cap（默认关闭）在**写路径**绑定后会降低新请求的 `actual_cost`；历史行冻结、不退款。
 
 ```
-使用记录 API 返回前的处理流程 (usage_handler.go:149-161):
+使用记录 API 返回前的处理流程:
 
-  原始 UsageLog DTO
+  原始 UsageLog DTO（计费实数 token）
     │
-    ├─ 1. ApplyDisplayTransform(dto, displayPricingConfig)
-    │   来源: 全局模型展示单价 + 用户级模型展示单价（叠加合并）
-    │   作用: 根据展示单价反算 token 数（cost 不变，rate 不变）
-    │   影响字段: InputTokens, OutputTokens, CacheCreationTokens、相关 Cost；CacheReadTokens 保持真实但 CacheReadCost 可按展示价重算
-    │   不影响: CacheReadTokens, RateMultiplier, ActualCost
-    │   安全: 使用 delta 方式更新 TotalCost，不会丢失按次计费/图片计费的费用
-    │
-    └─ 2. ApplyUserDisplayRate(dto, displayRate)
-        来源: user_group_rate 表的 display_rate_multiplier
-        作用: 按展示倍率重算展示账单并修改 RateMultiplier
-        公式: scale = realRate / displayRate；CacheReadTokens 保持真实，cache-read 展示倍率差额折入 input 展示
-        影响字段: Input/Output/CacheCreation token、相关 cost、RateMultiplier、TotalCost
-        不影响: ActualCost
-        注意: token 计费展示必须能由展示 token × 展示单价解释；按次/图片等非 token 费用作为 other cost 缩放保留
+    ├─ 1. ApplyDisplayTransform (L1: 展示单价 + AllocateDisplayTokens M/α)
+    ├─ 2. ApplyUserDisplayRateWithCap (L2: 展示倍率；cache ≤ billing-real × M)
+    └─ 3. ApplyDisplayContextTokenCap（仅当 display_token_cap_applied=true）
+        用行内 used 配置值 + request_id 重放 jitter / 比例收缩
+        旧行 applied=false：不套本绝对 cap
 
-恒等式: DisplayTotalCost × DisplayRateMultiplier ≈ ActualCost（只允许整数 token 取整误差）
+写路径（新 token 请求，扣费前）:
+  L1+L2 之后套联合 cap（input+cache 合计）+ 独立 output cap
+  jitter 只打在合计 cap / output cap 上（lane |joint / |output），92%–100%
+  S ≤ C：分量不动；S > C：in' = round(in×C/S)，cache' = C−in'（夹到封顶前）
+  封顶后成本 = 封顶 token × 展示单价；少掉的钱丢掉，不残差折入
+  actual_cost_new = display_total' × display_rate  （低于未封顶路径）
+  计费实数 token 列不改；applied + used caps 落库
+
+Settings（代码默认 0/关；推荐运营值只写文档）:
+  display_context_token_max  联合 input+cache 上限（推荐 1000000）
+  display_output_token_max   独立 output 上限（推荐 80000）
+
+恒等式（新行，cap 绑定后）: DisplayTotalCost × DisplayRateMultiplier ≈ 新的更低 ActualCost
+恒等式（旧行）: DisplayTotalCost × DisplayRateMultiplier ≈ 当时扣费的 ActualCost
 ```
 
 #### 展示单价 vs 展示倍率

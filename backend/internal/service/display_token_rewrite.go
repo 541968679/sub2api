@@ -25,6 +25,10 @@ type DisplayTokenMultipliers struct {
 	CacheCreate1hMult float64
 	RateScale         float64
 	RateScaleSet      bool
+	// Absolute display caps (0 = off). Applied after L1+L2 / rate-scale.
+	ContextTokenMax int64
+	OutputTokenMax  int64
+	CapSeed         string
 
 	// Alloc path (M + α residual sink). When UseTokenAlloc is true,
 	// computeSeparatedDisplayUsage prefers AllocateDisplayTokens over linear mults
@@ -61,6 +65,7 @@ type displayTokenMultiplierProvider interface {
 	ComputeDisplayTokenMultipliers(ctx context.Context, model string, userID int64, groupID *int64, rateMultiplier float64, displayRateMultiplier float64) *DisplayTokenMultipliers
 	GetUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64
 	GetUserGroupDisplayRateMultiplier(ctx context.Context, userID, groupID int64, fallback float64) float64
+	GetDisplayTokenCapSettings(ctx context.Context) (contextMax, outputMax int64)
 }
 
 func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
@@ -72,7 +77,9 @@ func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
 		m.cacheCreate1hMultOrDefault() != 1.0 ||
 		m.CacheReadInputMult != 0 ||
 		m.CacheReadOutputMult != 0 ||
-		displayTokenRateScale(m) != 1.0
+		displayTokenRateScale(m) != 1.0 ||
+		m.ContextTokenMax > 0 ||
+		m.OutputTokenMax > 0
 }
 
 // cacheCreate5mMultOrDefault 返回 5m 档倍率；未设置（零值）时退回 CacheCreateMult，
@@ -160,6 +167,18 @@ func maybeSetDisplayTokenMultipliers(ctx context.Context, c *gin.Context, apiKey
 	}
 
 	mult := provider.ComputeDisplayTokenMultipliers(ctx, model, userID, groupID, rateMultiplier, displayRateMultiplier)
+	if mult == nil {
+		mult = &DisplayTokenMultipliers{
+			InputMult:       1.0,
+			OutputMult:      1.0,
+			CacheReadMult:   1.0,
+			CacheCreateMult: 1.0,
+			RateScale:       1.0,
+			RateScaleSet:    true,
+		}
+	}
+	mult.ContextTokenMax, mult.OutputTokenMax = provider.GetDisplayTokenCapSettings(ctx)
+	mult.CapSeed = displayCapSeedFromContext(ctx)
 	SetDisplayTokenMultipliers(c, mult)
 }
 
@@ -1024,6 +1043,20 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 			displayInput += uncovered
 		}
 		displayCacheRead = cappedCache
+	}
+
+	if mult.ContextTokenMax > 0 || mult.OutputTokenMax > 0 {
+		capped := ApplyDisplayContextTokenCap(DisplayContextTokenCapInput{
+			InputTokens:     displayInput,
+			CacheReadTokens: displayCacheRead,
+			OutputTokens:    displayOutput,
+			ContextTokenMax: mult.ContextTokenMax,
+			OutputTokenMax:  mult.OutputTokenMax,
+			Seed:            mult.CapSeed,
+		})
+		displayInput = capped.InputTokens
+		displayCacheRead = capped.CacheReadTokens
+		displayOutput = capped.OutputTokens
 	}
 
 	return displayInput, displayOutput, displayCacheRead, displayCacheCreate
