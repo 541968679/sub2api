@@ -1,3 +1,28 @@
+## 2026-08-24 - feat(account): New API user-wallet balance probe
+
+### What
+- OpenAI/Anthropic API-key accounts can store `credentials.newapi_access_token` + `newapi_user_id`. `ProbeUpstreamBalance` then prefers `GET /api/user/self` (Bearer access token + `New-Api-User`) and writes remaining/used from `quota` / `used_quota` divided by `/api/status` `quota_per_unit`.
+- Success source is `newapi_user_self` with `unlimited=false`, so usage cells and smart-schedule balance use wallet remaining instead of unlimited-token `$0`. Wallet failure falls back to the existing token/billing probe; subscription `$1e8` is not treated as the wallet.
+- Create/edit forms add user id + access token + clear. Empty token on edit keeps the saved secret. Display-only: no `actual_cost` / scheduler / billing change.
+
+### Why
+New API unlimited tokens have no remaining quota; money lives on the user wallet. Token-only probes made xiaoyao-style keys look empty in the usage column and schedule PnL.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "ProbeUpstreamBalance|ShouldRefreshUpstreamBalance|NewAPI"`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/credentialsBuilder.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/composables/__tests__/schedulePnl.spec.ts`
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`
+`backend/internal/service/upstream_balance_probe_test.go`
+`frontend/src/components/account/credentialsBuilder.ts`
+`frontend/src/components/account/NewAPIWalletFields.vue`
+`frontend/src/components/account/CreateAccountModal.vue`
+`frontend/src/components/account/EditAccountModal.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-24 - feat(gateway): OAuth fleet soft 429 (factory off)
 
 ### What
@@ -62,7 +87,7 @@ First-token needs a shorter, more sensitive window; success rate needs a longer,
 `backend/internal/repository/user_smart_schedule_repo.go`
 `backend/internal/repository/smart_schedule_pair_quality_cache.go`
 `backend/internal/service/smart_schedule_pair_quality.go`
-`backend/internal/service/smart_schedule_pair_quality_test.go`
+`backend/internal/service/smart_schedule_pair_quality_test.go
 `backend/internal/service/smart_schedule_probe_test.go`
 `frontend/src/utils/smartScheduleWindowN.ts`
 `frontend/src/composables/useUserSmartScheduleEditor.ts`
@@ -71,31 +96,6 @@ First-token needs a shorter, more sensitive window; success rate needs a longer,
 `frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
 `frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`
 `frontend/src/api/admin/users.ts`
-`frontend/src/i18n/locales/zh.ts`
-`frontend/src/i18n/locales/en.ts`
-`docs/dev/codebase/account.md`
-
-## 2026-08-24 - feat(account): New API user-wallet balance probe
-
-### What
-- OpenAI/Anthropic API-key accounts can store `credentials.newapi_access_token` + `newapi_user_id`. `ProbeUpstreamBalance` then prefers `GET /api/user/self` (Bearer access token + `New-Api-User`) and writes remaining/used from `quota` / `used_quota` divided by `/api/status` `quota_per_unit`.
-- Success source is `newapi_user_self` with `unlimited=false`, so usage cells and smart-schedule balance use wallet remaining instead of unlimited-token `$0`. Wallet failure falls back to the existing token/billing probe; subscription `$1e8` is not treated as the wallet.
-- Create/edit forms add user id + access token + clear. Empty token on edit keeps the saved secret. Display-only: no `actual_cost` / scheduler / billing change.
-
-### Why
-New API unlimited tokens have no remaining quota; money lives on the user wallet. Token-only probes made xiaoyao-style keys look empty in the usage column and schedule PnL.
-
-### Verification
-- `go test -tags=unit ./internal/service -count=1 -run "ProbeUpstreamBalance|ShouldRefreshUpstreamBalance|NewAPI"`
-- `pnpm --dir frontend exec vitest run src/components/account/__tests__/credentialsBuilder.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/composables/__tests__/schedulePnl.spec.ts`
-
-### Affected files
-`backend/internal/service/upstream_balance_probe.go`
-`backend/internal/service/upstream_balance_probe_test.go`
-`frontend/src/components/account/credentialsBuilder.ts`
-`frontend/src/components/account/NewAPIWalletFields.vue`
-`frontend/src/components/account/CreateAccountModal.vue`
-`frontend/src/components/account/EditAccountModal.vue`
 `frontend/src/i18n/locales/zh.ts`
 `frontend/src/i18n/locales/en.ts`
 `docs/dev/codebase/account.md`
@@ -143,6 +143,52 @@ Display tokens were amplifying into multi-million tails. The product constraint 
 `docs/dev/codebase/billing.md`
 `.trellis/spec/backend/display-token-pricing.md`
 
+## 2026-08-24 - ops: LoveAPI HTTP/2 concurrency repro script
+
+### What
+- Added `scripts/repro-loveapi-h2-concurrency.sh`: host-side curl HTTP/2 multiplex (default 130) against LoveAPI-shaped `/v1/responses` or `/v1/chat/completions`.
+- Default is dry-run; live traffic requires `--run`. Key only from `LOVEAPI_API_KEY`. Timing/status only, no response body.
+- `.gitignore` keeps other `scripts/*` ignored but force-tracks this file.
+
+### Why
+- Reproduce the production OpenAI API-key outbound path (HTTPS, default H2, no proxy, account-level client) enough to hit peer `MAX_CONCURRENT_STREAMS=128`, without going through gateway scheduling/billing.
+
+### Verification
+- `bash -n scripts/repro-loveapi-h2-concurrency.sh`
+- `bash scripts/repro-loveapi-h2-concurrency.sh --help` and `--dry-run` (no live LoveAPI requests)
+
+### Affected files
+`scripts/repro-loveapi-h2-concurrency.sh`
+`.gitignore`
+
+## 2026-08-23 - feat: per-user Q_u window N + P95 on user quality cell
+
+### What
+- User-global quality \(Q_u\) last-N is per-user: `users.quality_window_n` (1–100) or inherit site `account_quality_window_n`.
+- `UserQualityDialog` can save / inherit that N; Redis FIFO resizes immediately.
+- User quality `combined` cell now shows P95. Account combined cell layout is unchanged.
+- Pair quality \(Q_{a,u}\) and stored billing are unchanged.
+
+### Why
+Admins needed this user's statistical window to be adjustable instead of sharing one site N, and needed P95 visible on the user quality cell.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "ResolveUserQualityWindowN|ProjectAccountQualityLastN|UserWindowN|ApplyUserQualityWindowN|GetUserLastNStatsBatch" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/admin/user/__tests__/UserQualityDialog.spec.ts`
+
+### Affected files
+`backend/migrations/212_user_quality_window_n.sql`
+`backend/ent/schema/user.go`
+`backend/internal/service/account_quality_last_n.go`
+`backend/internal/service/account_quality_maintenance.go`
+`backend/internal/service/account_quality_user_window_n.go`
+`backend/internal/repository/user_quality_last_n_cache.go`
+`backend/internal/repository/user_repo.go`
+`backend/internal/handler/admin/user_handler.go`
+`frontend/src/components/account/AccountQualityCell.vue`
+`frontend/src/components/admin/user/UserQualityDialog.vue`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-23 - feat: OpenAI long-context billing admin switch
 
 ### What
@@ -172,34 +218,6 @@ Ops needed a kill-switch for OpenAI session-level long-context surcharge without
 `frontend/src/i18n/locales/zh.ts`
 `frontend/src/i18n/locales/en.ts`
 `docs/dev/codebase/billing.md`
-
-## 2026-08-23 - feat: per-user Q_u window N + P95 on user quality cell
-
-### What
-- User-global quality \(Q_u\) last-N is per-user: `users.quality_window_n` (1–100) or inherit site `account_quality_window_n`.
-- `UserQualityDialog` can save / inherit that N; Redis FIFO resizes immediately.
-- User quality `combined` cell now shows P95. Account combined cell layout is unchanged.
-- Pair quality \(Q_{a,u}\) and stored billing are unchanged.
-
-### Why
-Admins needed this user's statistical window to be adjustable instead of sharing one site N, and needed P95 visible on the user quality cell.
-
-### Verification
-- `go test -tags=unit ./internal/service -run "ResolveUserQualityWindowN|ProjectAccountQualityLastN|UserWindowN|ApplyUserQualityWindowN|GetUserLastNStatsBatch" -count=1`
-- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/admin/user/__tests__/UserQualityDialog.spec.ts`
-
-### Affected files
-`backend/migrations/212_user_quality_window_n.sql`
-`backend/ent/schema/user.go`
-`backend/internal/service/account_quality_last_n.go`
-`backend/internal/service/account_quality_maintenance.go`
-`backend/internal/service/account_quality_user_window_n.go`
-`backend/internal/repository/user_quality_last_n_cache.go`
-`backend/internal/repository/user_repo.go`
-`backend/internal/handler/admin/user_handler.go`
-`frontend/src/components/account/AccountQualityCell.vue`
-`frontend/src/components/admin/user/UserQualityDialog.vue`
-`docs/dev/codebase/account.md`
 
 ## 2026-08-23 - deploy: v0.1.256 production (skip sidecars)
 
