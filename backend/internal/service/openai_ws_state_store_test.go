@@ -173,12 +173,24 @@ func (c *openAIWSStateStoreTimeoutProbeCache) GetSessionAccountID(ctx context.Co
 	return 123, nil
 }
 
+func (c *openAIWSStateStoreTimeoutProbeCache) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	id, err := c.GetSessionAccountID(ctx, groupID, sessionHash)
+	if err != nil {
+		return StickySessionBinding{}, err
+	}
+	return StickySessionBinding{AccountID: id}, nil
+}
+
 func (c *openAIWSStateStoreTimeoutProbeCache) SetSessionAccountID(ctx context.Context, _ int64, _ string, _ int64, _ time.Duration) error {
 	if deadline, ok := ctx.Deadline(); ok {
 		c.setHasDeadline = true
 		c.setDeadlineDelta = time.Until(deadline)
 	}
 	return errors.New("set failed")
+}
+
+func (c *openAIWSStateStoreTimeoutProbeCache) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	return c.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (c *openAIWSStateStoreTimeoutProbeCache) RefreshSessionTTL(context.Context, int64, string, time.Duration) error {

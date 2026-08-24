@@ -405,9 +405,13 @@ type GatewayCache interface {
 	// GetSessionAccountID 获取粘性会话绑定的账号 ID
 	// Get the account ID bound to a sticky session
 	GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error)
+	// GetSessionBinding 读取账号 id 与 overflow 标记（旧值纯整数 = overflow false）
+	GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error)
 	// SetSessionAccountID 设置粘性会话与账号的绑定关系
 	// Set the binding between sticky session and account
 	SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error
+	// SetSessionBinding 写入账号 id 与 overflow。同 key，不 SCAN。
+	SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error
 	// RefreshSessionTTL 刷新粘性会话的过期时间
 	// Refresh the expiration time of a sticky session
 	RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error
@@ -804,11 +808,16 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 }
 
 // BindStickySession sets session -> account binding with standard TTL.
+// Same account keeps the existing overflow flag so handler rebinds cannot wipe it.
 func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if sessionHash == "" || accountID <= 0 || s.cache == nil {
 		return nil
 	}
-	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
+	overflow := false
+	if existing, err := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), sessionHash); err == nil && existing.AccountID == accountID {
+		overflow = existing.Overflow
+	}
+	return s.cache.SetSessionBinding(ctx, derefGroupID(groupID), sessionHash, StickySessionBinding{AccountID: accountID, Overflow: overflow}, stickySessionTTL)
 }
 
 // GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
@@ -1539,12 +1548,15 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 	var stickyAccountID int64
 	var stickySource string
+	var stickyOverflow bool
+	var forcedFromSticky *Account
 	if prefetch := prefetchedStickyAccountIDFromContext(ctx, groupID); prefetch > 0 {
 		stickyAccountID = prefetch
 		stickySource = "prefetch"
 	} else if sessionHash != "" && s.cache != nil {
-		if accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash); err == nil {
-			stickyAccountID = accountID
+		if binding, err := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), sessionHash); err == nil {
+			stickyAccountID = binding.AccountID
+			stickyOverflow = binding.Overflow
 			stickySource = "cache"
 		}
 	}
@@ -1750,7 +1762,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				if containsInt64(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
 					// 粘性账号在路由列表中，优先使用
 					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
-						if s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, stickyAccount, routingCandidates) {
+						if s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, stickyAccount, routingCandidates, stickyOverflow) {
 							// Fall through to routed load-aware pick.
 						} else {
 							var stickyCacheMissReason string
@@ -1911,7 +1923,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							continue
 						}
 						if sessionHash != "" && s.cache != nil {
-							_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, item.account.ID, stickySessionTTL)
+							s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, item.account, routingCandidates, forcedFromSticky)
 						}
 						if s.debugModelRoutingEnabled() {
 							logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed select: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), item.account.ID)
@@ -1952,20 +1964,24 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		if accountID > 0 && !isExcluded(accountID) {
 			account, ok := accountByID[accountID]
 			escapedCheaperTier := false
-			if ok {
-				layer15Candidates := make([]*Account, 0, len(accounts))
-				for i := range accounts {
-					if isExcluded(accounts[i].ID) {
-						continue
-					}
-					layer15Candidates = append(layer15Candidates, &accounts[i])
+			layer15Candidates := make([]*Account, 0, len(accounts))
+			for i := range accounts {
+				if isExcluded(accounts[i].ID) {
+					continue
 				}
-				escapedCheaperTier = s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, layer15Candidates)
+				layer15Candidates = append(layer15Candidates, &accounts[i])
+			}
+			if ok {
+				escapedCheaperTier = s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, layer15Candidates, stickyOverflow)
+				if escapedCheaperTier {
+					forcedFromSticky = account
+				}
 			}
 			if ok && !escapedCheaperTier && account != nil {
 				// 检查账户是否需要清理粘性会话绑定
 				clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 				if clearSticky {
+					forcedFromSticky = account
 					slog.Debug("sticky.layer1_5_no_routing_clear",
 						"account_id", accountID,
 						"reason", "should_clear_sticky_session",
@@ -2033,7 +2049,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					}
 
 					if pairFullSticky {
-						// Pair-full skips this sticky pick only; keep the pin and do not WaitPlan.
+						forcedFromSticky = account
+					} else if shouldSkipMinRateWaitPlan(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, layer15Candidates, scheduleLoadMap(ctx, s.concurrencyService, layer15Candidates), s.pairCountsForSelection(ctx, layer15Candidates)) {
+						forcedFromSticky = account
 					} else {
 						waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
 						if waitingCount < cfg.StickySessionMaxWaiting {
@@ -2156,7 +2174,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	pairFullIDs := make(map[int64]struct{})
 	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
 	if err != nil {
-		if result, ok, legacyErr := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, preferOAuth, pairFullIDs); legacyErr != nil {
+		if result, ok, legacyErr := s.tryAcquireByLegacyOrder(ctx, candidates, groupID, sessionHash, preferOAuth, pairFullIDs, forcedFromSticky); legacyErr != nil {
 			return nil, legacyErr
 		} else if ok {
 			return result, nil
@@ -2199,7 +2217,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					result.ReleaseFunc() // 释放槽位，继续尝试下一个账号
 				} else {
 					if sessionHash != "" && s.cache != nil {
-						_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.account.ID, stickySessionTTL)
+						s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected.account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), forcedFromSticky)
 					}
 					return s.newSelectionResult(ctx, selected.account, true, result.ReleaseFunc, nil)
 				}
@@ -2237,7 +2255,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	return nil, ErrNoAvailableAccounts
 }
 
-func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool, pairFullIDs map[int64]struct{}) (*AccountSelectionResult, bool, error) {
+func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates []*Account, groupID *int64, sessionHash string, preferOAuth bool, pairFullIDs map[int64]struct{}, previous *Account) (*AccountSelectionResult, bool, error) {
 	ordered := append([]*Account(nil), candidates...)
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
 
@@ -2254,7 +2272,7 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 				continue
 			}
 			if sessionHash != "" && s.cache != nil {
-				_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, acc.ID, stickySessionTTL)
+				s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, acc, candidates, previous)
 			}
 			selection, err := s.newSelectionResult(ctx, acc, true, result.ReleaseFunc, nil)
 			if err != nil {
@@ -3223,6 +3241,7 @@ func shuffleWithinPriority(accounts []*Account) {
 func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*Account, error) {
 	preferOAuth := platform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, platform)
+	var forcedFromSticky *Account
 
 	// require_privacy_set: 获取分组信息
 	var schedGroup *Group
@@ -3250,10 +3269,11 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
+						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
 							clearSticky = true
 						}
 						if clearSticky {
+							forcedFromSticky = account
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
 						if !clearSticky && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
@@ -3332,9 +3352,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 
 		if selected != nil {
 			if sessionHash != "" && s.cache != nil {
-				if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.ID, stickySessionTTL); err != nil {
-					logger.LegacyPrintf("service.gateway", "set session account failed: session=%s account_id=%d err=%v", sessionHash, selected.ID, err)
-				}
+				s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), forcedFromSticky)
 			}
 			if s.debugModelRoutingEnabled() {
 				logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy routed select: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), selected.ID)
@@ -3353,10 +3371,11 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 				// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
+					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
 						clearSticky = true
 					}
 					if clearSticky {
+						forcedFromSticky = account
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
 					if !clearSticky && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
@@ -3438,9 +3457,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 
 	// 4. 建立粘性绑定
 	if sessionHash != "" && s.cache != nil {
-		if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.ID, stickySessionTTL); err != nil {
-			logger.LegacyPrintf("service.gateway", "set session account failed: session=%s account_id=%d err=%v", sessionHash, selected.ID, err)
-		}
+		s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), forcedFromSticky)
 	}
 
 	return selected, nil
@@ -3451,6 +3468,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*Account, error) {
 	preferOAuth := nativePlatform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, nativePlatform)
+	var forcedFromSticky *Account
 
 	// require_privacy_set: 获取分组信息
 	var schedGroup *Group
@@ -3476,10 +3494,11 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
+						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
 							clearSticky = true
 						}
 						if clearSticky {
+							forcedFromSticky = account
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
 						if !clearSticky && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
@@ -3561,9 +3580,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 
 		if selected != nil {
 			if sessionHash != "" && s.cache != nil {
-				if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.ID, stickySessionTTL); err != nil {
-					logger.LegacyPrintf("service.gateway", "set session account failed: session=%s account_id=%d err=%v", sessionHash, selected.ID, err)
-				}
+				s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), forcedFromSticky)
 			}
 			if s.debugModelRoutingEnabled() {
 				logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy mixed routed select: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), selected.ID)
@@ -3582,10 +3599,11 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 				// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
+					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
 						clearSticky = true
 					}
 					if clearSticky {
+						forcedFromSticky = account
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
 					if !clearSticky && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
@@ -3669,9 +3687,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 
 	// 4. 建立粘性绑定
 	if sessionHash != "" && s.cache != nil {
-		if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, selected.ID, stickySessionTTL); err != nil {
-			logger.LegacyPrintf("service.gateway", "set session account failed: session=%s account_id=%d err=%v", sessionHash, selected.ID, err)
-		}
+		s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), forcedFromSticky)
 	}
 
 	return selected, nil

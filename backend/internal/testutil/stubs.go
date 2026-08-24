@@ -97,7 +97,13 @@ type StubGatewayCache struct{}
 func (c StubGatewayCache) GetSessionAccountID(_ context.Context, _ int64, _ string) (int64, error) {
 	return 0, nil
 }
+func (c StubGatewayCache) GetSessionBinding(_ context.Context, _ int64, _ string) (service.StickySessionBinding, error) {
+	return service.StickySessionBinding{}, nil
+}
 func (c StubGatewayCache) SetSessionAccountID(_ context.Context, _ int64, _ string, _ int64, _ time.Duration) error {
+	return nil
+}
+func (c StubGatewayCache) SetSessionBinding(_ context.Context, _ int64, _ string, _ service.StickySessionBinding, _ time.Duration) error {
 	return nil
 }
 func (c StubGatewayCache) RefreshSessionTTL(_ context.Context, _ int64, _ string, _ time.Duration) error {

@@ -64,6 +64,7 @@ type OpenAIAccountScheduleRequest struct {
 	StickyWeighted               bool
 	SubscriptionPriority         bool
 	PreserveStickyBinding        bool
+	ForcedFromSticky             *Account
 	PreviousResponseID           string
 	PreviousResponseCanMove      bool
 	RequestedModel               string
@@ -341,7 +342,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	}
 
 	if !req.StickyWeighted {
-		selection, escapedSticky, err := s.selectBySessionHash(ctx, req)
+		selection, escapedSticky, leftSticky, err := s.selectBySessionHash(ctx, req)
 		if err != nil {
 			return nil, decision, err
 		}
@@ -355,6 +356,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		if escapedSticky {
 			// Sticky was deleted on escape; allow rebinding to the replacement account.
 			req.PreserveStickyBinding = false
+			req.ForcedFromSticky = leftSticky
 		}
 	}
 
@@ -380,10 +382,10 @@ func (s *defaultOpenAIAccountScheduler) Select(
 func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
-) (*AccountSelectionResult, bool, error) {
+) (*AccountSelectionResult, bool, *Account, error) {
 	sessionHash := strings.TrimSpace(req.SessionHash)
 	if sessionHash == "" || s == nil || s.service == nil || s.service.cache == nil {
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 
 	accountID := req.StickyAccountID
@@ -391,37 +393,37 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		var err error
 		accountID, err = s.service.getStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		if err != nil || accountID <= 0 {
-			return nil, false, nil
+			return nil, false, nil, nil
 		}
 	}
 	if accountID <= 0 {
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 	if req.ExcludedIDs != nil {
 		if _, excluded := req.ExcludedIDs[accountID]; excluded {
-			return nil, false, nil
+			return nil, false, nil, nil
 		}
 	}
 
 	account, err := s.service.getSchedulableAccount(ctx, accountID)
 	if err != nil || account == nil {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 	if shouldClearStickySession(account, req.RequestedModel) || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || !account.IsSchedulable() || s.service.isOpenAIAccountRuntimeBlocked(account) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, false, nil
+		return nil, true, account, nil
 	}
 	if !s.service.admitsScheduleUser(ctx, account) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, true, nil
+		return nil, true, account, nil
 	}
 	if !s.isAccountRequestCompatible(ctx, account, req) {
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 	if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, false, nil
+		return nil, true, account, nil
 	}
 	account = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, account, openAIAccountRequestEligibility{
 		Platform:                     req.Platform,
@@ -432,7 +434,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	})
 	if account == nil || !openAIStickyAccountMatchesGroup(account, req.GroupID) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
@@ -440,25 +442,28 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		// repeatedly hitting the degraded sticky target (escape used to preserve binding).
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", reason, "error_rate", errorRate, "ttft", ttft)
-		return nil, true, nil
+		return nil, true, account, nil
 	}
 	// Fallback-only sticky must not pin traffic while primary peers are available.
 	if account.IsFallbackOnly() && s.hasPrimaryOpenAIPeer(ctx, req, accountID) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "fallback_only_primary_available")
-		return nil, true, nil
+		return nil, true, account, nil
 	}
 	peers, peerLoad := s.sessionStickyPeerLoad(ctx, req)
-	if shouldEscapeSessionStickyForCheaperTier(ctx, s.service.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, peers, peerLoad) {
+	userID := scheduleUserIDFromContext(ctx, 0)
+	pairCounts := s.service.pairCountsForSelection(ctx, peers)
+	overflow := s.service.readSessionBindingOverflow(ctx, req.GroupID, sessionHash)
+	if shouldEscapeSessionStickyForCheaperTier(ctx, s.service.smartScheduleCache, userID, account, peers, peerLoad, pairCounts, overflow) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "cheaper_tier_available")
-		return nil, true, nil
+		return nil, true, account, nil
 	}
 
 	result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, account)
 	if pairFull {
-		// Pair-full skips this sticky pick only; keep the pin and do not WaitPlan.
-		return nil, false, nil
+		// Sticky pair-full cannot serve this request; switch now, do not WaitPlan.
+		return nil, true, account, nil
 	}
 	if acquireErr == nil && result != nil && result.Acquired {
 		_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
@@ -466,7 +471,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			Account:     account,
 			Acquired:    true,
 			ReleaseFunc: result.ReleaseFunc,
-		}, false, nil
+		}, false, nil, nil
 	}
 
 	cfg := s.service.schedulingConfig()
@@ -476,12 +481,12 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			errorRate, ttft, _ := s.stats.snapshot(accountID)
 			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 			slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "concurrency_full", "error_rate", errorRate, "ttft", ttft)
-			return nil, true, nil
+			return nil, true, account, nil
 		}
-		if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, peers, peerLoad) {
+		if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, account, peers, peerLoad, pairCounts) {
 			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 			slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "min_rate_full_higher_headroom")
-			return nil, true, nil
+			return nil, true, account, nil
 		}
 		return &AccountSelectionResult{
 			Account: account,
@@ -491,9 +496,9 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 				Timeout:        cfg.StickySessionWaitTimeout,
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
-		}, false, nil
+		}, false, nil, nil
 	}
-	return nil, false, nil
+	return nil, false, nil, nil
 }
 
 func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int64, cfg openAIStickyEscapeConfig) (string, float64, float64, bool) {
@@ -575,6 +580,16 @@ func (s *defaultOpenAIAccountScheduler) sessionStickyPeerLoad(
 		peers = append(peers, account)
 	}
 	return peers, scheduleLoadMap(ctx, s.service.concurrencyService, peers)
+}
+
+func openAICandidateAccounts(candidates []openAIAccountCandidateScore) []*Account {
+	out := make([]*Account, 0, len(candidates))
+	for _, item := range candidates {
+		if item.account != nil {
+			out = append(out, item.account)
+		}
+	}
+	return out
 }
 
 func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
@@ -1232,7 +1247,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 		if result != nil && result.Acquired {
 			if req.SessionHash != "" && !req.PreserveStickyBinding {
-				_ = s.service.BindStickySession(ctx, req.GroupID, req.SessionHash, fresh.ID)
+				_ = s.service.bindStickySessionAfterSelect(ctx, req.GroupID, req.SessionHash, fresh, openAICandidateAccounts(candidates), req.ForcedFromSticky)
 			}
 			return &AccountSelectionResult{
 				Account:     fresh,
@@ -1256,7 +1271,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	if hasMinRate {
 		for i := 0; i < len(candidates); i++ {
 			item := candidates[i]
-			if item.account == nil || !isUnpooledScheduleUser(ctx, s.service.smartScheduleCache, userID, smartScheduleLookupPlatformFromCtx(ctx, item.account, s.service.smartScheduleCache)) {
+			if item.account == nil {
 				continue
 			}
 			if item.account.EffectiveUpstreamRate() <= minRate || !accountHasScheduleHeadroom(poolLoad, item.account.ID) {
@@ -1291,7 +1306,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			}
 			if result != nil && result.Acquired {
 				if req.SessionHash != "" && !req.PreserveStickyBinding {
-					_ = s.service.BindStickySession(ctx, req.GroupID, req.SessionHash, fresh.ID)
+					_ = s.service.bindStickySessionAfterSelect(ctx, req.GroupID, req.SessionHash, fresh, poolAccounts, req.ForcedFromSticky)
 				}
 				return &AccountSelectionResult{
 					Account:     fresh,
@@ -1352,8 +1367,8 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				return &AccountSelectionResult{Account: fresh, Acquired: true, ReleaseFunc: result.ReleaseFunc}, candidateCount, topK, loadSkew, nil
 			}
 			if s.service.concurrencyService != nil {
-				if shouldEscapeSessionStickyForCheaperTier(ctx, s.service.smartScheduleCache, userID, fresh, poolAccounts, poolLoad) ||
-					shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, fresh, poolAccounts, poolLoad) {
+				pairCounts := s.service.pairCountsForSelection(ctx, poolAccounts)
+				if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, fresh, poolAccounts, poolLoad, pairCounts) {
 					continue
 				}
 				cfg := s.service.schedulingConfig()
@@ -1378,7 +1393,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			if _, ok := seen[item.account.ID]; ok {
 				return
 			}
-			if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, item.account, poolAccounts, poolLoad) {
+			if shouldSkipMinRateWaitPlan(ctx, s.service.smartScheduleCache, userID, item.account, poolAccounts, poolLoad, s.service.pairCountsForSelection(ctx, poolAccounts)) {
 				return
 			}
 			seen[item.account.ID] = struct{}{}
@@ -1841,7 +1856,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity(previousResponseID, oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity(previousResponseID, s.readSessionBinding(ctx, groupID, sessionHash).AccountID))
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	if requireClaudeGPTBridge {
 		ctx = withRequireClaudeGPTBridge(ctx, true)

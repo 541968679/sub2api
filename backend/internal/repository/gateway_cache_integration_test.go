@@ -91,6 +91,20 @@ func (s *GatewayCacheSuite) TestDeleteSessionAccountID() {
 	require.True(s.T(), errors.Is(err, redis.Nil), "expected redis.Nil after delete")
 }
 
+func (s *GatewayCacheSuite) TestSessionBindingOverflowRoundTrip() {
+	sessionID := "overflow-pin"
+	groupID := int64(9)
+	sessionTTL := 1 * time.Minute
+	require.NoError(s.T(), s.cache.SetSessionBinding(s.ctx, groupID, sessionID, service.StickySessionBinding{AccountID: 1718, Overflow: true}, sessionTTL))
+	binding, err := s.cache.GetSessionBinding(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), int64(1718), binding.AccountID)
+	require.True(s.T(), binding.Overflow)
+	id, err := s.cache.GetSessionAccountID(s.ctx, groupID, sessionID)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), int64(1718), id)
+}
+
 func (s *GatewayCacheSuite) TestGetSessionAccountID_CorruptedValue() {
 	sessionID := "corrupted"
 	groupID := int64(1)

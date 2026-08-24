@@ -166,6 +166,7 @@ func (c schedulerTestConcurrencyCache) GetAccountUserConcurrencyBatch(ctx contex
 
 type schedulerTestGatewayCache struct {
 	sessionBindings map[string]int64
+	sessionOverflow map[string]bool
 	deletedSessions map[string]int
 }
 
@@ -176,12 +177,32 @@ func (c *schedulerTestGatewayCache) GetSessionAccountID(ctx context.Context, gro
 	return 0, errors.New("not found")
 }
 
+func (c *schedulerTestGatewayCache) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	id, err := c.GetSessionAccountID(ctx, groupID, sessionHash)
+	if err != nil {
+		return StickySessionBinding{}, err
+	}
+	return StickySessionBinding{AccountID: id, Overflow: c.sessionOverflow[sessionHash]}, nil
+}
+
 func (c *schedulerTestGatewayCache) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	if c.sessionBindings == nil {
 		c.sessionBindings = make(map[string]int64)
 	}
 	c.sessionBindings[sessionHash] = accountID
 	return nil
+}
+
+func (c *schedulerTestGatewayCache) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	if c.sessionOverflow == nil {
+		c.sessionOverflow = make(map[string]bool)
+	}
+	if binding.Overflow {
+		c.sessionOverflow[sessionHash] = true
+	} else {
+		delete(c.sessionOverflow, sessionHash)
+	}
+	return c.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (c *schedulerTestGatewayCache) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {
@@ -197,6 +218,7 @@ func (c *schedulerTestGatewayCache) DeleteSessionAccountID(ctx context.Context, 
 	}
 	c.deletedSessions[sessionHash]++
 	delete(c.sessionBindings, sessionHash)
+	delete(c.sessionOverflow, sessionHash)
 	return nil
 }
 

@@ -382,12 +382,24 @@ func (c *stubGatewayCache) GetSessionAccountID(ctx context.Context, groupID int6
 	return 0, errors.New("not found")
 }
 
+func (c *stubGatewayCache) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	id, err := c.GetSessionAccountID(ctx, groupID, sessionHash)
+	if err != nil {
+		return StickySessionBinding{}, err
+	}
+	return StickySessionBinding{AccountID: id}, nil
+}
+
 func (c *stubGatewayCache) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	if c.sessionBindings == nil {
 		c.sessionBindings = make(map[string]int64)
 	}
 	c.sessionBindings[sessionHash] = accountID
 	return nil
+}
+
+func (c *stubGatewayCache) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	return c.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (c *stubGatewayCache) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {

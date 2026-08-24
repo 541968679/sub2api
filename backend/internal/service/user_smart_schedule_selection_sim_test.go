@@ -227,6 +227,21 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		require.Equal(t, 1, lookup.startCalls, "StartCooldown must not extend an active window")
 	})
 
+	t.Run("overflow sticky returns once to cheaper eligible", func(t *testing.T) {
+		t.Parallel()
+		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
+		cache := &mockGatewayCacheForPlatform{
+			sessionBindings: map[string]int64{"sticky-overflow": simExpensiveID},
+			sessionOverflow: map[string]bool{"sticky-overflow": true},
+		}
+		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
+		svc.cache = cache
+		got := pickAnthropic(t, svc, "sticky-overflow", nil)
+		require.Equal(t, simPairCappedID, got.Account.ID, "overflow pin must return once to the cheapest eligible peer")
+		require.Greater(t, cache.deletedSessions["sticky-overflow"], 0)
+		require.False(t, cache.sessionOverflow["sticky-overflow"])
+	})
+
 	t.Run("sticky keeps expensive pin while it still admits", func(t *testing.T) {
 		t.Parallel()
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
@@ -339,6 +354,20 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), map[string]int64{"openai:sticky-expensive": simExpensiveID})
 		got := pickOpenAI(t, svc, "sticky-expensive", nil)
 		require.Equal(t, simExpensiveID, got.Account.ID)
+	})
+
+	t.Run("overflow sticky returns once to cheaper", func(t *testing.T) {
+		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
+		cache := &schedulerTestGatewayCache{
+			sessionBindings: map[string]int64{"openai:sticky-overflow": simExpensiveID},
+			sessionOverflow: map[string]bool{"openai:sticky-overflow": true},
+		}
+		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
+		svc.cache = cache
+		got := pickOpenAI(t, svc, "sticky-overflow", nil)
+		require.Equal(t, simPairCappedID, got.Account.ID)
+		require.Greater(t, cache.deletedSessions["openai:sticky-overflow"], 0)
+		require.False(t, cache.sessionOverflow["openai:sticky-overflow"])
 	})
 
 	t.Run("enable off reopens unrestricted cheapest", func(t *testing.T) {

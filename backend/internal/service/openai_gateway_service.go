@@ -1380,6 +1380,7 @@ func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool) stri
 }
 
 // BindStickySession sets session -> account binding with standard TTL.
+// Same account keeps the existing overflow flag so handler rebinds cannot wipe it.
 func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if sessionHash == "" || accountID <= 0 {
 		return nil
@@ -1388,7 +1389,54 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
 		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
 	}
-	return s.setStickySessionAccountID(ctx, groupID, sessionHash, accountID, ttl)
+	overflow := false
+	if existing := s.readSessionBinding(ctx, groupID, sessionHash); existing.AccountID == accountID {
+		overflow = existing.Overflow
+	}
+	return s.setStickySessionBinding(ctx, groupID, sessionHash, StickySessionBinding{AccountID: accountID, Overflow: overflow}, ttl)
+}
+
+func (s *OpenAIGatewayService) readSessionBinding(ctx context.Context, groupID *int64, sessionHash string) StickySessionBinding {
+	if s == nil || s.cache == nil || sessionHash == "" {
+		return StickySessionBinding{}
+	}
+	primaryKey := s.openAISessionCacheKey(sessionHash)
+	if primaryKey == "" {
+		return StickySessionBinding{}
+	}
+	binding, err := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), primaryKey)
+	if err == nil && binding.AccountID > 0 {
+		return binding
+	}
+	if !s.openAISessionHashReadOldFallbackEnabled() {
+		return StickySessionBinding{}
+	}
+	legacyKey := s.openAILegacySessionCacheKey(ctx, sessionHash)
+	if legacyKey == "" {
+		return StickySessionBinding{}
+	}
+	legacy, legacyErr := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), legacyKey)
+	if legacyErr != nil {
+		return StickySessionBinding{}
+	}
+	return legacy
+}
+
+func (s *OpenAIGatewayService) readSessionBindingOverflow(ctx context.Context, groupID *int64, sessionHash string) bool {
+	return s.readSessionBinding(ctx, groupID, sessionHash).Overflow
+}
+
+func (s *OpenAIGatewayService) bindStickySessionAfterSelect(ctx context.Context, groupID *int64, sessionHash string, selected *Account, candidates []*Account, previous *Account) error {
+	if sessionHash == "" || selected == nil || selected.ID <= 0 {
+		return nil
+	}
+	ttl := openaiStickySessionTTL
+	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
+		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+	}
+	userID := scheduleUserIDFromContext(ctx, 0)
+	overflow := sessionStickyOverflowOnBind(ctx, s.smartScheduleCache, userID, selected, candidates, previous)
+	return s.setStickySessionBinding(ctx, groupID, sessionHash, StickySessionBinding{AccountID: selected.ID, Overflow: overflow}, ttl)
 }
 
 // SelectAccount selects an OpenAI account with sticky session support
@@ -1404,7 +1452,7 @@ func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupI
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 // SelectAccountForModelWithExclusions 选择支持指定模型的账号，同时排除指定的账号。
 func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
-	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", s.readSessionBinding(ctx, groupID, sessionHash).AccountID))
 	return s.selectAccountForModelWithExclusions(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, sessionHash, requestedModel, excludedIDs, false, 0)
 }
 
@@ -1717,6 +1765,12 @@ func (s *OpenAIGatewayService) selectAccountForScheduleWithExclusions(ctx contex
 
 	// 1. 尝试粘性会话命中
 	// Try sticky session hit
+	var previous *Account
+	if stickyAccountID > 0 {
+		if acc, err := s.getSchedulableAccount(ctx, stickyAccountID); err == nil {
+			previous = acc
+		}
+	}
 	if account := s.tryStickySessionHitForSchedule(ctx, groupID, sessionHash, requestedModel, excludedIDs, eligibility, stickyAccountID); account != nil {
 		return account, nil
 	}
@@ -1739,7 +1793,7 @@ func (s *OpenAIGatewayService) selectAccountForScheduleWithExclusions(ctx contex
 	// 4. 设置粘性会话绑定
 	// Set sticky session binding
 	if sessionHash != "" {
-		_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, selected.ID, openaiStickySessionTTL)
+		_ = s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, selected, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), previous)
 	}
 
 	return s.hydrateSelectedAccount(ctx, selected)
@@ -1796,7 +1850,7 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 		return nil
 	}
 	if peers, peerErr := s.listSchedulableAccounts(ctx, groupID, eligibility.Platform); peerErr == nil &&
-		s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(peers))) {
+		s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(peers)), s.readSessionBindingOverflow(ctx, groupID, sessionHash)) {
 		return nil
 	}
 
@@ -1917,7 +1971,7 @@ func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
 func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
-	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", oauthFleetSoft429StickyAccountID(ctx, s.cache, groupID, sessionHash)))
+	excludedIDs = mergeOAuthFleetSoft429ExcludedIDs(ctx, s.rateLimitService, excludedIDs, oauthFleetSoft429HasHardAffinity("", s.readSessionBinding(ctx, groupID, sessionHash).AccountID))
 	return s.selectAccountWithLoadAwareness(ctx, groupID, sessionHash, requestedModel, excludedIDs, false)
 }
 
@@ -1942,9 +1996,12 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 	cfg := s.schedulingConfig()
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
 	var stickyAccountID int64
-	if sessionHash != "" && s.cache != nil {
-		if accountID, err := s.getStickySessionAccountID(ctx, groupID, sessionHash); err == nil {
-			stickyAccountID = accountID
+	var stickyOverflow bool
+	var forcedFromSticky *Account
+	if sessionHash != "" {
+		if binding := s.readSessionBinding(ctx, groupID, sessionHash); binding.AccountID > 0 {
+			stickyAccountID = binding.AccountID
+			stickyOverflow = binding.Overflow
 		}
 	}
 	if s.concurrencyService == nil || !cfg.LoadBatchEnabled {
@@ -2009,10 +2066,11 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			if err == nil {
 				clearSticky := shouldClearStickySession(account, requestedModel) ||
 					!s.admitsScheduleUser(ctx, account)
-				if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts))) {
+				if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), stickyOverflow) {
 					clearSticky = true
 				}
 				if clearSticky {
+					forcedFromSticky = account
 					_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 				}
 				if !clearSticky && isOpenAIAccountEligibleForScheduleRequest(account, eligibility) {
@@ -2026,10 +2084,14 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 					} else {
 						result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, account)
 						if pairFull {
-							// Pair-full skips this sticky pick only; keep the pin.
+							forcedFromSticky = account
+							_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 						} else if err == nil && result.Acquired {
 							_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
 							return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
+						} else if shouldSkipMinRateWaitPlan(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), scheduleLoadMap(ctx, s.concurrencyService, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts))), s.pairCountsForSelection(ctx, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)))) {
+							forcedFromSticky = account
+							_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 						} else {
 							waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
 							if waitingCount < cfg.StickySessionMaxWaiting {
@@ -2132,7 +2194,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			}
 			if err == nil && result.Acquired {
 				if sessionHash != "" {
-					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
+					_ = s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, fresh, candidates, forcedFromSticky)
 				}
 				return s.newSelectionResult(ctx, fresh, true, result.ReleaseFunc, nil)
 			}
@@ -2215,7 +2277,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 				}
 				if err == nil && result.Acquired {
 					if sessionHash != "" {
-						_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
+						_ = s.bindStickySessionAfterSelect(ctx, groupID, sessionHash, fresh, candidates, forcedFromSticky)
 					}
 					return s.newSelectionResult(ctx, fresh, true, result.ReleaseFunc, nil)
 				}

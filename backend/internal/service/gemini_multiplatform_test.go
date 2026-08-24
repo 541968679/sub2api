@@ -278,12 +278,24 @@ func (m *mockGatewayCacheForGemini) GetSessionAccountID(ctx context.Context, gro
 	return 0, errors.New("not found")
 }
 
+func (m *mockGatewayCacheForGemini) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	id, err := m.GetSessionAccountID(ctx, groupID, sessionHash)
+	if err != nil {
+		return StickySessionBinding{}, err
+	}
+	return StickySessionBinding{AccountID: id}, nil
+}
+
 func (m *mockGatewayCacheForGemini) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	if m.sessionBindings == nil {
 		m.sessionBindings = make(map[string]int64)
 	}
 	m.sessionBindings[sessionHash] = accountID
 	return nil
+}
+
+func (m *mockGatewayCacheForGemini) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	return m.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (m *mockGatewayCacheForGemini) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {

@@ -21,7 +21,7 @@ Two production entrypoints share the same admission function (`admitsScheduleUse
 4. User admission: enabled smart-schedule with a non-empty pool is a closed allow-list + pair cooldown + pool pair-cap. The pool key is `SmartScheduleLookupPlatform` (OpenAI + Claude-GPT bridge or AG-group → `antigravity` only while AG is enabled with members; otherwise those requests keep `openai`. Native OpenAI groups stay `openai`). AG off/empty/missing does not fail-open to account-side. Once AG is on, a pool miss rejects and never falls back to another platform pool.
 5. `fallback_only` hard partition (`preferPrimaryAccounts`) on load-aware Layer 2 and the OpenAI scheduler. Anthropic **model-routing Layer 1** currently ranks routed IDs without this partition.
 6. Pair occupancy: skip when current ≥ cap. No `WaitPlan` / 429. Sticky pin is kept.
-7. Sticky / `previous_response`: keep the pin if it still admits, even when a cheaper peer exists. Identity or quality miss clears the pin once.
+7. Sticky / `previous_response`: keep the session pin if it still admits, unless the binding is overflow and a cheaper eligible peer has headroom (return once, then overflow=false). Identity or quality miss, pair_full, or account-full with a free peer forces a switch. `previous_response` is never cleared for a cheaper peer.
 8. Account slot: account-concurrency full may `WaitPlan` on the Claude load-aware path; pair-full never waits. WaitPlan wake must attach the pair slot before forwarding.
 9. Upstream-rate overlay among the remaining set (lower `EffectiveUpstreamRate` first). Not billing `rate_multiplier`.
 10. Same rate: Claude/Gemini layered filter (priority → load → LRU; Gemini also prefers OAuth). OpenAI advanced scheduler uses the admin-editable score weights, then TopK weighted random. If that scheduler is off, OpenAI uses the same layered filter.
@@ -34,7 +34,7 @@ After `IsSchedulable` has already produced the live set, `SelectAccount*` / the 
 
 After group / `IsSchedulable` / smart-schedule / quality / pair-cap / sticky / `fallback_only` have already produced the eligible set, selection ranks by `EffectiveUpstreamRate()` (lower first). This is `accounts.upstream_rate_multiplier`, not billing `rate_multiplier`.
 
-1. Sticky: if the pinned account still admits, keep it even when a cheaper account exists.
+1. Sticky: if the pinned account still admits, keep it unless the pin is overflow and a cheaper eligible peer has headroom (one return, then stay). `previous_response` never uses this escape.
 2. `fallback_only` is a hard partition; never mix fallback with primary. Overlay applies inside the active partition.
 3. Same rate → existing priority / last_used / load / Sub2 score.
 4. Sort/shuffle groups include the rate so different rates are not shuffled together.
@@ -524,10 +524,11 @@ first and then regular accounts; if neither acquires a slot, it prefers a
 regular wait plan and falls back to a busy subscription wait plan only when the
 regular pool cannot serve the request.
 
-`gateway.openai_scheduler` controls sticky escape independently of the Settings
+`gateway.openai_scheduler` controls quality sticky escape independently of the Settings
 KV total gate. It defaults to enabled with TTFT EWMA `15000ms` and error-rate
-EWMA `0.5`; a full sticky slot also escapes. Escape selects a healthy fallback
-without overwriting the original session binding. Setting
+EWMA `0.5`; a full sticky slot also escapes. Escape **deletes** the session binding
+so the next pick can rebind (see `openai_account_scheduler.go`). Cheaper-tier
+session escape is separate: only overflow pins return once. Setting
 `sticky_escape_enabled: false` restores legacy sticky waiting.
 
 The staged sync through Phase 8B intentionally keeps OpenAI/Codex hot paths

@@ -124,7 +124,15 @@ var _ CyberSessionBlockStore = (*comboCacheAndStore)(nil)
 func (c *comboCacheAndStore) GetSessionAccountID(_ context.Context, _ int64, _ string) (int64, error) {
 	return 0, errors.New("stub")
 }
+func (c *comboCacheAndStore) GetSessionBinding(_ context.Context, _ int64, _ string) (StickySessionBinding, error) {
+	return StickySessionBinding{}, errors.New("stub")
+}
+
 func (c *comboCacheAndStore) SetSessionAccountID(_ context.Context, _ int64, _ string, _ int64, _ time.Duration) error {
+	return nil
+}
+
+func (c *comboCacheAndStore) SetSessionBinding(_ context.Context, _ int64, _ string, _ StickySessionBinding, _ time.Duration) error {
 	return nil
 }
 func (c *comboCacheAndStore) RefreshSessionTTL(_ context.Context, _ int64, _ string, _ time.Duration) error {

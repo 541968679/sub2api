@@ -54,7 +54,7 @@ func TestGatewayUnpooled_StickyEscapeToCheap(t *testing.T) {
 	repo := gatewayUnpooledAccounts(1, 2, 0.15, 1.0)
 	cfg := testConfig()
 	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{sessionHash: 2}}
+	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{sessionHash: 2}, sessionOverflow: map[string]bool{sessionHash: true}}
 	svc := &GatewayService{
 		accountRepo: repo,
 		groupRepo: &mockGroupRepoForGateway{groups: map[int64]*Group{
@@ -161,4 +161,58 @@ func TestGatewayPooled_NoStickyEscape(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), result.Account.ID)
 	require.Zero(t, cache.deletedSessions[sessionHash])
+}
+
+func TestGatewayPooled_OverflowEscapesOnce(t *testing.T) {
+	groupID := int64(86)
+	sessionHash := "gw-pool-ov"
+	repo := gatewayUnpooledAccounts(1, 2, 0.15, 1.0)
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{sessionHash: 2}, sessionOverflow: map[string]bool{sessionHash: true}}
+	svc := &GatewayService{
+		accountRepo: repo,
+		groupRepo: &mockGroupRepoForGateway{groups: map[int64]*Group{
+			groupID: {ID: groupID, Platform: PlatformAnthropic, Status: StatusActive, Hydrated: true},
+		}},
+		cache: cache,
+		cfg:   cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{loadMap: map[int64]*AccountLoadInfo{
+			1: {AccountID: 1, LoadRate: 0},
+			2: {AccountID: 2, LoadRate: 10},
+		}}),
+		smartScheduleCache: testSmartLookup(PlatformAnthropic, 1, 2),
+	}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "", nil, "", int64(16))
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Account.ID)
+	require.Greater(t, cache.deletedSessions[sessionHash], 0)
+	require.Equal(t, int64(1), cache.sessionBindings[sessionHash])
+	require.False(t, cache.sessionOverflow[sessionHash])
+}
+
+func TestGatewayPooled_NewSessionCheapestNoOverflow(t *testing.T) {
+	groupID := int64(87)
+	sessionHash := "gw-new-min"
+	repo := gatewayUnpooledAccounts(1, 2, 0.15, 1.0)
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cache := &mockGatewayCacheForPlatform{}
+	svc := &GatewayService{
+		accountRepo: repo,
+		groupRepo: &mockGroupRepoForGateway{groups: map[int64]*Group{
+			groupID: {ID: groupID, Platform: PlatformAnthropic, Status: StatusActive, Hydrated: true},
+		}},
+		cache:              cache,
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{loadMap: map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 10}, 2: {AccountID: 2, LoadRate: 10}}}),
+		smartScheduleCache: testSmartLookup(PlatformAnthropic, 1, 2),
+	}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "", nil, "", int64(16))
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Account.ID)
+	require.False(t, cache.sessionOverflow[sessionHash])
+	require.Equal(t, int64(1), cache.sessionBindings[sessionHash])
 }

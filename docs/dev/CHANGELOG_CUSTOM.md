@@ -219,6 +219,28 @@ Ops needed a kill-switch for OpenAI session-level long-context surcharge without
 `frontend/src/i18n/locales/en.ts`
 `docs/dev/codebase/billing.md`
 
+## 2026-08-23 - fix: session overflow pin returns once (no cheap-tier chase)
+
+### What
+- Session sticky keeps the pin by default (prefix cache). Redis value is `{accountID}` or `{accountID}|o`.
+- Overflow pins (forced onto a higher `EffectiveUpstreamRate` because cheaper admitted peers were full/unavailable) may return **once** when a cheaper admitted, non-pair_full peer has `LoadRate<100`, then re-stick with overflow=false.
+- Cheap tier full no longer WaitPlans for pooled or unpooled users; traffic overflows to another eligible account.
+- `previous_response` is never cleared for a cheaper peer. No account-id / sort_order special case, no kill-switch.
+
+### Why
+Pooled sessions that overflowed onto a higher-rate account stayed pinned after cheaper peers recovered (08-21 AC8). Blindly escaping every request would hop 0.09→0.08→0.06 and break prompt cache.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Unpooled|PooledSelect|ShouldEscapeSessionSticky|ShouldSkipMinRateWaitPlan|SmartScheduleSelection|Overflow" -count=1`
+
+### Affected files
+`backend/internal/service/account_unpooled_schedule.go`
+`backend/internal/service/sticky_session_binding.go`
+`backend/internal/service/openai_account_scheduler.go`
+`backend/internal/repository/gateway_cache.go`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/gateway.md`
+
 ## 2026-08-23 - deploy: v0.1.256 production (skip sidecars)
 
 ### What

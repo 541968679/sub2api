@@ -424,6 +424,9 @@ func oauthFleetSoft429StickyAccountID(ctx context.Context, cache GatewayCache, g
 	if cache == nil || strings.TrimSpace(sessionHash) == "" {
 		return 0
 	}
+	if binding, err := cache.GetSessionBinding(ctx, derefGroupID(groupID), sessionHash); err == nil && binding.AccountID > 0 {
+		return binding.AccountID
+	}
 	id, err := cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 	if err != nil || id <= 0 {
 		return 0

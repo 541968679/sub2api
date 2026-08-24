@@ -39,21 +39,36 @@ func TestAccountCheaperThenPreferred(t *testing.T) {
 	require.False(t, accountCheaperThenPreferred(nil, expensive))
 }
 
+func TestParseEncodeStickySessionValue(t *testing.T) {
+	plain, err := ParseStickySessionValue("1718")
+	require.NoError(t, err)
+	require.Equal(t, int64(1718), plain.AccountID)
+	require.False(t, plain.Overflow)
+	require.Equal(t, "1718", EncodeStickySessionValue(plain))
+
+	overflow, err := ParseStickySessionValue("1718|o")
+	require.NoError(t, err)
+	require.Equal(t, int64(1718), overflow.AccountID)
+	require.True(t, overflow.Overflow)
+	require.Equal(t, "1718|o", EncodeStickySessionValue(overflow))
+}
+
 func TestShouldEscapeSessionStickyForCheaperTier_UnpooledCheapHeadroom(t *testing.T) {
-	// AC4
 	sticky := &Account{ID: 2, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
 	cheap := &Account{ID: 1, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
 	load := map[int64]*AccountLoadInfo{
 		1: {AccountID: 1, LoadRate: 10},
 		2: {AccountID: 2, LoadRate: 10},
 	}
+	require.False(t, shouldEscapeSessionStickyForCheaperTier(
+		context.Background(), nil, 16, sticky, []*Account{cheap, sticky}, load, nil, false,
+	), "no overflow: keep pin even if cheaper has headroom")
 	require.True(t, shouldEscapeSessionStickyForCheaperTier(
-		context.Background(), nil, 16, sticky, []*Account{cheap, sticky}, load,
+		context.Background(), nil, 16, sticky, []*Account{cheap, sticky}, load, nil, true,
 	))
 }
 
 func TestShouldEscapeSessionStickyForCheaperTier_CheapFullKeepsSticky(t *testing.T) {
-	// AC5
 	sticky := &Account{ID: 2, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
 	cheap := &Account{ID: 1, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
 	load := map[int64]*AccountLoadInfo{
@@ -61,12 +76,11 @@ func TestShouldEscapeSessionStickyForCheaperTier_CheapFullKeepsSticky(t *testing
 		2: {AccountID: 2, LoadRate: 10},
 	}
 	require.False(t, shouldEscapeSessionStickyForCheaperTier(
-		context.Background(), nil, 16, sticky, []*Account{cheap, sticky}, load,
+		context.Background(), nil, 16, sticky, []*Account{cheap, sticky}, load, nil, true,
 	))
 }
 
-func TestShouldEscapeSessionStickyForCheaperTier_PooledNoEscape(t *testing.T) {
-	// AC8
+func TestShouldEscapeSessionStickyForCheaperTier_PooledOverflowEscapesOnce(t *testing.T) {
 	sticky := &Account{ID: 2, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
 	cheap := &Account{ID: 1, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
 	load := map[int64]*AccountLoadInfo{
@@ -75,8 +89,11 @@ func TestShouldEscapeSessionStickyForCheaperTier_PooledNoEscape(t *testing.T) {
 	}
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
 	require.False(t, shouldEscapeSessionStickyForCheaperTier(
-		context.Background(), lookup, 16, sticky, []*Account{cheap, sticky}, load,
-	))
+		context.Background(), lookup, 16, sticky, []*Account{cheap, sticky}, load, nil, false,
+	), "already on a non-overflow pin: do not chase cheaper")
+	require.True(t, shouldEscapeSessionStickyForCheaperTier(
+		context.Background(), lookup, 16, sticky, []*Account{cheap, sticky}, load, nil, true,
+	), "overflow pin may return once when cheaper has headroom")
 }
 
 func TestShouldEscapeSessionStickyForCheaperTier_AGOffBridgeUsesOpenAIPool(t *testing.T) {
@@ -85,7 +102,7 @@ func TestShouldEscapeSessionStickyForCheaperTier_AGOffBridgeUsesOpenAIPool(t *te
 	load := map[int64]*AccountLoadInfo{7: {AccountID: 7, LoadRate: 0}, 8: {AccountID: 8, LoadRate: 0}}
 	lookup := &memorySmartLookup{bundle: smartBundle(PlatformOpenAI, enabledSmartPolicy(7, 0, nil))}
 	require.False(t, shouldEscapeSessionStickyForCheaperTier(
-		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load,
+		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load, nil, false,
 	), "AG off + openai closed pool must not treat bridge as unpooled")
 }
 
@@ -98,7 +115,7 @@ func TestShouldEscapeSessionStickyForCheaperTier_AGOnBridgeUsesAGPool(t *testing
 		PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
 	}}}
 	require.False(t, shouldEscapeSessionStickyForCheaperTier(
-		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load,
+		agGroupScheduleCtx(16), lookup, 16, sticky, []*Account{cheap, sticky}, load, nil, false,
 	), "AG on must judge unpooled against antigravity, not openai")
 }
 
@@ -112,7 +129,7 @@ func TestShouldEscapeSessionStickyForCheaperTier_MixedAGPoolUsesStickyPlatform(t
 	}
 	lookup := testSmartLookup(PlatformAntigravity, 20, 21)
 	require.False(t, shouldEscapeSessionStickyForCheaperTier(
-		context.Background(), lookup, 16, sticky, []*Account{cheap, sticky}, load,
+		context.Background(), lookup, 16, sticky, []*Account{cheap, sticky}, load, nil, false,
 	), "must use sticky.Platform, not group platform")
 }
 
@@ -123,7 +140,7 @@ func TestShouldEscapeSessionStickyForCheaperTier_UserIDZeroFailOpen(t *testing.T
 	load := map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 0}}
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
 	require.True(t, shouldEscapeSessionStickyForCheaperTier(
-		context.Background(), lookup, 0, sticky, []*Account{cheap, sticky}, load,
+		context.Background(), lookup, 0, sticky, []*Account{cheap, sticky}, load, nil, true,
 	))
 	require.Nil(t, lookupEnabledSmartPolicy(context.Background(), lookup, 0, PlatformOpenAI))
 }
@@ -167,10 +184,26 @@ func TestShouldSkipMinRateWaitPlan_UnpooledHigherHeadroom(t *testing.T) {
 		1: {AccountID: 1, LoadRate: 100},
 		2: {AccountID: 2, LoadRate: 0},
 	}
-	require.True(t, shouldSkipMinRateWaitPlan(context.Background(), nil, 16, cheap, []*Account{cheap, expensive}, load))
-	require.False(t, shouldSkipMinRateWaitPlan(context.Background(), nil, 16, expensive, []*Account{cheap, expensive}, load))
+	require.True(t, shouldSkipMinRateWaitPlan(context.Background(), nil, 16, cheap, []*Account{cheap, expensive}, load, nil))
+	require.False(t, shouldSkipMinRateWaitPlan(context.Background(), nil, 16, expensive, []*Account{cheap, expensive}, load, nil))
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
-	require.False(t, shouldSkipMinRateWaitPlan(context.Background(), lookup, 16, cheap, []*Account{cheap, expensive}, load))
+	require.True(t, shouldSkipMinRateWaitPlan(context.Background(), lookup, 16, cheap, []*Account{cheap, expensive}, load, nil), "pooled cheap-full must also overflow")
+}
+
+func TestSessionStickyOverflowOnBind_ForcedUpgradeAndMinAdmitted(t *testing.T) {
+	cheap := &Account{ID: 1, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.15)}
+	expensive := &Account{ID: 2, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(1.0)}
+	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
+	require.False(t, sessionStickyOverflowOnBind(context.Background(), lookup, 16, cheap, []*Account{cheap, expensive}, nil))
+	require.True(t, sessionStickyOverflowOnBind(context.Background(), lookup, 16, expensive, []*Account{cheap, expensive}, nil))
+	require.True(t, sessionStickyOverflowOnBind(context.Background(), lookup, 16, expensive, []*Account{expensive}, cheap))
+
+	pausedCheap := &Account{ID: 3, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.06)}
+	mid := &Account{ID: 4, Platform: PlatformOpenAI, UpstreamRateMultiplier: testRate(0.09)}
+	pausedLookup := testSmartLookup(PlatformOpenAI, 3, 4)
+	pausedLookup.bundle.Policies[PlatformOpenAI].Paused = map[int64]struct{}{3: {}}
+	require.False(t, sessionStickyOverflowOnBind(context.Background(), pausedLookup, 16, mid, []*Account{pausedCheap, mid}, nil),
+		"paused cheaper peer is not admitted, so a new pin on the then-min is not overflow")
 }
 
 func TestLookupEnabledSmartPolicy_UsesAccountPlatformNotGroup(t *testing.T) {

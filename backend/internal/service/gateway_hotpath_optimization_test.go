@@ -132,8 +132,20 @@ func (s *stickyGatewayCacheHotpathStub) GetSessionAccountID(ctx context.Context,
 	return 0, errors.New("not found")
 }
 
+func (s *stickyGatewayCacheHotpathStub) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	s.getCalls.Add(1)
+	if s.stickyID > 0 {
+		return StickySessionBinding{AccountID: s.stickyID}, nil
+	}
+	return StickySessionBinding{}, errors.New("not found")
+}
+
 func (s *stickyGatewayCacheHotpathStub) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	return nil
+}
+
+func (s *stickyGatewayCacheHotpathStub) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	return s.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (s *stickyGatewayCacheHotpathStub) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {

@@ -123,6 +123,7 @@ func TestUnpooledSelectAccount_StickyEscapeToCheap(t *testing.T) {
 		map[string]int64{"openai:sess-escape": 2},
 		nil,
 	)
+	cache.sessionOverflow = map[string]bool{"openai:sess-escape": true}
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	groupID := int64(9001)
 	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-escape", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
@@ -202,8 +203,7 @@ func TestUnpooledSelectAccount_FallbackOnlyStaysPartitioned(t *testing.T) {
 	require.False(t, selection.Account.IsFallbackOnly())
 }
 
-func TestPooledSelectAccount_NoStickyEscapeAndCanWaitCheap(t *testing.T) {
-	// AC8
+func TestPooledSelectAccount_NoOverflowKeepsPinWhenCheaperHasHeadroom(t *testing.T) {
 	cheap := unpooledOpenAIAccount(1, 0.15, false)
 	expensive := unpooledOpenAIAccount(2, 1.0, false)
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
@@ -223,12 +223,74 @@ func TestPooledSelectAccount_NoStickyEscapeAndCanWaitCheap(t *testing.T) {
 	require.Zero(t, cache.deletedSessions["openai:sess-pool"])
 }
 
-func TestPooledSelectAccount_CheapFullStillWaitPlansCheap(t *testing.T) {
-	// AC8: pooled users keep today's cheap-tier WaitPlan.
+func TestPooledSelectAccount_OverflowEscapesOnceToCheap(t *testing.T) {
 	cheap := unpooledOpenAIAccount(1, 0.15, false)
 	expensive := unpooledOpenAIAccount(2, 1.0, false)
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
-	svc, _ := unpooledSchedulerSvc(
+	svc, cache := unpooledSchedulerSvc(
+		[]Account{cheap, expensive},
+		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 0}, 2: {AccountID: 2, LoadRate: 20}},
+		map[int64]bool{1: true, 2: true},
+		map[string]int64{"openai:sess-pool-ov": 2},
+		lookup,
+	)
+	cache.sessionOverflow = map[string]bool{"openai:sess-pool-ov": true}
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	groupID := int64(9001)
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-pool-ov", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), selection.Account.ID)
+	require.False(t, decision.StickySessionHit)
+	require.Greater(t, cache.deletedSessions["openai:sess-pool-ov"], 0)
+	require.Equal(t, int64(1), cache.sessionBindings["openai:sess-pool-ov"])
+	require.False(t, cache.sessionOverflow["openai:sess-pool-ov"], "return once then clear overflow")
+}
+
+func TestPooledSelectAccount_PinnedMinDoesNotChaseNewerCheaper(t *testing.T) {
+	mid := unpooledOpenAIAccount(2, 0.09, false)
+	newerCheap := unpooledOpenAIAccount(3, 0.06, false)
+	lookup := testSmartLookup(PlatformOpenAI, 2, 3)
+	svc, cache := unpooledSchedulerSvc(
+		[]Account{mid, newerCheap},
+		map[int64]*AccountLoadInfo{2: {AccountID: 2, LoadRate: 10}, 3: {AccountID: 3, LoadRate: 0}},
+		map[int64]bool{2: true, 3: true},
+		map[string]int64{"openai:sess-min": 2},
+		lookup,
+	)
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	groupID := int64(9001)
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-min", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), selection.Account.ID, "already on then-min pin must keep cache")
+	require.True(t, decision.StickySessionHit)
+	require.Zero(t, cache.deletedSessions["openai:sess-min"])
+}
+
+func TestPooledSelectAccount_NewSessionCheapestNoOverflow(t *testing.T) {
+	cheap := unpooledOpenAIAccount(1, 0.15, false)
+	expensive := unpooledOpenAIAccount(2, 1.0, false)
+	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
+	svc, cache := unpooledSchedulerSvc(
+		[]Account{cheap, expensive},
+		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 10}, 2: {AccountID: 2, LoadRate: 10}},
+		map[int64]bool{1: true, 2: true},
+		nil,
+		lookup,
+	)
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	groupID := int64(9001)
+	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-new-min", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), selection.Account.ID)
+	require.False(t, cache.sessionOverflow["openai:sess-new-min"])
+	require.Equal(t, int64(1), cache.sessionBindings["openai:sess-new-min"])
+}
+
+func TestPooledSelectAccount_CheapFullOverflowsNoWaitPlan(t *testing.T) {
+	cheap := unpooledOpenAIAccount(1, 0.15, false)
+	expensive := unpooledOpenAIAccount(2, 1.0, false)
+	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
+	svc, cache := unpooledSchedulerSvc(
 		[]Account{cheap, expensive},
 		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 100}, 2: {AccountID: 2, LoadRate: 0}},
 		map[int64]bool{1: false, 2: true},
@@ -237,10 +299,11 @@ func TestPooledSelectAccount_CheapFullStillWaitPlansCheap(t *testing.T) {
 	)
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	groupID := int64(9001)
-	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-new", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
-	require.NotNil(t, selection.WaitPlan)
-	require.Equal(t, int64(1), selection.WaitPlan.AccountID)
-	require.False(t, selection.Acquired)
+	require.Equal(t, int64(2), selection.Account.ID)
+	require.True(t, selection.Acquired)
+	require.Nil(t, selection.WaitPlan, "cheap full must overflow, not WaitPlan")
+	require.True(t, cache.sessionOverflow["openai:sess-new"], "new pin on the higher-rate account is overflow")
 }

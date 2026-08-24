@@ -213,6 +213,7 @@ var _ AccountRepository = (*mockAccountRepoForPlatform)(nil)
 // mockGatewayCacheForPlatform 单平台测试用的 cache mock
 type mockGatewayCacheForPlatform struct {
 	sessionBindings map[string]int64
+	sessionOverflow map[string]bool
 	deletedSessions map[string]int
 }
 
@@ -223,12 +224,32 @@ func (m *mockGatewayCacheForPlatform) GetSessionAccountID(ctx context.Context, g
 	return 0, errors.New("not found")
 }
 
+func (m *mockGatewayCacheForPlatform) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	id, err := m.GetSessionAccountID(ctx, groupID, sessionHash)
+	if err != nil {
+		return StickySessionBinding{}, err
+	}
+	return StickySessionBinding{AccountID: id, Overflow: m.sessionOverflow[sessionHash]}, nil
+}
+
 func (m *mockGatewayCacheForPlatform) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	if m.sessionBindings == nil {
 		m.sessionBindings = make(map[string]int64)
 	}
 	m.sessionBindings[sessionHash] = accountID
 	return nil
+}
+
+func (m *mockGatewayCacheForPlatform) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	if m.sessionOverflow == nil {
+		m.sessionOverflow = make(map[string]bool)
+	}
+	if binding.Overflow {
+		m.sessionOverflow[sessionHash] = true
+	} else {
+		delete(m.sessionOverflow, sessionHash)
+	}
+	return m.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 
 func (m *mockGatewayCacheForPlatform) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {
@@ -244,6 +265,7 @@ func (m *mockGatewayCacheForPlatform) DeleteSessionAccountID(ctx context.Context
 	}
 	m.deletedSessions[sessionHash]++
 	delete(m.sessionBindings, sessionHash)
+	delete(m.sessionOverflow, sessionHash)
 	return nil
 }
 func (m *mockGatewayCacheForPlatform) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {

@@ -75,9 +75,64 @@ func hasHigherUpstreamRateHeadroom(candidates []*Account, minRate float64, loadB
 	return false
 }
 
+func withScheduleUserIDForSticky(ctx context.Context, userID int64) context.Context {
+	return withScheduleUserID(ctx, userID)
+}
+
+// cheaperTierEligiblePeers is the shared ruler for overflow escape and WaitPlan skip:
+// admitsScheduleUser (paused / cooling / quality / pool miss), not pair_full, same fallback partition.
+func cheaperTierEligiblePeers(
+	ctx context.Context,
+	lookup SmartScheduleLookup,
+	sticky *Account,
+	candidates []*Account,
+	pairCounts map[int64]int,
+) []*Account {
+	if sticky == nil {
+		return nil
+	}
+	out := make([]*Account, 0, len(candidates))
+	for _, acc := range candidates {
+		if acc == nil {
+			continue
+		}
+		if acc.IsFallbackOnly() != sticky.IsFallbackOnly() {
+			continue
+		}
+		if !admitsScheduleUser(ctx, acc, nil, lookup) {
+			continue
+		}
+		if isPairConcurrencyFull(ctx, acc, pairCounts[acc.ID], lookup) {
+			continue
+		}
+		out = append(out, acc)
+	}
+	return out
+}
+
+func cheaperTierAdmittedPeers(ctx context.Context, lookup SmartScheduleLookup, selected *Account, candidates []*Account) []*Account {
+	if selected == nil {
+		return nil
+	}
+	out := make([]*Account, 0, len(candidates))
+	for _, acc := range candidates {
+		if acc == nil {
+			continue
+		}
+		if acc.IsFallbackOnly() != selected.IsFallbackOnly() {
+			continue
+		}
+		if !admitsScheduleUser(ctx, acc, nil, lookup) {
+			continue
+		}
+		out = append(out, acc)
+	}
+	return out
+}
+
 // shouldEscapeSessionStickyForCheaperTier is session-sticky only.
-// Unpooled is judged with SmartScheduleLookupPlatform(sticky, request hint, bundle).
-// userID<=0 is the same fail-open as admitsScheduleUser (treated as unpooled).
+// overflow=false always keeps the pin (protect prefix cache). overflow=true
+// may steal once when a strictly cheaper eligible peer has LoadRate<100.
 func shouldEscapeSessionStickyForCheaperTier(
 	ctx context.Context,
 	lookup SmartScheduleLookup,
@@ -85,18 +140,19 @@ func shouldEscapeSessionStickyForCheaperTier(
 	sticky *Account,
 	candidates []*Account,
 	loadByID map[int64]*AccountLoadInfo,
+	pairCounts map[int64]int,
+	overflow bool,
 ) bool {
-	if sticky == nil || len(candidates) == 0 {
+	if !overflow || sticky == nil || len(candidates) == 0 {
 		return false
 	}
-	if lookupEnabledSmartPolicy(ctx, lookup, userID, smartScheduleLookupPlatformForUser(ctx, sticky, lookup, userID)) != nil {
-		return false
-	}
-	minRate, ok := minSchedulableUpstreamRate(candidates)
+	ctx = withScheduleUserIDForSticky(ctx, userID)
+	eligible := cheaperTierEligiblePeers(ctx, lookup, sticky, candidates, pairCounts)
+	minRate, ok := minSchedulableUpstreamRate(eligible)
 	if !ok || sticky.EffectiveUpstreamRate() <= minRate {
 		return false
 	}
-	for _, acc := range candidates {
+	for _, acc := range eligible {
 		if acc == nil || acc.EffectiveUpstreamRate() != minRate {
 			continue
 		}
@@ -105,6 +161,26 @@ func shouldEscapeSessionStickyForCheaperTier(
 		}
 	}
 	return false
+}
+
+func sessionStickyOverflowOnBind(
+	ctx context.Context,
+	lookup SmartScheduleLookup,
+	userID int64,
+	selected *Account,
+	candidates []*Account,
+	previous *Account,
+) bool {
+	if selected == nil {
+		return false
+	}
+	ctx = withScheduleUserIDForSticky(ctx, userID)
+	if previous != nil && selected.EffectiveUpstreamRate() > previous.EffectiveUpstreamRate() {
+		return true
+	}
+	admitted := cheaperTierAdmittedPeers(ctx, lookup, selected, candidates)
+	minRate, ok := minSchedulableUpstreamRate(admitted)
+	return ok && selected.EffectiveUpstreamRate() > minRate
 }
 
 func isUnpooledScheduleUser(ctx context.Context, lookup SmartScheduleLookup, userID int64, platform string) bool {
@@ -118,18 +194,18 @@ func shouldSkipMinRateWaitPlan(
 	account *Account,
 	candidates []*Account,
 	loadByID map[int64]*AccountLoadInfo,
+	pairCounts map[int64]int,
 ) bool {
 	if account == nil {
 		return false
 	}
-	if !isUnpooledScheduleUser(ctx, lookup, userID, smartScheduleLookupPlatformForUser(ctx, account, lookup, userID)) {
-		return false
-	}
-	minRate, ok := minSchedulableUpstreamRate(candidates)
+	ctx = withScheduleUserIDForSticky(ctx, userID)
+	eligible := cheaperTierEligiblePeers(ctx, lookup, account, candidates, pairCounts)
+	minRate, ok := minSchedulableUpstreamRate(eligible)
 	if !ok || account.EffectiveUpstreamRate() > minRate {
 		return false
 	}
-	return hasHigherUpstreamRateHeadroom(candidates, minRate, loadByID)
+	return hasHigherUpstreamRateHeadroom(eligible, minRate, loadByID)
 }
 
 func isBetterSchedulableAccount(candidate, current *Account, preferOAuthWhenUnused bool) bool {
@@ -195,38 +271,68 @@ func scheduleLoadMap(ctx context.Context, concurrency *ConcurrencyService, accou
 	return loadMap
 }
 
-func (s *GatewayService) shouldEscapeSessionStickyForCheaperTier(ctx context.Context, sticky *Account, candidates []*Account) bool {
-	if s == nil || sticky == nil || !cheaperSchedulablePeerExists(sticky, candidates) {
+func (s *GatewayService) readSessionBinding(ctx context.Context, groupID *int64, sessionHash string) StickySessionBinding {
+	if s == nil || s.cache == nil || sessionHash == "" {
+		return StickySessionBinding{}
+	}
+	binding, err := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), sessionHash)
+	if err != nil {
+		return StickySessionBinding{}
+	}
+	return binding
+}
+
+func (s *GatewayService) shouldEscapeSessionStickyForCheaperTier(ctx context.Context, sticky *Account, candidates []*Account, overflow bool) bool {
+	if s == nil || sticky == nil || !overflow || !cheaperSchedulablePeerExists(sticky, candidates) {
 		return false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	return shouldEscapeSessionStickyForCheaperTier(ctx, s.smartScheduleCache, userID, sticky, candidates, scheduleLoadMap(ctx, s.concurrencyService, candidates))
+	return shouldEscapeSessionStickyForCheaperTier(
+		ctx, s.smartScheduleCache, userID, sticky, candidates,
+		scheduleLoadMap(ctx, s.concurrencyService, candidates),
+		loadPairConcurrencyCounts(ctx, s.concurrencyService, candidates, userID, s.smartScheduleCache),
+		true,
+	)
 }
 
-func (s *GatewayService) escapeSessionStickyIfCheaperTier(ctx context.Context, groupID *int64, sessionHash string, sticky *Account, candidates []*Account) bool {
+func (s *GatewayService) escapeSessionStickyIfCheaperTier(ctx context.Context, groupID *int64, sessionHash string, sticky *Account, candidates []*Account, overflow bool) bool {
 	if s == nil || s.cache == nil || sessionHash == "" {
 		return false
 	}
-	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates) {
+	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
 		return false
 	}
 	_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 	return true
 }
 
-func (s *OpenAIGatewayService) shouldEscapeSessionStickyForCheaperTier(ctx context.Context, sticky *Account, candidates []*Account) bool {
-	if s == nil || sticky == nil || !cheaperSchedulablePeerExists(sticky, candidates) {
+func (s *GatewayService) bindStickySessionAfterSelect(ctx context.Context, groupID *int64, sessionHash string, selected *Account, candidates []*Account, previous *Account) {
+	if s == nil || s.cache == nil || sessionHash == "" || selected == nil || selected.ID <= 0 {
+		return
+	}
+	userID := scheduleUserIDFromContext(ctx, 0)
+	overflow := sessionStickyOverflowOnBind(ctx, s.smartScheduleCache, userID, selected, candidates, previous)
+	_ = s.cache.SetSessionBinding(ctx, derefGroupID(groupID), sessionHash, StickySessionBinding{AccountID: selected.ID, Overflow: overflow}, stickySessionTTL)
+}
+
+func (s *OpenAIGatewayService) shouldEscapeSessionStickyForCheaperTier(ctx context.Context, sticky *Account, candidates []*Account, overflow bool) bool {
+	if s == nil || sticky == nil || !overflow || !cheaperSchedulablePeerExists(sticky, candidates) {
 		return false
 	}
 	userID := scheduleUserIDFromContext(ctx, 0)
-	return shouldEscapeSessionStickyForCheaperTier(ctx, s.smartScheduleCache, userID, sticky, candidates, scheduleLoadMap(ctx, s.concurrencyService, candidates))
+	return shouldEscapeSessionStickyForCheaperTier(
+		ctx, s.smartScheduleCache, userID, sticky, candidates,
+		scheduleLoadMap(ctx, s.concurrencyService, candidates),
+		loadPairConcurrencyCounts(ctx, s.concurrencyService, candidates, userID, s.smartScheduleCache),
+		true,
+	)
 }
 
-func (s *OpenAIGatewayService) escapeSessionStickyIfCheaperTier(ctx context.Context, groupID *int64, sessionHash string, sticky *Account, candidates []*Account) bool {
+func (s *OpenAIGatewayService) escapeSessionStickyIfCheaperTier(ctx context.Context, groupID *int64, sessionHash string, sticky *Account, candidates []*Account, overflow bool) bool {
 	if s == nil || sessionHash == "" {
 		return false
 	}
-	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates) {
+	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
 		return false
 	}
 	_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)

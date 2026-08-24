@@ -152,7 +152,11 @@ func (s *OpenAIGatewayService) getStickySessionAccountID(ctx context.Context, gr
 }
 
 func (s *OpenAIGatewayService) setStickySessionAccountID(ctx context.Context, groupID *int64, sessionHash string, accountID int64, ttl time.Duration) error {
-	if s == nil || s.cache == nil || accountID <= 0 {
+	return s.setStickySessionBinding(ctx, groupID, sessionHash, StickySessionBinding{AccountID: accountID}, ttl)
+}
+
+func (s *OpenAIGatewayService) setStickySessionBinding(ctx context.Context, groupID *int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	if s == nil || s.cache == nil || binding.AccountID <= 0 {
 		return nil
 	}
 	primaryKey := s.openAISessionCacheKey(sessionHash)
@@ -160,7 +164,7 @@ func (s *OpenAIGatewayService) setStickySessionAccountID(ctx context.Context, gr
 		return nil
 	}
 
-	if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), primaryKey, accountID, ttl); err != nil {
+	if err := s.cache.SetSessionBinding(ctx, derefGroupID(groupID), primaryKey, binding, ttl); err != nil {
 		return err
 	}
 
@@ -171,7 +175,7 @@ func (s *OpenAIGatewayService) setStickySessionAccountID(ctx context.Context, gr
 	if legacyKey == "" {
 		return nil
 	}
-	if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), legacyKey, accountID, s.openAIStickyLegacyTTL(ttl)); err != nil {
+	if err := s.cache.SetSessionBinding(ctx, derefGroupID(groupID), legacyKey, binding, s.openAIStickyLegacyTTL(ttl)); err != nil {
 		return err
 	}
 	openAIStickyLegacyDualWriteTotal.Add(1)

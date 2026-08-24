@@ -26,14 +26,30 @@ func buildSessionKey(groupID int64, sessionHash string) string {
 	return fmt.Sprintf("%s%d:%s", stickySessionPrefix, groupID, sessionHash)
 }
 
-func (c *gatewayCache) GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error) {
+func (c *gatewayCache) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (service.StickySessionBinding, error) {
 	key := buildSessionKey(groupID, sessionHash)
-	return c.rdb.Get(ctx, key).Int64()
+	raw, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return service.StickySessionBinding{}, err
+	}
+	return service.ParseStickySessionValue(raw)
+}
+
+func (c *gatewayCache) GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error) {
+	binding, err := c.GetSessionBinding(ctx, groupID, sessionHash)
+	if err != nil {
+		return 0, err
+	}
+	return binding.AccountID, nil
+}
+
+func (c *gatewayCache) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding service.StickySessionBinding, ttl time.Duration) error {
+	key := buildSessionKey(groupID, sessionHash)
+	return c.rdb.Set(ctx, key, service.EncodeStickySessionValue(binding), ttl).Err()
 }
 
 func (c *gatewayCache) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
-	key := buildSessionKey(groupID, sessionHash)
-	return c.rdb.Set(ctx, key, accountID, ttl).Err()
+	return c.SetSessionBinding(ctx, groupID, sessionHash, service.StickySessionBinding{AccountID: accountID}, ttl)
 }
 
 func (c *gatewayCache) RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error {
@@ -77,7 +93,12 @@ func (c *gatewayCache) DeleteSessionBindingsForAccount(ctx context.Context, acco
 			if err != nil {
 				return deleted, err
 			}
-			if val != target {
+			binding, parseErr := service.ParseStickySessionValue(val)
+			if parseErr != nil {
+				if val != target {
+					continue
+				}
+			} else if binding.AccountID != accountID {
 				continue
 			}
 			if err := c.rdb.Del(ctx, key).Err(); err != nil {
