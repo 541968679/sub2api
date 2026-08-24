@@ -66,6 +66,13 @@ func (s *UserSmartScheduleService) StartCooldown(ctx context.Context, accountID,
 	s.cache.StartCooldown(ctx, accountID, userID, platform, minutes, now)
 }
 
+func (s *UserSmartScheduleService) StartCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string) {
+	if s == nil || s.cache == nil {
+		return
+	}
+	s.cache.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, now, reason)
+}
+
 func (s *UserSmartScheduleService) GetPairQuality(ctx context.Context, accountID, userID int64, platform string) *PairQualityLive {
 	if s == nil || s.cache == nil {
 		return nil
@@ -154,19 +161,20 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	now := time.Now().UTC()
 	pinned := s.cache.IsPinned(ctx, obs.AccountID, obs.UserID, platform)
 	if pinned {
-		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTWindowN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs)
+		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs)
 		return
 	}
 	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, platform, now) {
 		return
 	}
-	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTWindowN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs)
+	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs)
 	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID, platform)
 	if pairQualityResumeBlocksEvaluate(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now) {
 		return
 	}
 	clearLeftoverPairResumeIfProbing(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now)
-	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now)
+	qaLastN := loadSmartScheduleQA(ctx, s.qualityLiveCache, obs.AccountID, policy)
+	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now, qaLastN)
 }
 
 func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*UserSmartScheduleView, error) {
@@ -296,9 +304,15 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 	from := view.Platforms[fromPlatform]
 	to := view.Platforms[toPlatform]
 	write := SmartSchedulePlatformWrite{
-		Enabled:                  from.Enabled,
-		QualityMaxP50TTFTMs:      from.QualityMaxP50TTFTMs,
-		QualityMinSuccessRate:    from.QualityMinSuccessRate,
+		Enabled:                   from.Enabled,
+		QualityMaxP50TTFTMs:       from.QualityMaxP50TTFTMs,
+		QualityMaxP50DurationMs:   from.QualityMaxP50DurationMs,
+		QualityMaxSlowInWindow:    from.QualityMaxSlowInWindow,
+		QualityMaxConsecutiveSlow: from.QualityMaxConsecutiveSlow,
+		QualitySchedWindowN:       from.QualitySchedWindowN,
+		QualitySchedMaxSlowInWindow: from.QualitySchedMaxSlowInWindow,
+		QualitySchedMaxConsecutiveSlow: from.QualitySchedMaxConsecutiveSlow,
+		QualityMinSuccessRate:     from.QualityMinSuccessRate,
 		QualityWindowSamples:     from.QualityWindowSamples,
 		QualityWindowN:           from.QualityWindowN,
 		QualityMinSuccessSamples: from.QualityMinSuccessSamples,
@@ -374,7 +388,6 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
-			s.cache.ZeroPairQuality(ctx, accountID, userID, platform, "")
 			s.cache.MarkProbing(ctx, accountID, userID, platform)
 		}
 		s.clearPairResume(ctx, accountID, userID, platform)
@@ -513,7 +526,8 @@ func (s *UserSmartScheduleService) forcePairCooldown(ctx context.Context, accoun
 		}
 	}
 	if s != nil && s.cache != nil {
-		return s.cache.SetCooldown(ctx, accountID, userID, platform, minutes, now)
+		manualReason := formatSmartScheduleCooldownDetail(CooldownPhaseManual, "", []SmartScheduleCooldownReason{{Code: "manual", Detail: "切换到冷却"}})
+		return s.cache.SetCooldownWithReason(ctx, accountID, userID, platform, minutes, now, manualReason)
 	}
 	return now.Add(time.Duration(minutes) * time.Minute), nil
 }
@@ -632,6 +646,24 @@ func overlayExistingSmartScheduleWindows(write, normalized SmartSchedulePlatform
 		n := existing.SuccessWindowN()
 		normalized.QualityMinSuccessSamples = &n
 	}
+	if write.QualityMaxSlowInWindow == nil {
+		normalized.QualityMaxSlowInWindow = existing.QualityMaxSlowInWindow
+	}
+	if write.QualityMaxConsecutiveSlow == nil {
+		normalized.QualityMaxConsecutiveSlow = existing.QualityMaxConsecutiveSlow
+	}
+	if write.QualityMaxP50DurationMs == nil {
+		normalized.QualityMaxP50DurationMs = existing.QualityMaxP50DurationMs
+	}
+	if write.QualitySchedWindowN == nil {
+		normalized.QualitySchedWindowN = existing.QualitySchedWindowN
+	}
+	if write.QualitySchedMaxSlowInWindow == nil {
+		normalized.QualitySchedMaxSlowInWindow = existing.QualitySchedMaxSlowInWindow
+	}
+	if write.QualitySchedMaxConsecutiveSlow == nil {
+		normalized.QualitySchedMaxConsecutiveSlow = existing.QualitySchedMaxConsecutiveSlow
+	}
 	if normalized.QualityMinTTFTSamples != nil && normalized.QualityMinSuccessSamples != nil {
 		normalized.QualityWindowSamples, normalized.QualityWindowN = echoCompatSmartScheduleWindowN(
 			*normalized.QualityMinTTFTSamples,
@@ -650,6 +682,30 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 	}
 	if write.QualityMaxP50TTFTMs != nil && *write.QualityMaxP50TTFTMs < 1 {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_max_p50_ttft_ms must be >= 1")
+	}
+	if write.QualityMaxP50DurationMs != nil && *write.QualityMaxP50DurationMs < 1 {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_max_p50_duration_ms must be >= 1")
+	}
+	if write.QualityMaxSlowInWindow != nil && (*write.QualityMaxSlowInWindow < 1 || (write.QualityMinTTFTSamples != nil && *write.QualityMaxSlowInWindow > *write.QualityMinTTFTSamples)) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_max_slow_in_window must be between 1 and N首字")
+	}
+	if write.QualityMaxConsecutiveSlow != nil && (*write.QualityMaxConsecutiveSlow < 1 || (write.QualityMinTTFTSamples != nil && *write.QualityMaxConsecutiveSlow > *write.QualityMinTTFTSamples)) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_max_consecutive_slow must be between 1 and N首字")
+	}
+	schedN := DefaultSmartScheduleSchedN
+	if write.QualitySchedWindowN != nil && *write.QualitySchedWindowN > 0 {
+		schedN = ClampSmartScheduleWindowN(*write.QualitySchedWindowN)
+	} else if write.QualityMaxP50TTFTMs != nil {
+		schedN = DefaultSmartScheduleSchedN
+	}
+	if write.QualitySchedWindowN != nil && (*write.QualitySchedWindowN < 1 || *write.QualitySchedWindowN > MaxSmartScheduleWindowN) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_sched_window_n must be between 1 and 100")
+	}
+	if write.QualitySchedMaxSlowInWindow != nil && (*write.QualitySchedMaxSlowInWindow < 1 || *write.QualitySchedMaxSlowInWindow > schedN) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_sched_max_slow_in_window must be between 1 and sched N")
+	}
+	if write.QualitySchedMaxConsecutiveSlow != nil && (*write.QualitySchedMaxConsecutiveSlow < 1 || *write.QualitySchedMaxConsecutiveSlow > schedN) {
+		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_sched_max_consecutive_slow must be between 1 and sched N")
 	}
 	if write.QualityMinSuccessRate != nil && (*write.QualityMinSuccessRate <= 0 || *write.QualityMinSuccessRate > 1) {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_min_success_rate must be in (0,1]")
@@ -858,6 +914,10 @@ func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, user
 			}
 			copied := until
 			platform.Accounts[i].CooldownUntil = &copied
+			if reason := s.cache.GetCooldownReason(ctx, platform.Accounts[i].AccountID, userID, platformKey); reason != "" {
+				reasonCopy := reason
+				platform.Accounts[i].CooldownReason = &reasonCopy
+			}
 		}
 		view.Platforms[platformKey] = platform
 	}
@@ -970,16 +1030,7 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 		nTTFT := viewPolicyTTFTN(&platform)
 		nOK := viewPolicySuccessN(&platform)
 		n := maxSmartScheduleWindowN(nTTFT, nOK)
-		gate := QualityHardCloseSettings{}
-		if platform.QualityMaxP50TTFTMs != nil || platform.QualityMinSuccessRate != nil {
-			gate = fillUserQualityGateDefaults(QualityHardCloseSettings{
-				MaxP50TTFTMs:      platform.QualityMaxP50TTFTMs,
-				MinSuccessRate:    platform.QualityMinSuccessRate,
-				MinSuccessSamples: nOK,
-				MinTTFTSamples:    nTTFT,
-				Condition:         derefString(platform.QualityCondition),
-			})
-		}
+		policy := platformViewToPolicy(&platform)
 		for i := range platform.Accounts {
 			live := lives[platform.Accounts[i].AccountID]
 			viewSnap := SmartSchedulePairQualityView{N: n, NTTFT: nTTFT, NSuccess: nOK, NOK: nOK}
@@ -998,10 +1049,10 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 			if s.cache.PairResumeActive(ctx, platform.Accounts[i].AccountID, userID, platformKey, now) {
 				continue
 			}
-			if !qualityGateHasMetric(gate) {
+			if !policy.HasQualityMetrics() {
 				continue
 			}
-			blocked, _ := EvaluateAccountQualityHardClose(live.ToAccountQualityStats(), gate, false)
+			blocked, _ := pairQualitySelectableBlocksWithReasons(live, policy)
 			platform.Accounts[i].WillCool = blocked
 		}
 		view.Platforms[platformKey] = platform
@@ -1293,6 +1344,31 @@ func bundleToView(userID int64, bundle *UserSmartScheduleBundle) *UserSmartSched
 	return view
 }
 
+func platformViewToPolicy(view *SmartSchedulePlatformView) *SmartSchedulePlatformPolicy {
+	if view == nil {
+		return nil
+	}
+	policy := &SmartSchedulePlatformPolicy{
+		Enabled:                        view.Enabled,
+		QualityMaxP50TTFTMs:            view.QualityMaxP50TTFTMs,
+		QualityMinSuccessRate:          view.QualityMinSuccessRate,
+		QualityWindowSamples:           view.QualityWindowSamples,
+		QualityMinSuccessSamples:       view.QualityMinSuccessSamples,
+		QualityMinTTFTSamples:          view.QualityMinTTFTSamples,
+		QualityCondition:               view.QualityCondition,
+		CooldownMinutes:                view.CooldownMinutes,
+		ProbeConcurrencyMode:           view.ProbeConcurrencyMode,
+		ProbeConcurrency:               view.ProbeConcurrency,
+		QualityMaxSlowInWindow:         view.QualityMaxSlowInWindow,
+		QualityMaxConsecutiveSlow:      view.QualityMaxConsecutiveSlow,
+		QualityMaxP50DurationMs:        view.QualityMaxP50DurationMs,
+		QualitySchedWindowN:            view.QualitySchedWindowN,
+		QualitySchedMaxSlowInWindow:    view.QualitySchedMaxSlowInWindow,
+		QualitySchedMaxConsecutiveSlow: view.QualitySchedMaxConsecutiveSlow,
+	}
+	return policy
+}
+
 func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSchedulePlatformView {
 	view := SmartSchedulePlatformView{
 		CooldownMinutes:      DefaultSmartScheduleCooldownMinutes,
@@ -1304,6 +1380,12 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	}
 	view.Enabled = policy.Enabled && policy.MemberCount() > 0
 	view.QualityMaxP50TTFTMs = policy.QualityMaxP50TTFTMs
+	view.QualityMaxSlowInWindow = policy.QualityMaxSlowInWindow
+	view.QualityMaxConsecutiveSlow = policy.QualityMaxConsecutiveSlow
+	view.QualityMaxP50DurationMs = policy.QualityMaxP50DurationMs
+	view.QualitySchedWindowN = policy.QualitySchedWindowN
+	view.QualitySchedMaxSlowInWindow = policy.QualitySchedMaxSlowInWindow
+	view.QualitySchedMaxConsecutiveSlow = policy.QualitySchedMaxConsecutiveSlow
 	view.QualityMinSuccessRate = policy.QualityMinSuccessRate
 	if policy.HasQualityMetrics() || policy.QualityWindowSamples != nil || policy.QualityMinSuccessSamples != nil || policy.QualityMinTTFTSamples != nil {
 		ttft := policy.TTFTWindowN()

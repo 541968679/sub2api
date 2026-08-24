@@ -151,11 +151,11 @@ func TestObservePairQualitySuccess_FollowsLookupPlatform(t *testing.T) {
 			PlatformAntigravity: enabledSmartPolicy(7, 0, nil),
 		}},
 	}}
-	observePairQualitySuccess(agOff, agGroupScheduleCtx(16), oai, 16, nil, nil)
+	observePairQualitySuccess(agOff, agGroupScheduleCtx(16), oai, 16, nil, nil, nil)
 	require.Equal(t, []string{PlatformOpenAI}, observePlatforms(agOff.got))
-	observePairQualitySuccess(agOn, agGroupScheduleCtx(16), oai, 16, nil, nil)
+	observePairQualitySuccess(agOn, agGroupScheduleCtx(16), oai, 16, nil, nil, nil)
 	require.Equal(t, []string{PlatformAntigravity}, observePlatforms(agOn.got))
-	observePairQualitySuccess(agOn, nativeOpenAIGroupScheduleCtx(16), oai, 16, nil, nil)
+	observePairQualitySuccess(agOn, nativeOpenAIGroupScheduleCtx(16), oai, 16, nil, nil, nil)
 	require.Equal(t, []string{PlatformAntigravity, PlatformOpenAI}, observePlatforms(agOn.got))
 }
 

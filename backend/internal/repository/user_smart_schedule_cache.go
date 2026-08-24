@@ -15,6 +15,7 @@ import (
 const (
 	smartScheduleUserKeyPrefix     = "smart-schedule:user:"
 	smartScheduleCooldownKeyPrefix = "smart-schedule:cooldown:"
+	smartScheduleCooldownReasonKeyPrefix = "smart-schedule:cooldown-reason:"
 	smartScheduleProbeKeyPrefix    = "smart-schedule:probe:"
 	smartSchedulePinnedKeyPrefix   = "smart-schedule:pinned:"
 	smartScheduleResumeKeyPrefix   = "smart-schedule:resume:"
@@ -111,7 +112,15 @@ func (c *userSmartScheduleCache) CooldownActive(ctx context.Context, accountID, 
 	return true
 }
 
+func smartScheduleCooldownReasonKey(platform string, accountID int64) string {
+	return smartScheduleCooldownReasonKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
+}
+
 func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) {
+	c.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, now, "")
+}
+
+func (c *userSmartScheduleCache) StartCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string) {
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
 		return
 	}
@@ -128,15 +137,57 @@ func (c *userSmartScheduleCache) StartCooldown(ctx context.Context, accountID, u
 	}
 	ttl := time.Duration(minutes)*time.Minute + smartScheduleCooldownTTLBuffer
 	c.extendCooldownTTL(ctx, key, ttl)
-	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
+	event := service.PairQualityEvent{
 		Ts:    now.Unix(),
 		Type:  service.PairQualityEventCooldownStart,
 		Until: &until,
-	})
+	}
+	if strings.TrimSpace(reason) != "" {
+		event.Detail = reason
+		c.storeCooldownReason(ctx, platform, accountID, userID, reason, ttl)
+	}
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, event)
+}
+
+func (c *userSmartScheduleCache) storeCooldownReason(ctx context.Context, platform string, accountID, userID int64, reason string, ttl time.Duration) {
+	if c == nil || c.rdb == nil || strings.TrimSpace(reason) == "" {
+		return
+	}
+	key := smartScheduleCooldownReasonKey(platform, accountID)
+	field := smartScheduleCooldownField(userID)
+	payload, err := json.Marshal(map[string]string{"detail": reason})
+	if err != nil {
+		return
+	}
+	pipe := c.rdb.Pipeline()
+	pipe.HSet(ctx, key, field, payload)
+	pipe.Expire(ctx, key, ttl)
+	_, _ = pipe.Exec(ctx)
+}
+
+func (c *userSmartScheduleCache) GetCooldownReason(ctx context.Context, accountID, userID int64, platform string) string {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return ""
+	}
+	raw, err := c.rdb.HGet(ctx, smartScheduleCooldownReasonKey(platform, accountID), smartScheduleCooldownField(userID)).Bytes()
+	if err != nil || len(raw) == 0 {
+		return ""
+	}
+	var stored struct {
+		Detail string `json:"detail"`
+	}
+	if json.Unmarshal(raw, &stored) != nil {
+		return ""
+	}
+	return strings.TrimSpace(stored.Detail)
 }
 
 // SetCooldown overwrites the pair cooldown (admin switcher). Hot path stays HSETNX.
 func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error) {
+	return c.SetCooldownWithReason(ctx, accountID, userID, platform, minutes, now, "")
+}
+
+func (c *userSmartScheduleCache) SetCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string) (time.Time, error) {
 	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
 	until := now.Add(time.Duration(minutes) * time.Minute)
 	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
@@ -152,11 +203,16 @@ func (c *userSmartScheduleCache) SetCooldown(ctx context.Context, accountID, use
 		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
-	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
+	event := service.PairQualityEvent{
 		Ts:    now.Unix(),
 		Type:  service.PairQualityEventCooldownStart,
 		Until: &untilUnix,
-	})
+	}
+	if strings.TrimSpace(reason) != "" {
+		event.Detail = reason
+		c.storeCooldownReason(ctx, platform, accountID, userID, reason, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
+	}
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, event)
 	return until, nil
 }
 
@@ -275,10 +331,10 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 		return
 	}
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownReasonKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
-	c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
 	c.MarkProbing(ctx, accountID, userID, platform)
 	c.ClearPairResume(ctx, accountID, userID, platform)
 }

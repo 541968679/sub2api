@@ -59,6 +59,10 @@ func (m *memorySmartLookup) StartCooldown(_ context.Context, accountID, userID i
 	m.lastUntilUnix = until
 }
 
+func (m *memorySmartLookup) StartCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, _ string) {
+	m.StartCooldown(ctx, accountID, userID, platform, minutes, now)
+}
+
 func (m *memorySmartLookup) GetPairQuality(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
 	if m == nil || len(m.pair) == 0 {
 		return nil
@@ -239,9 +243,9 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 		require.Equal(t, 0, lookup.startCalls)
 	})
 
-	t.Run("under-N pair window does not cooldown", func(t *testing.T) {
+	t.Run("under-N pair window does not cooldown without C/K trip", func(t *testing.T) {
 		t.Parallel()
-		live := &PairQualityLive{N: DefaultSmartScheduleWindowN, TTFTMs: []int{4000, 4100}, OK: []bool{true, true}}
+		live := &PairQualityLive{N: DefaultSmartScheduleWindowN, TTFTMs: []int{4000}, OK: []bool{true}}
 		RecomputePairQuality(live)
 		lookup := &memorySmartLookup{
 			bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(7, 0, &p50)),
@@ -800,6 +804,8 @@ func (s stubSmartCache) CooldownActive(_ context.Context, _ int64, _ int64, _ st
 }
 func (s stubSmartCache) StartCooldown(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time) {
 }
+func (s stubSmartCache) StartCooldownWithReason(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time, _ string) {
+}
 func (s stubSmartCache) Invalidate(_ context.Context, _ int64) error { return nil }
 func (s stubSmartCache) ClearCooldown(_ context.Context, _ int64, _ int64, _ string) error {
 	return nil
@@ -810,6 +816,10 @@ func (s stubSmartCache) ClearCooldownAllPlatforms(_ context.Context, _ int64, _ 
 func (s stubSmartCache) SetCooldown(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time) (time.Time, error) {
 	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
 }
+func (s stubSmartCache) SetCooldownWithReason(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time, _ string) (time.Time, error) {
+	return now.Add(time.Duration(ClampSmartScheduleCooldownMinutes(minutes)) * time.Minute), nil
+}
+func (s stubSmartCache) GetCooldownReason(context.Context, int64, int64, string) string { return "" }
 
 func (s stubSmartCache) ApplyMemberPaused(context.Context, int64, int64, string, bool) error {
 	return nil
@@ -842,6 +852,10 @@ func (s *admissionCacheRecorder) ClearCooldown(_ context.Context, _ int64, _ int
 }
 
 func (s *admissionCacheRecorder) SetCooldown(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time) (time.Time, error) {
+	return s.SetCooldownWithReason(context.Background(), 0, 0, "", minutes, now, "")
+}
+
+func (s *admissionCacheRecorder) SetCooldownWithReason(_ context.Context, _ int64, _ int64, _ string, minutes int, now time.Time, _ string) (time.Time, error) {
 	s.setMins = minutes
 	if s.setErr != nil {
 		return time.Time{}, s.setErr
@@ -1068,7 +1082,7 @@ func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ in
 func (s stubSmartCache) GetPairQuality(context.Context, int64, int64, string) *PairQualityLive {
 	return nil
 }
-func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string, int, int, bool, *int) *PairQualityLive {
+func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string, int, int, bool, *int, *int) *PairQualityLive {
 	return nil
 }
 func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string, string) {}
@@ -1108,14 +1122,14 @@ func (s stubSmartCache) GetPairResumeUntilBatch(context.Context, []int64, int64,
 }
 
 func breachedPairLive(p50 int) *PairQualityLive {
-	n := DefaultSmartScheduleWindowN
+	n := DefaultSmartScheduleSchedN
 	ttft := make([]int, n)
 	ok := make([]bool, n)
 	for i := 0; i < n; i++ {
 		ttft[i] = p50
 		ok[i] = true
 	}
-	live := &PairQualityLive{N: n, TTFTMs: ttft, OK: ok}
+	live := &PairQualityLive{N: n, NTTFT: n, NOK: n, TTFTMs: ttft, OK: ok}
 	RecomputePairQuality(live)
 	return live
 }

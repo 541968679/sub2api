@@ -1038,7 +1038,38 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.memberProbing(21)).toBe(false)
   })
 
-  it('does not invent pin from an expired resume mark', async () => {
+  it('omits sched latency fields as null when draft fields are empty', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.schedWindowN = ''
+    w.vm.currentDraft.schedMaxSlowInWindow = ''
+    w.vm.currentDraft.schedMaxConsecutiveSlow = ''
+    await w.vm.onSave()
+    const payload = apiMocks.updateSmartSchedule.mock.calls[0][2] as Record<string, unknown>
+    expect(payload.quality_sched_window_n).toBeNull()
+    expect(payload.quality_sched_max_slow_in_window).toBeNull()
+    expect(payload.quality_sched_max_consecutive_slow).toBeNull()
+  })
+
+  it('writes sched latency fields when configured', async () => {
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.schedWindowN = 20
+    w.vm.currentDraft.schedMaxSlowInWindow = 6
+    w.vm.currentDraft.schedMaxConsecutiveSlow = 3
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        quality_sched_window_n: 20,
+        quality_sched_max_slow_in_window: 6,
+        quality_sched_max_consecutive_slow: 3
+      })
+    )
+  })
+
+  it('surfaces cooldown_reason from GET on pool members', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,
       default_platform: 'openai',
@@ -1050,8 +1081,9 @@ describe('useUserSmartScheduleEditor loadAll', () => {
           accounts: [{
             account_id: 21,
             platform: 'openai',
-            admission: 'resumed',
-            pinned: false
+            max_concurrency: 2,
+            cooldown_until: new Date(Date.now() + 15 * 60_000).toISOString(),
+            cooldown_reason: '调度期 · 配对 · 超标K 6/20>6000ms'
           }]
         },
         gemini: emptyPlatform(),
@@ -1061,6 +1093,6 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     const w = mountEditor()
     await flushPromises()
-    expect(w.vm.memberPinned(21)).toBe(false)
+    expect(w.vm.memberCooldownReason(21)).toBe('调度期 · 配对 · 超标K 6/20>6000ms')
   })
 })

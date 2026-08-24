@@ -264,7 +264,7 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 	if lookup != nil {
 		pair = lookup.GetPairQuality(ctx, account.ID, userID, lookupPlatform)
 	}
-	return evaluateSmartSchedulePairQuality(ctx, lookup, account.ID, userID, lookupPlatform, policy, pair, now)
+	return evaluateSmartSchedulePairQuality(ctx, lookup, account.ID, userID, lookupPlatform, policy, pair, now, loadSmartScheduleQA(ctx, cache, account.ID, policy))
 }
 
 func containsScheduleUserID(ids []int64, userID int64) bool {

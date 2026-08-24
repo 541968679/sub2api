@@ -12,6 +12,12 @@ import (
 type putSmartScheduleRequest struct {
 	Enabled                  bool                                 `json:"enabled"`
 	QualityMaxP50TTFTMs      *int                                 `json:"quality_max_p50_ttft_ms"`
+	QualityMaxSlowInWindow   *int                                 `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow *int                                `json:"quality_max_consecutive_slow"`
+	QualityMaxP50DurationMs  *int                                 `json:"quality_max_p50_duration_ms"`
+	QualitySchedWindowN      *int                                 `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow *int                              `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int                           `json:"quality_sched_max_consecutive_slow"`
 	QualityMinSuccessRate    *float64                             `json:"quality_min_success_rate"`
 	QualityWindowSamples     *int                                 `json:"quality_window_samples"`
 	QualityWindowN           *int                                 `json:"quality_window_n"`
@@ -128,9 +134,15 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		return
 	}
 	view, err := svc.PutPlatform(c.Request.Context(), userID, platform, service.SmartSchedulePlatformWrite{
-		Enabled:                  req.Enabled,
-		QualityMaxP50TTFTMs:      req.QualityMaxP50TTFTMs,
-		QualityMinSuccessRate:    req.QualityMinSuccessRate,
+		Enabled:                   req.Enabled,
+		QualityMaxP50TTFTMs:       req.QualityMaxP50TTFTMs,
+		QualityMaxSlowInWindow:    req.QualityMaxSlowInWindow,
+		QualityMaxConsecutiveSlow: req.QualityMaxConsecutiveSlow,
+		QualityMaxP50DurationMs:   req.QualityMaxP50DurationMs,
+		QualitySchedWindowN:       req.QualitySchedWindowN,
+		QualitySchedMaxSlowInWindow: req.QualitySchedMaxSlowInWindow,
+		QualitySchedMaxConsecutiveSlow: req.QualitySchedMaxConsecutiveSlow,
+		QualityMinSuccessRate:     req.QualityMinSuccessRate,
 		QualityWindowSamples:     req.QualityWindowSamples,
 		QualityWindowN:           req.QualityWindowN,
 		QualityMinSuccessSamples: req.QualityMinSuccessSamples,

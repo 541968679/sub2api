@@ -25,9 +25,12 @@ type pairQualityRedisState struct {
 	N         int      `json:"n"`
 	NTTFT     int      `json:"n_ttft,omitempty"`
 	NOK       int      `json:"n_ok,omitempty"`
+	NDuration int      `json:"n_duration,omitempty"`
 	TTFT      []int    `json:"ttft"`
+	Duration  []int    `json:"duration_ms,omitempty"`
 	OK        []uint8  `json:"ok"`
 	P50       *int     `json:"p50_ttft_ms,omitempty"`
+	P50Dur    *int     `json:"p50_duration_ms,omitempty"`
 	Rate      *float64 `json:"success_rate,omitempty"`
 	UpdatedAt int64    `json:"updated_at"`
 }
@@ -82,12 +85,12 @@ func (c *userSmartScheduleCache) GetPairQualityBatch(ctx context.Context, accoun
 	return out
 }
 
-func (c *userSmartScheduleCache) IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs *int) *service.PairQualityLive {
+func (c *userSmartScheduleCache) IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int) *service.PairQualityLive {
 	if c == nil || accountID <= 0 || userID <= 0 {
 		return nil
 	}
 	live := c.GetPairQuality(ctx, accountID, userID, platform)
-	live = applyPairQualityIngestProxy(live, nTTFT, nOK, success, firstTokenMs)
+	live = applyPairQualityIngestProxy(live, nTTFT, nOK, success, firstTokenMs, durationMs)
 	c.storePairQuality(ctx, accountID, userID, platform, live)
 	c.appendPairQualitySnapshot(ctx, accountID, userID, platform, live.Snapshot())
 	return live
@@ -201,9 +204,12 @@ func encodePairQualityLive(live *service.PairQualityLive) pairQualityRedisState 
 		N:         live.N,
 		NTTFT:     live.NTTFT,
 		NOK:       live.NOK,
+		NDuration: live.NDuration,
 		TTFT:      append([]int(nil), live.TTFTMs...),
-		OK:        ok,
+		Duration:  append([]int(nil), live.DurationMs...),
 		P50:       live.P50TTFTMs,
+		P50Dur:    live.P50DurationMs,
+		OK:        ok,
 		Rate:      live.SuccessRate,
 		UpdatedAt: updated,
 	}
@@ -219,13 +225,16 @@ func decodePairQualityLive(raw []byte) *service.PairQualityLive {
 		ok[i] = v != 0
 	}
 	live := &service.PairQualityLive{
-		N:           stored.N,
-		NTTFT:       stored.NTTFT,
-		NOK:         stored.NOK,
-		TTFTMs:      append([]int(nil), stored.TTFT...),
-		OK:          ok,
-		P50TTFTMs:   stored.P50,
-		SuccessRate: stored.Rate,
+		N:             stored.N,
+		NTTFT:         stored.NTTFT,
+		NOK:           stored.NOK,
+		NDuration:     stored.NDuration,
+		TTFTMs:        append([]int(nil), stored.TTFT...),
+		DurationMs:    append([]int(nil), stored.Duration...),
+		OK:            ok,
+		P50TTFTMs:     stored.P50,
+		P50DurationMs: stored.P50Dur,
+		SuccessRate:   stored.Rate,
 	}
 	if stored.UpdatedAt > 0 {
 		live.UpdatedAt = time.Unix(stored.UpdatedAt, 0).UTC()
@@ -251,8 +260,8 @@ func uniquePositiveIDs(ids []int64) []int64 {
 }
 
 // Local wrappers keep ingest/zero math in the service package without exporting internals.
-func applyPairQualityIngestProxy(live *service.PairQualityLive, nTTFT, nOK int, success bool, firstTokenMs *int) *service.PairQualityLive {
-	return service.ApplyPairQualityIngestWindows(live, nTTFT, nOK, success, firstTokenMs)
+func applyPairQualityIngestProxy(live *service.PairQualityLive, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int) *service.PairQualityLive {
+	return service.ApplyPairQualityIngestWindows(live, nTTFT, nOK, success, firstTokenMs, durationMs)
 }
 
 func serviceZeroPairQualityLive(live *service.PairQualityLive) *service.PairQualityLive {

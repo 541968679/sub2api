@@ -392,6 +392,7 @@ export interface SmartScheduleAccountMember {
   priority?: number
   current_concurrency?: number
   cooldown_until?: string | null
+  cooldown_reason?: string | null
   resume_until?: string | null
   resume_chip_until?: string | null
   paused?: boolean
@@ -425,6 +426,12 @@ export type SmartScheduleProbeConcurrencyMode = 'follow_n' | 'custom'
 export interface SmartSchedulePlatformView {
   enabled: boolean
   quality_max_p50_ttft_ms: number | null
+  quality_max_p50_duration_ms?: number | null
+  quality_max_slow_in_window?: number | null
+  quality_max_consecutive_slow?: number | null
+  quality_sched_window_n?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
   quality_min_success_rate: number | null
   /** Compat max of N首字 and N成功率. Do not use as a gate floor. */
   quality_window_n?: number | null
@@ -462,6 +469,12 @@ export interface BatchSmartScheduleSummariesResponse {
 export interface SmartSchedulePlatformWrite {
   enabled: boolean
   quality_max_p50_ttft_ms?: number | null
+  quality_max_p50_duration_ms?: number | null
+  quality_max_slow_in_window?: number | null
+  quality_max_consecutive_slow?: number | null
+  quality_sched_window_n?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
   quality_min_success_rate?: number | null
   quality_window_n?: number | null
   quality_min_success_samples?: number | null
@@ -501,6 +514,7 @@ export type SmartSchedulePairQualityEventType =
 export type SmartSchedulePairQualityEvent = {
   at: string
   type: SmartSchedulePairQualityEventType | string
+  detail?: string | null
 }
 
 export type BatchSmartSchedulePairQualityResponse = {
@@ -686,7 +700,8 @@ export async function getSmartSchedulePairQualityDetail(
       .filter((point): point is SmartSchedulePairQualitySnapshot => point != null),
     events: (data.events ?? []).map((event) => ({
       type: event.type ?? '',
-      at: event.at || rfc3339FromUnixSeconds(event.ts)
+      at: event.at || rfc3339FromUnixSeconds(event.ts),
+      detail: event.detail ?? null
     }))
   }
 }

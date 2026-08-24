@@ -8945,8 +8945,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			s.antigravitySampler.Finish(ctx, creditSample, account, usageLog)
 		}
 		if wroteUsage {
-			observePairQualitySuccess(s.smartScheduleCache, ctx, account, user.ID, nil, result.FirstTokenMs)
-			observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
+			observePairQualitySuccess(s.smartScheduleCache, ctx, account, user.ID, nil, result.FirstTokenMs, usageLog.DurationMs)
+			observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs, usageLog.DurationMs)
 		}
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
@@ -8974,8 +8974,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		s.antigravitySampler.Finish(ctx, creditSample, account, usageLog)
 	}
 	if wroteUsage {
-		observePairQualitySuccess(s.smartScheduleCache, ctx, account, user.ID, nil, result.FirstTokenMs)
-		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs)
+		observePairQualitySuccess(s.smartScheduleCache, ctx, account, user.ID, nil, result.FirstTokenMs, usageLog.DurationMs)
+		observeAccountQualitySuccess(s.accountQuality, ctx, account.ID, user.ID, nil, result.FirstTokenMs, usageLog.DurationMs)
 	}
 
 	return nil

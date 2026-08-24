@@ -24,15 +24,15 @@ func TestAccountQualityLastN_IngestRulesAndGetPrefersLastN(t *testing.T) {
 	ctx := context.Background()
 	ttft := 40
 
-	fail := cache.IngestLastN(ctx, 7, 3, false, &ttft, false)
+	fail := cache.IngestLastN(ctx, 7, 3, false, &ttft, nil, false)
 	require.Equal(t, 0, fail.TTFTCount)
 	require.Equal(t, 1, fail.OKCount)
 
-	syncOK := cache.IngestLastN(ctx, 7, 3, true, nil, false)
+	syncOK := cache.IngestLastN(ctx, 7, 3, true, nil, nil, false)
 	require.Equal(t, 0, syncOK.TTFTCount)
 	require.Equal(t, 2, syncOK.OKCount)
 
-	streamOK := cache.IngestLastN(ctx, 7, 3, true, &ttft, false)
+	streamOK := cache.IngestLastN(ctx, 7, 3, true, &ttft, nil, false)
 	require.Equal(t, 1, streamOK.TTFTCount)
 	require.Equal(t, 3, streamOK.OKCount)
 
@@ -49,9 +49,9 @@ func TestAccountQualityLastN_IngestRulesAndGetPrefersLastN(t *testing.T) {
 func TestAccountQualityLastN_BatchAndAllUsersShareWindow(t *testing.T) {
 	cache := newLastNCache(t)
 	ctx := context.Background()
-	cache.IngestLastN(ctx, 7, 4, true, intPtrRepo(40), false)
-	cache.IngestLastN(ctx, 7, 4, false, nil, false)
-	cache.IngestLastN(ctx, 8, 4, true, intPtrRepo(80), false)
+	cache.IngestLastN(ctx, 7, 4, true, intPtrRepo(40), nil, false)
+	cache.IngestLastN(ctx, 7, 4, false, nil, nil, false)
+	cache.IngestLastN(ctx, 8, 4, true, intPtrRepo(80), nil, false)
 
 	batch := cache.GetLastNBatch(ctx, []int64{7, 8, 9})
 	require.Equal(t, 2, batch[7].OKCount)
@@ -64,9 +64,9 @@ func TestUserQualityLastN_IngestIsolatesUsersAndSharesAccounts(t *testing.T) {
 	ctx := context.Background()
 	ttft := 40
 
-	cache.IngestUserLastN(ctx, 16, 4, true, &ttft, true, nil)
-	cache.IngestUserLastN(ctx, 16, 4, false, nil, true, nil)
-	cache.IngestUserLastN(ctx, 17, 4, true, &ttft, true, nil)
+	cache.IngestUserLastN(ctx, 16, 4, true, &ttft, nil, true, nil)
+	cache.IngestUserLastN(ctx, 16, 4, false, nil, nil, true, nil)
+	cache.IngestUserLastN(ctx, 17, 4, true, &ttft, nil, true, nil)
 
 	batch := cache.GetUserLastNBatch(ctx, []int64{16, 17, 18})
 	require.Equal(t, 2, batch[16].OKCount)

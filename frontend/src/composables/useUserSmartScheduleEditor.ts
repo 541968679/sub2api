@@ -61,6 +61,7 @@ export type SmartSchedulePoolMemberDraft = {
   sort_order?: number | null
   current_concurrency?: number
   cooldown_until?: string | null
+  cooldown_reason?: string | null
   resume_until?: string | null
   resume_chip_until?: string | null
   paused?: boolean
@@ -72,6 +73,12 @@ export type SmartSchedulePoolMemberDraft = {
 export type SmartSchedulePlatformDraft = {
   enabled: boolean
   maxP50: number | ''
+  maxP50Duration: number | ''
+  maxSlowInWindow: number | ''
+  maxConsecutiveSlow: number | ''
+  schedWindowN: number | ''
+  schedMaxSlowInWindow: number | ''
+  schedMaxConsecutiveSlow: number | ''
   successPercent: number | ''
   windowNTtft: number | ''
   windowNSuccess: number | ''
@@ -93,6 +100,12 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
   return JSON.stringify({
     enabled: row.enabled,
     maxP50: row.maxP50,
+    maxP50Duration: row.maxP50Duration,
+    maxSlowInWindow: row.maxSlowInWindow,
+    maxConsecutiveSlow: row.maxConsecutiveSlow,
+    schedWindowN: row.schedWindowN,
+    schedMaxSlowInWindow: row.schedMaxSlowInWindow,
+    schedMaxConsecutiveSlow: row.schedMaxConsecutiveSlow,
     successPercent: row.successPercent,
     windowNTtft: row.windowNTtft,
     windowNSuccess: row.windowNSuccess,
@@ -145,6 +158,12 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
   return {
     enabled: false,
     maxP50: '',
+    maxP50Duration: '',
+    maxSlowInWindow: '',
+    maxConsecutiveSlow: '',
+    schedWindowN: '',
+    schedMaxSlowInWindow: '',
+    schedMaxConsecutiveSlow: '',
     successPercent: '',
     windowNTtft: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     windowNSuccess: SMART_SCHEDULE_WINDOW_N_DEFAULT,
@@ -163,6 +182,12 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
     return {
       enabled: Boolean(parsed.enabled),
       maxP50: parsed.maxP50 ?? '',
+      maxP50Duration: parsed.maxP50Duration ?? '',
+      maxSlowInWindow: parsed.maxSlowInWindow ?? '',
+      maxConsecutiveSlow: parsed.maxConsecutiveSlow ?? '',
+      schedWindowN: parsed.schedWindowN ?? '',
+      schedMaxSlowInWindow: parsed.schedMaxSlowInWindow ?? '',
+      schedMaxConsecutiveSlow: parsed.schedMaxConsecutiveSlow ?? '',
       successPercent: parsed.successPercent ?? '',
       windowNTtft: resolveSmartScheduleTtftN({
         quality_min_ttft_samples:
@@ -276,6 +301,12 @@ export function useUserSmartScheduleEditor(
     if (!view) return draft
     draft.enabled = view.enabled
     draft.maxP50 = view.quality_max_p50_ttft_ms ?? ''
+    draft.maxP50Duration = view.quality_max_p50_duration_ms ?? ''
+    draft.maxSlowInWindow = view.quality_max_slow_in_window ?? ''
+    draft.maxConsecutiveSlow = view.quality_max_consecutive_slow ?? ''
+    draft.schedWindowN = view.quality_sched_window_n ?? ''
+    draft.schedMaxSlowInWindow = view.quality_sched_max_slow_in_window ?? ''
+    draft.schedMaxConsecutiveSlow = view.quality_sched_max_consecutive_slow ?? ''
     draft.successPercent = successRateToPercent(view.quality_min_success_rate) ?? ''
     draft.windowNTtft = resolveSmartScheduleTtftN(view)
     draft.windowNSuccess = resolveSmartScheduleSuccessN(view)
@@ -292,6 +323,7 @@ export function useUserSmartScheduleEditor(
       sort_order: item.sort_order ?? null,
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null,
+      cooldown_reason: item.cooldown_reason ?? null,
       resume_until: item.resume_until ?? null,
       resume_chip_until: item.resume_chip_until ?? null,
       paused: Boolean(item.paused),
@@ -352,6 +384,7 @@ export function useUserSmartScheduleEditor(
       if (!live) continue
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
+      member.cooldown_reason = live.cooldown_reason ?? null
       member.resume_until = live.resume_until ?? null
       member.resume_chip_until = live.resume_chip_until ?? null
       member.sort_order = live.sort_order ?? null
@@ -393,6 +426,10 @@ export function useUserSmartScheduleEditor(
 
   function memberCurrent(accountId: number): number {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.current_concurrency ?? 0
+  }
+
+  function memberCooldownReason(accountId: number): string | null {
+    return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_reason ?? null
   }
 
   function memberCooldownUntil(accountId: number): string | null {
@@ -968,6 +1005,12 @@ export function useUserSmartScheduleEditor(
     return {
       enabled,
       quality_max_p50_ttft_ms: draft.maxP50 === '' ? null : Number(draft.maxP50),
+      quality_max_p50_duration_ms: optionalNumber(draft.maxP50Duration),
+      quality_max_slow_in_window: optionalNumber(draft.maxSlowInWindow),
+      quality_max_consecutive_slow: optionalNumber(draft.maxConsecutiveSlow),
+      quality_sched_window_n: optionalNumber(draft.schedWindowN),
+      quality_sched_max_slow_in_window: optionalNumber(draft.schedMaxSlowInWindow),
+      quality_sched_max_consecutive_slow: optionalNumber(draft.schedMaxConsecutiveSlow),
       quality_min_success_rate: percentToSuccessRate(draft.successPercent),
       quality_min_success_samples: windowNSuccess,
       quality_min_ttft_samples: windowNTtft,
@@ -1205,6 +1248,7 @@ export function useUserSmartScheduleEditor(
     memberCapOrNull,
     memberCurrent,
     memberCooldownUntil,
+    memberCooldownReason,
     memberPaused,
     memberProbing,
     memberPinned,

@@ -29,6 +29,7 @@ type SmartScheduleAccountMember struct {
 	Priority           int                           `json:"priority"` // read-only live accounts.priority; writes ignore
 	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
 	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
+	CooldownReason     *string                       `json:"cooldown_reason,omitempty"`
 	ResumeUntil        *time.Time                    `json:"resume_until,omitempty"`
 	ResumeChipUntil    *time.Time                    `json:"resume_chip_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
@@ -57,6 +58,12 @@ type SmartSchedulePlatformPolicy struct {
 	CooldownMinutes          int
 	ProbeConcurrencyMode     string
 	ProbeConcurrency         *int
+	QualityMaxSlowInWindow   *int
+	QualityMaxConsecutiveSlow *int
+	QualityMaxP50DurationMs  *int
+	QualitySchedWindowN      *int
+	QualitySchedMaxSlowInWindow *int
+	QualitySchedMaxConsecutiveSlow *int
 	UpdatedAt                time.Time
 	AccountIDs               map[int64]struct{}
 	Caps                     map[int64]int
@@ -167,6 +174,7 @@ type SmartScheduleLookup interface {
 	Lookup(ctx context.Context, userID int64) *UserSmartScheduleBundle
 	CooldownActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool
 	StartCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time)
+	StartCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string)
 	GetPairQuality(ctx context.Context, accountID, userID int64, platform string) *PairQualityLive
 	IsProbing(ctx context.Context, accountID, userID int64, platform string) bool
 	MarkProbing(ctx context.Context, accountID, userID int64, platform string)
@@ -186,9 +194,11 @@ type UserSmartScheduleCache interface {
 	ClearCooldown(ctx context.Context, accountID, userID int64, platform string) error
 	ClearCooldownAllPlatforms(ctx context.Context, accountID, userID int64) error
 	SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error)
+	SetCooldownWithReason(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string) (time.Time, error)
+	GetCooldownReason(ctx context.Context, accountID, userID int64, platform string) string
 	ApplyMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
 	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]time.Time
-	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs *int) *PairQualityLive
+	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int) *PairQualityLive
 	ZeroPairQuality(ctx context.Context, accountID, userID int64, platform string, eventType string)
 	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
 	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualitySnapshot
@@ -238,6 +248,12 @@ type SmartSchedulePlatformWrite struct {
 	CooldownMinutes          int
 	ProbeConcurrencyMode     string
 	ProbeConcurrency         *int
+	QualityMaxSlowInWindow   *int
+	QualityMaxConsecutiveSlow *int
+	QualityMaxP50DurationMs  *int
+	QualitySchedWindowN      *int
+	QualitySchedMaxSlowInWindow *int
+	QualitySchedMaxConsecutiveSlow *int
 	Accounts                 []SmartScheduleAccountMember
 }
 
@@ -254,6 +270,12 @@ type SmartSchedulePlatformView struct {
 	CooldownMinutes          int                          `json:"cooldown_minutes"`
 	ProbeConcurrencyMode     string                       `json:"probe_concurrency_mode"`
 	ProbeConcurrency         *int                         `json:"probe_concurrency"`
+	QualityMaxSlowInWindow   *int                         `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow *int                        `json:"quality_max_consecutive_slow"`
+	QualityMaxP50DurationMs  *int                         `json:"quality_max_p50_duration_ms"`
+	QualitySchedWindowN      *int                         `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow *int                      `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int                   `json:"quality_sched_max_consecutive_slow"`
 	UpdatedAt                time.Time                    `json:"updated_at,omitempty"`
 	Accounts                 []SmartScheduleAccountMember `json:"accounts"`
 }

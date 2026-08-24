@@ -1,3 +1,42 @@
+## 2026-08-24 - ui(smart-sched): plain-language policy editor labels
+
+### What
+- UserSmartScheduleView threshold editor: replace visible N/K/C/p50 letter jargon with plain Chinese/English labels (窗口条数、窗口内超标条数、连续超标条数、首字/耗时中位数).
+- Wire hardcoded K/C/N spans to i18n keys; add `maxP50Ttft` for the TTFT median field in this editor only.
+- Tooltips may still mention former K/C once in parentheses for ops.
+
+### Why
+Policy editor field letters were not intuitive for admins configuring probe/selectable latency gates.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+
+### Affected files
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+
+### What
+- Table-driven unit tests for probe (N=5, K=2, C=2) and selectable (N=20, K=6, C=3) latency gates: C-underfull, K scatter, jitter/no-cooldown, hold, duration independence, failed-request ingest, cooldown reason strings (考察期/调度期, K/C/p50, Q_a).
+- Frontend specs: sched PUT fields null when empty; cooldown countdown shows `cooldown_reason` from GET.
+
+### Why
+Lock in TTFT upgrade rules with simulated failure sequences so gates fire on real breaches and stay silent on jitter / failed requests.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "PairQuality|SmartSchedule|Probe|Latency"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_latency_gate_test.go`
+`backend/internal/service/smart_schedule_pair_quality_test.go`
+`backend/internal/service/smart_schedule_probe_test.go`
+`frontend/src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
 ## 2026-08-24 - feat(account): New API user-wallet balance probe
 
 ### What
@@ -12450,4 +12489,50 @@ route, setting, push, or deployment change.
 **Details**:
 - Production pin `ghcr.io/541968679/sub2api:0.1.211` (revision `60f971b8a`), healthy, internal `/health` OK.
 - Ships admin usage L1+L2 display_fields parity and B1 cache_read amplify under billing-real × M.
+
+## [2026-08-24] deploy: v0.1.257 production (sub2api main only)
+
+**Affected files**: production `/opt/sub2api` (GHCR pull only; sidecars skipped).
+
+**Details**:
+- Deployed `ghcr.io/541968679/sub2api:latest` revision `6745f4b38`, version label `0.1.257`, digest `sha256:2bb576e03205f6c902d70d895a13618ff547b3b25ec45ad4b8f17dc6c8178e81`; preflight passed (attempt 2/36), live health passed (attempt 1/5); rollback digest `sha256:60e166b38bb1896dd18cd49777487c57d3a4370d366f3a15643269d06ae3d7f2` (`v0.1.256`).
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`; migrations `212_user_quality_window_n.sql`, `213_usage_log_display_token_cap.sql` applied on boot.
+- Ships overflow session sticky one-shot return to cheaper admitted peer (pooled + unpooled), unpooled WaitPlan overflow path, per-user Q_u window N + P95, display joint input+cache cap (default off), OAuth fleet soft 429 (factory off), pair quality TTFT/success N split, NewAPI user-wallet balance, OpenAI long-context billing admin toggle (default on).
+
+## [2026-08-24] feat(smart-schedule): latency gate K/C + duration + cooldown reasons
+
+**Why**: Probe/selectable pairs were graduating on success-only windows and clearing quality on probe enter; zuoge85 needs non-stream duration gate and debuggable cooldown reasons.
+
+**Affected files**: `backend/internal/service/smart_schedule_latency_gate.go`, `smart_schedule_pair_quality.go`, `user_smart_schedule_service.go`, `account_quality_last_n.go`, `backend/internal/repository/user_smart_schedule_cache.go`, `smart_schedule_pair_quality_cache.go`, `user_smart_schedule_repo.go`, `backend/migrations/214_smart_schedule_latency_gate.sql`, `frontend/src/composables/useUserSmartScheduleEditor.ts`, `frontend/src/views/admin/UserSmartScheduleView.vue`, `frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`, `frontend/src/api/admin/users.ts`, `frontend/src/i18n/locales/{zh,en}.ts`.
+
+**Details**:
+- Independent TTFT vs duration windows with shared N/K/C composite gates; `evalLatencyWindows` fail/pass/hold/pending; probe graduate requires latency pass (not success-only bypass).
+- Probe enter / cooldown expiry no longer `ZeroPairQuality`; selectable/resumed still zero windows.
+- Cooldown reasons in sidecar Redis + pair quality event `detail` + member `cooldown_reason`; manual cooldown labeled distinctly.
+- Migration `214` adds K/C/duration policy columns; backfills `quality_max_p50_duration_ms=80000` only for `users.email='zuoge85@gmail.com'`.
+- Admin UI: K/C/duration fields + i18n; cooling countdown appends reason; pair quality dialog shows event detail.
+- Default K=2/C=2 applies when TTFT p50 is configured and fields omitted.
+
+## [2026-08-24] feat(smart-schedule): selectable sched N20/K6/C3 gate split from probe
+
+**Why**: Selectable phase must not reuse probe N=5/K=2/C=2; longer FIFO and full-window-only C prevent false cooldowns while still catching sustained slowness.
+
+**Affected files**: `backend/internal/service/smart_schedule_latency_gate.go`, `smart_schedule_pair_quality.go`, `user_smart_schedule.go`, `user_smart_schedule_service.go`, `backend/internal/repository/user_smart_schedule_repo.go`, `backend/internal/handler/admin/user_smart_schedule.go`, `backend/migrations/215_smart_schedule_sched_latency_gate.sql`, `frontend/src/api/admin/users.ts`, `frontend/src/composables/useUserSmartScheduleEditor.ts`, `frontend/src/views/admin/UserSmartScheduleView.vue`, `frontend/src/i18n/locales/{zh,en}.ts`, `.trellis/tasks/08-24-smart-sched-ttft-upgrade/{prd,design,implement}.md`.
+
+**Details**:
+- Probe (考察期) keeps N首字/K=2/C=2 with underfull C, Hold, Q_a first gate; selectable uses sched N/K/C defaults 20/6/3 with full-window-only C, no Hold, no Q_a veto.
+- New policy columns `quality_sched_window_n`, `quality_sched_max_slow_in_window`, `quality_sched_max_consecutive_slow`; app-layer defaults when TTFT p50 configured.
+- Pair FIFO storage `TTFTStorageN() = max(probe N, sched N)`; `will_cool` preview uses selectable gate.
+- Admin UI + zh/en i18n for sched N/K/C; PUT omit preserves existing sched fields.
+
+## [2026-08-24] ui(smart-schedule): compact grouped threshold editor layout
+
+**Why**: After probe K/C + duration + sched N/K/C fields landed, the user smart-schedule policy editor was one tall flat grid; group related fields to cut vertical space without hiding anything.
+
+**Affected files**: `frontend/src/views/admin/UserSmartScheduleView.vue`, `frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`, `frontend/src/i18n/locales/{zh,en}.ts`.
+
+**Details**:
+- Threshold editor now uses four stacked sections: 门槛毫秒 (TTFT p50, duration p50, success %), side-by-side 考察期 / 调度期 cards (N/K/C + probe concurrency in probe card), and a short cooldown + condition row.
+- Hints stay on HelpTooltip icons; all existing `data-testid`s preserved; new group testids for probe/sched/ms/cooldown rows.
+- zh/en group labels: `thresholdMsGroup`, `probePhaseGroup`, `schedPhaseGroup`.
 

@@ -54,7 +54,16 @@
             class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
           >
             <span class="text-gray-800 dark:text-gray-100">{{ eventLabel(event.type) }}</span>
-            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(event.at) }}</span>
+            <div class="flex min-w-0 flex-col items-end gap-0.5">
+              <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(event.at) }}</span>
+              <span
+                v-if="event.detail"
+                class="max-w-md text-right text-[11px] text-gray-600 dark:text-gray-300"
+                data-testid="smart-schedule-pair-quality-event-detail"
+              >
+                {{ event.detail }}
+              </span>
+            </div>
           </li>
         </ul>
         <p v-else class="text-sm text-gray-500 dark:text-gray-400" data-testid="smart-schedule-pair-quality-events-empty">

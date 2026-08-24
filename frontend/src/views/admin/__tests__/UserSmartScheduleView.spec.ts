@@ -534,8 +534,14 @@ describe('UserSmartScheduleView', () => {
     expect(toolbar.get('[data-testid="smart-schedule-enabled"]').exists()).toBe(true)
     expect(toolbar.get('[data-testid="smart-schedule-tabs"]').exists()).toBe(true)
     const thresholdGrid = userPanel.get('[data-testid="smart-schedule-threshold-grid"]')
-    expect(thresholdGrid.classes()).toContain('grid-cols-2')
-    expect(thresholdGrid.classes()).toContain('lg:grid-cols-3')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-threshold-ms-group"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-phase-groups"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-probe-phase-group"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-sched-phase-group"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown-row"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.thresholdMsGroup')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.probePhaseGroup')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.schedPhaseGroup')
     expect(thresholdGrid.get('[data-testid="smart-schedule-p50"]').exists()).toBe(true)
     expect(thresholdGrid.get('[data-testid="smart-schedule-success"]').exists()).toBe(true)
     expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-ttft"]').exists()).toBe(true)
@@ -546,12 +552,22 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-success"]').attributes('max')).toBe('100')
     expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowNTtft')
     expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowNSuccess')
-    expect(thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.maxSlowInWindow')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.maxConsecutiveSlow')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.maxP50Ttft')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-sched-window-n"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.schedWindowN')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-sched-max-slow-k"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.schedMaxSlowInWindow')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-sched-max-slow-c"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.schedMaxConsecutiveSlow')
+    const probeGroup = thresholdGrid.get('[data-testid="smart-schedule-probe-phase-group"]')
+    expect(probeGroup.get('[data-testid="smart-schedule-probe-concurrency-mode"]').exists()).toBe(true)
     expect(
-      (thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').element as HTMLSelectElement).value
+      (probeGroup.get('[data-testid="smart-schedule-probe-concurrency-mode"]').element as HTMLSelectElement).value
     ).toBe('follow_n')
-    expect(thresholdGrid.find('[data-testid="smart-schedule-probe-concurrency"]').exists()).toBe(false)
-    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.probeConcurrency')
+    expect(probeGroup.find('[data-testid="smart-schedule-probe-concurrency"]').exists()).toBe(false)
+    expect(probeGroup.text()).toContain('admin.users.smartSchedule.probeConcurrency')
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinSuccessSamples')
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinTtftSamples')
     expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown"]').exists()).toBe(true)
@@ -1984,6 +2000,41 @@ describe('UserSmartScheduleView', () => {
     const w = await mountPage()
     expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).toBe('0/4')
     expect(w.get('[data-testid="smart-schedule-pair-badge"]').text()).not.toContain('999')
+  })
+
+  it('shows cooldown countdown with reason from GET hydrate', async () => {
+    const cooldownUntil = new Date(Date.now() + 15 * 60_000).toISOString()
+    const cooldownReason = '调度期 · 配对 · 连续C 末尾3条>6000ms (9000,9000,9000)'
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: null,
+            cooldown_until: cooldownUntil,
+            cooldown_reason: cooldownReason
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    const cell = w.get('[data-testid="smart-schedule-admission"]')
+    expect(cell.attributes('data-admission')).toBe('cooling')
+    expect(cell.text()).toContain('admin.users.smartSchedule.admissionCoolingRemaining')
+    expect(cell.text()).toContain('admin.users.smartSchedule.admissionCoolingUntil')
+    expect(cell.text()).toContain(cooldownReason)
   })
 
   it('does not invent probing from an expired cooldown_until', async () => {

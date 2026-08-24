@@ -192,7 +192,7 @@ func TestUserSmartScheduleCache_PlatformIsolation(t *testing.T) {
 	require.False(t, cache.IsPinned(ctx, 7, 16, service.PlatformOpenAI))
 
 	ttft := 40
-	cache.IngestPairQuality(ctx, 7, 16, service.PlatformOpenAI, 3, 3, true, &ttft)
+	cache.IngestPairQuality(ctx, 7, 16, service.PlatformOpenAI, 3, 3, true, &ttft, nil)
 	require.Equal(t, 1, cache.GetPairQuality(ctx, 7, 16, service.PlatformOpenAI).OKCount)
 	require.Nil(t, cache.GetPairQuality(ctx, 7, 16, service.PlatformAntigravity))
 

@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,11 +147,11 @@ func TestPairQualityProbeGraduates_WokOnlySync(t *testing.T) {
 	rate := 0.8
 	policy := probePolicy(7, 3, nil, &rate, false)
 	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 2), policy), "W_ok < N must not graduate")
-	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "full W_ok + empty W_ttft must graduate")
+	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "full W_ok without latency gates must graduate")
 
 	p50 := 50
 	withTTFT := probePolicy(7, 3, &p50, &rate, false)
-	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "unfilled W_ttft must not block graduate")
+	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "configured TTFT gate with empty W_ttft stays pending")
 }
 
 func TestPairQualityProbeAndMixed_OnlyInProbe(t *testing.T) {
@@ -161,13 +162,13 @@ func TestPairQualityProbeAndMixed_OnlyInProbe(t *testing.T) {
 	live := mixedAndLive(3, 400, 3)
 	require.Equal(t, 3, live.OKCount)
 	require.Equal(t, 3, live.TTFTCount)
-	require.False(t, pairQualityBlocks(live, policy), "and: success passes so standard and must not cool")
+	require.False(t, pairQualityProbeBlocks(live, policy), "and: success passes so standard and must not cool")
 	require.False(t, pairQualityProbeGraduates(live, policy), "full W_ttft p50 fail must not graduate")
 	require.True(t, pairQualityProbeAndMixed(live, policy))
 
 	orPolicy := probePolicy(7, 3, &p50, &rate, false)
 	require.False(t, pairQualityProbeAndMixed(live, orPolicy), "or is not the mixed override")
-	require.True(t, pairQualityBlocks(live, orPolicy), "or still cools on the failed TTFT window")
+	require.True(t, pairQualityProbeBlocks(live, orPolicy), "or still cools on the failed TTFT window in probe")
 }
 
 func TestEvaluateSmartSchedule_ProbeGraduateKeepsWindows(t *testing.T) {
@@ -180,7 +181,7 @@ func TestEvaluateSmartSchedule_ProbeGraduateKeepsWindows(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
 	require.Equal(t, 1, lookup.graduated)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 3, lookup.GetPairQuality(context.Background(), 7, 16, "openai").OKCount, "graduate must keep windows")
@@ -198,7 +199,7 @@ func TestEvaluateSmartSchedule_ProbeAndMixedCools(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
 	require.Equal(t, 1, lookup.startCalls)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
@@ -214,7 +215,7 @@ func TestEvaluateSmartSchedule_SelectableMixedDoesNotUseOverride(t *testing.T) {
 		bundle: smartBundle(PlatformAnthropic, policy),
 		pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
 	require.Equal(t, 0, lookup.startCalls)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"), "no mark = not probing / no backfill")
 }
@@ -226,7 +227,7 @@ func TestEvaluateSmartSchedule_NoTrafficStaysProbing(t *testing.T) {
 		bundle:  smartBundle(PlatformAnthropic, policy),
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, syncOKLive(3, 1), time.Now().UTC()))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, syncOKLive(3, 1), time.Now().UTC(), nil))
 	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
 	require.Equal(t, 0, lookup.startCalls)
@@ -425,7 +426,7 @@ func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
 	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"))
 	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()), "enter probing clears pair resume")
 	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "enter probing must not clear Track A resume")
-	require.Contains(t, cache.zeros, "")
+	require.NotContains(t, cache.zeros, PairQualityEventProbeEnter, "probing must not zero pair windows")
 
 	again, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
 	require.NoError(t, err)
@@ -523,3 +524,135 @@ func TestUserSmartScheduleService_PauseDoesNotAutoProbe(t *testing.T) {
 }
 
 func floatPtr(v float64) *float64 { return &v }
+
+type cooldownReasonLookup struct {
+	memorySmartLookup
+	lastReason string
+}
+
+func (m *cooldownReasonLookup) StartCooldownWithReason(_ context.Context, accountID, userID int64, platform string, minutes int, now time.Time, reason string) {
+	m.lastReason = reason
+	m.memorySmartLookup.StartCooldownWithReason(context.Background(), accountID, userID, platform, minutes, now, reason)
+}
+
+func latencyGatePolicy(accountID int64, probeNTTFT int) *SmartSchedulePlatformPolicy {
+	p50 := latencyGateMs
+	policy := enabledSmartPolicy(accountID, 0, &p50)
+	policy.QualityMinTTFTSamples = intPtr(probeNTTFT)
+	policy.QualityMinSuccessSamples = intPtr(probeNTTFT)
+	policy.QualityCondition = strPtr(QualityHardCloseConditionOr)
+	return policy
+}
+
+func TestEvaluateSmartSchedule_CooldownReasonPhaseAndBranch(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+
+	t.Run("probe_K_branch", func(t *testing.T) {
+		t.Parallel()
+		policy := latencyGatePolicy(7, latencyProbeN)
+		live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, latencyScatterSlow(2, 3, latencyFastMs, latencySlowMs))
+		lookup := &cooldownReasonLookup{
+			memorySmartLookup: memorySmartLookup{
+				bundle:  smartBundle(PlatformAnthropic, policy),
+				pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
+				probing: map[string]bool{smartPairKey(7, 16): true},
+			},
+		}
+		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now, nil))
+		require.Equal(t, 1, lookup.startCalls)
+		require.Contains(t, lookup.lastReason, CooldownPhaseProbe)
+		require.Contains(t, lookup.lastReason, "超标K")
+	})
+
+	t.Run("selectable_C_branch", func(t *testing.T) {
+		t.Parallel()
+		policy := latencyGatePolicy(7, latencySchedN)
+		live := buildLiveFromTTFTObservations(latencySchedN, latencySchedN, latencyTail(17, 3, latencyFastMs, latencySlowMs))
+		lookup := &cooldownReasonLookup{
+			memorySmartLookup: memorySmartLookup{
+				bundle: smartBundle(PlatformAnthropic, policy),
+				pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
+			},
+		}
+		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now, nil))
+		require.Equal(t, 1, lookup.startCalls)
+		require.Contains(t, lookup.lastReason, CooldownPhaseSelectable)
+		require.Contains(t, lookup.lastReason, "连续C")
+	})
+}
+
+func TestEvaluateSmartSchedule_ProbeHoldNoCooldown(t *testing.T) {
+	t.Parallel()
+	durGate := latencyDurGateMs
+	p50 := latencyGateMs
+	policy := enabledSmartPolicy(7, 0, &p50)
+	policy.QualityMaxP50DurationMs = &durGate
+	policy.QualityMinTTFTSamples = intPtr(latencyProbeN)
+	policy.QualityMinSuccessSamples = intPtr(latencyProbeN)
+	policy.QualityCondition = strPtr(QualityHardCloseConditionOr)
+
+	var live *PairQualityLive
+	for i := 0; i < latencyProbeN; i++ {
+		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, intPtr(latencyFastMs), nil)
+	}
+	for _, dur := range []int{latencyDurSlowMs, latencyFastMs * 50, latencyDurSlowMs} {
+		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, nil, intPtr(dur))
+	}
+
+	lookup := &cooldownReasonLookup{
+		memorySmartLookup: memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, policy),
+			pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		},
+	}
+	pass, state := pairQualityProbeLatencyPass(live, policy)
+	require.False(t, pass, "hold is not pass")
+	require.Equal(t, LatencyEvalHold, state)
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
+	require.Equal(t, 0, lookup.startCalls, "hold must not start cooldown")
+	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
+}
+
+func TestEvaluateSmartSchedule_QAFirstGateBlocks(t *testing.T) {
+	t.Parallel()
+	policy := latencyGatePolicy(7, latencyProbeN)
+	live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencyFastMs, latencyProbeN))
+	qa := &AccountQualityLastN{
+		N:      latencyProbeN,
+		TTFTMs: repeatLatencyMs(latencySlowMs, latencyProbeN),
+	}
+	RecomputeAccountQualityLastN(qa)
+
+	lookup := &cooldownReasonLookup{
+		memorySmartLookup: memorySmartLookup{
+			bundle:  smartBundle(PlatformAnthropic, policy),
+			pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
+			probing: map[string]bool{smartPairKey(7, 16): true},
+		},
+	}
+	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), qa))
+	require.Equal(t, 1, lookup.startCalls)
+	require.Contains(t, lookup.lastReason, CooldownSampleQA)
+	require.True(t, strings.Contains(lookup.lastReason, "p50") || strings.Contains(lookup.lastReason, "连续C"),
+		"Q_a breach reason must name p50 or consecutive gate: %q", lookup.lastReason)
+}
+
+func TestObservePairCompletion_SelectableLatencyCooldownReason(t *testing.T) {
+	t.Parallel()
+	policy := latencyGatePolicy(7, latencySchedN)
+	cache := &observeCacheStub{
+		bundle: smartBundle(PlatformAnthropic, policy),
+		live:   map[string]*PairQualityLive{},
+	}
+	svc := NewUserSmartScheduleService(nil, cache, nil, nil, nil)
+	for _, v := range latencyScatterSlow(6, 8, latencyFastMs, latencySlowMs) {
+		svc.ObservePairCompletion(context.Background(), PairQualityObservation{
+			AccountID: 7, UserID: 16, Success: true, FirstTokenMs: intPtr(v),
+		})
+	}
+	require.Equal(t, 1, cache.starts)
+	require.Contains(t, cache.lastCooldownReason, CooldownPhaseSelectable)
+	require.Contains(t, cache.lastCooldownReason, "超标K")
+}

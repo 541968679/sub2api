@@ -135,12 +135,12 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	if s.userLastN != nil && obs.UserID > 0 {
 		userN, override := s.userWindowN(ctx, obs.UserID, n)
-		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, obs.FirstTokenMs, useFailover, override)
+		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover, override)
 	}
 	if s.lastN == nil || obs.AccountID <= 0 {
 		return
 	}
-	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, useFailover)
+	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover)
 	if live == nil {
 		return
 	}

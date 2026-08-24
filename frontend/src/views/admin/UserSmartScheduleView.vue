@@ -126,109 +126,228 @@
           </p>
 
           <div v-if="currentDraft" class="flex min-h-0 flex-1 flex-col gap-1.5">
-            <div
-              class="grid grid-cols-2 gap-x-2 gap-y-1.5 lg:grid-cols-3"
-              data-testid="smart-schedule-threshold-grid"
-            >
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMaxP50') }}</span>
-                <input
-                  v-model.number="currentDraft.maxP50"
-                  type="number"
-                  min="1"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-p50"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
-                <input
-                  v-model.number="currentDraft.successPercent"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-success"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
-                  {{ t('admin.users.smartSchedule.windowNTtft') }}
-                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNTtftHint')" width-class="w-72" />
-                </span>
-                <input
-                  :key="'window-n-ttft-' + activePlatform"
-                  :value="currentDraft.windowNTtft"
-                  name="smart-schedule-window-n-ttft"
-                  autocomplete="off"
-                  type="number"
-                  min="1"
-                  max="100"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-window-n-ttft"
-                  @input="assignWindowN('windowNTtft', $event)"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
-                  {{ t('admin.users.smartSchedule.windowNSuccess') }}
-                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNSuccessHint')" width-class="w-72" />
-                </span>
-                <input
-                  :key="'window-n-success-' + activePlatform"
-                  :value="currentDraft.windowNSuccess"
-                  name="smart-schedule-window-n-success"
-                  autocomplete="off"
-                  type="number"
-                  min="1"
-                  max="100"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-window-n-success"
-                  @input="assignWindowN('windowNSuccess', $event)"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
-                  {{ t('admin.users.smartSchedule.probeConcurrency') }}
-                  <HelpTooltip :content="t('admin.users.smartSchedule.probeConcurrencyHint')" width-class="w-72" />
-                </span>
-                <select
-                  v-model="currentDraft.probeConcurrencyMode"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-probe-concurrency-mode"
+            <div class="flex flex-col gap-1.5" data-testid="smart-schedule-threshold-grid">
+              <div
+                class="rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
+                data-testid="smart-schedule-threshold-ms-group"
+              >
+                <p class="mb-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                  {{ t('admin.users.smartSchedule.thresholdMsGroup') }}
+                </p>
+                <div class="grid grid-cols-3 gap-x-2 gap-y-1">
+                  <label class="flex min-w-0 items-center gap-1">
+                    <span class="shrink-0 text-xs text-gray-500">{{ t('admin.users.smartSchedule.maxP50Ttft') }}</span>
+                    <input
+                      v-model.number="currentDraft.maxP50"
+                      type="number"
+                      min="1"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-p50"
+                    />
+                  </label>
+                  <label class="flex min-w-0 items-center gap-1">
+                    <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                      {{ t('admin.users.smartSchedule.maxP50Duration') }}
+                      <HelpTooltip :content="t('admin.users.smartSchedule.maxP50DurationHint')" width-class="w-72" />
+                    </span>
+                    <input
+                      v-model.number="currentDraft.maxP50Duration"
+                      type="number"
+                      min="1"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-p50-duration"
+                    />
+                  </label>
+                  <label class="flex min-w-0 items-center gap-1">
+                    <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
+                    <input
+                      v-model.number="currentDraft.successPercent"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-success"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div
+                class="grid grid-cols-1 gap-1.5 md:grid-cols-2"
+                data-testid="smart-schedule-phase-groups"
+              >
+                <div
+                  class="rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
+                  data-testid="smart-schedule-probe-phase-group"
                 >
-                  <option value="follow_n">{{ t('admin.users.smartSchedule.probeConcurrencyFollowN') }}</option>
-                  <option value="custom">{{ t('admin.users.smartSchedule.probeConcurrencyCustom') }}</option>
-                </select>
-                <input
-                  v-if="currentDraft.probeConcurrencyMode === 'custom'"
-                  v-model.number="currentDraft.probeConcurrency"
-                  type="number"
-                  min="1"
-                  max="100"
-                  class="input w-16 shrink-0 !px-2 !py-1"
-                  data-testid="smart-schedule-probe-concurrency"
-                />
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
-                <select v-model="currentDraft.condition" class="input min-w-0 flex-1 !px-2 !py-1">
-                  <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
-                  <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
-                </select>
-              </label>
-              <label class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 text-xs text-gray-500">{{ t('admin.users.smartSchedule.cooldown') }}</span>
-                <input
-                  v-model.number="currentDraft.cooldownMinutes"
-                  type="number"
-                  min="1"
-                  max="1440"
-                  class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-cooldown"
-                />
-              </label>
+                  <p class="mb-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                    {{ t('admin.users.smartSchedule.probePhaseGroup') }}
+                  </p>
+                  <div class="grid grid-cols-2 gap-x-2 gap-y-1 sm:grid-cols-3">
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.windowNTtft') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.windowNTtftHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        :key="'window-n-ttft-' + activePlatform"
+                        :value="currentDraft.windowNTtft"
+                        name="smart-schedule-window-n-ttft"
+                        autocomplete="off"
+                        type="number"
+                        min="1"
+                        max="100"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-window-n-ttft"
+                        @input="assignWindowN('windowNTtft', $event)"
+                      />
+                    </label>
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.windowNSuccess') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.windowNSuccessHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        :key="'window-n-success-' + activePlatform"
+                        :value="currentDraft.windowNSuccess"
+                        name="smart-schedule-window-n-success"
+                        autocomplete="off"
+                        type="number"
+                        min="1"
+                        max="100"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-window-n-success"
+                        @input="assignWindowN('windowNSuccess', $event)"
+                      />
+                    </label>
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.maxSlowInWindow') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.maxSlowInWindowHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        v-model.number="currentDraft.maxSlowInWindow"
+                        type="number"
+                        min="1"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-max-slow-k"
+                      />
+                    </label>
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.maxConsecutiveSlow') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.maxConsecutiveSlowHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        v-model.number="currentDraft.maxConsecutiveSlow"
+                        type="number"
+                        min="1"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-max-slow-c"
+                      />
+                    </label>
+                  </div>
+                  <label class="mt-1 flex min-w-0 items-center gap-1">
+                    <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                      {{ t('admin.users.smartSchedule.probeConcurrency') }}
+                      <HelpTooltip :content="t('admin.users.smartSchedule.probeConcurrencyHint')" width-class="w-72" />
+                    </span>
+                    <select
+                      v-model="currentDraft.probeConcurrencyMode"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-probe-concurrency-mode"
+                    >
+                      <option value="follow_n">{{ t('admin.users.smartSchedule.probeConcurrencyFollowN') }}</option>
+                      <option value="custom">{{ t('admin.users.smartSchedule.probeConcurrencyCustom') }}</option>
+                    </select>
+                    <input
+                      v-if="currentDraft.probeConcurrencyMode === 'custom'"
+                      v-model.number="currentDraft.probeConcurrency"
+                      type="number"
+                      min="1"
+                      max="100"
+                      class="input w-16 shrink-0 !px-2 !py-1"
+                      data-testid="smart-schedule-probe-concurrency"
+                    />
+                  </label>
+                </div>
+
+                <div
+                  class="rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
+                  data-testid="smart-schedule-sched-phase-group"
+                >
+                  <p class="mb-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                    {{ t('admin.users.smartSchedule.schedPhaseGroup') }}
+                  </p>
+                  <div class="grid grid-cols-3 gap-x-2 gap-y-1">
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.schedWindowN') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.schedWindowNHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        v-model.number="currentDraft.schedWindowN"
+                        type="number"
+                        min="1"
+                        max="100"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-sched-window-n"
+                      />
+                    </label>
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.schedMaxSlowInWindow') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.schedMaxSlowInWindowHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        v-model.number="currentDraft.schedMaxSlowInWindow"
+                        type="number"
+                        min="1"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-sched-max-slow-k"
+                      />
+                    </label>
+                    <label class="flex min-w-0 items-center gap-1">
+                      <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                        {{ t('admin.users.smartSchedule.schedMaxConsecutiveSlow') }}
+                        <HelpTooltip :content="t('admin.users.smartSchedule.schedMaxConsecutiveSlowHint')" width-class="w-72" />
+                      </span>
+                      <input
+                        v-model.number="currentDraft.schedMaxConsecutiveSlow"
+                        type="number"
+                        min="1"
+                        class="input min-w-0 flex-1 !px-2 !py-1"
+                        data-testid="smart-schedule-sched-max-slow-c"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
+                data-testid="smart-schedule-cooldown-row"
+              >
+                <label class="flex min-w-0 items-center gap-1">
+                  <span class="shrink-0 text-xs text-gray-500">{{ t('admin.users.smartSchedule.cooldown') }}</span>
+                  <input
+                    v-model.number="currentDraft.cooldownMinutes"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    class="input w-20 !px-2 !py-1"
+                    data-testid="smart-schedule-cooldown"
+                  />
+                </label>
+                <label class="flex min-w-0 items-center gap-1">
+                  <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
+                  <select v-model="currentDraft.condition" class="input w-24 !px-2 !py-1">
+                    <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
+                    <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div
@@ -591,6 +710,9 @@
                     {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
                     ·
                     {{ t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) }) }}
+                    <template v-if="row.cooldown_reason">
+                      · {{ row.cooldown_reason }}
+                    </template>
                   </span>
                 </div>
               </template>
@@ -1094,6 +1216,7 @@ const {
   memberCapOrNull,
   memberCurrent,
   memberCooldownUntil,
+  memberCooldownReason,
   memberPaused,
   memberProbing,
   memberPinned,
@@ -1271,6 +1394,7 @@ const poolTableRows = computed(() =>
       pair_cap: memberCap(account.id),
       pair_current: memberCurrent(account.id),
       cooldown_until: memberCooldownUntil(account.id),
+      cooldown_reason: memberCooldownReason(account.id),
       sort_order: memberSortOrder(account.id),
       priority: liveAccountPriority(account),
       paused: memberPaused(account.id),

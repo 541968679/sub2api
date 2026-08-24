@@ -52,6 +52,11 @@ func (r *userSmartScheduleRepository) ListByUser(ctx context.Context, userID int
 	}); err != nil {
 		return nil, err
 	}
+	if err := overlaySmartScheduleLatencyGate(ctx, client, []int64{userID}, map[int64]*service.UserSmartScheduleBundle{
+		userID: bundle,
+	}); err != nil {
+		return nil, err
+	}
 	return bundle, nil
 }
 
@@ -94,6 +99,9 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 		return nil, err
 	}
 	if err := overlaySmartScheduleProbeConcurrency(ctx, client, userIDs, out); err != nil {
+		return nil, err
+	}
+	if err := overlaySmartScheduleLatencyGate(ctx, client, userIDs, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -175,6 +183,9 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			return err
 		}
 		if err := writeSmartScheduleProbeConcurrency(txCtx, client, userID, platform, policy); err != nil {
+			return err
+		}
+		if err := writeSmartScheduleLatencyGate(txCtx, client, userID, platform, policy); err != nil {
 			return err
 		}
 		return nil
@@ -512,6 +523,109 @@ func overlaySmartScheduleProbeConcurrency(
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("overlay smart schedule probe concurrency: %w", err)
+	}
+	return nil
+}
+
+func writeSmartScheduleLatencyGate(ctx context.Context, client *dbent.Client, userID int64, platform string, policy service.SmartSchedulePlatformWrite) error {
+	if client == nil || userID <= 0 || platform == "" {
+		return nil
+	}
+	var slow, consec, duration, schedN, schedSlow, schedConsec any
+	if policy.QualityMaxSlowInWindow != nil {
+		slow = *policy.QualityMaxSlowInWindow
+	}
+	if policy.QualityMaxConsecutiveSlow != nil {
+		consec = *policy.QualityMaxConsecutiveSlow
+	}
+	if policy.QualityMaxP50DurationMs != nil {
+		duration = *policy.QualityMaxP50DurationMs
+	}
+	if policy.QualitySchedWindowN != nil {
+		schedN = *policy.QualitySchedWindowN
+	}
+	if policy.QualitySchedMaxSlowInWindow != nil {
+		schedSlow = *policy.QualitySchedMaxSlowInWindow
+	}
+	if policy.QualitySchedMaxConsecutiveSlow != nil {
+		schedConsec = *policy.QualitySchedMaxConsecutiveSlow
+	}
+	if _, err := client.ExecContext(ctx, `
+		UPDATE user_smart_schedule_policies
+		SET quality_max_slow_in_window = $3,
+		    quality_max_consecutive_slow = $4,
+		    quality_max_p50_duration_ms = $5,
+		    quality_sched_window_n = $6,
+		    quality_sched_max_slow_in_window = $7,
+		    quality_sched_max_consecutive_slow = $8
+		WHERE user_id = $1 AND platform = $2
+	`, userID, platform, slow, consec, duration, schedN, schedSlow, schedConsec); err != nil {
+		return fmt.Errorf("write smart schedule latency gate: %w", err)
+	}
+	return nil
+}
+
+func overlaySmartScheduleLatencyGate(
+	ctx context.Context,
+	client *dbent.Client,
+	userIDs []int64,
+	bundles map[int64]*service.UserSmartScheduleBundle,
+) error {
+	if client == nil || len(userIDs) == 0 || len(bundles) == 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT user_id, platform, quality_max_slow_in_window, quality_max_consecutive_slow, quality_max_p50_duration_ms,
+		       quality_sched_window_n, quality_sched_max_slow_in_window, quality_sched_max_consecutive_slow
+		FROM user_smart_schedule_policies
+		WHERE user_id = ANY($1)
+	`, pq.Array(userIDs))
+	if err != nil {
+		return fmt.Errorf("overlay smart schedule latency gate: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var userID int64
+		var platform string
+		var slow, consec, duration, schedN, schedSlow, schedConsec sql.NullInt64
+		if err := rows.Scan(&userID, &platform, &slow, &consec, &duration, &schedN, &schedSlow, &schedConsec); err != nil {
+			return fmt.Errorf("scan smart schedule latency gate: %w", err)
+		}
+		bundle := bundles[userID]
+		if bundle == nil || bundle.Policies == nil {
+			continue
+		}
+		policy := bundle.Policies[platform]
+		if policy == nil {
+			continue
+		}
+		if slow.Valid {
+			n := int(slow.Int64)
+			policy.QualityMaxSlowInWindow = &n
+		}
+		if consec.Valid {
+			n := int(consec.Int64)
+			policy.QualityMaxConsecutiveSlow = &n
+		}
+		if duration.Valid {
+			n := int(duration.Int64)
+			policy.QualityMaxP50DurationMs = &n
+		}
+		if schedN.Valid {
+			n := int(schedN.Int64)
+			policy.QualitySchedWindowN = &n
+		}
+		if schedSlow.Valid {
+			n := int(schedSlow.Int64)
+			policy.QualitySchedMaxSlowInWindow = &n
+		}
+		if schedConsec.Valid {
+			n := int(schedConsec.Int64)
+			policy.QualitySchedMaxConsecutiveSlow = &n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("overlay smart schedule latency gate: %w", err)
 	}
 	return nil
 }

@@ -20,8 +20,10 @@ type accountQualityLastNState struct {
 	N           int      `json:"n"`
 	UseFailover bool     `json:"use_failover,omitempty"`
 	TTFT        []int    `json:"ttft"`
+	Duration    []int    `json:"duration_ms,omitempty"`
 	OK          []uint8  `json:"ok"`
 	P50         *int     `json:"p50_ttft_ms,omitempty"`
+	P50Dur      *int     `json:"p50_duration_ms,omitempty"`
 	Rate        *float64 `json:"success_rate,omitempty"`
 	UpdatedAt   int64    `json:"updated_at"`
 	OverrideN   *int     `json:"override_n,omitempty"`
@@ -74,11 +76,11 @@ func (c *accountQualityLiveCache) GetLastNBatch(ctx context.Context, accountIDs 
 	return out
 }
 
-func (c *accountQualityLiveCache) IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs *int, useFailover bool) *service.AccountQualityLastN {
+func (c *accountQualityLiveCache) IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *service.AccountQualityLastN {
 	if c == nil || accountID <= 0 {
 		return nil
 	}
-	live := service.ApplyAccountQualityLastNIngest(c.GetLastN(ctx, accountID), n, success, firstTokenMs)
+	live := service.ApplyAccountQualityLastNIngest(c.GetLastN(ctx, accountID), n, success, firstTokenMs, durationMs)
 	live.UseFailover = useFailover
 	c.storeLastN(ctx, accountID, live)
 	c.writeLiveFromLastN(ctx, accountID, live)
@@ -152,8 +154,10 @@ func encodeAccountQualityLastN(live *service.AccountQualityLastN) accountQuality
 		N:           live.N,
 		UseFailover: live.UseFailover,
 		TTFT:        append([]int(nil), live.TTFTMs...),
+		Duration:    append([]int(nil), live.DurationMs...),
 		OK:          ok,
 		P50:         live.P50TTFTMs,
+		P50Dur:      live.P50DurationMs,
 		Rate:        live.SuccessRate,
 		UpdatedAt:   updated,
 		OverrideN:   live.OverrideN,
@@ -173,8 +177,10 @@ func decodeAccountQualityLastN(raw []byte) *service.AccountQualityLastN {
 		N:           stored.N,
 		UseFailover: stored.UseFailover,
 		TTFTMs:      append([]int(nil), stored.TTFT...),
+		DurationMs:  append([]int(nil), stored.Duration...),
 		OK:          ok,
 		P50TTFTMs:   stored.P50,
+		P50DurationMs: stored.P50Dur,
 		SuccessRate: stored.Rate,
 		OverrideN:   stored.OverrideN,
 	}

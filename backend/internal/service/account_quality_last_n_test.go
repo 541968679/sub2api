@@ -19,9 +19,9 @@ func TestResolveUserQualityWindowN(t *testing.T) {
 
 func TestProjectAccountQualityLastN_TrimsToResolvedN(t *testing.T) {
 	t.Parallel()
-	live := ApplyAccountQualityLastNIngest(nil, 20, true, intPtr(100))
+	live := ApplyAccountQualityLastNIngest(nil, 20, true, intPtr(100), nil)
 	for i := 0; i < 7; i++ {
-		live = ApplyAccountQualityLastNIngest(live, 20, true, intPtr(100+i))
+		live = ApplyAccountQualityLastNIngest(live, 20, true, intPtr(100+i), nil)
 	}
 	require.Equal(t, 8, live.OKCount)
 	projected := ProjectAccountQualityLastN(live, 3)
@@ -43,16 +43,16 @@ func TestNormalizeAccountQualityWindowN(t *testing.T) {
 func TestApplyAccountQualityLastNIngest_Rules(t *testing.T) {
 	t.Parallel()
 	n := 3
-	live := ApplyAccountQualityLastNIngest(nil, n, false, intPtr(900))
+	live := ApplyAccountQualityLastNIngest(nil, n, false, intPtr(900), nil)
 	require.Equal(t, 0, live.TTFTCount)
 	require.Equal(t, 1, live.OKCount)
 	require.False(t, live.OK[0])
 
-	live = ApplyAccountQualityLastNIngest(live, n, true, nil)
+	live = ApplyAccountQualityLastNIngest(live, n, true, nil, nil)
 	require.Equal(t, 0, live.TTFTCount)
 	require.Equal(t, 2, live.OKCount)
 
-	live = ApplyAccountQualityLastNIngest(live, n, true, intPtr(40))
+	live = ApplyAccountQualityLastNIngest(live, n, true, intPtr(40), nil)
 	require.Equal(t, 1, live.TTFTCount)
 	require.Equal(t, 3, live.OKCount)
 	require.Equal(t, 40, live.TTFTMs[0])
@@ -64,7 +64,7 @@ func TestApplyAccountQualityLastNIngest_Rules(t *testing.T) {
 
 func TestAccountQualityLastN_ToAccountQualityStats_StampsN(t *testing.T) {
 	t.Parallel()
-	live := ApplyAccountQualityLastNIngest(nil, 4, true, intPtr(100))
+	live := ApplyAccountQualityLastNIngest(nil, 4, true, intPtr(100), nil)
 	stats := live.ToAccountQualityStats()
 	require.Equal(t, 4, stats.N)
 	require.Equal(t, 4, stats.WindowN)
@@ -84,9 +84,9 @@ func TestEvaluateAccountQualityHardClose_UnfilledLastNDoesNotJudge(t *testing.T)
 		cfg.MinSuccessSamples = 4
 		cfg.MinTTFTSamples = 4
 	})
-	live := ApplyAccountQualityLastNIngest(nil, 4, true, intPtr(9000))
-	live = ApplyAccountQualityLastNIngest(live, 4, true, intPtr(9000))
-	live = ApplyAccountQualityLastNIngest(live, 4, false, nil)
+	live := ApplyAccountQualityLastNIngest(nil, 4, true, intPtr(9000), nil)
+	live = ApplyAccountQualityLastNIngest(live, 4, true, intPtr(9000), nil)
+	live = ApplyAccountQualityLastNIngest(live, 4, false, nil, nil)
 	shouldPause, reason := EvaluateAccountQualityHardClose(live.ToAccountQualityStats(), cfg, false)
 	require.False(t, shouldPause)
 	require.Empty(t, reason)
@@ -118,8 +118,8 @@ func TestEvaluateAccountQualityHardClose_FullLastNJudges(t *testing.T) {
 		cfg.MinSuccessSamples = 2
 		cfg.MinTTFTSamples = 2
 	})
-	live := ApplyAccountQualityLastNIngest(nil, 2, true, intPtr(4000))
-	live = ApplyAccountQualityLastNIngest(live, 2, true, intPtr(4000))
+	live := ApplyAccountQualityLastNIngest(nil, 2, true, intPtr(4000), nil)
+	live = ApplyAccountQualityLastNIngest(live, 2, true, intPtr(4000), nil)
 	shouldPause, reason := EvaluateAccountQualityHardClose(live.ToAccountQualityStats(), cfg, false)
 	require.True(t, shouldPause)
 	require.Contains(t, reason, "p50=")

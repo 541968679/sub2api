@@ -92,11 +92,11 @@ func (s *lastNCacheStub) GetLastNBatch(_ context.Context, accountIDs []int64) ma
 	return out
 }
 
-func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, success bool, firstTokenMs *int, useFailover bool) *AccountQualityLastN {
+func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *AccountQualityLastN {
 	if s.byID == nil {
 		s.byID = map[int64]*AccountQualityLastN{}
 	}
-	live := ApplyAccountQualityLastNIngest(s.byID[accountID], n, success, firstTokenMs)
+	live := ApplyAccountQualityLastNIngest(s.byID[accountID], n, success, firstTokenMs, durationMs)
 	live.UseFailover = useFailover
 	s.byID[accountID] = live
 	return live
@@ -110,8 +110,8 @@ func (s *lastNCacheStub) GetUserLastNBatch(ctx context.Context, userIDs []int64)
 	return s.GetLastNBatch(ctx, userIDs)
 }
 
-func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs *int, useFailover bool, override *int) *AccountQualityLastN {
-	live := s.IngestLastN(ctx, userID, n, success, firstTokenMs, useFailover)
+func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool, override *int) *AccountQualityLastN {
+	live := s.IngestLastN(ctx, userID, n, success, firstTokenMs, durationMs, useFailover)
 	if live != nil {
 		live.OverrideN = CopyIntPtr(override)
 	}
@@ -486,7 +486,7 @@ func TestAccountQualityMaintenance_GetUserLastNStatsBatch_StampsGlobalNAndFailov
 	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
 	svc.SetUserLastNCache(userLastN)
 
-	live := userLastN.IngestUserLastN(context.Background(), 16, DefaultAccountQualityWindowN, false, nil, true, nil)
+	live := userLastN.IngestUserLastN(context.Background(), 16, DefaultAccountQualityWindowN, false, nil, nil, true, nil)
 	require.True(t, live.UseFailover)
 	stats := live.ToAccountQualityStats()
 	require.Equal(t, int64(1), stats.ErrorCount)
@@ -574,7 +574,7 @@ func TestAccountQualityMaintenance_ApplyUserQualityWindowN_ResizesLive(t *testin
 
 	for i := 0; i < 6; i++ {
 		ttft := 100 + i
-		userLastN.IngestUserLastN(context.Background(), 16, 20, true, &ttft, false, nil)
+		userLastN.IngestUserLastN(context.Background(), 16, 20, true, &ttft, nil, false, nil)
 	}
 	require.Equal(t, 6, userLastN.byID[16].OKCount)
 
