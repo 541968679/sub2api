@@ -87,6 +87,17 @@ data model -> key files -> core flow -> important mechanisms -> known pitfalls.
 Update `docs/dev/ARCHITECTURE.md` only for top-level modules, cross-cutting
 conventions, reusable task templates, or environment/build pitfalls.
 
+## Workspace for ordinary work
+
+This occupied checkout (`E:\cursor project\api2sub`) is the default place to
+write product code. Features, bugfixes, and docs happen **here**, on `main`
+or a normal feature branch as the task requires. Do **not** open an isolation
+worktree for ordinary work. Do **not** copy the **Upstream sync → Workspace**
+paragraph into Trellis `implement.md` / PRD / design docs.
+
+Isolation worktree + "occupied checkout stays on `main`, do not checkout
+away" applies **only** to **Upstream sync** tasks below.
+
 ## Task Signal Reading Chain
 
 Pick the first document from the task signal. Do not treat every task as a
@@ -97,9 +108,18 @@ code-exploration walk.
 | Unfamiliar code / change a module | Existing Start Here chain: `ARCHITECTURE.md` → `codebase/README.md` → `codebase/{module}.md` |
 | 生产 / 线上 / 报错 / 排查 / 日志 / incident | `docs/dev/PRODUCTION.md` — pull logs before reading or changing code |
 | Deploy / release process | `docs/dev/DEPLOYMENT.md` — not the same as an incident |
-| 上游 / upstream / 同步 / sync / worktree / 合并副本 | `.cursor/rules/upstream-sync.mdc` then this file's **Upstream sync** section — assess before changing product code |
+| 从 Wei-Shaw/sub2api 取更新 / 上游同步窗口 / 移植旧同步分支 / 合并副本（同步） | `.cursor/rules/upstream-sync.mdc` then this file's **Upstream sync** section — assess before changing product code |
+
+Not an upstream-sync signal: mentioning `worktree` (including "do not use a
+worktree"), gateway "sync" timeout / `stream:false`, or "upstream" as in an
+HTTP provider request. Those are ordinary work — stay on this checkout.
 
 ## Upstream sync (MUST)
+
+**This entire section applies only to upstream-sync tasks.** Ordinary
+feature / bugfix / docs work does **not** use this section's workspace
+rules. Write those changes on this occupied checkout; do not open an
+isolation worktree.
 
 When the task is pulling updates from upstream `Wei-Shaw/sub2api` (or porting a prior sync branch):
 
@@ -116,10 +136,13 @@ When the task is pulling updates from upstream `Wei-Shaw/sub2api` (or porting a 
 
 upstream commit/feature point; concrete behavior change; affected backend/frontend modules; frontend-visible; how to test; relation to fork-local secondary development; expected impact on fork-local features; risk; handling (`A` / `B` / `C` or 采纳/适配/精细/延后/拒绝/已有). The fork-local impact column is mandatory and must call out applicable areas: billing/display-token accounting, curated/default model lists, Claude-GPT bridge, OpenAI image generation, default-model fallback, account scheduling/failover/pair, ops logging, public/admin settings, migrations, frontend i18n/routes.
 
-### Workspace
+### Workspace (upstream-sync tasks only)
 
-- Occupied checkout `E:\cursor project\api2sub` stays on `main`. Do not `checkout` it away from `main` for sync work.
-- Sync **product** code is written only in an isolation worktree (new branch; never reuse an old catchup branch as the continue-stacking point).
+These bullets are **not** default repo policy. Do not paste them into
+ordinary Trellis planning docs.
+
+- Occupied checkout `E:\cursor project\api2sub` stays on `main`. Do not `checkout` it away from `main` **for sync work**.
+- **Sync** product code (porting Wei-Shaw/sub2api into this fork) is written only in an isolation worktree (new branch; never reuse an old catchup branch as the continue-stacking point).
 - Rule/doc edits (`AGENTS.md`, `.cursor/rules`) may be made on that occupied `main` checkout without switching branches.
 - Old sync worktrees/branches (including `E:\cursor project\api2sub-upstream-catchup-20260814` and `sync/upstream-catchup-*`) are patch sources only. Do not delete them. Do not `merge` / `rebase` them into `main` or into a new replica.
 
@@ -409,12 +432,16 @@ before relying on that target.
 
 ## Mandatory Workflow Rules
 
+- Ordinary product work (features, bugfixes, docs) is done on this occupied
+  checkout (`E:\cursor project\api2sub`), on `main` or a normal feature
+  branch. Isolation worktree is **not** required. Do not paste the
+  Upstream-sync Workspace paragraph into Trellis `implement.md`.
 - Read `docs/dev/ARCHITECTURE.md` before exploring unfamiliar code.
-- Before every upstream-sync batch, follow **Upstream sync (MUST)** above
-  (assessment table, A/B/C lanes, isolation worktree, fine-grained overlay,
-  ask Brandon on unresolved conflicts). Do not merge `upstream/main` wholesale
-  or replace hot-path files. The short Cursor form is
-  `.cursor/rules/upstream-sync.mdc`.
+- Before every **upstream-sync batch only**, follow **Upstream sync (MUST)**
+  above (assessment table, A/B/C lanes, isolation worktree, fine-grained
+  overlay, ask Brandon on unresolved conflicts). Do not merge
+  `upstream/main` wholesale or replace hot-path files. The short Cursor form
+  is `.cursor/rules/upstream-sync.mdc`.
 - Append every verified change to `docs/dev/CHANGELOG_CUSTOM.md` with what
   changed, why, and affected files.
 - Sub2API repository changes are logged in `docs/dev/CHANGELOG_CUSTOM.md`.

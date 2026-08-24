@@ -1,15 +1,23 @@
 ---
-description: 上游同步必须先评估再精细叠行为；禁止整仓合入、整文件覆盖、在占用中的 main checkout 改产品代码
+description: 仅当从 Wei-Shaw/sub2api 做上游同步时生效。普通功能/修 bug 不要求隔离 worktree，在占用 checkout 上改即可。同步任务禁止整仓合入、整文件覆盖。
 alwaysApply: true
 ---
 
-# 上游同步 MUST
+# 上游同步 MUST（仅限上游同步任务）
 
-任务信号含「上游 / upstream / 同步 / sync / worktree / 合并副本」且涉及从 Wei-Shaw/sub2api 取更新时：
+**本文件始终在场，是为了防止漏掉同步硬禁止。它不是默认工作区政策。**
 
-- MUST 先出评估表并等确认，再改同步相关产品代码。
+普通功能 / 修 bug / 写文档：在占用 checkout `E:\cursor project\api2sub` 上直接改（`main` 或任务要求的功能分支）。不要另开隔离 worktree。不要把下面 Workspace 句子抄进 Trellis `implement.md` / PRD / design。
+
+仅当任务**确实是**从 `Wei-Shaw/sub2api` 取更新（或移植旧同步分支 / 开同步窗口）时，才执行下面整份 playbook。
+
+**单独提到这些词，不要激活本 playbook：** `worktree`（包括「不要用 worktree」）、网关「同步超时」/`stream:false`/524、HTTP「上游」账号或响应。这些是普通任务。
+
+真同步信号（须同时满足「从 Wei-Shaw/sub2api 取更新」）：「上游同步」/ `upstream sync` / 同步窗口 / 合并副本（同步）/ 移植旧 catchup 分支。单独的 `worktree`、`sync`、`upstream` 不够。
+
+- MUST 先出评估表并等确认，再改**同步相关**产品代码。
 - 按三车道处置，禁止一股脑全收。
-- 占用中的 `E:\cursor project\api2sub` 保持 `main`。产品代码只写隔离 worktree。规则/文档可写在该 checkout（不切分支）。
+- **同步任务中**：占用中的 `E:\cursor project\api2sub` 保持 `main`（不要为同步把它切走）。同步产品代码只写隔离 worktree。规则/文档可写在该 checkout（不切分支）。普通任务忽略本条。
 
 | 车道 | 收什么 |
 |------|--------|
@@ -19,14 +27,16 @@ alwaysApply: true
 
 ```text
 ❌ BAD: git merge upstream/main，或整文件替换 openai_gateway_service.go
-❌ BAD: 在占用中的 api2sub checkout 切分支、改网关/调度/计费
+❌ BAD: 同步任务中，在占用 checkout 切走 main、或把同步产品代码写在占用 checkout
+❌ BAD: 普通修 bug 却去建隔离 worktree，或把本段抄进 Trellis implement.md
 ❌ BAD: 删除旧 catchup worktree，或把它 merge/rebase 进 main / 新副本
 ❌ BAD: 功能冲突时自行删二开或选边上游
-✅ GOOD: 评估表 → 隔离 worktree → 按文件精细叠行为 → 冲突先问 Brandon
+✅ GOOD（普通任务）: 在占用 checkout 上改产品代码（main 或功能分支）
+✅ GOOD（同步任务）: 评估表 → 隔离 worktree → 按文件精细叠行为 → 冲突先问 Brandon
 ✅ GOOD: 旧 catchup worktree/分支只当补丁源，不删、不整仓合入
 ```
 
-## 硬禁止
+## 硬禁止（仍只约束上游同步交付）
 
 - 整仓 `merge upstream/main` 当交付；整段/整文件用上游或旧同步分支覆盖热路径。
 - 未读本仓用法就改共享文件（展示计费 / `actual_cost` / cache-read / bridge / 调度 pair / TTFT / migration 号）。
