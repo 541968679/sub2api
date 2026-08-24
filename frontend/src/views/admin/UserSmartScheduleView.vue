@@ -154,16 +154,38 @@
               </label>
               <label class="flex min-w-0 items-center gap-1.5">
                 <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
-                  {{ t('admin.users.smartSchedule.windowN') }}
-                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNHint')" width-class="w-72" />
+                  {{ t('admin.users.smartSchedule.windowNTtft') }}
+                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNTtftHint')" width-class="w-72" />
                 </span>
                 <input
-                  v-model.number="currentDraft.windowN"
+                  :key="'window-n-ttft-' + activePlatform"
+                  :value="currentDraft.windowNTtft"
+                  name="smart-schedule-window-n-ttft"
+                  autocomplete="off"
                   type="number"
                   min="1"
                   max="100"
                   class="input min-w-0 flex-1 !px-2 !py-1"
-                  data-testid="smart-schedule-window-n"
+                  data-testid="smart-schedule-window-n-ttft"
+                  @input="assignWindowN('windowNTtft', $event)"
+                />
+              </label>
+              <label class="flex min-w-0 items-center gap-1.5">
+                <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                  {{ t('admin.users.smartSchedule.windowNSuccess') }}
+                  <HelpTooltip :content="t('admin.users.smartSchedule.windowNSuccessHint')" width-class="w-72" />
+                </span>
+                <input
+                  :key="'window-n-success-' + activePlatform"
+                  :value="currentDraft.windowNSuccess"
+                  name="smart-schedule-window-n-success"
+                  autocomplete="off"
+                  type="number"
+                  min="1"
+                  max="100"
+                  class="input min-w-0 flex-1 !px-2 !py-1"
+                  data-testid="smart-schedule-window-n-success"
+                  @input="assignWindowN('windowNSuccess', $event)"
                 />
               </label>
               <label class="flex min-w-0 items-center gap-1.5">
@@ -1103,6 +1125,19 @@ const {
   isBalanceRefreshing
 } = useUserSmartScheduleEditor(userId, { poolFetchNeeds })
 
+function assignWindowN(field: 'windowNTtft' | 'windowNSuccess', event: Event) {
+  const draft = currentDraft.value
+  if (!draft) return
+  const text = (event.target as HTMLInputElement).value
+  if (text.trim() === '') {
+    draft[field] = ''
+    return
+  }
+  const n = Number(text)
+  if (!Number.isFinite(n)) return
+  draft[field] = n
+}
+
 const pageReady = computed(() => initialLoaded.value && user.value != null)
 
 const {
@@ -1343,7 +1378,8 @@ function pairBadgeMax(accountId: number) {
     probing: memberProbing(accountId),
     pinned: memberPinned(accountId),
     pairCap: memberCapOrNull(accountId),
-    windowN: currentDraft.value?.windowN,
+    windowNSuccess: currentDraft.value?.windowNSuccess,
+    windowN: currentDraft.value?.windowNSuccess,
     backendCap: memberProbeCap(accountId),
     mode: currentDraft.value?.probeConcurrencyMode,
     probeConcurrency: currentDraft.value?.probeConcurrency

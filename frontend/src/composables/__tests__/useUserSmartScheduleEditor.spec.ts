@@ -654,7 +654,7 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
   })
 
-  it('maps a single window N from GET, preferring the new field', async () => {
+  it('maps each window N from its own sample column', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,
       default_platform: 'openai',
@@ -675,8 +675,32 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     const w = mountEditor()
     await flushPromises()
-    expect(w.vm.currentDraft.windowN).toBe(14)
+    expect(w.vm.currentDraft.windowNTtft).toBe(4)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(3)
     expect(w.vm.currentDraft.probeConcurrencyMode).toBe('follow_n')
+  })
+
+  it('hydrates both N from quality_window_n when sample columns are absent', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.windowNTtft).toBe(10)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(10)
   })
 
   it('hydrates custom probe concurrency from GET and does not copy template N into it', async () => {
@@ -711,8 +735,142 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     })
     expect(w.vm.currentDraft.probeConcurrencyMode).toBe('custom')
     expect(w.vm.currentDraft.probeConcurrency).toBe(2)
-    expect(w.vm.currentDraft.windowN).toBe(14)
+    expect(w.vm.currentDraft.windowNTtft).toBe(14)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(14)
     expect(w.vm.currentDraft.maxP50).toBe(200)
+  })
+
+  it('writes the two window N columns independently', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              ...body,
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.windowNTtft = 4
+    w.vm.currentDraft.windowNSuccess = 20
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        quality_min_ttft_samples: 4,
+        quality_min_success_samples: 20
+      })
+    )
+    expect(apiMocks.updateSmartSchedule.mock.calls[0][2]).not.toHaveProperty('quality_window_n')
+    expect(w.vm.currentDraft.windowNTtft).toBe(4)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(20)
+  })
+
+  it('does not copy N首字 onto N成功率 when only the TTFT field changes', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          quality_window_n: 10,
+          quality_min_success_samples: 10,
+          quality_min_ttft_samples: 10,
+          quality_max_p50_ttft_ms: 200,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              ...body,
+              quality_window_n: Math.max(
+                Number(body.quality_min_ttft_samples),
+                Number(body.quality_min_success_samples)
+              ),
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.windowNTtft = 4
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({
+        quality_min_ttft_samples: 4,
+        quality_min_success_samples: 10
+      })
+    )
+    expect(apiMocks.updateSmartSchedule.mock.calls[0][2]).not.toHaveProperty('quality_window_n')
+    expect(w.vm.currentDraft.windowNTtft).toBe(4)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(10)
+  })
+
+  it('keeps the two N after save even if GET echoes a collapsed window', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, _body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              quality_window_n: 4,
+              quality_min_ttft_samples: 4,
+              quality_min_success_samples: 4,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.windowNTtft = 4
+    w.vm.currentDraft.windowNSuccess = 20
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule.mock.calls[0][2]).toMatchObject({
+      quality_min_ttft_samples: 4,
+      quality_min_success_samples: 20
+    })
+    expect(w.vm.currentDraft.windowNTtft).toBe(4)
+    expect(w.vm.currentDraft.windowNSuccess).toBe(20)
   })
 
   it('writes follow_n by default and custom probe concurrency on save', async () => {

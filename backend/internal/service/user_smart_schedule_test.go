@@ -1068,7 +1068,7 @@ func (s stubSmartCache) GetCooldownUntilBatch(_ context.Context, _ []int64, _ in
 func (s stubSmartCache) GetPairQuality(context.Context, int64, int64, string) *PairQualityLive {
 	return nil
 }
-func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string, int, bool, *int) *PairQualityLive {
+func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string, int, int, bool, *int) *PairQualityLive {
 	return nil
 }
 func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string, string) {}
@@ -1447,4 +1447,32 @@ func TestGetPairQualityBatch_DualMembershipRequiresPlatform(t *testing.T) {
 	_, err = svc.GetPairQualityDetailForAccount(ctx, 16, 7)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "SMART_SCHEDULE_PLATFORM_REQUIRED")
+}
+
+func TestPutPlatform_ChangingTTFTNDoesNotRewriteSuccessN(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p50 := 200
+	policy := enabledSmartPolicy(11, 2, &p50)
+	policy.QualityMinTTFTSamples = intPtr(10)
+	policy.QualityMinSuccessSamples = intPtr(20)
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, policy)}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 11, Platform: PlatformAnthropic},
+	}}
+	svc := NewUserSmartScheduleService(repo, nil, accounts, nil, nil)
+	view, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:               true,
+		CooldownMinutes:       15,
+		QualityMaxP50TTFTMs:   &p50,
+		QualityWindowN:        intPtr(20),
+		QualityMinTTFTSamples: intPtr(4),
+		Accounts:              []SmartScheduleAccountMember{{AccountID: 11, Platform: PlatformAnthropic}},
+	})
+	require.NoError(t, err)
+	got := view.Platforms[PlatformAnthropic]
+	require.NotNil(t, got.QualityMinTTFTSamples)
+	require.NotNil(t, got.QualityMinSuccessSamples)
+	require.Equal(t, 4, *got.QualityMinTTFTSamples)
+	require.Equal(t, 20, *got.QualityMinSuccessSamples)
 }

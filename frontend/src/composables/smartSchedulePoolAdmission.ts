@@ -98,8 +98,29 @@ export type PoolQualityGateDraft = {
   enabled?: boolean
   maxP50: number | ''
   successPercent: number | ''
-  windowN: number | ''
+  windowNTtft?: number | ''
+  windowNSuccess?: number | ''
+  /** @deprecated Prefer windowNSuccess / windowNTtft. Old drafts still hydrate. */
+  windowN?: number | ''
   condition: 'or' | 'and'
+}
+
+function draftMetricN(
+  explicit: number | '' | null | undefined,
+  fallback: number | '' | null | undefined
+): number {
+  if (explicit !== undefined && explicit !== null && explicit !== '') {
+    return clampSmartScheduleWindowN(Number(explicit))
+  }
+  return clampSmartScheduleWindowN(fallback === '' ? null : fallback)
+}
+
+function draftTtftN(draft: PoolQualityGateDraft): number {
+  return draftMetricN(draft.windowNTtft, draft.windowN)
+}
+
+function draftSuccessN(draft: PoolQualityGateDraft): number {
+  return draftMetricN(draft.windowNSuccess, draft.windowN)
 }
 
 export function resolvePairCap(maxConcurrency: number | null | undefined): number | null {
@@ -190,18 +211,19 @@ export function isValidProbeConcurrencyWrite(input: {
   return value != null && value >= 1 && value <= 100
 }
 
-/** Selected probe in-flight number before member-cap clamp. Not account-quality N. */
+/** Selected probe in-flight number before member-cap clamp. follow_n uses N成功率. */
 export function resolveProbeConcurrencySelected(input: {
   mode?: string | null
   probeConcurrency?: number | '' | null
-  windowN: number | '' | null | undefined
+  windowN?: number | '' | null | undefined
+  windowNSuccess?: number | '' | null | undefined
 }): number {
   if (resolveProbeConcurrencyMode(input.mode) === 'custom') {
     return clampSmartScheduleWindowN(
       input.probeConcurrency === '' ? null : input.probeConcurrency
     )
   }
-  return clampSmartScheduleWindowN(input.windowN === '' ? null : input.windowN)
+  return draftMetricN(input.windowNSuccess, input.windowN)
 }
 
 /**
@@ -210,7 +232,8 @@ export function resolveProbeConcurrencySelected(input: {
  * Never 999 — uncapped probe is still the selected value.
  */
 export function resolveProbeConcurrency(input: {
-  windowN: number | '' | null | undefined
+  windowN?: number | '' | null | undefined
+  windowNSuccess?: number | '' | null | undefined
   pairCap: number | null | undefined
   backendCap?: number | null
   mode?: string | null
@@ -228,7 +251,8 @@ export function pairOccupancyDisplayMaxForAdmission(input: {
   probing: boolean
   pinned?: boolean
   pairCap: number | null | undefined
-  windowN: number | '' | null | undefined
+  windowN?: number | '' | null | undefined
+  windowNSuccess?: number | '' | null | undefined
   backendCap?: number | null
   mode?: string | null
   probeConcurrency?: number | '' | null
@@ -239,6 +263,7 @@ export function pairOccupancyDisplayMaxForAdmission(input: {
   if (input.probing) {
     return resolveProbeConcurrency({
       windowN: input.windowN,
+      windowNSuccess: input.windowNSuccess,
       pairCap: input.pairCap,
       backendCap: input.backendCap,
       mode: input.mode,
@@ -275,16 +300,17 @@ export function pairQualityGateBreached(
   pair: SmartSchedulePairQuality | null | undefined
 ): boolean {
   if (!draft || !pair || !hasQualityGateFromDraft(draft)) return false
-  const n = clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN))
+  const nTtft = draftTtftN(draft)
+  const nSuccess = draftSuccessN(draft)
   const judged: boolean[] = []
   if (draft.maxP50 !== '' && draft.maxP50 != null) {
-    if (pair.ttft_samples >= n && pair.ttft_p50_ms != null) {
+    if (pair.ttft_samples >= nTtft && pair.ttft_p50_ms != null) {
       judged.push(pair.ttft_p50_ms > Number(draft.maxP50))
     }
   }
   if (draft.successPercent !== '' && draft.successPercent != null) {
     const minRate = percentToSuccessRate(draft.successPercent)
-    if (minRate != null && pair.ok_samples >= n && pair.success_rate != null) {
+    if (minRate != null && pair.ok_samples >= nSuccess && pair.success_rate != null) {
       judged.push(pair.success_rate < minRate)
     }
   }

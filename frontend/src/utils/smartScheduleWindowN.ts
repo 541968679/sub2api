@@ -4,9 +4,20 @@ export const SMART_SCHEDULE_WINDOW_N_DEFAULT = 10
 export const SMART_SCHEDULE_WINDOW_N_MIN = 1
 export const SMART_SCHEDULE_WINDOW_N_MAX = 100
 
+export type SmartScheduleWindowNInput = {
+  quality_window_n?: number | null
+  quality_window_samples?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+}
+
 function finiteNumber(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return value
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
 }
 
 export function clampSmartScheduleWindowN(value: number | null | undefined): number {
@@ -17,28 +28,35 @@ export function clampSmartScheduleWindowN(value: number | null | undefined): num
   )
 }
 
-/** Prefer explicit N; both legacy sample fields → min, then clamp (backend contract). */
-export function resolveSmartScheduleWindowN(input: {
-  quality_window_n?: number | null
-  quality_window_samples?: number | null
-  quality_min_success_samples?: number | null
-  quality_min_ttft_samples?: number | null
-}): number {
-  const explicit = input.quality_window_n ?? input.quality_window_samples
-  if (explicit != null && Number.isFinite(explicit)) {
-    return clampSmartScheduleWindowN(explicit)
+function sharedWindowFallback(input: SmartScheduleWindowNInput): number | null {
+  return finiteNumber(input.quality_window_n) ?? finiteNumber(input.quality_window_samples)
+}
+
+/** N首字. Launch: both stored columns equal the user's current single N. */
+export function resolveSmartScheduleTtftN(input: SmartScheduleWindowNInput): number {
+  const explicit = finiteNumber(input.quality_min_ttft_samples)
+  if (explicit != null) return clampSmartScheduleWindowN(explicit)
+  if (finiteNumber(input.quality_min_success_samples) != null) {
+    return SMART_SCHEDULE_WINDOW_N_DEFAULT
   }
-  const success = input.quality_min_success_samples
-  const ttft = input.quality_min_ttft_samples
-  if (
-    success != null
-    && ttft != null
-    && Number.isFinite(success)
-    && Number.isFinite(ttft)
-  ) {
-    return clampSmartScheduleWindowN(Math.min(success, ttft))
+  return clampSmartScheduleWindowN(sharedWindowFallback(input))
+}
+
+/** N成功率. follow_n uses this. Do not inherit quality_window_n from N首字. */
+export function resolveSmartScheduleSuccessN(input: SmartScheduleWindowNInput): number {
+  const explicit = finiteNumber(input.quality_min_success_samples)
+  if (explicit != null) return clampSmartScheduleWindowN(explicit)
+  if (finiteNumber(input.quality_min_ttft_samples) != null) {
+    return SMART_SCHEDULE_WINDOW_N_DEFAULT
   }
-  return clampSmartScheduleWindowN(success ?? ttft ?? SMART_SCHEDULE_WINDOW_N_DEFAULT)
+  return clampSmartScheduleWindowN(sharedWindowFallback(input))
+}
+
+/** Compat single N = max of the two metric windows, or explicit quality_window_n. */
+export function resolveSmartScheduleWindowN(input: SmartScheduleWindowNInput): number {
+  const explicit = sharedWindowFallback(input)
+  if (explicit != null) return clampSmartScheduleWindowN(explicit)
+  return Math.max(resolveSmartScheduleTtftN(input), resolveSmartScheduleSuccessN(input))
 }
 
 export function normalizeSmartSchedulePairQuality(
@@ -49,15 +67,44 @@ export function normalizeSmartSchedulePairQuality(
     quality_window_n?: number | null
     quality_window_samples?: number | null
     success_samples?: number | null
+    n_ttft?: number | null
+    n_success?: number | null
+    n_ok?: number | null
   } | null | undefined
 ): SmartSchedulePairQuality | null {
   if (!raw) return null
+  const nTtft = clampSmartScheduleWindowN(
+    finiteNumber(raw.n_ttft) ?? finiteNumber(raw.n) ?? finiteNumber(raw.quality_window_n)
+  )
+  const nSuccess = clampSmartScheduleWindowN(
+    finiteNumber(raw.n_success) ?? finiteNumber(raw.n_ok) ?? finiteNumber(raw.n) ?? finiteNumber(raw.quality_window_n)
+  )
   return {
     ttft_p50_ms: finiteNumber(raw.ttft_p50_ms ?? raw.p50_ttft_ms),
     success_rate:
       raw.success_rate != null && Number.isFinite(raw.success_rate) ? raw.success_rate : null,
     ttft_samples: Math.max(0, finiteNumber(raw.ttft_samples ?? raw.ttft_count) ?? 0),
     ok_samples: Math.max(0, finiteNumber(raw.ok_samples ?? raw.ok_count ?? raw.success_samples) ?? 0),
-    n: clampSmartScheduleWindowN(raw.n ?? raw.quality_window_n ?? raw.quality_window_samples)
+    n: clampSmartScheduleWindowN(raw.n ?? Math.max(nTtft, nSuccess)),
+    n_ttft: nTtft,
+    n_success: nSuccess
+  }
+}
+
+export function pairQualityCountParams(quality: SmartSchedulePairQuality): {
+  ttft: number
+  ok: number
+  nTtft: number
+  nOk: number
+  n: number
+} {
+  const nTtft = clampSmartScheduleWindowN(quality.n_ttft ?? quality.n)
+  const nOk = clampSmartScheduleWindowN(quality.n_success ?? quality.n_ok ?? quality.n)
+  return {
+    ttft: quality.ttft_samples,
+    ok: quality.ok_samples,
+    nTtft,
+    nOk,
+    n: clampSmartScheduleWindowN(quality.n ?? Math.max(nTtft, nOk))
   }
 }

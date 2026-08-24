@@ -26,20 +26,20 @@ func TestPairQualityCache_FailureNoTTFTFailoverAndIsolation(t *testing.T) {
 	ctx := context.Background()
 	ttft := 90
 
-	fail := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, false, &ttft)
+	fail := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, false, &ttft)
 	require.Equal(t, 1, fail.OKCount)
 	require.Equal(t, 0, fail.TTFTCount)
 	require.Equal(t, 0.0, *fail.SuccessRate)
 
-	syncOK := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, true, nil)
+	syncOK := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, nil)
 	require.Equal(t, 2, syncOK.OKCount)
 	require.Equal(t, 0, syncOK.TTFTCount)
 
-	streamOK := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, true, &ttft)
+	streamOK := cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, &ttft)
 	require.Equal(t, 3, streamOK.OKCount)
 	require.Equal(t, 1, streamOK.TTFTCount)
 
-	other := cache.IngestPairQuality(ctx, 7, 17, "openai", 3, true, intPtrRepo(800))
+	other := cache.IngestPairQuality(ctx, 7, 17, "openai", 3, 3, true, intPtrRepo(800))
 	require.Equal(t, 1, other.OKCount)
 	require.Equal(t, 800, *other.P50TTFTMs)
 	user16 := cache.GetPairQuality(ctx, 7, 16, "openai")
@@ -55,7 +55,7 @@ func TestPairQualityCache_ExpiryZerosWindows(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, true, intPtrRepo(40))
+	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(40))
 	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
 	require.NotZero(t, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
 	require.False(t, cache.CooldownActive(ctx, 7, 16, "openai", now.Add(16*time.Minute)))
@@ -126,8 +126,8 @@ func TestPairQualityCache_NoBackfillWithoutMark(t *testing.T) {
 func TestPairQualityCache_ZeroClearsAndKeepsIsolation(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()
-	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, true, intPtrRepo(40))
-	cache.IngestPairQuality(ctx, 7, 17, "openai", 3, true, intPtrRepo(80))
+	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(40))
+	cache.IngestPairQuality(ctx, 7, 17, "openai", 3, 3, true, intPtrRepo(80))
 	cache.ZeroPairQuality(ctx, 7, 16, "openai", service.PairQualityEventSelectable)
 	require.Equal(t, 0, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
 	require.Equal(t, 1, cache.GetPairQuality(ctx, 7, 17, "openai").OKCount)

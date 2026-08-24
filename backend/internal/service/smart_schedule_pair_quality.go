@@ -26,6 +26,8 @@ const (
 // It is not the account 15-minute quality cell.
 type PairQualityLive struct {
 	N           int       `json:"n"`
+	NTTFT       int       `json:"n_ttft"`
+	NOK         int       `json:"n_ok"`
 	TTFTMs      []int     `json:"ttft_ms,omitempty"`
 	OK          []bool    `json:"ok,omitempty"`
 	P50TTFTMs   *int      `json:"p50_ttft_ms,omitempty"`
@@ -46,6 +48,9 @@ type SmartSchedulePairQualityView struct {
 	OKCount     int      `json:"ok_count"`
 	OKSamples   int      `json:"ok_samples"`
 	N           int      `json:"n"`
+	NTTFT       int      `json:"n_ttft"`
+	NSuccess    int      `json:"n_success"`
+	NOK         int      `json:"n_ok"`
 }
 
 // PairQualitySnapshot is one trend point after a recompute.
@@ -60,6 +65,9 @@ type PairQualitySnapshot struct {
 	OKCount     int      `json:"ok_count"`
 	OKSamples   int      `json:"ok_samples"`
 	N           int      `json:"n"`
+	NTTFT       int      `json:"n_ttft"`
+	NSuccess    int      `json:"n_success"`
+	NOK         int      `json:"n_ok"`
 }
 
 // PairQualityEvent is a cooldown / resume / zero record for the detail UI.
@@ -76,6 +84,8 @@ type SmartSchedulePairQualityDetail struct {
 	AccountID int64                        `json:"account_id"`
 	UserID    int64                        `json:"user_id"`
 	N         int                          `json:"n"`
+	NTTFT     int                          `json:"n_ttft"`
+	NSuccess  int                          `json:"n_success"`
 	Live      SmartSchedulePairQualityView `json:"live"`
 	Current   SmartSchedulePairQualityView `json:"current"`
 	Snapshots []PairQualitySnapshot        `json:"snapshots"`
@@ -112,9 +122,9 @@ func ClampSmartScheduleWindowN(n int) int {
 	return n
 }
 
-// NormalizeSmartScheduleWindowN converges the new N field and the two legacy
-// sample floors. Explicit quality_window_samples wins. Both missing → 10.
-// Only one legacy field → that value. Both legacy fields → min, then clamp 1–100.
+// NormalizeSmartScheduleWindowN is the pre-split collapse (explicit window wins;
+// both legacy fields → min). Write/read paths must not call this. Kept for
+// leftover callers and historical tests.
 func NormalizeSmartScheduleWindowN(window, minSuccess, minTTFT *int) int {
 	if window != nil {
 		return ClampSmartScheduleWindowN(*window)
@@ -136,11 +146,27 @@ func NormalizeSmartScheduleWindowN(window, minSuccess, minTTFT *int) int {
 	return b
 }
 
-func (p *SmartSchedulePlatformPolicy) WindowN() int {
-	if p == nil {
-		return DefaultSmartScheduleWindowN
+func resolveSmartScheduleMetricN(metric, fallback *int) int {
+	if metric != nil {
+		return ClampSmartScheduleWindowN(*metric)
 	}
-	return NormalizeSmartScheduleWindowN(p.QualityWindowSamples, p.QualityMinSuccessSamples, p.QualityMinTTFTSamples)
+	if fallback != nil {
+		return ClampSmartScheduleWindowN(*fallback)
+	}
+	return DefaultSmartScheduleWindowN
+}
+
+func maxSmartScheduleWindowN(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func echoCompatSmartScheduleWindowN(ttft, success int) (*int, *int) {
+	n := maxSmartScheduleWindowN(ClampSmartScheduleWindowN(ttft), ClampSmartScheduleWindowN(success))
+	copied := n
+	return &copied, &copied
 }
 
 func EchoSmartScheduleWindowN(n int) (*int, *int, *int) {
@@ -150,22 +176,61 @@ func EchoSmartScheduleWindowN(n int) (*int, *int, *int) {
 	return &copied, &success, &ttft
 }
 
+func (p *SmartSchedulePlatformPolicy) TTFTWindowN() int {
+	if p == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	return resolveSmartScheduleMetricN(p.QualityMinTTFTSamples, p.QualityWindowSamples)
+}
+
+func (p *SmartSchedulePlatformPolicy) SuccessWindowN() int {
+	if p == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	return resolveSmartScheduleMetricN(p.QualityMinSuccessSamples, p.QualityWindowSamples)
+}
+
+// WindowN is the compat max of the two metric windows. Do not use as a gate floor.
+func (p *SmartSchedulePlatformPolicy) WindowN() int {
+	if p == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	return maxSmartScheduleWindowN(p.TTFTWindowN(), p.SuccessWindowN())
+}
+
 func ApplyPairQualityIngest(live *PairQualityLive, n int, success bool, firstTokenMs *int) *PairQualityLive {
+	return ApplyPairQualityIngestWindows(live, n, n, success, firstTokenMs)
+}
+
+func ApplyPairQualityIngestWindows(live *PairQualityLive, nTTFT, nOK int, success bool, firstTokenMs *int) *PairQualityLive {
 	if live == nil {
 		live = &PairQualityLive{}
 	}
-	n = ClampSmartScheduleWindowN(n)
-	live.N = n
+	nTTFT = ClampSmartScheduleWindowN(nTTFT)
+	nOK = ClampSmartScheduleWindowN(nOK)
+	live.NTTFT = nTTFT
+	live.NOK = nOK
+	live.N = maxSmartScheduleWindowN(nTTFT, nOK)
 	if success && firstTokenMs != nil && *firstTokenMs >= 0 {
-		live.TTFTMs = appendFIFOInt(live.TTFTMs, *firstTokenMs, n)
+		live.TTFTMs = appendFIFOInt(live.TTFTMs, *firstTokenMs, nTTFT)
 	}
-	live.OK = appendFIFOBool(live.OK, success, n)
+	live.OK = appendFIFOBool(live.OK, success, nOK)
 	RecomputePairQuality(live)
 	return live
 }
 
 func ZeroPairQualityLive(n int) *PairQualityLive {
-	live := &PairQualityLive{N: ClampSmartScheduleWindowN(n)}
+	return ZeroPairQualityLiveWindows(n, n)
+}
+
+func ZeroPairQualityLiveWindows(nTTFT, nOK int) *PairQualityLive {
+	nTTFT = ClampSmartScheduleWindowN(nTTFT)
+	nOK = ClampSmartScheduleWindowN(nOK)
+	live := &PairQualityLive{
+		N:     maxSmartScheduleWindowN(nTTFT, nOK),
+		NTTFT: nTTFT,
+		NOK:   nOK,
+	}
 	RecomputePairQuality(live)
 	return live
 }
@@ -174,11 +239,27 @@ func RecomputePairQuality(live *PairQualityLive) {
 	if live == nil {
 		return
 	}
-	if live.N < MinSmartScheduleWindowN {
-		live.N = DefaultSmartScheduleWindowN
+	if live.NTTFT < MinSmartScheduleWindowN {
+		if live.N >= MinSmartScheduleWindowN {
+			live.NTTFT = ClampSmartScheduleWindowN(live.N)
+		} else {
+			live.NTTFT = DefaultSmartScheduleWindowN
+		}
+	} else {
+		live.NTTFT = ClampSmartScheduleWindowN(live.NTTFT)
 	}
-	live.TTFTMs = trimFIFOInt(live.TTFTMs, live.N)
-	live.OK = trimFIFOBool(live.OK, live.N)
+	if live.NOK < MinSmartScheduleWindowN {
+		if live.N >= MinSmartScheduleWindowN {
+			live.NOK = ClampSmartScheduleWindowN(live.N)
+		} else {
+			live.NOK = DefaultSmartScheduleWindowN
+		}
+	} else {
+		live.NOK = ClampSmartScheduleWindowN(live.NOK)
+	}
+	live.N = maxSmartScheduleWindowN(live.NTTFT, live.NOK)
+	live.TTFTMs = trimFIFOInt(live.TTFTMs, live.NTTFT)
+	live.OK = trimFIFOBool(live.OK, live.NOK)
 	live.TTFTCount = len(live.TTFTMs)
 	live.OKCount = len(live.OK)
 	live.P50TTFTMs = pairQualityP50(live.TTFTMs)
@@ -241,7 +322,12 @@ func trimFIFOBool(in []bool, n int) []bool {
 
 func (l *PairQualityLive) View() SmartSchedulePairQualityView {
 	if l == nil {
-		return aliasPairQualityView(SmartSchedulePairQualityView{N: DefaultSmartScheduleWindowN})
+		return aliasPairQualityView(SmartSchedulePairQualityView{
+			N:        DefaultSmartScheduleWindowN,
+			NTTFT:    DefaultSmartScheduleWindowN,
+			NSuccess: DefaultSmartScheduleWindowN,
+			NOK:      DefaultSmartScheduleWindowN,
+		})
 	}
 	return aliasPairQualityView(SmartSchedulePairQualityView{
 		P50TTFTMs:   l.P50TTFTMs,
@@ -249,6 +335,9 @@ func (l *PairQualityLive) View() SmartSchedulePairQualityView {
 		TTFTCount:   l.TTFTCount,
 		OKCount:     l.OKCount,
 		N:           l.N,
+		NTTFT:       l.NTTFT,
+		NSuccess:    l.NOK,
+		NOK:         l.NOK,
 	})
 }
 
@@ -266,6 +355,9 @@ func (l *PairQualityLive) Snapshot() PairQualitySnapshot {
 		TTFTCount:   view.TTFTCount,
 		OKCount:     view.OKCount,
 		N:           view.N,
+		NTTFT:       view.NTTFT,
+		NSuccess:    view.NSuccess,
+		NOK:         view.NOK,
 	})
 }
 
@@ -273,6 +365,30 @@ func aliasPairQualityView(view SmartSchedulePairQualityView) SmartSchedulePairQu
 	view.TTFTP50Ms = view.P50TTFTMs
 	view.TTFTSamples = view.TTFTCount
 	view.OKSamples = view.OKCount
+	if view.NTTFT < MinSmartScheduleWindowN {
+		if view.N >= MinSmartScheduleWindowN {
+			view.NTTFT = ClampSmartScheduleWindowN(view.N)
+		} else {
+			view.NTTFT = DefaultSmartScheduleWindowN
+		}
+	}
+	if view.NSuccess < MinSmartScheduleWindowN && view.NOK >= MinSmartScheduleWindowN {
+		view.NSuccess = view.NOK
+	}
+	if view.NOK < MinSmartScheduleWindowN && view.NSuccess >= MinSmartScheduleWindowN {
+		view.NOK = view.NSuccess
+	}
+	if view.NSuccess < MinSmartScheduleWindowN {
+		if view.N >= MinSmartScheduleWindowN {
+			view.NSuccess = ClampSmartScheduleWindowN(view.N)
+		} else {
+			view.NSuccess = DefaultSmartScheduleWindowN
+		}
+	}
+	if view.NOK < MinSmartScheduleWindowN {
+		view.NOK = view.NSuccess
+	}
+	view.N = maxSmartScheduleWindowN(view.NTTFT, view.NSuccess)
 	return view
 }
 
@@ -283,6 +399,16 @@ func aliasPairQualitySnapshot(snap PairQualitySnapshot) PairQualitySnapshot {
 	if snap.CapturedAt == "" && snap.Ts > 0 {
 		snap.CapturedAt = time.Unix(snap.Ts, 0).UTC().Format(time.RFC3339)
 	}
+	aliased := aliasPairQualityView(SmartSchedulePairQualityView{
+		N:        snap.N,
+		NTTFT:    snap.NTTFT,
+		NSuccess: snap.NSuccess,
+		NOK:      snap.NOK,
+	})
+	snap.N = aliased.N
+	snap.NTTFT = aliased.NTTFT
+	snap.NSuccess = aliased.NSuccess
+	snap.NOK = aliased.NOK
 	return snap
 }
 
@@ -369,11 +495,13 @@ func pairQualityProbeGraduates(live *PairQualityLive, policy *SmartSchedulePlatf
 	if live == nil {
 		return false
 	}
-	n := DefaultSmartScheduleWindowN
+	nOK := DefaultSmartScheduleWindowN
+	nTTFT := DefaultSmartScheduleWindowN
 	if policy != nil {
-		n = policy.WindowN()
+		nOK = policy.SuccessWindowN()
+		nTTFT = policy.TTFTWindowN()
 	}
-	if live.OKCount < n {
+	if live.OKCount < nOK {
 		return false
 	}
 	if policy == nil || !policy.HasQualityMetrics() {
@@ -385,7 +513,7 @@ func pairQualityProbeGraduates(live *PairQualityLive, policy *SmartSchedulePlatf
 			return false
 		}
 	}
-	if live.TTFTCount < n {
+	if live.TTFTCount < nTTFT {
 		return true
 	}
 	if gate.MaxP50TTFTMs != nil {
@@ -406,8 +534,9 @@ func pairQualityProbeAndMixed(live *PairQualityLive, policy *SmartSchedulePlatfo
 	if strings.ToLower(strings.TrimSpace(gate.Condition)) != QualityHardCloseConditionAnd {
 		return false
 	}
-	n := policy.WindowN()
-	if live.OKCount < n || live.TTFTCount < n {
+	nOK := policy.SuccessWindowN()
+	nTTFT := policy.TTFTWindowN()
+	if live.OKCount < nOK || live.TTFTCount < nTTFT {
 		return false
 	}
 	if gate.MaxP50TTFTMs == nil || gate.MinSuccessRate == nil {

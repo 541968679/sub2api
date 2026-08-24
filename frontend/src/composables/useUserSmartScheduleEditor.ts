@@ -15,7 +15,8 @@ import type {
 import {
   SMART_SCHEDULE_WINDOW_N_DEFAULT,
   clampSmartScheduleWindowN,
-  resolveSmartScheduleWindowN
+  resolveSmartScheduleSuccessN,
+  resolveSmartScheduleTtftN
 } from '@/utils/smartScheduleWindowN'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
@@ -72,7 +73,10 @@ export type SmartSchedulePlatformDraft = {
   enabled: boolean
   maxP50: number | ''
   successPercent: number | ''
-  windowN: number | ''
+  windowNTtft: number | ''
+  windowNSuccess: number | ''
+  /** @deprecated Prefer windowNSuccess. Kept so old snapshots still hydrate. */
+  windowN?: number | ''
   probeConcurrencyMode: SmartScheduleProbeConcurrencyMode
   probeConcurrency: number | ''
   condition: 'or' | 'and'
@@ -90,7 +94,8 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
     enabled: row.enabled,
     maxP50: row.maxP50,
     successPercent: row.successPercent,
-    windowN: row.windowN,
+    windowNTtft: row.windowNTtft,
+    windowNSuccess: row.windowNSuccess,
     probeConcurrencyMode: row.probeConcurrencyMode,
     probeConcurrency: row.probeConcurrency,
     condition: row.condition,
@@ -141,7 +146,8 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
     enabled: false,
     maxP50: '',
     successPercent: '',
-    windowN: SMART_SCHEDULE_WINDOW_N_DEFAULT,
+    windowNTtft: SMART_SCHEDULE_WINDOW_N_DEFAULT,
+    windowNSuccess: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     probeConcurrencyMode: 'follow_n',
     probeConcurrency: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     condition: 'or',
@@ -158,16 +164,21 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
       enabled: Boolean(parsed.enabled),
       maxP50: parsed.maxP50 ?? '',
       successPercent: parsed.successPercent ?? '',
-      windowN: resolveSmartScheduleWindowN({
-        quality_window_n: typeof parsed.windowN === 'number' ? parsed.windowN : null,
-        quality_min_success_samples:
-          typeof (parsed as { minSuccessSamples?: number }).minSuccessSamples === 'number'
-            ? (parsed as { minSuccessSamples: number }).minSuccessSamples
-            : null,
+      windowNTtft: resolveSmartScheduleTtftN({
         quality_min_ttft_samples:
-          typeof (parsed as { minTtftSamples?: number }).minTtftSamples === 'number'
-            ? (parsed as { minTtftSamples: number }).minTtftSamples
-            : null
+          typeof parsed.windowNTtft === 'number'
+            ? parsed.windowNTtft
+            : typeof parsed.windowN === 'number'
+              ? parsed.windowN
+              : null
+      }),
+      windowNSuccess: resolveSmartScheduleSuccessN({
+        quality_min_success_samples:
+          typeof parsed.windowNSuccess === 'number'
+            ? parsed.windowNSuccess
+            : typeof parsed.windowN === 'number'
+              ? parsed.windowN
+              : null
       }),
       probeConcurrencyMode: resolveProbeConcurrencyMode(parsed.probeConcurrencyMode),
       probeConcurrency:
@@ -218,7 +229,10 @@ export function useUserSmartScheduleEditor(
   const selectedAddAccountId = ref(0)
   const bulkCap = ref<number | null>(null)
   const drafts = reactive<Record<SmartSchedulePlatform, SmartSchedulePlatformDraft>>(
-    {} as Record<SmartSchedulePlatform, SmartSchedulePlatformDraft>
+    Object.fromEntries(SMART_SCHEDULE_PLATFORMS.map((platform) => [platform, emptySmartScheduleDraft()])) as Record<
+      SmartSchedulePlatform,
+      SmartSchedulePlatformDraft
+    >
   )
   const poolAccounts = ref<Account[]>([])
   const candidateAccounts = ref<Account[]>([])
@@ -263,12 +277,13 @@ export function useUserSmartScheduleEditor(
     draft.enabled = view.enabled
     draft.maxP50 = view.quality_max_p50_ttft_ms ?? ''
     draft.successPercent = successRateToPercent(view.quality_min_success_rate) ?? ''
-    draft.windowN = resolveSmartScheduleWindowN(view)
+    draft.windowNTtft = resolveSmartScheduleTtftN(view)
+    draft.windowNSuccess = resolveSmartScheduleSuccessN(view)
     draft.probeConcurrencyMode = resolveProbeConcurrencyMode(view.probe_concurrency_mode)
     draft.probeConcurrency =
       view.probe_concurrency != null && Number.isFinite(view.probe_concurrency)
         ? clampSmartScheduleWindowN(view.probe_concurrency)
-        : draft.windowN
+        : draft.windowNSuccess
     draft.condition = view.quality_condition === 'and' ? 'and' : 'or'
     draft.cooldownMinutes = view.cooldown_minutes || 15
     draft.accounts = (view.accounts ?? []).map((item) => ({
@@ -313,6 +328,21 @@ export function useUserSmartScheduleEditor(
     captureSnapshot(platform)
   }
 
+  function applyWrittenWindowN(
+    platform: SmartSchedulePlatform,
+    payload: { quality_min_ttft_samples?: number | null; quality_min_success_samples?: number | null }
+  ) {
+    const draft = drafts[platform]
+    if (!draft) return
+    if (payload.quality_min_ttft_samples != null) {
+      draft.windowNTtft = clampSmartScheduleWindowN(payload.quality_min_ttft_samples)
+    }
+    if (payload.quality_min_success_samples != null) {
+      draft.windowNSuccess = clampSmartScheduleWindowN(payload.quality_min_success_samples)
+    }
+    captureSnapshot(platform)
+  }
+
   function mergeRuntimeMembers(platform: SmartSchedulePlatform, view: SmartSchedulePlatformView | undefined) {
     const draft = drafts[platform]
     if (!draft || !view) return
@@ -340,12 +370,15 @@ export function useUserSmartScheduleEditor(
   }
 
   function qualityGateFormFromDraft(draft: SmartSchedulePlatformDraft): QualityGateFormFields {
-    const n = clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN))
     return {
       quality_max_p50_ttft_ms: optionalNumber(draft.maxP50),
       quality_min_success_rate_percent: optionalNumber(draft.successPercent),
-      quality_min_success_samples: n,
-      quality_min_ttft_samples: n,
+      quality_min_success_samples: clampSmartScheduleWindowN(
+        draft.windowNSuccess === '' ? null : Number(draft.windowNSuccess)
+      ),
+      quality_min_ttft_samples: clampSmartScheduleWindowN(
+        draft.windowNTtft === '' ? null : Number(draft.windowNTtft)
+      ),
       quality_condition: draft.condition
     }
   }
@@ -926,13 +959,18 @@ export function useUserSmartScheduleEditor(
 
   function buildWrite(enabled = currentDraft.value.enabled) {
     const draft = currentDraft.value
+    const windowNTtft = clampSmartScheduleWindowN(
+      draft.windowNTtft === '' ? null : Number(draft.windowNTtft)
+    )
+    const windowNSuccess = clampSmartScheduleWindowN(
+      draft.windowNSuccess === '' ? null : Number(draft.windowNSuccess)
+    )
     return {
       enabled,
       quality_max_p50_ttft_ms: draft.maxP50 === '' ? null : Number(draft.maxP50),
       quality_min_success_rate: percentToSuccessRate(draft.successPercent),
-      quality_window_n: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
-      quality_min_success_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
-      quality_min_ttft_samples: clampSmartScheduleWindowN(draft.windowN === '' ? null : Number(draft.windowN)),
+      quality_min_success_samples: windowNSuccess,
+      quality_min_ttft_samples: windowNTtft,
       quality_condition: draft.condition,
       probe_concurrency_mode: resolveProbeConcurrencyMode(draft.probeConcurrencyMode),
       probe_concurrency: probeConcurrencyWriteValue({
@@ -1000,8 +1038,10 @@ export function useUserSmartScheduleEditor(
     const previousEnabled = currentDraft.value.enabled
     currentDraft.value.enabled = nextEnabled
     try {
-      const view = await adminAPI.users.updateSmartSchedule(userId.value, activePlatform.value, buildWrite(nextEnabled))
+      const payload = buildWrite(nextEnabled)
+      const view = await adminAPI.users.updateSmartSchedule(userId.value, activePlatform.value, payload)
       applyPlatformView(activePlatform.value, view)
+      applyWrittenWindowN(activePlatform.value, payload)
       await loadPoolDetails()
       if (!options?.silent) {
         appStore.showSuccess(t(options?.successKey || 'admin.users.smartSchedule.updateSuccess'))

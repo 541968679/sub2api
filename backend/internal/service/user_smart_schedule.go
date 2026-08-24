@@ -102,12 +102,11 @@ func (p *SmartSchedulePlatformPolicy) QualityGate() QualityHardCloseSettings {
 	if p == nil || !p.HasQualityMetrics() {
 		return QualityHardCloseSettings{}
 	}
-	n := p.WindowN()
 	return fillUserQualityGateDefaults(QualityHardCloseSettings{
 		MaxP50TTFTMs:      p.QualityMaxP50TTFTMs,
 		MinSuccessRate:    p.QualityMinSuccessRate,
-		MinSuccessSamples: n,
-		MinTTFTSamples:    n,
+		MinSuccessSamples: p.SuccessWindowN(),
+		MinTTFTSamples:    p.TTFTWindowN(),
 		Condition:         derefString(p.QualityCondition),
 	})
 }
@@ -120,7 +119,7 @@ func (p *SmartSchedulePlatformPolicy) MemberCount() int {
 }
 
 // ProbeDesiredConcurrency is the probing in-flight target before the member cap ceiling.
-// follow_n / omit / invalid stored custom → window N. custom + 1–100 → that number.
+// follow_n / omit / invalid stored custom → N成功率. custom + 1–100 → that number.
 // This is not account_quality_window_n.
 func (p *SmartSchedulePlatformPolicy) ProbeDesiredConcurrency() int {
 	if p == nil {
@@ -130,7 +129,7 @@ func (p *SmartSchedulePlatformPolicy) ProbeDesiredConcurrency() int {
 	if mode == ProbeConcurrencyModeCustom && custom != nil {
 		return *custom
 	}
-	return p.WindowN()
+	return p.SuccessWindowN()
 }
 
 // ProbeInFlightCap is min(desired, memberCap) or desired when the member has no cap.
@@ -189,7 +188,7 @@ type UserSmartScheduleCache interface {
 	SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error)
 	ApplyMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
 	GetCooldownUntilBatch(ctx context.Context, accountIDs []int64, userID int64, platform string, now time.Time) map[int64]time.Time
-	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, n int, success bool, firstTokenMs *int) *PairQualityLive
+	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs *int) *PairQualityLive
 	ZeroPairQuality(ctx context.Context, accountID, userID int64, platform string, eventType string)
 	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
 	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualitySnapshot

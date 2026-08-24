@@ -381,9 +381,11 @@ function echoSmartScheduleWrite(
         enabled: Boolean(body.enabled),
         quality_max_p50_ttft_ms: body.quality_max_p50_ttft_ms ?? null,
         quality_min_success_rate: body.quality_min_success_rate ?? null,
-        quality_window_n: body.quality_window_n ?? body.quality_min_success_samples ?? null,
-        quality_min_success_samples: body.quality_min_success_samples ?? body.quality_window_n ?? null,
-        quality_min_ttft_samples: body.quality_min_ttft_samples ?? body.quality_window_n ?? null,
+        quality_window_n:
+          body.quality_window_n ??
+          (Math.max(body.quality_min_ttft_samples ?? 0, body.quality_min_success_samples ?? 0) || null),
+        quality_min_success_samples: body.quality_min_success_samples ?? null,
+        quality_min_ttft_samples: body.quality_min_ttft_samples ?? null,
         quality_condition: body.quality_condition ?? null,
         probe_concurrency_mode: body.probe_concurrency_mode === 'custom' ? 'custom' : 'follow_n',
         probe_concurrency: body.probe_concurrency_mode === 'custom' ? body.probe_concurrency ?? null : null,
@@ -536,10 +538,14 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.classes()).toContain('lg:grid-cols-3')
     expect(thresholdGrid.get('[data-testid="smart-schedule-p50"]').exists()).toBe(true)
     expect(thresholdGrid.get('[data-testid="smart-schedule-success"]').exists()).toBe(true)
-    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').exists()).toBe(true)
-    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('min')).toBe('1')
-    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n"]').attributes('max')).toBe('100')
-    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowN')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-ttft"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-ttft"]').attributes('min')).toBe('1')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-ttft"]').attributes('max')).toBe('100')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-success"]').exists()).toBe(true)
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-success"]').attributes('min')).toBe('1')
+    expect(thresholdGrid.get('[data-testid="smart-schedule-window-n-success"]').attributes('max')).toBe('100')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowNTtft')
+    expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.windowNSuccess')
     expect(thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').exists()).toBe(true)
     expect(
       (thresholdGrid.get('[data-testid="smart-schedule-probe-concurrency-mode"]').element as HTMLSelectElement).value
@@ -1279,7 +1285,7 @@ describe('UserSmartScheduleView', () => {
     )
   })
 
-  it('saves a single window N and echoes it onto the legacy min-sample fields', async () => {
+  it('saves two window N fields independently', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,
       platforms: {
@@ -1299,20 +1305,23 @@ describe('UserSmartScheduleView', () => {
       pages: 1
     })
     const w = await mountPage()
-    await w.get('[data-testid="smart-schedule-window-n"]').setValue(14)
+    await w.get('[data-testid="smart-schedule-window-n-ttft"]').setValue(4)
+    await w.get('[data-testid="smart-schedule-window-n-success"]').setValue(20)
     await w.get('[data-testid="smart-schedule-save"]').trigger('click')
     await flushPromises()
     expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
       99,
       'anthropic',
       expect.objectContaining({
-        quality_window_n: 14,
-        quality_min_success_samples: 14,
-        quality_min_ttft_samples: 14,
+        quality_min_success_samples: 20,
+        quality_min_ttft_samples: 4,
         probe_concurrency_mode: 'follow_n',
         probe_concurrency: null
       })
     )
+    expect(apiMocks.updateSmartSchedule.mock.calls[0][2]).not.toHaveProperty('quality_window_n')
+    expect((w.get('[data-testid="smart-schedule-window-n-ttft"]').element as HTMLInputElement).value).toBe('4')
+    expect((w.get('[data-testid="smart-schedule-window-n-success"]').element as HTMLInputElement).value).toBe('20')
   })
 
   it('hides custom probe concurrency unless mode is custom, then saves the integer', async () => {

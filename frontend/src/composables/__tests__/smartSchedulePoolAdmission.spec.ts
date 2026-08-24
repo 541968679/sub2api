@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { UserSmartScheduleView } from '@/api/admin/users'
-import { normalizeSmartSchedulePairQuality, resolveSmartScheduleWindowN } from '@/utils/smartScheduleWindowN'
+import {
+  normalizeSmartSchedulePairQuality,
+  resolveSmartScheduleSuccessN,
+  resolveSmartScheduleTtftN,
+  resolveSmartScheduleWindowN
+} from '@/utils/smartScheduleWindowN'
 import {
   POOL_ADMISSION_FILTER_STATES,
   isCurrentlySchedulingAccount,
@@ -98,8 +103,15 @@ describe('resolveSmartScheduleWindowN', () => {
         quality_min_success_samples: 20,
         quality_min_ttft_samples: 10
       })
-    ).toBe(10)
-    expect(resolveSmartScheduleWindowN({ quality_min_ttft_samples: 6 })).toBe(6)
+    ).toBe(20)
+    expect(resolveSmartScheduleWindowN({ quality_min_ttft_samples: 6 })).toBe(10)
+    expect(resolveSmartScheduleTtftN({ quality_min_ttft_samples: 6 })).toBe(6)
+    expect(resolveSmartScheduleTtftN({ quality_min_ttft_samples: 4, quality_window_n: 10 })).toBe(4)
+    expect(resolveSmartScheduleSuccessN({ quality_min_success_samples: 20, quality_window_n: 10 })).toBe(20)
+    expect(resolveSmartScheduleSuccessN({ quality_min_ttft_samples: 4, quality_window_n: 20 })).toBe(10)
+    expect(resolveSmartScheduleTtftN({ quality_min_success_samples: 20, quality_window_n: 20 })).toBe(10)
+    expect(resolveSmartScheduleTtftN({ quality_window_n: 10 })).toBe(10)
+    expect(resolveSmartScheduleSuccessN({ quality_window_n: 10 })).toBe(10)
     expect(resolveSmartScheduleWindowN({})).toBe(10)
     expect(resolveSmartScheduleWindowN({ quality_window_n: 0 })).toBe(1)
     expect(resolveSmartScheduleWindowN({ quality_window_n: 250 })).toBe(100)
@@ -121,7 +133,28 @@ describe('normalizeSmartSchedulePairQuality', () => {
       success_rate: 0.9,
       ttft_samples: 4,
       ok_samples: 6,
-      n: 10
+      n: 10,
+      n_ttft: 10,
+      n_success: 10
+    })
+    expect(
+      normalizeSmartSchedulePairQuality({
+        ttft_p50_ms: 80,
+        success_rate: 1,
+        ttft_samples: 3,
+        ok_samples: 6,
+        n: 20,
+        n_ttft: 3,
+        n_success: 20
+      })
+    ).toEqual({
+      ttft_p50_ms: 80,
+      success_rate: 1,
+      ttft_samples: 3,
+      ok_samples: 6,
+      n: 20,
+      n_ttft: 3,
+      n_success: 20
     })
   })
 })
@@ -181,6 +214,22 @@ describe('resolveProbeConcurrency', () => {
         probeConcurrency: 2
       })
     ).toBe(14)
+    expect(
+      resolveProbeConcurrency({
+        windowN: 4,
+        windowNSuccess: 20,
+        pairCap: null,
+        mode: 'follow_n'
+      })
+    ).toBe(20)
+    expect(
+      resolveProbeConcurrency({
+        windowN: 4,
+        windowNSuccess: 20,
+        pairCap: 8,
+        mode: 'follow_n'
+      })
+    ).toBe(8)
   })
 })
 
@@ -497,6 +546,33 @@ describe('pairQualityGateBreached', () => {
   it('cools from pair windows once N is met, not from missing pair data', () => {
     expect(pairQualityGateBreached(savedLiveGate, failingPair)).toBe(true)
     expect(pairQualityGateBreached(savedLiveGate, null)).toBe(false)
+  })
+
+  it('judges TTFT and success against their own N', () => {
+    expect(
+      pairQualityGateBreached(
+        { enabled: true, maxP50: 200, successPercent: '', windowNTtft: 3, windowNSuccess: 20, condition: 'or' },
+        { ttft_p50_ms: 900, success_rate: 1, ttft_samples: 2, ok_samples: 20, n: 20 }
+      )
+    ).toBe(false)
+    expect(
+      pairQualityGateBreached(
+        { enabled: true, maxP50: 200, successPercent: '', windowNTtft: 3, windowNSuccess: 20, condition: 'or' },
+        { ttft_p50_ms: 900, success_rate: 1, ttft_samples: 3, ok_samples: 20, n: 20 }
+      )
+    ).toBe(true)
+    expect(
+      pairQualityGateBreached(
+        { enabled: true, maxP50: '', successPercent: 90, windowNTtft: 3, windowNSuccess: 20, condition: 'or' },
+        { ttft_p50_ms: 80, success_rate: 0, ttft_samples: 3, ok_samples: 19, n: 20 }
+      )
+    ).toBe(false)
+    expect(
+      pairQualityGateBreached(
+        { enabled: true, maxP50: '', successPercent: 90, windowNTtft: 3, windowNSuccess: 20, condition: 'or' },
+        { ttft_p50_ms: 80, success_rate: 0, ttft_samples: 3, ok_samples: 20, n: 20 }
+      )
+    ).toBe(true)
   })
 })
 

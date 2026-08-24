@@ -53,6 +53,17 @@ func TestProbeInFlightCap(t *testing.T) {
 	require.NotEqual(t, 999, ProbeInFlightCap(10, 0))
 }
 
+func TestProbeInFlightCap_FollowSuccessN(t *testing.T) {
+	t.Parallel()
+	follow := &SmartSchedulePlatformPolicy{
+		QualityMinTTFTSamples:    intPtr(4),
+		QualityMinSuccessSamples: intPtr(20),
+	}
+	require.Equal(t, 20, follow.ProbeDesiredConcurrency())
+	require.Equal(t, 5, follow.ProbeInFlightCap(5))
+	require.Equal(t, 20, follow.ProbeInFlightCap(0))
+}
+
 func TestProbeInFlightCap_FollowNAndCustom(t *testing.T) {
 	t.Parallel()
 	follow := &SmartSchedulePlatformPolicy{QualityWindowSamples: intPtr(10)}

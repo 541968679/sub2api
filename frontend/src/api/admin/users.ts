@@ -426,15 +426,16 @@ export interface SmartSchedulePlatformView {
   enabled: boolean
   quality_max_p50_ttft_ms: number | null
   quality_min_success_rate: number | null
-  /** Preferred single N for both pair windows. */
+  /** Compat max of N首字 and N成功率. Do not use as a gate floor. */
   quality_window_n?: number | null
-  /** Canonical backend N echo; same value as quality_window_n. */
+  /** Same compat max as quality_window_n. */
   quality_window_samples?: number | null
-  /** Legacy GET echo; same N as quality_window_n after the pairing change. */
+  /** N成功率: success last-N and open-judgment floor. */
   quality_min_success_samples: number | null
+  /** N首字: TTFT last-N and open-judgment floor. */
   quality_min_ttft_samples: number | null
   quality_condition: 'or' | 'and' | null
-  /** `follow_n` (default) uses window N; `custom` uses `probe_concurrency`. */
+  /** `follow_n` (default) uses N成功率; `custom` uses `probe_concurrency`. */
   probe_concurrency_mode?: SmartScheduleProbeConcurrencyMode | null
   /** Custom probe in-flight cap (1–100). Meaningful when mode is `custom`. */
   probe_concurrency?: number | null
@@ -478,6 +479,9 @@ export type SmartSchedulePairQuality = {
   ttft_samples: number
   ok_samples: number
   n: number
+  n_ttft?: number
+  n_success?: number
+  n_ok?: number
 }
 
 export type SmartSchedulePairQualitySnapshot = SmartSchedulePairQuality & {

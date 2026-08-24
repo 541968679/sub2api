@@ -154,13 +154,13 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	now := time.Now().UTC()
 	pinned := s.cache.IsPinned(ctx, obs.AccountID, obs.UserID, platform)
 	if pinned {
-		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.WindowN(), obs.Success, obs.FirstTokenMs)
+		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTWindowN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs)
 		return
 	}
 	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, platform, now) {
 		return
 	}
-	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.WindowN(), obs.Success, obs.FirstTokenMs)
+	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTWindowN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs)
 	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID, platform)
 	if pairQualityResumeBlocksEvaluate(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now) {
 		return
@@ -233,6 +233,9 @@ func (s *UserSmartScheduleService) PutPlatform(ctx context.Context, userID int64
 	}
 	if s == nil || s.repo == nil {
 		return nil, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
+	}
+	if bundle, listErr := s.repo.ListByUser(ctx, userID); listErr == nil && bundle != nil {
+		normalized = overlayExistingSmartScheduleWindows(write, normalized, bundle.Policy(platform))
 	}
 	if err := s.repo.ReplacePlatform(ctx, userID, platform, normalized); err != nil {
 		return nil, err
@@ -580,6 +583,64 @@ func (s *UserSmartScheduleService) sanitizePoolMembers(ctx context.Context, user
 	return kept, nil
 }
 
+func validateSmartScheduleWindowField(name string, value *int) error {
+	if value == nil {
+		return nil
+	}
+	if *value < MinSmartScheduleWindowN || *value > MaxSmartScheduleWindowN {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", name+" must be between 1 and 100")
+	}
+	return nil
+}
+
+func splitSmartScheduleWindowWrite(shared, ttft, success *int) (int, int) {
+	if ttft == nil && success == nil {
+		if shared != nil {
+			n := ClampSmartScheduleWindowN(*shared)
+			return n, n
+		}
+		return DefaultSmartScheduleWindowN, DefaultSmartScheduleWindowN
+	}
+	// One or both metric columns are present. Do not copy quality_window_n onto the other.
+	resolvedTTFT := DefaultSmartScheduleWindowN
+	resolvedSuccess := DefaultSmartScheduleWindowN
+	if ttft != nil {
+		resolvedTTFT = ClampSmartScheduleWindowN(*ttft)
+	}
+	if success != nil {
+		resolvedSuccess = ClampSmartScheduleWindowN(*success)
+	}
+	return resolvedTTFT, resolvedSuccess
+}
+
+// overlayExistingSmartScheduleWindows keeps the stored N when a PUT omits that column.
+// Legacy writes that only send quality_window_n still set both.
+func overlayExistingSmartScheduleWindows(write, normalized SmartSchedulePlatformWrite, existing *SmartSchedulePlatformPolicy) SmartSchedulePlatformWrite {
+	if existing == nil {
+		return normalized
+	}
+	legacyShared := write.QualityMinTTFTSamples == nil && write.QualityMinSuccessSamples == nil &&
+		(write.QualityWindowN != nil || write.QualityWindowSamples != nil)
+	if legacyShared {
+		return normalized
+	}
+	if write.QualityMinTTFTSamples == nil {
+		n := existing.TTFTWindowN()
+		normalized.QualityMinTTFTSamples = &n
+	}
+	if write.QualityMinSuccessSamples == nil {
+		n := existing.SuccessWindowN()
+		normalized.QualityMinSuccessSamples = &n
+	}
+	if normalized.QualityMinTTFTSamples != nil && normalized.QualityMinSuccessSamples != nil {
+		normalized.QualityWindowSamples, normalized.QualityWindowN = echoCompatSmartScheduleWindowN(
+			*normalized.QualityMinTTFTSamples,
+			*normalized.QualityMinSuccessSamples,
+		)
+	}
+	return normalized
+}
+
 func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedulePlatformWrite, error) {
 	if write.CooldownMinutes <= 0 {
 		write.CooldownMinutes = DefaultSmartScheduleCooldownMinutes
@@ -596,14 +657,14 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 	if write.QualityWindowSamples == nil && write.QualityWindowN != nil {
 		write.QualityWindowSamples = write.QualityWindowN
 	}
-	if write.QualityWindowSamples != nil && (*write.QualityWindowSamples < MinSmartScheduleWindowN || *write.QualityWindowSamples > MaxSmartScheduleWindowN) {
-		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_window_samples must be between 1 and 100")
+	if err := validateSmartScheduleWindowField("quality_window_samples", write.QualityWindowSamples); err != nil {
+		return SmartSchedulePlatformWrite{}, err
 	}
-	if write.QualityMinSuccessSamples != nil && *write.QualityMinSuccessSamples < 1 {
-		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_min_success_samples must be >= 1")
+	if err := validateSmartScheduleWindowField("quality_min_success_samples", write.QualityMinSuccessSamples); err != nil {
+		return SmartSchedulePlatformWrite{}, err
 	}
-	if write.QualityMinTTFTSamples != nil && *write.QualityMinTTFTSamples < 1 {
-		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_min_ttft_samples must be >= 1")
+	if err := validateSmartScheduleWindowField("quality_min_ttft_samples", write.QualityMinTTFTSamples); err != nil {
+		return SmartSchedulePlatformWrite{}, err
 	}
 	if write.QualityCondition != nil {
 		cond := strings.ToLower(strings.TrimSpace(*write.QualityCondition))
@@ -615,18 +676,14 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 			write.QualityCondition = &cond
 		}
 	}
+	ttft, success := splitSmartScheduleWindowWrite(write.QualityWindowSamples, write.QualityMinTTFTSamples, write.QualityMinSuccessSamples)
+	write.QualityMinTTFTSamples = &ttft
+	write.QualityMinSuccessSamples = &success
+	write.QualityWindowSamples, write.QualityWindowN = echoCompatSmartScheduleWindowN(ttft, success)
 	if !qualityGateHasConfiguredColumn(write.QualityMaxP50TTFTMs, write.QualityMinSuccessRate, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples, write.QualityCondition) {
 		write.QualityMaxP50TTFTMs = nil
 		write.QualityMinSuccessRate = nil
-		write.QualityWindowSamples = nil
-		write.QualityWindowN = nil
-		write.QualityMinSuccessSamples = nil
-		write.QualityMinTTFTSamples = nil
 		write.QualityCondition = nil
-	} else {
-		n := NormalizeSmartScheduleWindowN(write.QualityWindowSamples, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples)
-		write.QualityWindowSamples, write.QualityMinSuccessSamples, write.QualityMinTTFTSamples = EchoSmartScheduleWindowN(n)
-		write.QualityWindowN = write.QualityWindowSamples
 	}
 	mode, custom, err := NormalizeProbeConcurrencyWrite(write.ProbeConcurrencyMode, write.ProbeConcurrency)
 	if err != nil {
@@ -910,25 +967,27 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 			continue
 		}
 		lives := s.cache.GetPairQualityBatch(ctx, ids, userID, platformKey)
-		n := DefaultSmartScheduleWindowN
-		if policy := viewPolicyN(&platform); policy > 0 {
-			n = policy
-		}
+		nTTFT := viewPolicyTTFTN(&platform)
+		nOK := viewPolicySuccessN(&platform)
+		n := maxSmartScheduleWindowN(nTTFT, nOK)
 		gate := QualityHardCloseSettings{}
 		if platform.QualityMaxP50TTFTMs != nil || platform.QualityMinSuccessRate != nil {
 			gate = fillUserQualityGateDefaults(QualityHardCloseSettings{
 				MaxP50TTFTMs:      platform.QualityMaxP50TTFTMs,
 				MinSuccessRate:    platform.QualityMinSuccessRate,
-				MinSuccessSamples: n,
-				MinTTFTSamples:    n,
+				MinSuccessSamples: nOK,
+				MinTTFTSamples:    nTTFT,
 				Condition:         derefString(platform.QualityCondition),
 			})
 		}
 		for i := range platform.Accounts {
 			live := lives[platform.Accounts[i].AccountID]
-			viewSnap := SmartSchedulePairQualityView{N: n}
+			viewSnap := SmartSchedulePairQualityView{N: n, NTTFT: nTTFT, NSuccess: nOK, NOK: nOK}
 			if live != nil {
 				viewSnap = live.View()
+				viewSnap.NTTFT = nTTFT
+				viewSnap.NSuccess = nOK
+				viewSnap.NOK = nOK
 				viewSnap.N = n
 			}
 			viewSnap = aliasPairQualityView(viewSnap)
@@ -949,11 +1008,22 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 	}
 }
 
-func viewPolicyN(platform *SmartSchedulePlatformView) int {
+func viewPolicyTTFTN(platform *SmartSchedulePlatformView) int {
 	if platform == nil {
 		return DefaultSmartScheduleWindowN
 	}
-	return NormalizeSmartScheduleWindowN(platform.QualityWindowSamples, platform.QualityMinSuccessSamples, platform.QualityMinTTFTSamples)
+	return resolveSmartScheduleMetricN(platform.QualityMinTTFTSamples, platform.QualityWindowSamples)
+}
+
+func viewPolicySuccessN(platform *SmartSchedulePlatformView) int {
+	if platform == nil {
+		return DefaultSmartScheduleWindowN
+	}
+	return resolveSmartScheduleMetricN(platform.QualityMinSuccessSamples, platform.QualityWindowSamples)
+}
+
+func viewPolicyN(platform *SmartSchedulePlatformView) int {
+	return maxSmartScheduleWindowN(viewPolicyTTFTN(platform), viewPolicySuccessN(platform))
 }
 
 func viewProbeDesired(platform *SmartSchedulePlatformView) int {
@@ -964,7 +1034,7 @@ func viewProbeDesired(platform *SmartSchedulePlatformView) int {
 	if mode == ProbeConcurrencyModeCustom && custom != nil {
 		return *custom
 	}
-	return viewPolicyN(platform)
+	return viewPolicySuccessN(platform)
 }
 
 func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, userID int64, platform string, accountID int64) (*SmartSchedulePairQualityDetail, error) {
@@ -981,12 +1051,20 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 	}
 	row := view.Platforms[platform]
 	found := false
-	n := viewPolicyN(&row)
+	nTTFT := viewPolicyTTFTN(&row)
+	nOK := viewPolicySuccessN(&row)
+	n := maxSmartScheduleWindowN(nTTFT, nOK)
 	for _, member := range row.Accounts {
 		if member.AccountID == accountID {
 			found = true
-			if member.PairQuality != nil && member.PairQuality.N > 0 {
-				n = member.PairQuality.N
+			if member.PairQuality != nil {
+				if member.PairQuality.NTTFT > 0 {
+					nTTFT = member.PairQuality.NTTFT
+				}
+				if member.PairQuality.NSuccess > 0 {
+					nOK = member.PairQuality.NSuccess
+				}
+				n = maxSmartScheduleWindowN(nTTFT, nOK)
 			}
 			break
 		}
@@ -994,12 +1072,15 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 	if !found {
 		return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
+	emptyView := aliasPairQualityView(SmartSchedulePairQualityView{N: n, NTTFT: nTTFT, NSuccess: nOK, NOK: nOK})
 	detail := &SmartSchedulePairQualityDetail{
 		AccountID: accountID,
 		UserID:    userID,
 		N:         n,
-		Live:      aliasPairQualityView(SmartSchedulePairQualityView{N: n}),
-		Current:   aliasPairQualityView(SmartSchedulePairQualityView{N: n}),
+		NTTFT:     nTTFT,
+		NSuccess:  nOK,
+		Live:      emptyView,
+		Current:   emptyView,
 		Snapshots: []PairQualitySnapshot{},
 		Events:    []PairQualityEvent{},
 	}
@@ -1007,6 +1088,9 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 		if live := s.cache.GetPairQuality(ctx, accountID, userID, platform); live != nil {
 			detail.Live = live.View()
 			detail.Live.N = n
+			detail.Live.NTTFT = nTTFT
+			detail.Live.NSuccess = nOK
+			detail.Live.NOK = nOK
 			detail.Live = aliasPairQualityView(detail.Live)
 		}
 		detail.Current = detail.Live
@@ -1014,6 +1098,9 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 			detail.Snapshots = make([]PairQualitySnapshot, 0, len(snaps))
 			for _, snap := range snaps {
 				snap.N = n
+				snap.NTTFT = nTTFT
+				snap.NSuccess = nOK
+				snap.NOK = nOK
 				detail.Snapshots = append(detail.Snapshots, aliasPairQualitySnapshot(snap))
 			}
 		}
@@ -1219,9 +1306,11 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	view.QualityMaxP50TTFTMs = policy.QualityMaxP50TTFTMs
 	view.QualityMinSuccessRate = policy.QualityMinSuccessRate
 	if policy.HasQualityMetrics() || policy.QualityWindowSamples != nil || policy.QualityMinSuccessSamples != nil || policy.QualityMinTTFTSamples != nil {
-		n := policy.WindowN()
-		view.QualityWindowSamples, view.QualityMinSuccessSamples, view.QualityMinTTFTSamples = EchoSmartScheduleWindowN(n)
-		view.QualityWindowN = view.QualityWindowSamples
+		ttft := policy.TTFTWindowN()
+		success := policy.SuccessWindowN()
+		view.QualityMinTTFTSamples = &ttft
+		view.QualityMinSuccessSamples = &success
+		view.QualityWindowSamples, view.QualityWindowN = echoCompatSmartScheduleWindowN(ttft, success)
 	}
 	view.QualityCondition = policy.QualityCondition
 	view.ProbeConcurrencyMode, view.ProbeConcurrency = EchoProbeConcurrency(policy.ProbeConcurrencyMode, policy.ProbeConcurrency)

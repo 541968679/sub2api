@@ -1,3 +1,41 @@
+## 2026-08-24 - feat(smart-schedule): split pair-quality N into TTFT N and success N
+
+### What
+- User smart-schedule pair quality no longer shares one N. `quality_min_ttft_samples` is N首字 (TTFT last-N + open-judgment). `quality_min_success_samples` is N成功率 (success last-N + open-judgment). Compat `quality_window_n` echoes max.
+- Write/read stop collapsing the two columns. Old `quality_window_n`-only writes still set both to that value.
+- Save must not copy N首字 onto N成功率: PUT sends only the two sample columns (no `quality_window_n`); an omitted column keeps the stored value instead of inheriting the compat max.
+- After save, the two inputs keep the values just written. A collapsed GET echo no longer overwrites the other N. Each input writes only its own field.
+- `follow_n` probe concurrency follows N成功率. Probe graduate still looks at first-token (under N首字 can graduate; first-token full + p50 miss does not).
+- Admin threshold card has two inputs. Pool counts show `首字 ttft/N首字 · 成功 ok/N成功率`. Apply-template still does not overwrite the two N.
+- Launch: both N start equal to that user’s previous single N. No migration / backfill SQL.
+
+### Why
+First-token needs a shorter, more sensitive window; success rate needs a longer, stabler one. Shipping both already equal to the current N avoids a surprise launch change.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "NormalizeSmartSchedule|WindowN|ObservePairCompletion|ProbeGraduate|ProbeAndMixed|QualityGate|PairQuality|ProbeInFlight|ApplyPairQuality" -count=1`
+- `go test -tags=unit ./internal/repository -run "PairQuality|SmartSchedule" -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`backend/internal/repository/smart_schedule_pair_quality_cache.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_pair_quality_test.go`
+`backend/internal/service/smart_schedule_probe_test.go`
+`frontend/src/utils/smartScheduleWindowN.ts`
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`frontend/src/composables/smartSchedulePoolAdmission.ts`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`
+`frontend/src/api/admin/users.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-24 - feat(account): New API user-wallet balance probe
 
 ### What

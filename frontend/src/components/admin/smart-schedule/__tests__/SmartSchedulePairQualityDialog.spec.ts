@@ -22,7 +22,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (params?.name) return `${key}:${params.name}`
-      if (params) return `${key}:${params.ttft}/${params.ok}/${params.n}`
+      if (params) return `${key}:${params.ttft}/${params.ok}/${params.nTtft ?? params.n}/${params.nOk ?? params.n}`
       return key
     }
   })

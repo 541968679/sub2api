@@ -275,8 +275,8 @@ func assembleSmartScheduleBundle(policies []*dbent.UserSmartSchedulePolicy, memb
 			SortOrders:            map[int64]int{},
 		}
 		if row.QualityMaxP50TtftMs != nil || row.QualityMinSuccessRate != nil || row.QualityMinSuccessSamples != nil || row.QualityMinTtftSamples != nil {
-			n := service.NormalizeSmartScheduleWindowN(nil, row.QualityMinSuccessSamples, row.QualityMinTtftSamples)
-			policy.QualityWindowSamples, policy.QualityMinSuccessSamples, policy.QualityMinTTFTSamples = service.EchoSmartScheduleWindowN(n)
+			policy.QualityMinSuccessSamples = row.QualityMinSuccessSamples
+			policy.QualityMinTTFTSamples = row.QualityMinTtftSamples
 		}
 		out.Policies[row.Platform] = policy
 	}

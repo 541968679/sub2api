@@ -20,7 +20,7 @@
         <span class="text-sm font-medium">{{ successDisplay }}</span>
       </div>
       <div class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-testid="smart-schedule-pair-quality-counts">
-        {{ t('admin.users.smartSchedule.pairWindowCounts', { ttft: quality.ttft_samples, ok: quality.ok_samples, n: quality.n }) }}
+        {{ t('admin.users.smartSchedule.pairWindowCounts', pairQualityCountParams(quality)) }}
       </div>
     </div>
     <div v-else class="flex flex-col items-start gap-0.5">
@@ -36,6 +36,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SmartSchedulePairQuality } from '@/api/admin/users'
+import { pairQualityCountParams } from '@/utils/smartScheduleWindowN'
 
 const props = withDefaults(
   defineProps<{

@@ -92,6 +92,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import type { Account } from '@/types'
 import { formatDateTime } from '@/utils/format'
+import { pairQualityCountParams } from '@/utils/smartScheduleWindowN'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -134,11 +135,7 @@ const currentP50 = computed(() => formatMs(current.value?.ttft_p50_ms))
 const currentSuccess = computed(() => formatRate(current.value?.success_rate))
 const currentCounts = computed(() => {
   if (!current.value) return '—'
-  return t('admin.users.smartSchedule.pairWindowCounts', {
-    ttft: current.value.ttft_samples,
-    ok: current.value.ok_samples,
-    n: current.value.n
-  })
+  return t('admin.users.smartSchedule.pairWindowCounts', pairQualityCountParams(current.value))
 })
 
 const events = computed<SmartSchedulePairQualityEvent[]>(() => detail.value?.events ?? [])

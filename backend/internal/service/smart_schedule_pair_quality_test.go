@@ -114,13 +114,13 @@ func (s *observeCacheStub) GetPairQualityBatch(_ context.Context, accountIDs []i
 	}
 	return out
 }
-func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userID int64, _ string, n int, success bool, firstTokenMs *int) *PairQualityLive {
+func (s *observeCacheStub) IngestPairQuality(_ context.Context, accountID, userID int64, _ string, nTTFT, nOK int, success bool, firstTokenMs *int) *PairQualityLive {
 	s.ingested = append(s.ingested, PairQualityObservation{AccountID: accountID, UserID: userID, Success: success, FirstTokenMs: firstTokenMs})
 	key := smartPairKey(accountID, userID)
 	if s.live == nil {
 		s.live = map[string]*PairQualityLive{}
 	}
-	s.live[key] = ApplyPairQualityIngest(s.live[key], n, success, firstTokenMs)
+	s.live[key] = ApplyPairQualityIngestWindows(s.live[key], nTTFT, nOK, success, firstTokenMs)
 	return s.live[key]
 }
 
@@ -382,9 +382,19 @@ func TestNormalizeSmartScheduleWrite_WindowN(t *testing.T) {
 		CooldownMinutes:          15,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 4, *got.QualityWindowSamples)
-	require.Equal(t, 4, *got.QualityMinSuccessSamples)
 	require.Equal(t, 4, *got.QualityMinTTFTSamples)
+	require.Equal(t, 20, *got.QualityMinSuccessSamples)
+	require.Equal(t, 20, *got.QualityWindowSamples, "compat alias is max of the two N")
+	require.Equal(t, 20, *got.QualityWindowN)
+
+	legacy, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		QualityMaxP50TTFTMs: &p50,
+		QualityWindowN:      intPtr(10),
+		CooldownMinutes:     15,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 10, *legacy.QualityMinTTFTSamples)
+	require.Equal(t, 10, *legacy.QualityMinSuccessSamples)
 
 	_, err = normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
 		QualityMaxP50TTFTMs:  &p50,
@@ -393,4 +403,113 @@ func TestNormalizeSmartScheduleWrite_WindowN(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "quality_window_samples")
+
+	// Changing only N首字 must not copy quality_window_n onto N成功率.
+	oneColumn, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		QualityMaxP50TTFTMs:   &p50,
+		QualityWindowN:        intPtr(20),
+		QualityMinTTFTSamples: intPtr(4),
+		CooldownMinutes:       15,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 4, *oneColumn.QualityMinTTFTSamples)
+	require.Equal(t, DefaultSmartScheduleWindowN, *oneColumn.QualityMinSuccessSamples)
+
+	existing := &SmartSchedulePlatformPolicy{
+		QualityMinTTFTSamples:    intPtr(10),
+		QualityMinSuccessSamples: intPtr(20),
+	}
+	overlaid := overlayExistingSmartScheduleWindows(SmartSchedulePlatformWrite{
+		QualityMaxP50TTFTMs:   &p50,
+		QualityWindowN:        intPtr(20),
+		QualityMinTTFTSamples: intPtr(4),
+		CooldownMinutes:       15,
+	}, oneColumn, existing)
+	require.Equal(t, 4, *overlaid.QualityMinTTFTSamples)
+	require.Equal(t, 20, *overlaid.QualityMinSuccessSamples)
+
+	omitted, err := normalizeSmartScheduleWrite(SmartSchedulePlatformWrite{
+		QualityMaxP50TTFTMs: &p50,
+		CooldownMinutes:     15,
+	})
+	require.NoError(t, err)
+	kept := overlayExistingSmartScheduleWindows(SmartSchedulePlatformWrite{
+		QualityMaxP50TTFTMs: &p50,
+		CooldownMinutes:     15,
+	}, omitted, existing)
+	require.Equal(t, 10, *kept.QualityMinTTFTSamples)
+	require.Equal(t, 20, *kept.QualityMinSuccessSamples)
+}
+
+func TestApplyPairQualityIngestWindows_IndependentFIFOs(t *testing.T) {
+	t.Parallel()
+	var live *PairQualityLive
+	for i := 0; i < 6; i++ {
+		ok := i != 0
+		ttft := 100 + i
+		live = ApplyPairQualityIngestWindows(live, 3, 20, ok, intPtr(ttft))
+	}
+	require.Equal(t, 3, live.NTTFT)
+	require.Equal(t, 20, live.NOK)
+	require.Equal(t, 3, live.TTFTCount)
+	require.Equal(t, 6, live.OKCount)
+	require.Equal(t, 20, live.N)
+}
+
+func TestQualityGate_UsesSplitWindowN(t *testing.T) {
+	t.Parallel()
+	p50 := 200
+	rate := 0.9
+	policy := &SmartSchedulePlatformPolicy{
+		QualityMaxP50TTFTMs:      &p50,
+		QualityMinSuccessRate:    &rate,
+		QualityMinTTFTSamples:    intPtr(3),
+		QualityMinSuccessSamples: intPtr(20),
+	}
+	gate := policy.QualityGate()
+	require.Equal(t, 3, gate.MinTTFTSamples)
+	require.Equal(t, 20, gate.MinSuccessSamples)
+	require.Equal(t, 20, policy.ProbeDesiredConcurrency())
+	require.Equal(t, 20, policy.WindowN())
+
+	live := ApplyPairQualityIngestWindows(nil, 3, 20, true, intPtr(400))
+	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400))
+	require.False(t, pairQualityBlocks(live, policy), "ttft 2 < N首字=3 must not cool")
+	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400))
+	require.True(t, pairQualityBlocks(live, policy), "ttft 3 >= N首字=3 p50 breach must cool")
+
+	okOnly := &SmartSchedulePlatformPolicy{
+		QualityMinSuccessRate:    &rate,
+		QualityMinTTFTSamples:    intPtr(3),
+		QualityMinSuccessSamples: intPtr(20),
+	}
+	failLive := ApplyPairQualityIngestWindows(nil, 3, 20, false, nil)
+	for i := 0; i < 18; i++ {
+		failLive = ApplyPairQualityIngestWindows(failLive, 3, 20, false, nil)
+	}
+	require.Equal(t, 19, failLive.OKCount)
+	require.False(t, pairQualityBlocks(failLive, okOnly), "19 < N成功率=20 must not cool")
+	failLive = ApplyPairQualityIngestWindows(failLive, 3, 20, false, nil)
+	require.True(t, pairQualityBlocks(failLive, okOnly))
+}
+
+func TestPairQualityProbeGraduates_SplitN(t *testing.T) {
+	t.Parallel()
+	rate := 0.9
+	p50 := 50
+	policy := &SmartSchedulePlatformPolicy{
+		QualityMaxP50TTFTMs:      &p50,
+		QualityMinSuccessRate:    &rate,
+		QualityMinTTFTSamples:    intPtr(10),
+		QualityMinSuccessSamples: intPtr(5),
+	}
+	live := ApplyPairQualityIngestWindows(nil, 10, 5, true, intPtr(40))
+	live = ApplyPairQualityIngestWindows(live, 10, 5, true, intPtr(40))
+	live = ApplyPairQualityIngestWindows(live, 10, 5, true, intPtr(40))
+	live = ApplyPairQualityIngestWindows(live, 10, 5, true, nil)
+	require.Equal(t, 4, live.OKCount)
+	require.False(t, pairQualityProbeGraduates(live, policy), "ok 4 < N成功率=5")
+	live = ApplyPairQualityIngestWindows(live, 10, 5, true, nil)
+	require.Equal(t, 3, live.TTFTCount)
+	require.True(t, pairQualityProbeGraduates(live, policy), "ok full and ttft under N首字 still graduates")
 }
