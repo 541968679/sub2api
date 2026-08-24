@@ -200,7 +200,11 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
 		}
 
-		nonTx, err := validateMigrationExecutionMode(name, content)
+		// Goose files may include a Down section. Only execute Up.
+		// Checksum stays on the full file so historical 214/215 stay immutable.
+		executable := migrationExecutableSQL(content)
+
+		nonTx, err := validateMigrationExecutionMode(name, executable)
 		if err != nil {
 			return fmt.Errorf("validate migration %s: %w", name, err)
 		}
@@ -212,7 +216,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 
 			// *_notx.sql：用于 CREATE/DROP INDEX CONCURRENTLY 场景，必须非事务执行。
 			// 逐条语句执行，避免将多条 CONCURRENTLY 语句放入同一个隐式事务块。
-			statements := splitSQLStatements(content)
+			statements := splitSQLStatements(executable)
 			for i, stmt := range statements {
 				trimmed := strings.TrimSpace(stmt)
 				if trimmed == "" {
@@ -237,8 +241,8 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 
-		// 执行迁移 SQL
-		if _, err := tx.ExecContext(ctx, content); err != nil {
+		// 执行迁移 SQL（goose Down 已被剥离）
+		if _, err := tx.ExecContext(ctx, executable); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
@@ -452,6 +456,18 @@ func isMigrationChecksumCompatible(name, dbChecksum, fileChecksum string) bool {
 	}
 	_, fileOK := rule.acceptedChecksums[fileChecksum]
 	return fileOK
+}
+
+// migrationExecutableSQL returns the SQL the runner should execute.
+// Files with a goose `-- +goose Down` marker keep only the Up section
+// (everything before that marker). Files without goose Down run as-is.
+func migrationExecutableSQL(content string) string {
+	lower := strings.ToLower(content)
+	idx := strings.Index(lower, "+goose down")
+	if idx < 0 {
+		return content
+	}
+	return strings.TrimSpace(content[:idx])
 }
 
 func validateMigrationExecutionMode(name, content string) (bool, error) {

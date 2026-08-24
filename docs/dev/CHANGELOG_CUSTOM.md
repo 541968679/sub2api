@@ -1,3 +1,26 @@
+## 2026-08-25 - fix(migrations): execute goose Up only + repair latency-gate columns
+
+### What
+- `migrations_runner` now executes only the goose Up section (split on `+goose Down`). Files without goose Down still run as a whole file.
+- Add idempotent migration 216: `ADD COLUMN IF NOT EXISTS` for the six 214/215 latency-gate columns on `user_smart_schedule_policies`, plus zuoge85@gmail.com `quality_max_p50_duration_ms=80000` backfill when still null.
+- Do not edit historical 214/215 (they keep Down). Checksum still covers the full file.
+
+### Why
+v0.1.258 applied 214/215 as one `tx.Exec`, so Postgres ran ADD then DROP. `schema_migrations` recorded applied while columns were missing; admin smart-schedule pages 500'd. Prod stays on 257 until this image is approved.
+
+### Verification
+- `go test -tags=unit ./internal/repository -count=1 -run "Goose|MigrationExecutable|Embedded214|EmbeddedMigrations|TransactionalMigration"`
+- `go test -tags=unit ./migrations -count=1 -run "SmartScheduleLatencyGate"`
+- `go test -tags=unit ./internal/service -count=1 -run "PairQuality|SmartSchedule|Probe|Latency"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality"`
+
+### Affected files
+`backend/internal/repository/migrations_runner.go`
+`backend/internal/repository/migrations_runner_notx_test.go`
+`backend/migrations/216_smart_schedule_latency_gate_repair.sql`
+`backend/migrations/smart_schedule_latency_gate_migrations_test.go`
+`docs/dev/ARCHITECTURE.md`
+
 ## 2026-08-24 - ui(smart-sched): plain-language policy editor labels
 
 ### What

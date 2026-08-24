@@ -339,7 +339,8 @@ export default keysAPI
 2. 跑 `go generate ./ent`（通常能过）
 3. **另外** 写一条 raw SQL 迁移到 `backend/migrations/NNN_*.sql`（Ent 自动迁移**没启用**）
 4. `CREATE/DROP INDEX CONCURRENTLY` 必须单独放 `*_notx.sql`；事务迁移的可执行 SQL 不能出现该关键字（注释会被校验器忽略）
-5. 所有 mock / stub / test 实现该 schema 的接口的地方都要加新字段处理
+5. 含 `-- +goose Down` 的文件只执行 Down 之前的 Up 段；无 goose 标记的文件仍整文件执行。不要改已应用的 214/215，缺列用新迁移补。
+6. 所有 mock / stub / test 实现该 schema 的接口的地方都要加新字段处理
 
 ### 5.5 新增前端页面
 
@@ -364,6 +365,7 @@ export default keysAPI
 | **`go generate ./cmd/server` 在主干上预先失败**（`PaymentConfigService` / `PaymentOrderExpiryService` 重复绑定） | 手工编辑 `backend/cmd/server/wire_gen.go` 按现有格式插入构造函数和参数。上游修复前都这么办。 |
 | Ent auto-migrate 没启用 | 所有 schema 变更必须写 `backend/migrations/NNN_*.sql` |
 | **`CREATE INDEX CONCURRENTLY` 必须放 `*_notx.sql`** | 事务迁移里出现可执行 `CONCURRENTLY` 会在启动时被 `validateMigrationExecutionMode` 拒绝。注释里的单词现在会被忽略，但不要依赖注释绕过规则。`v0.1.232` 因 205 注释含 `CONCURRENTLY` 启动失败，该 tag 禁止再部署。 |
+| **goose `-- +goose Down` 不能整文件 Exec** | `migrations_runner` 对每个文件一次 `tx.Exec`。214/215 含 Up+Down 时 Postgres 会 ADD 再 DROP，`schema_migrations` 却记为已应用。`v0.1.258` 因此让管理页 500。runner 现在只执行 Down 标记之前的 Up 段；无标记文件行为不变。已应用的 214/215 不要改，缺列用 216 `IF NOT EXISTS` 补。 |
 | 改接口后忘记 mock | 构建挂在 `mockXxxRepo does not implement ...Repository (missing method)`——搜所有 `mock*Repo struct` 把新方法补齐 |
 | `admin.NewUsageHandler` 类签名经常变 | Wire 手补时参数要对齐当前函数签名（注意相邻提交） |
 | `response.ErrorFrom` vs `response.Unauthorized` | 前者用于 `ApplicationError`；后者用于认证失败。常用：`response.ErrorFrom(c, infraerrors.BadRequest("CODE", "msg"))` |

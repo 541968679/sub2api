@@ -85,7 +85,7 @@ func TestEmbeddedMigrationsPassExecutionModeValidation(t *testing.T) {
 	for _, name := range files {
 		content, err := migrations.FS.ReadFile(name)
 		require.NoError(t, err)
-		_, err = validateMigrationExecutionMode(name, string(content))
+		_, err = validateMigrationExecutionMode(name, migrationExecutableSQL(string(content)))
 		require.NoErrorf(t, err, "embedded migration %s failed execution-mode validation", name)
 	}
 }
@@ -326,6 +326,84 @@ func TestApplyMigrationsFS_UsageLogTrueCostIndexMigration_DropsInvalidIndexBefor
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_true_cost_user_account_created
     ON usage_logs (user_id, account_id, created_at)
     WHERE true_cost IS NOT NULL;
+`),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestMigrationExecutableSQL_GooseUpOnly(t *testing.T) {
+	t.Run("up_and_down_keeps_only_up", func(t *testing.T) {
+		got := migrationExecutableSQL(`
+-- +goose Up
+ALTER TABLE t ADD COLUMN name TEXT;
+
+-- +goose Down
+ALTER TABLE t DROP COLUMN name;
+`)
+		require.Contains(t, got, "ADD COLUMN name TEXT")
+		require.NotContains(t, strings.ToLower(got), "+goose down")
+		require.NotContains(t, got, "DROP COLUMN")
+	})
+
+	t.Run("no_goose_markers_keeps_whole_file", func(t *testing.T) {
+		raw := "ALTER TABLE t ADD COLUMN name TEXT;"
+		require.Equal(t, raw, migrationExecutableSQL(raw))
+	})
+
+	t.Run("up_without_down_keeps_whole_file", func(t *testing.T) {
+		raw := "-- +goose Up\nALTER TABLE t ADD COLUMN name TEXT;"
+		require.Equal(t, raw, migrationExecutableSQL(raw))
+	})
+}
+
+func TestEmbedded214And215GooseDownIsNotExecutable(t *testing.T) {
+	for _, name := range []string{
+		"214_smart_schedule_latency_gate.sql",
+		"215_smart_schedule_sched_latency_gate.sql",
+	} {
+		raw, err := migrations.FS.ReadFile(name)
+		require.NoError(t, err)
+		full := string(raw)
+		require.Contains(t, full, "-- +goose Down")
+		require.Contains(t, full, "DROP COLUMN IF EXISTS")
+		execSQL := migrationExecutableSQL(full)
+		require.Contains(t, execSQL, "ADD COLUMN IF NOT EXISTS")
+		require.NotContains(t, execSQL, "DROP COLUMN")
+		require.NotContains(t, strings.ToLower(execSQL), "+goose down")
+	}
+}
+
+func TestApplyMigrationsFS_GooseUpAndDownAppliesOnlyUp(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs("214_latency_gate.sql").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectBegin()
+	mock.ExpectExec("ALTER TABLE t ADD COLUMN name TEXT").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs("214_latency_gate.sql", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		"214_latency_gate.sql": &fstest.MapFile{
+			Data: []byte(`-- +goose Up
+ALTER TABLE t ADD COLUMN name TEXT;
+
+-- +goose Down
+ALTER TABLE t DROP COLUMN name;
 `),
 		},
 	}
