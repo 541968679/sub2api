@@ -42,3 +42,16 @@ func TestSmartScheduleLatencyGateRepair216IsIdempotentAndHasNoDown(t *testing.T)
 	require.Contains(t, sql, "80000")
 	require.Contains(t, sql, "quality_max_p50_duration_ms IS NULL")
 }
+
+func TestSmartScheduleZuogeSchedComposite217(t *testing.T) {
+	raw, err := FS.ReadFile("217_smart_schedule_zuoge_sched_composite.sql")
+	require.NoError(t, err)
+	sql := string(raw)
+	require.NotContains(t, strings.ToLower(sql), "+goose down")
+	require.NotContains(t, sql, "DROP COLUMN")
+	require.Contains(t, sql, "zuoge85@gmail.com")
+	require.Contains(t, sql, "quality_sched_window_n = 10")
+	require.Contains(t, sql, "quality_sched_max_slow_in_window = 4")
+	require.Contains(t, sql, "quality_sched_max_consecutive_slow = 2")
+	require.Contains(t, sql, "quality_sched_window_n IS NULL")
+}

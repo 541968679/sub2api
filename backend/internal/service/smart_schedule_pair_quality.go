@@ -26,20 +26,20 @@ const (
 // PairQualityLive is the smart-schedule pair window Q_{a,u}.
 // It is not the account 15-minute quality cell.
 type PairQualityLive struct {
-	N              int       `json:"n"`
-	NTTFT          int       `json:"n_ttft"`
-	NOK            int       `json:"n_ok"`
-	NDuration      int       `json:"n_duration,omitempty"`
-	TTFTMs         []int     `json:"ttft_ms,omitempty"`
-	DurationMs     []int     `json:"duration_ms,omitempty"`
-	OK             []bool    `json:"ok,omitempty"`
-	P50TTFTMs      *int      `json:"p50_ttft_ms,omitempty"`
-	P50DurationMs  *int      `json:"p50_duration_ms,omitempty"`
-	SuccessRate    *float64  `json:"success_rate,omitempty"`
-	TTFTCount      int       `json:"ttft_count"`
-	DurationCount  int       `json:"duration_count"`
-	OKCount        int       `json:"ok_count"`
-	UpdatedAt      time.Time `json:"updated_at,omitempty"`
+	N             int       `json:"n"`
+	NTTFT         int       `json:"n_ttft"`
+	NOK           int       `json:"n_ok"`
+	NDuration     int       `json:"n_duration,omitempty"`
+	TTFTMs        []int     `json:"ttft_ms,omitempty"`
+	DurationMs    []int     `json:"duration_ms,omitempty"`
+	OK            []bool    `json:"ok,omitempty"`
+	P50TTFTMs     *int      `json:"p50_ttft_ms,omitempty"`
+	P50DurationMs *int      `json:"p50_duration_ms,omitempty"`
+	SuccessRate   *float64  `json:"success_rate,omitempty"`
+	TTFTCount     int       `json:"ttft_count"`
+	DurationCount int       `json:"duration_count"`
+	OKCount       int       `json:"ok_count"`
+	UpdatedAt     time.Time `json:"updated_at,omitempty"`
 }
 
 // SmartSchedulePairQualityView is the pool-row / detail live snapshot.
@@ -189,8 +189,24 @@ func (p *SmartSchedulePlatformPolicy) TTFTWindowN() int {
 	return resolveSmartScheduleMetricN(p.QualityMinTTFTSamples, p.QualityWindowSamples)
 }
 
+func (p *SmartSchedulePlatformPolicy) SchedCompositeEnabled() bool {
+	if p == nil {
+		return false
+	}
+	if p.QualitySchedWindowN != nil && *p.QualitySchedWindowN > 0 {
+		return true
+	}
+	if p.QualitySchedMaxSlowInWindow != nil && *p.QualitySchedMaxSlowInWindow > 0 {
+		return true
+	}
+	if p.QualitySchedMaxConsecutiveSlow != nil && *p.QualitySchedMaxConsecutiveSlow > 0 {
+		return true
+	}
+	return false
+}
+
 func (p *SmartSchedulePlatformPolicy) SchedWindowN() int {
-	if p == nil || p.QualityMaxP50TTFTMs == nil {
+	if p == nil || !p.SchedCompositeEnabled() {
 		return 0
 	}
 	if p.QualitySchedWindowN != nil && *p.QualitySchedWindowN > 0 {
@@ -199,13 +215,14 @@ func (p *SmartSchedulePlatformPolicy) SchedWindowN() int {
 	return DefaultSmartScheduleSchedN
 }
 
-// TTFTStorageN is the FIFO capacity for TTFT/duration pair windows (max of probe and sched N).
+// TTFTStorageN is the FIFO capacity for TTFT/duration pair windows.
+// Sched N is included only when the selectable composite gate is on.
 func (p *SmartSchedulePlatformPolicy) TTFTStorageN() int {
 	if p == nil {
 		return DefaultSmartScheduleWindowN
 	}
 	probeN := p.TTFTWindowN()
-	if p.QualityMaxP50TTFTMs == nil {
+	if !p.SchedCompositeEnabled() {
 		return probeN
 	}
 	return maxSmartScheduleWindowN(probeN, p.SchedWindowN())
@@ -550,58 +567,90 @@ func pairQualitySuccessBlocked(live *PairQualityLive, policy *SmartSchedulePlatf
 	}}
 }
 
-func pairQualityLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy, selectable bool) (bool, []SmartScheduleCooldownReason) {
+func pairQualityLegacyP50Blocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
 	if live == nil || policy == nil {
 		return false, nil
 	}
-	var n, k, c int
-	requireFullC := selectable
-	if selectable {
-		n, k, c = resolveSmartScheduleSchedKC(policy)
-		if n < 1 {
-			return false, nil
+	n := policy.TTFTWindowN()
+	var reasons []SmartScheduleCooldownReason
+	if policy.QualityMaxP50TTFTMs != nil && live.TTFTCount >= n {
+		if p50 := pairQualityP50(recentLatencySamples(live.TTFTMs, n)); p50 != nil && *p50 > *policy.QualityMaxP50TTFTMs {
+			reasons = append(reasons, SmartScheduleCooldownReason{
+				Code:   "ttft_p50",
+				Detail: fmt.Sprintf("p50 %d>%dms", *p50, *policy.QualityMaxP50TTFTMs),
+			})
 		}
-	} else {
-		n = policy.TTFTWindowN()
-		k, c = resolveSmartScheduleLatencyKC(policy)
 	}
+	if policy.QualityMaxP50DurationMs != nil && live.DurationCount >= n {
+		if p50 := pairQualityP50(recentLatencySamples(live.DurationMs, n)); p50 != nil && *p50 > *policy.QualityMaxP50DurationMs {
+			reasons = append(reasons, SmartScheduleCooldownReason{
+				Code:   "dur_p50",
+				Detail: fmt.Sprintf("p50 %d>%dms", *p50, *policy.QualityMaxP50DurationMs),
+			})
+		}
+	}
+	return len(reasons) > 0, reasons
+}
+
+func prefixLatencyReasonCodes(rs []SmartScheduleCooldownReason, prefix string) []SmartScheduleCooldownReason {
+	for i := range rs {
+		rs[i].Code = prefix + rs[i].Code
+	}
+	return rs
+}
+
+func pairQualityProbeLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
+	if live == nil || policy == nil {
+		return false, nil
+	}
+	if !policyProbeLatencyV2(policy) {
+		return pairQualityLegacyP50Blocked(live, policy)
+	}
+	n := policy.TTFTWindowN()
+	k, c := resolveSmartScheduleLatencyKC(policy)
 	var reasons []SmartScheduleCooldownReason
 	blocked := false
 	if policy.QualityMaxP50TTFTMs != nil {
-		ttftSamples := live.TTFTMs
-		if selectable {
-			ttftSamples = recentLatencySamples(live.TTFTMs, n)
-		}
-		if b, rs := pairLatencyGate(ttftSamples, policy.QualityMaxP50TTFTMs, k, c, n, requireFullC); b {
+		if b, rs := pairLatencyGate(live.TTFTMs, policy.QualityMaxP50TTFTMs, k, c, n, false); b {
 			blocked = true
-			for i := range rs {
-				rs[i].Code = "ttft_" + rs[i].Code
-			}
-			reasons = append(reasons, rs...)
+			reasons = append(reasons, prefixLatencyReasonCodes(rs, "ttft_")...)
 		}
 	}
 	if policy.QualityMaxP50DurationMs != nil {
-		durSamples := live.DurationMs
-		if selectable {
-			durSamples = recentLatencySamples(live.DurationMs, n)
-		}
-		if b, rs := pairLatencyGate(durSamples, policy.QualityMaxP50DurationMs, k, c, n, requireFullC); b {
+		if b, rs := pairLatencyGate(live.DurationMs, policy.QualityMaxP50DurationMs, k, c, n, false); b {
 			blocked = true
-			for i := range rs {
-				rs[i].Code = "dur_" + rs[i].Code
-			}
-			reasons = append(reasons, rs...)
+			reasons = append(reasons, prefixLatencyReasonCodes(rs, "dur_")...)
 		}
 	}
 	return blocked, reasons
 }
 
-func pairQualityProbeLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
-	return pairQualityLatencyBlocked(live, policy, false)
-}
-
 func pairQualitySelectableLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
-	return pairQualityLatencyBlocked(live, policy, true)
+	if live == nil || policy == nil {
+		return false, nil
+	}
+	if !policy.SchedCompositeEnabled() {
+		return pairQualityLegacyP50Blocked(live, policy)
+	}
+	n, k, c := resolveSmartScheduleSchedKC(policy)
+	if n < 1 {
+		return false, nil
+	}
+	var reasons []SmartScheduleCooldownReason
+	blocked := false
+	if policy.QualityMaxP50TTFTMs != nil {
+		if b, rs := pairSelectableLatencyGate(recentLatencySamples(live.TTFTMs, n), policy.QualityMaxP50TTFTMs, k, c, n); b {
+			blocked = true
+			reasons = append(reasons, prefixLatencyReasonCodes(rs, "ttft_")...)
+		}
+	}
+	if policy.QualityMaxP50DurationMs != nil {
+		if b, rs := pairSelectableLatencyGate(recentLatencySamples(live.DurationMs, n), policy.QualityMaxP50DurationMs, k, c, n); b {
+			blocked = true
+			reasons = append(reasons, prefixLatencyReasonCodes(rs, "dur_")...)
+		}
+	}
+	return blocked, reasons
 }
 
 func combinePairQualityBlocks(successBlocked, latencyBlocked bool, condition string) bool {
@@ -695,6 +744,9 @@ func pairQualityProbeLatencyPass(live *PairQualityLive, policy *SmartSchedulePla
 	if policy.QualityMaxP50TTFTMs == nil && policy.QualityMaxP50DurationMs == nil {
 		return true, LatencyEvalPass
 	}
+	if !policyProbeLatencyV2(policy) {
+		return pairQualityProbeLatencyPass257(live, policy)
+	}
 	n := policy.TTFTWindowN()
 	k, c := resolveSmartScheduleLatencyKC(policy)
 	state, _ := evalLatencyWindows(
@@ -705,6 +757,23 @@ func pairQualityProbeLatencyPass(live *PairQualityLive, policy *SmartSchedulePla
 		k, c, n,
 	)
 	return state == LatencyEvalPass, state
+}
+
+// pairQualityProbeLatencyPass257 is production 257 graduate: W_ok full +
+// success-rate pass; TTFT underfull still graduates; full TTFT window must
+// pass p50. No Hold, no duration dual-window, no Q_a.
+func pairQualityProbeLatencyPass257(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, string) {
+	if policy == nil || policy.QualityMaxP50TTFTMs == nil {
+		return true, LatencyEvalPass
+	}
+	n := policy.TTFTWindowN()
+	if live.TTFTCount < n {
+		return true, LatencyEvalPass
+	}
+	if live.P50TTFTMs != nil && *live.P50TTFTMs > *policy.QualityMaxP50TTFTMs {
+		return false, LatencyEvalFail
+	}
+	return true, LatencyEvalPass
 }
 
 // pairQualityProbeAndMixed is the probing-only anti-deadlock override:
@@ -781,7 +850,7 @@ func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleL
 			startCooldown([]SmartScheduleCooldownReason{{Code: "and_mixed", Detail: "and 混合"}}, CooldownSamplePair)
 			return false
 		}
-		if qaLastN != nil && policy != nil && policy.QualityMaxP50TTFTMs != nil {
+		if policyProbeLatencyV2(policy) && qaLastN != nil && policy != nil && policy.QualityMaxP50TTFTMs != nil {
 			n := policy.TTFTWindowN()
 			k, c := resolveSmartScheduleLatencyKC(policy)
 			qaTTFT := recentLatencySamples(qaLastN.TTFTMs, n)
@@ -804,7 +873,7 @@ func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleL
 		}
 		if pass, state := pairQualityProbeLatencyPass(live, policy); pass {
 			lookup.GraduateProbing(ctx, accountID, userID, platform)
-		} else if state == LatencyEvalFail {
+		} else if policyProbeLatencyV2(policy) && state == LatencyEvalFail {
 			k, c := resolveSmartScheduleLatencyKC(policy)
 			n := policy.TTFTWindowN()
 			if _, reasons := evalLatencyWindows(

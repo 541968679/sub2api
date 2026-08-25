@@ -48,27 +48,30 @@ type SmartScheduleSortAssignment struct {
 
 // SmartSchedulePlatformPolicy is the hot-path view of one (user, platform) policy.
 type SmartSchedulePlatformPolicy struct {
-	Enabled                  bool
-	QualityMaxP50TTFTMs      *int
-	QualityMinSuccessRate    *float64
-	QualityWindowSamples     *int
-	QualityMinSuccessSamples *int
-	QualityMinTTFTSamples    *int
-	QualityCondition         *string
-	CooldownMinutes          int
-	ProbeConcurrencyMode     string
-	ProbeConcurrency         *int
-	QualityMaxSlowInWindow   *int
-	QualityMaxConsecutiveSlow *int
-	QualityMaxP50DurationMs  *int
-	QualitySchedWindowN      *int
-	QualitySchedMaxSlowInWindow *int
+	Enabled                        bool
+	QualityMaxP50TTFTMs            *int
+	QualityMinSuccessRate          *float64
+	QualityWindowSamples           *int
+	QualityMinSuccessSamples       *int
+	QualityMinTTFTSamples          *int
+	QualityCondition               *string
+	CooldownMinutes                int
+	ProbeConcurrencyMode           string
+	ProbeConcurrency               *int
+	QualityMaxSlowInWindow         *int
+	QualityMaxConsecutiveSlow      *int
+	QualityMaxP50DurationMs        *int
+	QualitySchedWindowN            *int
+	QualitySchedMaxSlowInWindow    *int
 	QualitySchedMaxConsecutiveSlow *int
-	UpdatedAt                time.Time
-	AccountIDs               map[int64]struct{}
-	Caps                     map[int64]int
-	SortOrders               map[int64]int
-	Paused                   map[int64]struct{}
+	// ProbeLatencyV2 enables 考察期 v2 (Hold / Q_a first gate / no-zero graduate).
+	// Default false. Not persisted; a future setting can hydrate this.
+	ProbeLatencyV2 bool
+	UpdatedAt      time.Time
+	AccountIDs     map[int64]struct{}
+	Caps           map[int64]int
+	SortOrders     map[int64]int
+	Paused         map[int64]struct{}
 }
 
 func (p *SmartSchedulePlatformPolicy) HasAccount(accountID int64) bool {
@@ -237,47 +240,47 @@ type UserSmartScheduleSummary struct {
 
 // SmartSchedulePlatformWrite is the replace-all payload for one platform.
 type SmartSchedulePlatformWrite struct {
-	Enabled                  bool
-	QualityMaxP50TTFTMs      *int
-	QualityMinSuccessRate    *float64
-	QualityWindowSamples     *int
-	QualityWindowN           *int
-	QualityMinSuccessSamples *int
-	QualityMinTTFTSamples    *int
-	QualityCondition         *string
-	CooldownMinutes          int
-	ProbeConcurrencyMode     string
-	ProbeConcurrency         *int
-	QualityMaxSlowInWindow   *int
-	QualityMaxConsecutiveSlow *int
-	QualityMaxP50DurationMs  *int
-	QualitySchedWindowN      *int
-	QualitySchedMaxSlowInWindow *int
+	Enabled                        bool
+	QualityMaxP50TTFTMs            *int
+	QualityMinSuccessRate          *float64
+	QualityWindowSamples           *int
+	QualityWindowN                 *int
+	QualityMinSuccessSamples       *int
+	QualityMinTTFTSamples          *int
+	QualityCondition               *string
+	CooldownMinutes                int
+	ProbeConcurrencyMode           string
+	ProbeConcurrency               *int
+	QualityMaxSlowInWindow         *int
+	QualityMaxConsecutiveSlow      *int
+	QualityMaxP50DurationMs        *int
+	QualitySchedWindowN            *int
+	QualitySchedMaxSlowInWindow    *int
 	QualitySchedMaxConsecutiveSlow *int
-	Accounts                 []SmartScheduleAccountMember
+	Accounts                       []SmartScheduleAccountMember
 }
 
 // SmartSchedulePlatformView is the admin GET/PUT response for one platform.
 type SmartSchedulePlatformView struct {
-	Enabled                  bool                         `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                         `json:"quality_max_p50_ttft_ms"`
-	QualityMinSuccessRate    *float64                     `json:"quality_min_success_rate"`
-	QualityWindowSamples     *int                         `json:"quality_window_samples"`
-	QualityWindowN           *int                         `json:"quality_window_n"`
-	QualityMinSuccessSamples *int                         `json:"quality_min_success_samples"`
-	QualityMinTTFTSamples    *int                         `json:"quality_min_ttft_samples"`
-	QualityCondition         *string                      `json:"quality_condition"`
-	CooldownMinutes          int                          `json:"cooldown_minutes"`
-	ProbeConcurrencyMode     string                       `json:"probe_concurrency_mode"`
-	ProbeConcurrency         *int                         `json:"probe_concurrency"`
-	QualityMaxSlowInWindow   *int                         `json:"quality_max_slow_in_window"`
-	QualityMaxConsecutiveSlow *int                        `json:"quality_max_consecutive_slow"`
-	QualityMaxP50DurationMs  *int                         `json:"quality_max_p50_duration_ms"`
-	QualitySchedWindowN      *int                         `json:"quality_sched_window_n"`
-	QualitySchedMaxSlowInWindow *int                      `json:"quality_sched_max_slow_in_window"`
-	QualitySchedMaxConsecutiveSlow *int                   `json:"quality_sched_max_consecutive_slow"`
-	UpdatedAt                time.Time                    `json:"updated_at,omitempty"`
-	Accounts                 []SmartScheduleAccountMember `json:"accounts"`
+	Enabled                        bool                         `json:"enabled"`
+	QualityMaxP50TTFTMs            *int                         `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate          *float64                     `json:"quality_min_success_rate"`
+	QualityWindowSamples           *int                         `json:"quality_window_samples"`
+	QualityWindowN                 *int                         `json:"quality_window_n"`
+	QualityMinSuccessSamples       *int                         `json:"quality_min_success_samples"`
+	QualityMinTTFTSamples          *int                         `json:"quality_min_ttft_samples"`
+	QualityCondition               *string                      `json:"quality_condition"`
+	CooldownMinutes                int                          `json:"cooldown_minutes"`
+	ProbeConcurrencyMode           string                       `json:"probe_concurrency_mode"`
+	ProbeConcurrency               *int                         `json:"probe_concurrency"`
+	QualityMaxSlowInWindow         *int                         `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow      *int                         `json:"quality_max_consecutive_slow"`
+	QualityMaxP50DurationMs        *int                         `json:"quality_max_p50_duration_ms"`
+	QualitySchedWindowN            *int                         `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow    *int                         `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int                         `json:"quality_sched_max_consecutive_slow"`
+	UpdatedAt                      time.Time                    `json:"updated_at,omitempty"`
+	Accounts                       []SmartScheduleAccountMember `json:"accounts"`
 }
 
 // UserSmartScheduleView is GET /admin/users/:id/smart-schedule.

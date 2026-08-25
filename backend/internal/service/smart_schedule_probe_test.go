@@ -151,7 +151,8 @@ func TestPairQualityProbeGraduates_WokOnlySync(t *testing.T) {
 
 	p50 := 50
 	withTTFT := probePolicy(7, 3, &p50, &rate, false)
-	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "configured TTFT gate with empty W_ttft stays pending")
+	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "257: TTFT underfull still graduates")
+	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), withProbeLatencyV2(withTTFT)), "v2: empty W_ttft stays pending")
 }
 
 func TestPairQualityProbeAndMixed_OnlyInProbe(t *testing.T) {
@@ -544,13 +545,17 @@ func latencyGatePolicy(accountID int64, probeNTTFT int) *SmartSchedulePlatformPo
 	return policy
 }
 
+func schedCompositePolicy(accountID int64, probeNTTFT int) *SmartSchedulePlatformPolicy {
+	return withSchedComposite(latencyGatePolicy(accountID, probeNTTFT))
+}
+
 func TestEvaluateSmartSchedule_CooldownReasonPhaseAndBranch(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
 
 	t.Run("probe_K_branch", func(t *testing.T) {
 		t.Parallel()
-		policy := latencyGatePolicy(7, latencyProbeN)
+		policy := withProbeLatencyV2(latencyGatePolicy(7, latencyProbeN))
 		live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, latencyScatterSlow(2, 3, latencyFastMs, latencySlowMs))
 		lookup := &cooldownReasonLookup{
 			memorySmartLookup: memorySmartLookup{
@@ -567,7 +572,7 @@ func TestEvaluateSmartSchedule_CooldownReasonPhaseAndBranch(t *testing.T) {
 
 	t.Run("selectable_C_branch", func(t *testing.T) {
 		t.Parallel()
-		policy := latencyGatePolicy(7, latencySchedN)
+		policy := schedCompositePolicy(7, latencySchedN)
 		live := buildLiveFromTTFTObservations(latencySchedN, latencySchedN, latencyTail(17, 3, latencyFastMs, latencySlowMs))
 		lookup := &cooldownReasonLookup{
 			memorySmartLookup: memorySmartLookup{
@@ -586,7 +591,7 @@ func TestEvaluateSmartSchedule_ProbeHoldNoCooldown(t *testing.T) {
 	t.Parallel()
 	durGate := latencyDurGateMs
 	p50 := latencyGateMs
-	policy := enabledSmartPolicy(7, 0, &p50)
+	policy := withProbeLatencyV2(enabledSmartPolicy(7, 0, &p50))
 	policy.QualityMaxP50DurationMs = &durGate
 	policy.QualityMinTTFTSamples = intPtr(latencyProbeN)
 	policy.QualityMinSuccessSamples = intPtr(latencyProbeN)
@@ -617,7 +622,7 @@ func TestEvaluateSmartSchedule_ProbeHoldNoCooldown(t *testing.T) {
 
 func TestEvaluateSmartSchedule_QAFirstGateBlocks(t *testing.T) {
 	t.Parallel()
-	policy := latencyGatePolicy(7, latencyProbeN)
+	policy := withProbeLatencyV2(latencyGatePolicy(7, latencyProbeN))
 	live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencyFastMs, latencyProbeN))
 	qa := &AccountQualityLastN{
 		N:      latencyProbeN,
@@ -641,7 +646,7 @@ func TestEvaluateSmartSchedule_QAFirstGateBlocks(t *testing.T) {
 
 func TestObservePairCompletion_SelectableLatencyCooldownReason(t *testing.T) {
 	t.Parallel()
-	policy := latencyGatePolicy(7, latencySchedN)
+	policy := schedCompositePolicy(7, latencySchedN)
 	cache := &observeCacheStub{
 		bundle: smartBundle(PlatformAnthropic, policy),
 		live:   map[string]*PairQualityLive{},

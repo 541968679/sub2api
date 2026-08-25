@@ -9,9 +9,19 @@ const (
 	DefaultSmartScheduleLatencyK = 2
 	DefaultSmartScheduleLatencyC = 2
 
+	// App fallbacks when selectable composite is already on but K/C omitted.
+	// Not the zuoge rollout combo (migration 217 is N=10 K=4 C=2).
 	DefaultSmartScheduleSchedN = 20
 	DefaultSmartScheduleSchedK = 6
 	DefaultSmartScheduleSchedC = 3
+
+	// SettingKeyProbeLatencyV2 is the 考察期 rewrite switch (Hold / Q_a / no-zero
+	// graduate / underfull C). Default off so selectable-only rollout does not
+	// activate that path. Tests may set SmartSchedulePlatformPolicy.ProbeLatencyV2.
+	SettingKeyProbeLatencyV2 = "probe_latency_v2"
+
+	// Email used by SQL backfills only. Recommended zuoge selectable combo is 10/4/2.
+	SmartScheduleZuogeEmail = "zuoge85@gmail.com"
 
 	LatencyEvalFail    = "fail"
 	LatencyEvalPass    = "pass"
@@ -34,6 +44,10 @@ type SmartScheduleCooldownReason struct {
 	Sample string `json:"sample,omitempty"`
 }
 
+func policyProbeLatencyV2(policy *SmartSchedulePlatformPolicy) bool {
+	return policy != nil && policy.ProbeLatencyV2
+}
+
 func resolveSmartScheduleLatencyKC(policy *SmartSchedulePlatformPolicy) (k, c int) {
 	k, c = 0, 0
 	if policy == nil || policy.QualityMaxP50TTFTMs == nil {
@@ -53,17 +67,24 @@ func resolveSmartScheduleLatencyKC(policy *SmartSchedulePlatformPolicy) (k, c in
 }
 
 func resolveSmartScheduleSchedKC(policy *SmartSchedulePlatformPolicy) (n, k, c int) {
-	if policy == nil || policy.QualityMaxP50TTFTMs == nil {
+	if policy == nil || !policy.SchedCompositeEnabled() {
 		return 0, 0, 0
 	}
 	n = policy.SchedWindowN()
-	if policy.QualitySchedMaxSlowInWindow != nil && *policy.QualitySchedMaxSlowInWindow > 0 {
-		k = *policy.QualitySchedMaxSlowInWindow
+	if n < 1 {
+		n = DefaultSmartScheduleSchedN
+	}
+	if policy.QualitySchedMaxSlowInWindow != nil {
+		if *policy.QualitySchedMaxSlowInWindow > 0 {
+			k = *policy.QualitySchedMaxSlowInWindow
+		}
 	} else {
 		k = DefaultSmartScheduleSchedK
 	}
-	if policy.QualitySchedMaxConsecutiveSlow != nil && *policy.QualitySchedMaxConsecutiveSlow > 0 {
-		c = *policy.QualitySchedMaxConsecutiveSlow
+	if policy.QualitySchedMaxConsecutiveSlow != nil {
+		if *policy.QualitySchedMaxConsecutiveSlow > 0 {
+			c = *policy.QualitySchedMaxConsecutiveSlow
+		}
 	} else {
 		c = DefaultSmartScheduleSchedC
 	}
@@ -123,6 +144,62 @@ func pairLatencyGate(samples []int, maxP50 *int, k, c, n int, requireFullForCons
 		}
 	}
 	return false, nil
+}
+
+// pairSelectableLatencyGate is the 调度期-only C∨K∨p50 helper.
+// C is ready at C (do not wait for N). K is ready at K (slow_count >= K).
+// p50 still requires a full N-sample window. Probe must not call this.
+func pairSelectableLatencyGate(samples []int, maxP50 *int, k, c, n int) (block bool, reasons []SmartScheduleCooldownReason) {
+	if maxP50 == nil || *maxP50 < 1 {
+		return false, nil
+	}
+	threshold := *maxP50
+	if n < 1 {
+		n = DefaultSmartScheduleSchedN
+	}
+	window := samples
+	if len(window) > n {
+		window = window[len(window)-n:]
+	}
+
+	if c > 0 && len(window) >= c {
+		tail := window[len(window)-c:]
+		allSlow := true
+		vals := make([]string, 0, c)
+		for _, v := range tail {
+			vals = append(vals, fmt.Sprintf("%d", v))
+			if v <= threshold {
+				allSlow = false
+				break
+			}
+		}
+		if allSlow {
+			reasons = append(reasons, SmartScheduleCooldownReason{
+				Code:   "consec",
+				Detail: fmt.Sprintf("连续C 末尾%d条>%dms (%s)", c, threshold, strings.Join(vals, ",")),
+			})
+		}
+	}
+
+	if k > 0 && len(window) >= k {
+		slow := countSlowSamples(window, threshold)
+		if slow >= k {
+			reasons = append(reasons, SmartScheduleCooldownReason{
+				Code:   "slow_k",
+				Detail: fmt.Sprintf("超标K %d/%d>%dms", slow, len(window), threshold),
+			})
+		}
+	}
+
+	if len(window) >= n {
+		if p50 := pairQualityP50(window); p50 != nil && *p50 > threshold {
+			reasons = append(reasons, SmartScheduleCooldownReason{
+				Code:   "p50",
+				Detail: fmt.Sprintf("p50 %d>%dms", *p50, threshold),
+			})
+		}
+	}
+	return len(reasons) > 0, reasons
 }
 
 type latencyWindowSnapshot struct {

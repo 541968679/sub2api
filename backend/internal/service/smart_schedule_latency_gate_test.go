@@ -62,7 +62,7 @@ func TestResolveSmartScheduleLatencyKC_DefaultsOnlyWithTTFT(t *testing.T) {
 	require.Equal(t, DefaultSmartScheduleLatencyC, c)
 }
 
-func TestResolveSmartScheduleSchedKC_DefaultsOnlyWithTTFT(t *testing.T) {
+func TestResolveSmartScheduleSchedKC_NoAppDefaultFromP50(t *testing.T) {
 	t.Parallel()
 	n, k, c := resolveSmartScheduleSchedKC(&SmartSchedulePlatformPolicy{})
 	require.Equal(t, 0, n)
@@ -71,46 +71,47 @@ func TestResolveSmartScheduleSchedKC_DefaultsOnlyWithTTFT(t *testing.T) {
 
 	p50 := 50
 	n, k, c = resolveSmartScheduleSchedKC(&SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50})
+	require.Equal(t, 0, n)
+	require.Equal(t, 0, k)
+	require.Equal(t, 0, c)
+
+	n, k, c = resolveSmartScheduleSchedKC(withSchedComposite(&SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50}))
 	require.Equal(t, DefaultSmartScheduleSchedN, n)
 	require.Equal(t, DefaultSmartScheduleSchedK, k)
 	require.Equal(t, DefaultSmartScheduleSchedC, c)
 }
 
-func TestPairLatencyGate_SelectableRequiresFullWindowForC(t *testing.T) {
-	t.Parallel()
-	max := 100
-	// probe: C=2 underfull blocks
-	block, _ := pairLatencyGate([]int{150, 160}, &max, 2, 2, 5, false)
-	require.True(t, block)
-	// selectable: C=3 with only 10 samples does not block
-	block, _ = pairLatencyGate([]int{150, 150, 150, 50, 50, 50, 50, 50, 50, 50}, &max, 6, 3, 20, true)
-	require.False(t, block)
-	// selectable: C=3 with full 20 blocks
-	samples := make([]int, 20)
-	for i := range samples {
-		if i >= 17 {
-			samples[i] = 150
-		} else {
-			samples[i] = 50
-		}
+const (
+	latencyGateMs    = 6000
+	latencyFastMs    = 1000
+	latencySlowMs    = 9000
+	latencyDurGateMs = 80000
+	latencyDurSlowMs = 90000
+	latencyProbeN    = 5
+	latencyProbeK    = 2
+	latencyProbeC    = 2
+	latencySchedN    = 20
+	latencySchedK    = 6
+	latencySchedC    = 3
+)
+
+func withSchedComposite(p *SmartSchedulePlatformPolicy) *SmartSchedulePlatformPolicy {
+	if p == nil {
+		p = &SmartSchedulePlatformPolicy{}
 	}
-	block, _ = pairLatencyGate(samples, &max, 6, 3, 20, true)
-	require.True(t, block)
+	p.QualitySchedWindowN = intPtr(DefaultSmartScheduleSchedN)
+	p.QualitySchedMaxSlowInWindow = intPtr(DefaultSmartScheduleSchedK)
+	p.QualitySchedMaxConsecutiveSlow = intPtr(DefaultSmartScheduleSchedC)
+	return p
 }
 
-const (
-	latencyGateMs     = 6000
-	latencyFastMs     = 1000
-	latencySlowMs     = 9000
-	latencyDurGateMs  = 80000
-	latencyDurSlowMs  = 90000
-	latencyProbeN     = 5
-	latencyProbeK     = 2
-	latencyProbeC     = 2
-	latencySchedN     = 20
-	latencySchedK     = 6
-	latencySchedC     = 3
-)
+func withProbeLatencyV2(p *SmartSchedulePlatformPolicy) *SmartSchedulePlatformPolicy {
+	if p == nil {
+		p = &SmartSchedulePlatformPolicy{}
+	}
+	p.ProbeLatencyV2 = true
+	return p
+}
 
 func repeatLatencyMs(v, n int) []int {
 	out := make([]int, n)
@@ -180,52 +181,74 @@ func TestPairLatencyGate_ProbeTable(t *testing.T) {
 	}
 }
 
-func TestPairLatencyGate_SelectableTable(t *testing.T) {
+func TestPairSelectableLatencyGate_ReadyAtKC(t *testing.T) {
 	t.Parallel()
 	gate := latencyGateMs
+	zero := 0
 	cases := []struct {
 		name      string
 		samples   []int
+		k, c, n   int
 		wantBlock bool
 		wantCode  string
 	}{
 		{
-			name:      "C_three_consecutive_underfull_no_block",
+			name:      "C_three_consecutive_with_only_three_samples",
 			samples:   repeatLatencyMs(latencySlowMs, 3),
-			wantBlock: false,
-		},
-		{
-			name:      "C_three_consecutive_full_window",
-			samples:   latencyTail(17, 3, latencyFastMs, latencySlowMs),
+			k:         latencySchedK,
+			c:         latencySchedC,
+			n:         latencySchedN,
 			wantBlock: true,
 			wantCode:  "consec",
 		},
 		{
-			name:      "K_six_slow_p50_ok",
-			samples:   latencyScatterSlow(6, 8, latencyFastMs, latencySlowMs),
+			name:      "five_samples_two_slow_no_K",
+			samples:   latencyScatterSlow(2, 1, latencyFastMs, latencySlowMs),
+			k:         latencySchedK,
+			c:         latencySchedC,
+			n:         latencySchedN,
+			wantBlock: false,
+		},
+		{
+			name:      "six_of_six_slow_K_without_N20",
+			samples:   repeatLatencyMs(latencySlowMs, 6),
+			k:         latencySchedK,
+			c:         0,
+			n:         latencySchedN,
 			wantBlock: true,
 			wantCode:  "slow_k",
 		},
 		{
-			name:      "jitter_two_consecutive_full_window",
-			samples:   latencyTail(18, 2, latencyFastMs, latencySlowMs),
-			wantBlock: false,
-		},
-		{
-			name:      "p50_breach_full_window",
-			samples:   repeatLatencyMs(latencySlowMs, latencySchedN),
+			name:      "six_slow_in_ten_rest_fast_K",
+			samples:   append(repeatLatencyMs(latencySlowMs, 6), repeatLatencyMs(latencyFastMs, 4)...),
+			k:         latencySchedK,
+			c:         latencySchedC,
+			n:         latencySchedN,
 			wantBlock: true,
+			wantCode:  "slow_k",
 		},
 		{
-			name:      "ten_samples_three_consecutive_no_block",
-			samples:   latencyTail(7, 3, latencyFastMs, latencySlowMs),
+			name:      "five_slow_in_nineteen_no_K_no_p50",
+			samples:   append(repeatLatencyMs(latencySlowMs, 5), repeatLatencyMs(latencyFastMs, 14)...),
+			k:         latencySchedK,
+			c:         latencySchedC,
+			n:         latencySchedN,
 			wantBlock: false,
+		},
+		{
+			name:      "full_20_p50_K_closed_no_C",
+			samples:   append(repeatLatencyMs(latencySlowMs, 11), repeatLatencyMs(latencyFastMs, 9)...),
+			k:         zero,
+			c:         zero,
+			n:         latencySchedN,
+			wantBlock: true,
+			wantCode:  "p50",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			block, reasons := pairLatencyGate(tc.samples, &gate, latencySchedK, latencySchedC, latencySchedN, true)
+			block, reasons := pairSelectableLatencyGate(tc.samples, &gate, tc.k, tc.c, tc.n)
 			require.Equal(t, tc.wantBlock, block)
 			if tc.wantCode != "" {
 				require.NotEmpty(t, reasons)

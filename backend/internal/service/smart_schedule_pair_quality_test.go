@@ -77,36 +77,26 @@ func TestPairQualitySelectableBlocks_SchedN20(t *testing.T) {
 	t.Parallel()
 	p50 := 100
 	rate := 0.9
-	policy := &SmartSchedulePlatformPolicy{
+	policy := withSchedComposite(&SmartSchedulePlatformPolicy{
 		QualityMaxP50TTFTMs:   &p50,
 		QualityMinSuccessRate: &rate,
 		QualityWindowSamples:  intPtr(5),
 		QualityCondition:      strPtr(QualityHardCloseConditionOr),
-	}
-	// 5 samples, 2 consecutive slow — selectable must NOT cool (needs full 20, no underfull C)
+	})
+	// 2 consecutive slow — C=3 not met, K=6 not met
 	live := ApplyPairQualityIngestWindows(nil, 20, 5, true, intPtr(150), nil)
 	live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(160), nil)
-	require.False(t, pairQualityBlocks(live, policy), "5-sample window 2 consecutive slow must not sched-cool")
+	require.False(t, pairQualityBlocks(live, policy), "2 consecutive slow must not sched-cool (C=3)")
 
-	// 20 samples, 6 slow, p50 not breached (mix of fast and slow)
+	// 6 slow then 14 fast — K ready at 6
 	live = nil
 	slowVals := []int{150, 150, 150, 150, 150, 150, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50}
 	for _, v := range slowVals {
 		live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(v), nil)
 	}
-	require.True(t, pairQualityBlocks(live, policy), "20 samples 6 slow must sched-cool on K")
+	require.True(t, pairQualityBlocks(live, policy), "6 slow in 20 must sched-cool on K")
 
-	// full 20, 3 consecutive at end
-	live = nil
-	for i := 0; i < 17; i++ {
-		live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(50), nil)
-	}
-	for i := 0; i < 3; i++ {
-		live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(150), nil)
-	}
-	require.True(t, pairQualityBlocks(live, policy), "full 20 with 3 consecutive slow must sched-cool")
-
-	// only 10 samples, 3 consecutive at end — must NOT cool
+	// 10 samples, last 3 consecutive slow — C ready at 3
 	live = nil
 	for i := 0; i < 7; i++ {
 		live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(50), nil)
@@ -114,7 +104,7 @@ func TestPairQualitySelectableBlocks_SchedN20(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		live = ApplyPairQualityIngestWindows(live, 20, 5, true, intPtr(150), nil)
 	}
-	require.False(t, pairQualityBlocks(live, policy), "10 samples 3 consecutive must not sched-cool")
+	require.True(t, pairQualityBlocks(live, policy), "10 samples last 3 consecutive must sched-cool on C")
 }
 
 func TestPairQualityToStats_CrossUserIsolationShape(t *testing.T) {
@@ -128,15 +118,15 @@ func TestPairQualityToStats_CrossUserIsolationShape(t *testing.T) {
 
 type observeCacheStub struct {
 	stubSmartCache
-	bundle           *UserSmartScheduleBundle
-	live             map[string]*PairQualityLive
-	cooling          map[string]bool
-	probing          map[string]bool
-	pinned           map[string]bool
-	resumeUntil      map[string]int64
-	ingested         []PairQualityObservation
-	starts           int
-	graduated        int
+	bundle             *UserSmartScheduleBundle
+	live               map[string]*PairQualityLive
+	cooling            map[string]bool
+	probing            map[string]bool
+	pinned             map[string]bool
+	resumeUntil        map[string]int64
+	ingested           []PairQualityObservation
+	starts             int
+	graduated          int
 	lastCooldownReason string
 }
 
@@ -144,12 +134,20 @@ func (s *observeCacheStub) Lookup(context.Context, int64) *UserSmartScheduleBund
 func (s *observeCacheStub) CooldownActive(_ context.Context, accountID, userID int64, _ string, _ time.Time) bool {
 	return s.cooling[smartPairKey(accountID, userID)]
 }
-func (s *observeCacheStub) StartCooldown(context.Context, int64, int64, string, int, time.Time) {
+func (s *observeCacheStub) StartCooldown(_ context.Context, accountID, userID int64, _ string, _ int, _ time.Time) {
 	s.starts++
+	if s.cooling == nil {
+		s.cooling = map[string]bool{}
+	}
+	s.cooling[smartPairKey(accountID, userID)] = true
 }
-func (s *observeCacheStub) StartCooldownWithReason(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time, reason string) {
+func (s *observeCacheStub) StartCooldownWithReason(_ context.Context, accountID, userID int64, _ string, _ int, _ time.Time, reason string) {
 	s.starts++
 	s.lastCooldownReason = reason
+	if s.cooling == nil {
+		s.cooling = map[string]bool{}
+	}
+	s.cooling[smartPairKey(accountID, userID)] = true
 }
 func (s *observeCacheStub) GetPairQuality(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
 	return s.live[smartPairKey(accountID, userID)]
@@ -237,8 +235,8 @@ func (s *observeCacheStub) GetPairResumeUntilBatch(_ context.Context, accountIDs
 	return out
 }
 
-func (s *observeCacheStub) Invalidate(context.Context, int64) error { return nil }
-func (s *observeCacheStub) ClearCooldown(context.Context, int64, int64, string) error { return nil }
+func (s *observeCacheStub) Invalidate(context.Context, int64) error                       { return nil }
+func (s *observeCacheStub) ClearCooldown(context.Context, int64, int64, string) error     { return nil }
 func (s *observeCacheStub) ClearCooldownAllPlatforms(context.Context, int64, int64) error { return nil }
 func (s *observeCacheStub) SetCooldown(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time) (time.Time, error) {
 	return time.Now().UTC(), nil
@@ -250,7 +248,9 @@ func (s *observeCacheStub) SetCooldownWithReason(_ context.Context, _ int64, _ i
 	return now, nil
 }
 func (s *observeCacheStub) GetCooldownReason(context.Context, int64, int64, string) string { return "" }
-func (s *observeCacheStub) ApplyMemberPaused(context.Context, int64, int64, string, bool) error { return nil }
+func (s *observeCacheStub) ApplyMemberPaused(context.Context, int64, int64, string, bool) error {
+	return nil
+}
 func (s *observeCacheStub) GetCooldownUntilBatch(context.Context, []int64, int64, string, time.Time) map[int64]time.Time {
 	return map[int64]time.Time{}
 }
@@ -261,7 +261,8 @@ func (s *observeCacheStub) ListPairQualitySnapshots(context.Context, int64, int6
 func (s *observeCacheStub) ListPairQualityEvents(context.Context, int64, int64, string, int) []PairQualityEvent {
 	return nil
 }
-func (s *observeCacheStub) AppendPairQualityEvent(context.Context, int64, int64, string, PairQualityEvent) {}
+func (s *observeCacheStub) AppendPairQualityEvent(context.Context, int64, int64, string, PairQualityEvent) {
+}
 func (s *observeCacheStub) IsProbingBatch(context.Context, []int64, int64, string) map[int64]bool {
 	return map[int64]bool{}
 }
@@ -558,7 +559,7 @@ func TestQualityGate_UsesSplitWindowN(t *testing.T) {
 	require.False(t, pairQualityProbeBlocks(live, policy), "ttft 2 < N首字=3 must not probe-cool")
 	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400), nil)
 	require.True(t, pairQualityProbeBlocks(live, policy), "ttft 3 >= N首字=3 p50 breach must probe-cool")
-	require.False(t, pairQualityBlocks(live, policy), "ttft 3 < sched N=20 must not sched-cool on p50 alone")
+	require.True(t, pairQualityBlocks(live, policy), "composite off: 257 p50 uses N首字=3")
 
 	okOnly := &SmartSchedulePlatformPolicy{
 		QualityMinSuccessRate:    &rate,
@@ -593,7 +594,9 @@ func TestPairQualityProbeGraduates_SplitN(t *testing.T) {
 	require.False(t, pairQualityProbeGraduates(live, policy), "ok 4 < N成功率=5")
 	live = ApplyPairQualityIngestWindows(live, 10, 5, true, nil, nil)
 	require.Equal(t, 5, live.OKCount)
-	require.False(t, pairQualityProbeGraduates(live, policy), "TTFT window unfilled stays pending even when success window full")
+	require.True(t, pairQualityProbeGraduates(live, policy), "257: TTFT underfull still graduates when W_ok is full")
+
+	require.False(t, pairQualityProbeGraduates(live, withProbeLatencyV2(policy)), "v2: TTFT window unfilled stays pending")
 }
 
 func buildLiveFromTTFTObservations(nTTFT, nOK int, ttftMs []int) *PairQualityLive {
@@ -651,7 +654,7 @@ func TestApplyPairQualityIngest_NonStreamDurationOnly(t *testing.T) {
 
 func TestPairQualityProbeLatency_Table(t *testing.T) {
 	t.Parallel()
-	policy := pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs)
+	policy := withProbeLatencyV2(pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs))
 	cases := []struct {
 		name      string
 		ttft      []int
@@ -697,7 +700,7 @@ func TestPairQualityProbeLatency_Table(t *testing.T) {
 
 func TestPairQualitySelectableLatency_Table(t *testing.T) {
 	t.Parallel()
-	policy := pureTTFTLatencyPolicy(7, latencySchedN, latencySchedN, latencyGateMs)
+	policy := withSchedComposite(pureTTFTLatencyPolicy(7, latencySchedN, latencySchedN, latencyGateMs))
 	cases := []struct {
 		name      string
 		ttft      []int
@@ -705,20 +708,37 @@ func TestPairQualitySelectableLatency_Table(t *testing.T) {
 		wantCode  string
 	}{
 		{
-			name:      "sched_ten_samples_three_consecutive_no_block",
-			ttft:      latencyTail(7, 3, latencyFastMs, latencySlowMs),
+			name:      "C_three_consecutive_only_three_samples",
+			ttft:      repeatLatencyMs(latencySlowMs, 3),
+			wantBlock: true,
+			wantCode:  "ttft_consec",
+		},
+		{
+			name:      "five_samples_two_slow_no_K",
+			ttft:      latencyScatterSlow(2, 1, latencyFastMs, latencySlowMs),
+			wantBlock: false,
+		},
+		{
+			name:      "six_of_six_slow_C_and_K",
+			ttft:      repeatLatencyMs(latencySlowMs, 6),
+			wantBlock: true,
+			wantCode:  "ttft_consec",
+		},
+		{
+			name:      "six_slow_in_ten_rest_fast_K",
+			ttft:      append(repeatLatencyMs(latencySlowMs, 6), repeatLatencyMs(latencyFastMs, 4)...),
+			wantBlock: true,
+			wantCode:  "ttft_slow_k",
+		},
+		{
+			name:      "five_slow_in_nineteen_no_K_no_p50",
+			ttft:      append(repeatLatencyMs(latencySlowMs, 5), repeatLatencyMs(latencyFastMs, 14)...),
 			wantBlock: false,
 		},
 		{
 			name:      "sched_jitter_two_consecutive_full_window",
 			ttft:      latencyTail(18, 2, latencyFastMs, latencySlowMs),
 			wantBlock: false,
-		},
-		{
-			name:      "sched_K_six_slow_p50_ok",
-			ttft:      latencyScatterSlow(6, 8, latencyFastMs, latencySlowMs),
-			wantBlock: true,
-			wantCode:  "ttft_slow_k",
 		},
 		{
 			name:      "sched_C_three_consecutive_full_window",
@@ -773,7 +793,63 @@ func TestPairQualityDurationGate_IndependentWindow(t *testing.T) {
 	blocked, reasons := pairQualityProbeLatencyBlocked(live, policy)
 	require.True(t, blocked, "non-stream duration-only slow window must cool")
 	require.NotEmpty(t, reasons)
+	require.Equal(t, "dur_p50", reasons[0].Code, "v2 off: duration uses legacy p50 only")
+
+	v2Policy := withProbeLatencyV2(policy)
+	blocked, reasons = pairQualityProbeLatencyBlocked(live, v2Policy)
+	require.True(t, blocked)
 	require.Contains(t, []string{"dur_slow_k", "dur_consec"}, reasons[0].Code)
+}
+
+func TestPairQualitySelectable_P50WhenKAndCClosed(t *testing.T) {
+	t.Parallel()
+	policy := withSchedComposite(pureTTFTLatencyPolicy(7, latencySchedN, latencySchedN, latencyGateMs))
+	policy.QualitySchedMaxSlowInWindow = intPtr(0)
+	policy.QualitySchedMaxConsecutiveSlow = intPtr(0)
+	live := buildLiveFromTTFTObservations(latencySchedN, latencySchedN,
+		append(repeatLatencyMs(latencySlowMs, 11), repeatLatencyMs(latencyFastMs, 9)...))
+	blocked, reasons := pairQualitySelectableLatencyBlocked(live, policy)
+	require.True(t, blocked)
+	require.Equal(t, "ttft_p50", reasons[0].Code)
+}
+
+func TestPairQualitySelectable_CompositeOffUsesLegacyP50(t *testing.T) {
+	t.Parallel()
+	policy := pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs)
+	require.False(t, policy.SchedCompositeEnabled())
+
+	threeSlow := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 3))
+	blocked, _ := pairQualitySelectableLatencyBlocked(threeSlow, policy)
+	require.False(t, blocked, "composite off: 3 consecutive slow is not enough for 257 p50 (N=5)")
+
+	fullP50 := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, latencyProbeN))
+	blocked, reasons := pairQualitySelectableLatencyBlocked(fullP50, policy)
+	require.True(t, blocked, "composite off: full N p50 breach cools")
+	require.Equal(t, "ttft_p50", reasons[0].Code)
+}
+
+func TestPairQualityProbe_V2Off_UnderfullGraduatesNoHold(t *testing.T) {
+	t.Parallel()
+	durGate := latencyDurGateMs
+	p50 := latencyGateMs
+	policy := enabledSmartPolicy(7, 0, &p50)
+	policy.QualityMaxP50DurationMs = &durGate
+	policy.QualityMinTTFTSamples = intPtr(latencyProbeN)
+	policy.QualityMinSuccessSamples = intPtr(latencyProbeN)
+	policy.QualityCondition = strPtr(QualityHardCloseConditionOr)
+	require.False(t, policy.ProbeLatencyV2)
+
+	var live *PairQualityLive
+	for i := 0; i < latencyProbeN; i++ {
+		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, intPtr(latencyFastMs), nil)
+	}
+	for _, dur := range []int{latencyDurSlowMs, latencyFastMs * 50, latencyDurSlowMs} {
+		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, nil, intPtr(dur))
+	}
+	pass, state := pairQualityProbeLatencyPass(live, policy)
+	require.True(t, pass, "257: TTFT full+fast graduates; Hold must not apply")
+	require.Equal(t, LatencyEvalPass, state)
+	require.NotEqual(t, LatencyEvalHold, state)
 }
 
 func TestObservePairCompletion_FailuresDoNotTriggerLatencyCooldown(t *testing.T) {

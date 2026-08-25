@@ -304,24 +304,24 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 	from := view.Platforms[fromPlatform]
 	to := view.Platforms[toPlatform]
 	write := SmartSchedulePlatformWrite{
-		Enabled:                   from.Enabled,
-		QualityMaxP50TTFTMs:       from.QualityMaxP50TTFTMs,
-		QualityMaxP50DurationMs:   from.QualityMaxP50DurationMs,
-		QualityMaxSlowInWindow:    from.QualityMaxSlowInWindow,
-		QualityMaxConsecutiveSlow: from.QualityMaxConsecutiveSlow,
-		QualitySchedWindowN:       from.QualitySchedWindowN,
-		QualitySchedMaxSlowInWindow: from.QualitySchedMaxSlowInWindow,
+		Enabled:                        from.Enabled,
+		QualityMaxP50TTFTMs:            from.QualityMaxP50TTFTMs,
+		QualityMaxP50DurationMs:        from.QualityMaxP50DurationMs,
+		QualityMaxSlowInWindow:         from.QualityMaxSlowInWindow,
+		QualityMaxConsecutiveSlow:      from.QualityMaxConsecutiveSlow,
+		QualitySchedWindowN:            from.QualitySchedWindowN,
+		QualitySchedMaxSlowInWindow:    from.QualitySchedMaxSlowInWindow,
 		QualitySchedMaxConsecutiveSlow: from.QualitySchedMaxConsecutiveSlow,
-		QualityMinSuccessRate:     from.QualityMinSuccessRate,
-		QualityWindowSamples:     from.QualityWindowSamples,
-		QualityWindowN:           from.QualityWindowN,
-		QualityMinSuccessSamples: from.QualityMinSuccessSamples,
-		QualityMinTTFTSamples:    from.QualityMinTTFTSamples,
-		QualityCondition:         from.QualityCondition,
-		CooldownMinutes:          from.CooldownMinutes,
-		ProbeConcurrencyMode:     from.ProbeConcurrencyMode,
-		ProbeConcurrency:         from.ProbeConcurrency,
-		Accounts:                 to.Accounts,
+		QualityMinSuccessRate:          from.QualityMinSuccessRate,
+		QualityWindowSamples:           from.QualityWindowSamples,
+		QualityWindowN:                 from.QualityWindowN,
+		QualityMinSuccessSamples:       from.QualityMinSuccessSamples,
+		QualityMinTTFTSamples:          from.QualityMinTTFTSamples,
+		QualityCondition:               from.QualityCondition,
+		CooldownMinutes:                from.CooldownMinutes,
+		ProbeConcurrencyMode:           from.ProbeConcurrencyMode,
+		ProbeConcurrency:               from.ProbeConcurrency,
+		Accounts:                       to.Accounts,
 	}
 	if write.Enabled && len(write.Accounts) == 0 {
 		write.Enabled = false
@@ -695,8 +695,6 @@ func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedul
 	schedN := DefaultSmartScheduleSchedN
 	if write.QualitySchedWindowN != nil && *write.QualitySchedWindowN > 0 {
 		schedN = ClampSmartScheduleWindowN(*write.QualitySchedWindowN)
-	} else if write.QualityMaxP50TTFTMs != nil {
-		schedN = DefaultSmartScheduleSchedN
 	}
 	if write.QualitySchedWindowN != nil && (*write.QualitySchedWindowN < 1 || *write.QualitySchedWindowN > MaxSmartScheduleWindowN) {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_sched_window_n must be between 1 and 100")

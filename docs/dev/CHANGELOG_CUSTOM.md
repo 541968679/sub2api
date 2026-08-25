@@ -1,3 +1,56 @@
+## 2026-08-25 - release: 0.1.260 path-β gray (zuoge 10/4/2)
+
+### What
+- Product VERSION is **0.1.260** so this gray package cannot be confused with already-pushed clean `v0.1.259`.
+- Path β: 259 goose/216 fix stays in history; this commit adds `SchedCompositeEnabled` gating, probe v2 default off, and migration **217** zuoge-only N=10 / K=4 / C=2 (`quality_sched_window_n` / `quality_sched_max_slow_in_window` / `quality_sched_max_consecutive_slow`) for `zuoge85@gmail.com`.
+- Other users stay NULL = 257 p50-only. App fallbacks 20/6/3 are not written for anyone who has not opted in. Probe-period N/K/C and `probe_latency_v2` stay default off.
+- Admin i18n: empty sched fields keep legacy p50-only (do not imply default 20/6/3).
+
+### Why
+Do not ship clean 259's leftover: enabled users with TTFT p50 getting selectable 20/6/3. 2026-08-25 production TTFT sweep (user 16, 20818 stream samples, 6000ms): N=10 K=3 C=2 was twitchy on healthy-ish accounts; N=10 K=4 C=2 still catches sudden-slow bursts (loveapi 14.7%) while keeping fushengc632 near 0.8%.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "LatencyGate|PairQuality|SmartSchedule"`
+- `go test -tags=unit ./migrations -count=1 -run "SmartScheduleLatencyGate|ZuogeSched"`
+
+### Affected files
+`backend/cmd/server/VERSION`
+`backend/migrations/217_smart_schedule_zuoge_sched_composite.sql`
+`backend/migrations/smart_schedule_latency_gate_migrations_test.go`
+`backend/internal/service/smart_schedule_latency_gate.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+
+## 2026-08-25 - feat(smart-sched): selectable C/K ready-at-K, probe v2 off
+
+### What
+- Selectable latency composite (C ∨ K ∨ p50) is **off** unless sched fields are set or zuoge email is backfilled (migration 217 → 10/4/2). Everyone else stays 257 p50-only.
+- When on: C fires at C samples (default 3); K fires at K slow samples (default 6, e.g. 6/6 or 6/10); p50 still needs N=20. Dedicated `pairSelectableLatencyGate` — probe does not share ready-at-K.
+- Probe rewrite (Hold / Q_a / no-zero graduate / underfull C) is gated by `ProbeLatencyV2` / `probe_latency_v2`, default false. Flag off: TTFT underfull still graduates; no Hold.
+- Duration 80s remains zuoge-only. Failures still skip latency FIFOs. Admin copy: 满「超标条数」即可评 / 满「连续条数」即可评.
+
+### Why
+Haley 2026-08-25 locked selectable-only rollout. App-defaulting all p50 users to 20/6/3 and turning on 考察期 v2 was too entangled.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "PairQuality|SmartSchedule|Probe|Latency"`
+- `go test -tags=unit ./migrations -count=1 -run "SmartScheduleLatencyGate|ZuogeSched"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_latency_gate.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`backend/migrations/217_smart_schedule_zuoge_sched_composite.sql`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`.trellis/tasks/08-24-smart-sched-ttft-upgrade/prd.md`
+`.trellis/tasks/08-24-smart-sched-ttft-upgrade/design.md`
+
 ## 2026-08-25 - fix(migrations): execute goose Up only + repair latency-gate columns
 
 ### What
