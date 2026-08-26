@@ -1,3 +1,23 @@
+## 2026-08-26 - release: 0.1.264 selectable K/C/p50 independently opt-in
+
+### What
+- Selectable K fires only when `quality_sched_max_slow_in_window` is set. C fires only when `quality_sched_max_consecutive_slow` is set. Median fires only when the first-token (or duration) threshold is set.
+- Missing K/C are **not** filled with 10/4/2. p50-only users stay on the 257 median path. This logic is global — not zuoge-only.
+- Probe v2 stays off. 257 `expiry_zero` is unchanged.
+
+### Why
+Haley: 配了 K 才启用 K，配了 C 才启用 C，中位数也是配了就有. The previous “p50 ⇒ default 10/4/2 for everyone” read was wrong.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "LatencyGate|PairQuality|SmartSchedule|Probe|Sched|QualityGate|SoftCooldown"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQuality|SmartSchedule"`
+
+### Affected files
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_latency_gate.go`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+
 ## 2026-08-26 - release: 0.1.263 New API wallet + subscription remaining
 
 ### What

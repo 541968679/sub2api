@@ -62,7 +62,7 @@ func TestResolveSmartScheduleLatencyKC_DefaultsOnlyWithTTFT(t *testing.T) {
 	require.Equal(t, DefaultSmartScheduleLatencyC, c)
 }
 
-func TestResolveSmartScheduleSchedKC_NoAppDefaultFromP50(t *testing.T) {
+func TestResolveSmartScheduleSchedKC_OnlyConfiguredKC(t *testing.T) {
 	t.Parallel()
 	n, k, c := resolveSmartScheduleSchedKC(&SmartSchedulePlatformPolicy{})
 	require.Equal(t, 0, n)
@@ -70,15 +70,30 @@ func TestResolveSmartScheduleSchedKC_NoAppDefaultFromP50(t *testing.T) {
 	require.Equal(t, 0, c)
 
 	p50 := 50
-	n, k, c = resolveSmartScheduleSchedKC(&SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50})
+	p50Only := &SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50, QualityMinTTFTSamples: intPtr(5)}
+	require.False(t, p50Only.SchedCompositeEnabled())
+	n, k, c = resolveSmartScheduleSchedKC(p50Only)
 	require.Equal(t, 0, n)
 	require.Equal(t, 0, k)
 	require.Equal(t, 0, c)
 
+	kOnly := &SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50, QualityMinTTFTSamples: intPtr(5), QualitySchedMaxSlowInWindow: intPtr(4)}
+	require.True(t, kOnly.SchedCompositeEnabled())
+	n, k, c = resolveSmartScheduleSchedKC(kOnly)
+	require.Equal(t, 5, n)
+	require.Equal(t, 4, k)
+	require.Equal(t, 0, c)
+
+	cOnly := &SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50, QualityMinTTFTSamples: intPtr(5), QualitySchedMaxConsecutiveSlow: intPtr(2)}
+	n, k, c = resolveSmartScheduleSchedKC(cOnly)
+	require.Equal(t, 5, n)
+	require.Equal(t, 0, k)
+	require.Equal(t, 2, c)
+
 	n, k, c = resolveSmartScheduleSchedKC(withSchedComposite(&SmartSchedulePlatformPolicy{QualityMaxP50TTFTMs: &p50}))
-	require.Equal(t, DefaultSmartScheduleSchedN, n)
-	require.Equal(t, DefaultSmartScheduleSchedK, k)
-	require.Equal(t, DefaultSmartScheduleSchedC, c)
+	require.Equal(t, latencySchedN, n)
+	require.Equal(t, latencySchedK, k)
+	require.Equal(t, latencySchedC, c)
 }
 
 const (
@@ -99,9 +114,10 @@ func withSchedComposite(p *SmartSchedulePlatformPolicy) *SmartSchedulePlatformPo
 	if p == nil {
 		p = &SmartSchedulePlatformPolicy{}
 	}
-	p.QualitySchedWindowN = intPtr(DefaultSmartScheduleSchedN)
-	p.QualitySchedMaxSlowInWindow = intPtr(DefaultSmartScheduleSchedK)
-	p.QualitySchedMaxConsecutiveSlow = intPtr(DefaultSmartScheduleSchedC)
+	// Explicit 20/6/3 fixture so selectable tests stay independent of app defaults 10/4/2.
+	p.QualitySchedWindowN = intPtr(latencySchedN)
+	p.QualitySchedMaxSlowInWindow = intPtr(latencySchedK)
+	p.QualitySchedMaxConsecutiveSlow = intPtr(latencySchedC)
 	return p
 }
 

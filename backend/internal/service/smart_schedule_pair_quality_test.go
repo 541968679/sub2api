@@ -623,7 +623,7 @@ func TestQualityGate_UsesSplitWindowN(t *testing.T) {
 	require.False(t, pairQualityProbeBlocks(live, policy), "ttft 2 < N首字=3 must not probe-cool")
 	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400), nil)
 	require.True(t, pairQualityProbeBlocks(live, policy), "ttft 3 >= N首字=3 p50 breach must probe-cool")
-	require.True(t, pairQualityBlocks(live, policy), "composite off: 257 p50 uses N首字=3")
+	require.True(t, pairQualityBlocks(live, policy), "p50-only: 257 p50 uses N首字=3")
 
 	okOnly := &SmartSchedulePlatformPolicy{
 		QualityMinSuccessRate:    &rate,
@@ -952,12 +952,47 @@ func TestPairQualitySelectable_CompositeOffUsesLegacyP50(t *testing.T) {
 
 	threeSlow := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 3))
 	blocked, _ := pairQualitySelectableLatencyBlocked(threeSlow, policy)
-	require.False(t, blocked, "composite off: 3 consecutive slow is not enough for 257 p50 (N=5)")
+	require.False(t, blocked, "p50-only: 3 consecutive slow is not enough for 257 p50 (N=5)")
 
 	fullP50 := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, latencyProbeN))
 	blocked, reasons := pairQualitySelectableLatencyBlocked(fullP50, policy)
-	require.True(t, blocked, "composite off: full N p50 breach cools")
+	require.True(t, blocked, "p50-only: full N p50 breach cools")
 	require.Equal(t, "ttft_p50", reasons[0].Code)
+}
+
+func TestPairQualitySelectable_KOnlyDoesNotInventC(t *testing.T) {
+	t.Parallel()
+	policy := pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs)
+	policy.QualitySchedMaxSlowInWindow = intPtr(4)
+	require.True(t, policy.SchedCompositeEnabled())
+	n, k, c := resolveSmartScheduleSchedKC(policy)
+	require.Equal(t, 4, k)
+	require.Equal(t, 0, c)
+	require.Equal(t, latencyProbeN, n)
+
+	twoSlow := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 2))
+	blocked, _ := pairQualitySelectableLatencyBlocked(twoSlow, policy)
+	require.False(t, blocked, "C is unset so 2 consecutive slow must not cool")
+
+	fourSlow := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 4))
+	blocked, reasons := pairQualitySelectableLatencyBlocked(fourSlow, policy)
+	require.True(t, blocked)
+	require.Equal(t, "ttft_slow_k", reasons[0].Code)
+}
+
+func TestPairQualitySelectable_COnlyDoesNotInventK(t *testing.T) {
+	t.Parallel()
+	policy := pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs)
+	policy.QualitySchedMaxConsecutiveSlow = intPtr(2)
+	require.True(t, policy.SchedCompositeEnabled())
+	_, k, c := resolveSmartScheduleSchedKC(policy)
+	require.Equal(t, 0, k)
+	require.Equal(t, 2, c)
+
+	twoSlow := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 2))
+	blocked, reasons := pairQualitySelectableLatencyBlocked(twoSlow, policy)
+	require.True(t, blocked)
+	require.Equal(t, "ttft_consec", reasons[0].Code)
 }
 
 func TestPairQualityProbe_V2Off_UnderfullGraduatesNoHold(t *testing.T) {

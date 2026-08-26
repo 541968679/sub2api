@@ -310,7 +310,7 @@ func TestCachedSmartScheduleBundle_LatencyGateRoundTrip(t *testing.T) {
 			service.PlatformOpenAI: {Enabled: true, QualityMaxP50TTFTMs: &ttft, QualityMinTTFTSamples: intPtrRepo(5)},
 		},
 	}).toBundle().Policies[service.PlatformOpenAI]
-	require.False(t, empty.SchedCompositeEnabled(), "unconfigured sched columns stay legacy p50")
+	require.False(t, empty.SchedCompositeEnabled(), "p50-only does not invent sched K/C")
 }
 
 func TestUserSmartScheduleCache_LookupKeepsSchedLatencyGate(t *testing.T) {
@@ -350,7 +350,7 @@ func TestUserSmartScheduleCache_LookupKeepsSchedLatencyGate(t *testing.T) {
 	stale := `{"policies":{"openai":{"enabled":true,"quality_max_p50_ttft_ms":10000,"quality_min_ttft_samples":5,"cooldown_minutes":3}}}`
 	require.NoError(t, rdb.Set(ctx, smartScheduleUserKey(16), stale, 0).Err())
 	staleGot := cache.Lookup(ctx, 16).Policies[service.PlatformOpenAI]
-	require.False(t, staleGot.SchedCompositeEnabled(), "0.1.261 JSON without sched columns must stay legacy until invalidate")
+	require.False(t, staleGot.SchedCompositeEnabled(), "stale JSON without sched K/C stays p50-only")
 }
 
 func TestCachedSmartScheduleBundle_SoftCooldownRoundTrip(t *testing.T) {

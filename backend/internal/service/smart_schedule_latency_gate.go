@@ -9,18 +9,18 @@ const (
 	DefaultSmartScheduleLatencyK = 2
 	DefaultSmartScheduleLatencyC = 2
 
-	// App fallbacks when selectable composite is already on but K/C omitted.
-	// Not the zuoge rollout combo (migration 217 is N=10 K=4 C=2).
-	DefaultSmartScheduleSchedN = 20
-	DefaultSmartScheduleSchedK = 6
-	DefaultSmartScheduleSchedC = 3
+	// Named zuoge/rec combo only. Selectable K/C are never invented:
+	// configured K enables K, configured C enables C, configured p50 enables p50.
+	DefaultSmartScheduleSchedN = 10
+	DefaultSmartScheduleSchedK = 4
+	DefaultSmartScheduleSchedC = 2
 
 	// SettingKeyProbeLatencyV2 is the 考察期 rewrite switch (Hold / Q_a / no-zero
 	// graduate / underfull C). Default off so selectable-only rollout does not
 	// activate that path. Tests may set SmartSchedulePlatformPolicy.ProbeLatencyV2.
 	SettingKeyProbeLatencyV2 = "probe_latency_v2"
 
-	// Email used by SQL backfills only. Recommended zuoge selectable combo is 10/4/2.
+	// Email used by SQL backfills only (216 duration / 217 zuoge-only gray).
 	SmartScheduleZuogeEmail = "zuoge85@gmail.com"
 
 	LatencyEvalFail    = "fail"
@@ -67,26 +67,24 @@ func resolveSmartScheduleLatencyKC(policy *SmartSchedulePlatformPolicy) (k, c in
 }
 
 func resolveSmartScheduleSchedKC(policy *SmartSchedulePlatformPolicy) (n, k, c int) {
-	if policy == nil || !policy.SchedCompositeEnabled() {
+	if policy == nil {
+		return 0, 0, 0
+	}
+	if policy.QualitySchedMaxSlowInWindow != nil && *policy.QualitySchedMaxSlowInWindow > 0 {
+		k = *policy.QualitySchedMaxSlowInWindow
+	}
+	if policy.QualitySchedMaxConsecutiveSlow != nil && *policy.QualitySchedMaxConsecutiveSlow > 0 {
+		c = *policy.QualitySchedMaxConsecutiveSlow
+	}
+	if k < 1 && c < 1 {
 		return 0, 0, 0
 	}
 	n = policy.SchedWindowN()
 	if n < 1 {
-		n = DefaultSmartScheduleSchedN
+		n = policy.TTFTWindowN()
 	}
-	if policy.QualitySchedMaxSlowInWindow != nil {
-		if *policy.QualitySchedMaxSlowInWindow > 0 {
-			k = *policy.QualitySchedMaxSlowInWindow
-		}
-	} else {
-		k = DefaultSmartScheduleSchedK
-	}
-	if policy.QualitySchedMaxConsecutiveSlow != nil {
-		if *policy.QualitySchedMaxConsecutiveSlow > 0 {
-			c = *policy.QualitySchedMaxConsecutiveSlow
-		}
-	} else {
-		c = DefaultSmartScheduleSchedC
+	if n < 1 {
+		n = DefaultSmartScheduleWindowN
 	}
 	return n, k, c
 }

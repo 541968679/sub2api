@@ -198,9 +198,7 @@ func (p *SmartSchedulePlatformPolicy) SchedCompositeEnabled() bool {
 	if p == nil {
 		return false
 	}
-	if p.QualitySchedWindowN != nil && *p.QualitySchedWindowN > 0 {
-		return true
-	}
+	// K and C are independent. p50-only stays on the 257 median path.
 	if p.QualitySchedMaxSlowInWindow != nil && *p.QualitySchedMaxSlowInWindow > 0 {
 		return true
 	}
@@ -211,13 +209,16 @@ func (p *SmartSchedulePlatformPolicy) SchedCompositeEnabled() bool {
 }
 
 func (p *SmartSchedulePlatformPolicy) SchedWindowN() int {
-	if p == nil || !p.SchedCompositeEnabled() {
+	if p == nil {
 		return 0
 	}
 	if p.QualitySchedWindowN != nil && *p.QualitySchedWindowN > 0 {
 		return ClampSmartScheduleWindowN(*p.QualitySchedWindowN)
 	}
-	return DefaultSmartScheduleSchedN
+	if !p.SchedCompositeEnabled() {
+		return 0
+	}
+	return p.TTFTWindowN()
 }
 
 // TTFTStorageN is the FIFO capacity for TTFT/duration pair windows.
