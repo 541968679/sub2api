@@ -2301,6 +2301,8 @@ const enBase = {
         noData: 'No new billed rows yet',
         noDataHint: 'Only requests that wrote true_cost are counted. Historical rows are not backfilled.',
         balance: 'Balance',
+        balanceWallet: 'Wallet',
+        balanceSubscription: 'Subscription',
         balanceNeverUpdated: 'Not probed yet',
         balanceRefresh: 'Refresh upstream balance now',
         balanceUpdatedHint: 'Opening or refreshing this page re-probes upstream balance when the snapshot is older than 6 minutes. Click refresh to probe immediately. Display only; billing is unchanged.',

@@ -150,6 +150,8 @@ export function applyUsageBalanceToAccountExtra(
   extra: Record<string, unknown> | null | undefined,
   usage: {
     balance_usd?: number | null
+    balance_wallet_usd?: number | null
+    balance_subscription_usd?: number | null
     balance_updated_at?: string | null
     balance_source?: string
     balance_error?: string
@@ -167,7 +169,42 @@ export function applyUsageBalanceToAccountExtra(
     next.upstream_balance_used_usd = usage.balance_used_usd
     next.display_balance_used_usd = usage.balance_used_usd
   }
+  if (usage.balance_wallet_usd != null) {
+    next.upstream_balance_wallet_usd = usage.balance_wallet_usd
+  } else {
+    delete next.upstream_balance_wallet_usd
+  }
+  if (usage.balance_subscription_usd != null && usage.balance_subscription_usd > 0) {
+    next.upstream_balance_subscription_usd = usage.balance_subscription_usd
+  } else {
+    delete next.upstream_balance_subscription_usd
+  }
   return next
+}
+
+export function pairAccountWalletUsd(account: unknown): number | null {
+  if (!account || typeof account !== 'object') return null
+  const rec = account as {
+    usage?: { balance_wallet_usd?: unknown } | null
+    extra?: Record<string, unknown> | null
+  }
+  return (
+    readFiniteNumber(rec.usage?.balance_wallet_usd) ??
+    readFiniteNumber(rec.extra?.upstream_balance_wallet_usd)
+  )
+}
+
+export function pairAccountSubscriptionUsd(account: unknown): number | null {
+  if (!account || typeof account !== 'object') return null
+  const rec = account as {
+    usage?: { balance_subscription_usd?: unknown } | null
+    extra?: Record<string, unknown> | null
+  }
+  const value =
+    readFiniteNumber(rec.usage?.balance_subscription_usd) ??
+    readFiniteNumber(rec.extra?.upstream_balance_subscription_usd)
+  if (value == null || value <= 0) return null
+  return value
 }
 
 export type BalanceBurnSample = { t: Date; v: number; kind?: string }

@@ -1294,6 +1294,8 @@ export interface AccountUsageInfo {
 
   /** Upstream prepaid balance (OpenAI/Anthropic API-key compatible billing). */
   balance_usd?: number | null
+  balance_wallet_usd?: number | null
+  balance_subscription_usd?: number | null
   balance_updated_at?: string | null
   balance_source?: string
   balance_error?: string

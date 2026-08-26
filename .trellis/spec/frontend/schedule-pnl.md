@@ -20,7 +20,8 @@
 
 - Column key `claude_gpt_bridge` is a separate read-only extra column (`account.extra.openai_claude_gpt_bridge_enabled`). It must not reuse `schedule_pnl` fetch, cells, or formatters.
 - Pool `SmartSchedulePnlCell` shows today revenue / cost / profit / margin. It does not render the 7-day **PnL** window. Users-list `UserSchedulePnlCell` still shows today + 7-day.
-- API-key / non-oauth rows still show readable upstream balance. OAuth rows replace that balance line with a compact 7-day **quota** bar (`UsageProgressBar`) read from cached account extra (`passive_usage_7d_*` or OpenAI `codex_7d_*`). No `/usage` fetch and no `AccountUsageCell`. Missing snapshot renders `—`.
+- API-key / non-oauth rows still show readable upstream balance (`extra.upstream_balance_usd`, which is New API wallet+subscription remaining when both were probed). OAuth rows replace that balance line with a compact 7-day **quota** bar (`UsageProgressBar`) read from cached account extra (`passive_usage_7d_*` or OpenAI `codex_7d_*`). No `/usage` fetch and no `AccountUsageCell`. Missing snapshot renders `—`.
+- Pair `SchedulePnlTrendDialog` (has `account`) may show wallet / subscription remaining from `extra.upstream_balance_wallet_usd` / `upstream_balance_subscription_usd`. User-level dialog (no `account`) stays chart-only. Do not split those amounts on `AccountUsageCell`.
 - When a non-oauth row has readable `extra.upstream_balance_usd` / `usage.balance_usd` and `extra.burn_samples` (kind `balance_usd`) can fit a rate, the pool cell compares that balance burn $/h with today account `actual_cost` implied $/h (`todayStats.cost` / elapsed local hours). Compact `对齐` / `偏离` cue only. OAuth rows omit the burn cue. Display-only; do not change stored billing.
 - Balance is optional extra, not a substitute for PnL. Missing balance or insufficient samples omit the burn cue.
 - `null` window / `null` metric renders `—`. Do not coerce to `$0.00` or `0.0%`.

@@ -1,3 +1,45 @@
+## 2026-08-26 - release: 0.1.263 New API wallet + subscription remaining
+
+### What
+- Tag `v0.1.263` ships New API `GET /api/subscription/self` remaining into the admin balance snapshot. Grid shows wallet+subscription total; pair schedule-PnL dialog splits the two.
+
+### Why
+TokenBits-style wallets can be $0 while spendable quota sits on subscriptions.
+
+### Verification
+- See the feat entry below.
+
+### Affected files
+`backend/cmd/server/VERSION`
+
+## 2026-08-26 - feat(account): New API wallet + subscription remaining
+
+### What
+- New API wallet probe also calls `GET /api/subscription/self` with the same access token + `New-Api-User`.
+- `extra.upstream_balance_usd` is wallet remaining (clamped ≥ 0) plus active unexpired subscription remaining. Pair/usage cells keep showing that one total.
+- Extra/usage also store `upstream_balance_wallet_usd` / `upstream_balance_subscription_usd`. The smart-schedule pair PnL dialog splits those two lines; a failed or empty subscription call clears the old subscription extra and hides the subscription row.
+- Active subscriptions with missing/`0` `end_time` are not counted (`end_time > now` only). OpenAI billing `$1e8` is never written into the wallet/subscription split fields.
+- Display-only. No `actual_cost` / scheduler change. Access tokens stay out of tests, logs, and lite credentials.
+
+### Why
+TokenBits-style hosts bill `subscription_first`. Wallet `quota` can be $0 while spendable remaining sits on subscriptions, so the grid looked empty.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "ProbeUpstreamBalance_NewAPI|ApplyBalanceProbeToExtra_ClearsStaleSubscription|OpenAIBilling1e8IsNotNewAPIWallet"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/schedulePnl.spec.ts src/components/admin/user/__tests__/SchedulePnlTrendDialog.spec.ts src/components/admin/user/__tests__/SmartSchedulePnlCell.spec.ts`
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`
+`backend/internal/service/upstream_balance_probe_test.go`
+`backend/internal/service/account_usage_service.go`
+`backend/internal/service/burn_rate.go`
+`frontend/src/composables/schedulePnl.ts`
+`frontend/src/components/admin/user/SchedulePnlTrendDialog.vue`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-26 - feat(smart-sched): show sched K/C on pair quality cell
 
 ### What

@@ -26,6 +26,8 @@ const (
 	balanceSourceNewAPITokenUsage = "newapi_usage_token"
 	// New API user wallet: GET /api/user/self with system access token + New-Api-User.
 	balanceSourceNewAPIUserSelf = "newapi_user_self"
+	// New API wallet remaining plus GET /api/subscription/self remaining (or subscription-only).
+	balanceSourceNewAPIWalletSubscription = "newapi_wallet_subscription"
 
 	credentialKeyNewAPIAccessToken = "newapi_access_token"
 	credentialKeyNewAPIUserID      = "newapi_user_id"
@@ -44,9 +46,15 @@ type UpstreamBalanceResult struct {
 	HasUsed bool
 	// Unlimited is true when the upstream token has unlimited quota (New API).
 	Unlimited bool
-	Source    string
-	Error     string
-	FetchedAt time.Time
+	// WalletUSD / HasWallet are the New API /api/user/self remaining (clamped ≥ 0).
+	WalletUSD float64
+	HasWallet bool
+	// SubscriptionUSD / HasSubscription are the New API /api/subscription/self remaining.
+	SubscriptionUSD float64
+	HasSubscription bool
+	Source          string
+	Error           string
+	FetchedAt       time.Time
 }
 
 type openAICreditGrantsResponse struct {
@@ -210,15 +218,9 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 	}
 
 	if accessToken, userID, ok := newAPIUserWalletCreds(account); ok {
-		bal, used, hasUsed, probeOK, probeErr := fetchNewAPIUserSelfBalance(ctx, client, account, accessToken, userID, baseURL)
-		if probeOK {
-			result.BalanceUSD = bal
-			result.UsedUSD = used
-			result.HasUsed = hasUsed
-			result.Unlimited = false
-			result.Source = balanceSourceNewAPIUserSelf
-			result.Error = ""
-			return result
+		composed, composedOK, probeErr := composeNewAPIWalletAndSubscription(ctx, client, account, accessToken, userID, baseURL)
+		if composedOK {
+			return composed
 		}
 		appendErr(probeErr)
 	}
@@ -375,18 +377,136 @@ func fetchNewAPIUserSelfBalance(ctx context.Context, client *http.Client, accoun
 	return balanceUSD, usedUSD, true, true, ""
 }
 
+func composeNewAPIWalletAndSubscription(ctx context.Context, client *http.Client, account *Account, accessToken, userID, baseURL string) (UpstreamBalanceResult, bool, string) {
+	now := time.Now().UTC()
+	result := UpstreamBalanceResult{FetchedAt: now}
+	wallet, used, hasUsed, walletOK, walletErr := fetchNewAPIUserSelfBalance(ctx, client, account, accessToken, userID, baseURL)
+	sub, subOK, subErr := fetchNewAPISubscriptionBalance(ctx, client, account, accessToken, userID, baseURL)
+	if !walletOK && !subOK {
+		msg := strings.TrimSpace(walletErr)
+		if subErr != "" {
+			if msg != "" {
+				msg = msg + "; " + subErr
+			} else {
+				msg = subErr
+			}
+		}
+		if msg == "" {
+			msg = "newapi wallet/subscription: not ok"
+		}
+		return result, false, msg
+	}
+	if walletOK {
+		result.HasWallet = true
+		result.WalletUSD = wallet
+		result.UsedUSD = used
+		result.HasUsed = hasUsed
+		result.BalanceUSD += wallet
+	}
+	if subOK {
+		result.HasSubscription = true
+		result.SubscriptionUSD = sub
+		result.BalanceUSD += sub
+	}
+	result.Unlimited = false
+	result.Error = ""
+	if result.HasSubscription {
+		result.Source = balanceSourceNewAPIWalletSubscription
+	} else {
+		result.Source = balanceSourceNewAPIUserSelf
+	}
+	return result, true, ""
+}
+
+type newAPISubscriptionSelfResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    *struct {
+		Subscriptions []newAPISubscriptionSummary `json:"subscriptions"`
+	} `json:"data"`
+}
+
+type newAPISubscriptionSummary struct {
+	Subscription *newAPISubscriptionRow `json:"subscription"`
+}
+
+type newAPISubscriptionRow struct {
+	AmountTotal int64  `json:"amount_total"`
+	AmountUsed  int64  `json:"amount_used"`
+	Status      string `json:"status"`
+	EndTime     int64  `json:"end_time"`
+}
+
+func fetchNewAPISubscriptionBalance(ctx context.Context, client *http.Client, account *Account, accessToken, userID, baseURL string) (balance float64, ok bool, errMsg string) {
+	origin := originFromBaseURL(baseURL)
+	if origin == "" {
+		return 0, false, "newapi subscription/self: empty origin"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/api/subscription/self", nil)
+	if err != nil {
+		return 0, false, "newapi subscription/self: bad request"
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("New-Api-User", userID)
+	req.Header.Set("Accept", "application/json")
+	body, status, err := doBalanceRequest(client, req)
+	if err != nil {
+		return 0, false, "newapi subscription/self: " + err.Error()
+	}
+	if status != http.StatusOK {
+		return 0, false, fmt.Sprintf("newapi subscription/self status %d: %s", status, truncateForErr(body, 200))
+	}
+	if looksLikeHTML(body) {
+		return 0, false, "newapi subscription/self returned HTML"
+	}
+	var resp newAPISubscriptionSelfResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return 0, false, "newapi subscription/self decode failed"
+	}
+	if !resp.Success || resp.Data == nil {
+		msg := strings.TrimSpace(resp.Message)
+		if msg == "" {
+			msg = "not ok"
+		}
+		return 0, false, "newapi subscription/self: " + msg
+	}
+	unit := resolveNewAPIQuotaPerUnit(ctx, client, account, strings.TrimSpace(account.GetCredential("api_key")), origin)
+	if unit <= 0 {
+		unit = defaultNewAPIQuotaPerUnit
+	}
+	nowUnix := time.Now().UTC().Unix()
+	var remainingUnits int64
+	for _, row := range resp.Data.Subscriptions {
+		if row.Subscription == nil {
+			continue
+		}
+		sub := row.Subscription
+		if !strings.EqualFold(strings.TrimSpace(sub.Status), "active") {
+			continue
+		}
+		if sub.EndTime <= nowUnix {
+			continue
+		}
+		remain := sub.AmountTotal - sub.AmountUsed
+		if remain > 0 {
+			remainingUnits += remain
+		}
+	}
+	return float64(remainingUnits) / unit, true, ""
+}
+
 // newAPITokenUsageResponse matches New API GET /api/usage/token JSON.
 type newAPITokenUsageResponse struct {
 	Code    any    `json:"code"` // true or 1
 	Message string `json:"message"`
 	Data    *struct {
-		Object          string  `json:"object"`
-		Name            string  `json:"name"`
-		TotalGranted    float64 `json:"total_granted"`
-		TotalUsed       float64 `json:"total_used"`
-		TotalAvailable  float64 `json:"total_available"`
-		UnlimitedQuota  bool    `json:"unlimited_quota"`
-		ExpiresAt       int64   `json:"expires_at"`
+		Object         string  `json:"object"`
+		Name           string  `json:"name"`
+		TotalGranted   float64 `json:"total_granted"`
+		TotalUsed      float64 `json:"total_used"`
+		TotalAvailable float64 `json:"total_available"`
+		UnlimitedQuota bool    `json:"unlimited_quota"`
+		ExpiresAt      int64   `json:"expires_at"`
 	} `json:"data"`
 }
 

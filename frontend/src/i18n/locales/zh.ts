@@ -2151,6 +2151,8 @@ const zhBase = {
         noData: '暂无新入账数据',
         noDataHint: '只统计写入 true_cost 的新请求，历史记录不回填。',
         balance: '余额',
+        balanceWallet: '钱包',
+        balanceSubscription: '订阅',
         balanceNeverUpdated: '尚未探测',
         balanceRefresh: '立即刷新上游余额',
         balanceUpdatedHint: '打开或刷新本页时，超过 6 分钟会重新探测上游余额。点刷新可立即探测。仅展示，不改扣费。',

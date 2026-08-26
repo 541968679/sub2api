@@ -1062,6 +1062,7 @@
       :show="schedulePnlDialog != null"
       :user-id="userId"
       :account-id="schedulePnlDialog?.accountId ?? null"
+      :account="schedulePnlDialog?.account ?? null"
       :title="schedulePnlDialog?.title"
       @close="schedulePnlDialog = null"
     />
@@ -1190,7 +1191,7 @@ const userUsageStats = ref<BatchUserUsageStats | null>(null)
 const userBurnRateStats = ref<BatchUserBurnRateStats | null>(null)
 const userSchedulePnl = ref<SchedulePnlSummary | null>(null)
 const userSchedulePnlLoading = ref(false)
-const schedulePnlDialog = ref<{ accountId?: number; title: string } | null>(null)
+const schedulePnlDialog = ref<{ accountId?: number; account?: Account; title: string } | null>(null)
 const userQualityDialogOpen = ref(false)
 const pairQualityAcc = ref<Account | null>(null)
 const accountSearchQuery = ref('')
@@ -1749,6 +1750,7 @@ function openUserQuality() {
 function openPairSchedulePnl(account: Account) {
   schedulePnlDialog.value = {
     accountId: account.id,
+    account,
     title: t('admin.users.schedulePnl.dialogTitlePair', { account: account.name || String(account.id) })
   }
 }

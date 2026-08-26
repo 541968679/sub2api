@@ -6,6 +6,26 @@
     @close="emit('close')"
   >
     <div class="space-y-4">
+      <div
+        v-if="showBalanceSplit"
+        class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700 dark:text-gray-200"
+        data-testid="schedule-pnl-balance-split"
+      >
+        <span
+          v-if="walletUsd != null"
+          data-testid="schedule-pnl-balance-wallet"
+        >
+          {{ t('admin.users.schedulePnl.balanceWallet') }}
+          {{ formatSchedulePnlUsdPlain(walletUsd) }}
+        </span>
+        <span
+          v-if="subscriptionUsd != null"
+          data-testid="schedule-pnl-balance-subscription"
+        >
+          {{ t('admin.users.schedulePnl.balanceSubscription') }}
+          {{ formatSchedulePnlUsdPlain(subscriptionUsd) }}
+        </span>
+      </div>
       <div class="flex flex-wrap gap-2" data-testid="schedule-pnl-range-tabs">
         <button
           v-for="item in ranges"
@@ -55,9 +75,16 @@ import {
 import { Line } from 'vue-chartjs'
 import { adminAPI } from '@/api/admin'
 import type { SchedulePnlTrend, SchedulePnlTrendRange } from '@/api/admin/users'
+import type { Account } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import {
+  formatSchedulePnlUsdPlain,
+  isOauthAccountType,
+  pairAccountSubscriptionUsd,
+  pairAccountWalletUsd
+} from '@/composables/schedulePnl'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -65,8 +92,18 @@ const props = defineProps<{
   show: boolean
   userId: number | null
   accountId?: number | null
+  account?: Account | null
   title?: string
 }>()
+
+const walletUsd = computed(() => pairAccountWalletUsd(props.account))
+const subscriptionUsd = computed(() => pairAccountSubscriptionUsd(props.account))
+const showBalanceSplit = computed(
+  () =>
+    props.account != null &&
+    !isOauthAccountType(props.account) &&
+    (walletUsd.value != null || subscriptionUsd.value != null)
+)
 
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()

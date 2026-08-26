@@ -12,6 +12,8 @@ import {
   oauthSevenDayQuota,
   applyUsageBalanceToAccountExtra,
   pairAccountBalanceUsd,
+  pairAccountSubscriptionUsd,
+  pairAccountWalletUsd,
   shouldRefreshPairBalance,
   supportsPairBalanceProbe
 } from '../schedulePnl'
@@ -51,7 +53,28 @@ describe('schedulePnl formatters', () => {
     expect(pairAccountBalanceUsd({ balance_usd: 3 })).toBe(3)
     expect(pairAccountBalanceUsd({ extra: { upstream_balance_usd: 8.25 } })).toBe(8.25)
     expect(pairAccountBalanceUsd({ extra: { upstream_balance_usd: '9.5' } })).toBe(9.5)
+    expect(pairAccountBalanceUsd({
+      extra: {
+        upstream_balance_usd: 336.61,
+        upstream_balance_wallet_usd: 0,
+        upstream_balance_subscription_usd: 336.61
+      }
+    })).toBe(336.61)
     expect(pairAccountBalanceUsd({ quota_limit: 100 } as never)).toBeNull()
+    expect(pairAccountWalletUsd({ extra: { upstream_balance_wallet_usd: 0 } })).toBe(0)
+    expect(pairAccountWalletUsd({ usage: { balance_wallet_usd: 12 } })).toBe(12)
+    expect(pairAccountSubscriptionUsd({ extra: { upstream_balance_subscription_usd: 336.61 } })).toBe(336.61)
+    expect(pairAccountSubscriptionUsd({ extra: { upstream_balance_subscription_usd: 0 } })).toBeNull()
+    expect(
+      applyUsageBalanceToAccountExtra(
+        { upstream_balance_subscription_usd: 100, burn_samples: [] },
+        { balance_usd: 12.5, balance_wallet_usd: 12.5 }
+      )
+    ).toEqual({
+      burn_samples: [],
+      upstream_balance_usd: 12.5,
+      upstream_balance_wallet_usd: 12.5
+    })
   })
 
   it('refreshes api-key balance only when the snapshot is missing or older than 6 minutes', () => {

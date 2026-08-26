@@ -250,10 +250,12 @@ type UsageInfo struct {
 	Error string `json:"error,omitempty"`
 
 	// Upstream prepaid balance (API Key OpenAI/Anthropic compatible billing).
-	BalanceUSD       *float64   `json:"balance_usd,omitempty"`
-	BalanceUpdatedAt *time.Time `json:"balance_updated_at,omitempty"`
-	BalanceSource    string     `json:"balance_source,omitempty"`
-	BalanceError     string     `json:"balance_error,omitempty"`
+	BalanceUSD             *float64   `json:"balance_usd,omitempty"`
+	BalanceWalletUSD       *float64   `json:"balance_wallet_usd,omitempty"`
+	BalanceSubscriptionUSD *float64   `json:"balance_subscription_usd,omitempty"`
+	BalanceUpdatedAt       *time.Time `json:"balance_updated_at,omitempty"`
+	BalanceSource          string     `json:"balance_source,omitempty"`
+	BalanceError           string     `json:"balance_error,omitempty"`
 	// BalanceUnlimited is true for New API tokens with unlimited_quota.
 	BalanceUnlimited bool `json:"balance_unlimited,omitempty"`
 	// BalanceUsedUSD is spent amount (auto from upstream and/or last display value).
@@ -748,6 +750,23 @@ func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
 		total := parseExtraFloat64(account.Extra[extraKeyDisplayBalanceTotalUSD])
 		usage.DisplayBalanceTotalUSD = &total
 	}
+	if wallet, ok := extraFiniteUSD(account.Extra, extraKeyUpstreamBalanceWalletUSD); ok {
+		usage.BalanceWalletUSD = &wallet
+	}
+	if sub, ok := extraFiniteUSD(account.Extra, extraKeyUpstreamBalanceSubscriptionUSD); ok {
+		usage.BalanceSubscriptionUSD = &sub
+	}
+}
+
+func extraFiniteUSD(extra map[string]any, key string) (float64, bool) {
+	if extra == nil {
+		return 0, false
+	}
+	raw, ok := extra[key]
+	if !ok || raw == nil {
+		return 0, false
+	}
+	return parseExtraFloat64(raw), true
 }
 
 func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now time.Time) map[string]any {
@@ -767,6 +786,7 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 		updates[extraKeyUpstreamBalanceUsedUSD] = probe.UsedUSD
 		updates[extraKeyDisplayBalanceUsedUSD] = probe.UsedUSD
 	}
+	applyWalletSubscriptionPartsToMap(updates, probe)
 	if account != nil {
 		if account.Extra == nil {
 			account.Extra = map[string]any{}
@@ -780,8 +800,25 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 			account.Extra[extraKeyUpstreamBalanceUsedUSD] = probe.UsedUSD
 			account.Extra[extraKeyDisplayBalanceUsedUSD] = probe.UsedUSD
 		}
+		applyWalletSubscriptionPartsToMap(account.Extra, probe)
 	}
 	return updates
+}
+
+func applyWalletSubscriptionPartsToMap(dst map[string]any, probe UpstreamBalanceResult) {
+	if dst == nil {
+		return
+	}
+	if probe.HasWallet {
+		dst[extraKeyUpstreamBalanceWalletUSD] = probe.WalletUSD
+	} else {
+		dst[extraKeyUpstreamBalanceWalletUSD] = nil
+	}
+	if probe.HasSubscription && probe.SubscriptionUSD > 0 {
+		dst[extraKeyUpstreamBalanceSubscriptionUSD] = probe.SubscriptionUSD
+	} else {
+		dst[extraKeyUpstreamBalanceSubscriptionUSD] = nil
+	}
 }
 
 func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
@@ -799,6 +836,18 @@ func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
 		if probe.HasUsed {
 			used := probe.UsedUSD
 			usage.BalanceUsedUSD = &used
+		}
+		if probe.HasWallet {
+			wallet := probe.WalletUSD
+			usage.BalanceWalletUSD = &wallet
+		} else {
+			usage.BalanceWalletUSD = nil
+		}
+		if probe.HasSubscription && probe.SubscriptionUSD > 0 {
+			sub := probe.SubscriptionUSD
+			usage.BalanceSubscriptionUSD = &sub
+		} else {
+			usage.BalanceSubscriptionUSD = nil
 		}
 		return
 	}

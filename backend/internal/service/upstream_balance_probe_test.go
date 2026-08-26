@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -172,13 +173,13 @@ func TestProbeUpstreamBalance_NewAPITokenUsage(t *testing.T) {
 				"code":    true,
 				"message": "ok",
 				"data": map[string]any{
-					"object":           "token_usage",
-					"name":             "plus",
-					"total_granted":    1_000_000.0,
-					"total_used":       250_000.0,
-					"total_available":  750_000.0,
-					"unlimited_quota":  false,
-					"expires_at":       0,
+					"object":          "token_usage",
+					"name":            "plus",
+					"total_granted":   1_000_000.0,
+					"total_used":      250_000.0,
+					"total_available": 750_000.0,
+					"unlimited_quota": false,
+					"expires_at":      0,
 				},
 			})
 		case "/api/status":
@@ -327,6 +328,261 @@ func TestProbeUpstreamBalance_NewAPIUserSelfPreferred(t *testing.T) {
 	require.True(t, result.HasUsed)
 	require.InDelta(t, 62.577154, result.BalanceUSD, 0.001)
 	require.InDelta(t, 249.78902, result.UsedUSD, 0.001)
+	require.True(t, result.HasWallet)
+	require.False(t, result.HasSubscription)
+	require.InDelta(t, 62.577154, result.WalletUSD, 0.001)
+	require.NotContains(t, result.Error, walletTok)
+}
+
+func TestProbeUpstreamBalance_NewAPIWalletPlusSubscription(t *testing.T) {
+	t.Parallel()
+	const walletTok = "wallet-fixture-token"
+	now := time.Now().UTC().Unix()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			require.Equal(t, "Bearer "+walletTok, r.Header.Get("Authorization"))
+			require.Equal(t, "201", r.Header.Get("New-Api-User"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"data": map[string]any{
+					"id":         201,
+					"quota":      -611148.0,
+					"used_quota": 2_450_321_817.0,
+				},
+			})
+		case "/api/subscription/self":
+			require.Equal(t, "Bearer "+walletTok, r.Header.Get("Authorization"))
+			require.Equal(t, "201", r.Header.Get("New-Api-User"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"data": map[string]any{
+					"subscriptions": []map[string]any{
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 0,
+							"status": "active", "end_time": now + 86400,
+						}},
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 53_559_180,
+							"status": "active", "end_time": now + 86400,
+						}},
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 150_000,
+							"status": "cancelled", "end_time": now + 86400,
+						}},
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 0,
+							"status": "active", "end_time": now - 10,
+						}},
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 111_000_000,
+							"status": "active", "end_time": now + 86400,
+						}},
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 0,
+							"status": "active", "end_time": 0,
+						}},
+					},
+				},
+			})
+		case "/api/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"quota_per_unit": 500000.0},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                      "sk-tb",
+			"base_url":                     srv.URL + "/v1",
+			credentialKeyNewAPIAccessToken: walletTok,
+			credentialKeyNewAPIUserID:      201,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error, result.Error)
+	require.Equal(t, balanceSourceNewAPIWalletSubscription, result.Source)
+	require.True(t, result.HasWallet)
+	require.True(t, result.HasSubscription)
+	require.InDelta(t, 0, result.WalletUSD, 0.001)
+	require.InDelta(t, 336.88164, result.SubscriptionUSD, 0.001)
+	require.InDelta(t, 336.88164, result.BalanceUSD, 0.001)
+	require.False(t, result.Unlimited)
+	require.NotContains(t, result.Error, walletTok)
+	usage := &UsageInfo{}
+	applyBalanceResultToUsage(usage, result)
+	raw, err := json.Marshal(usage)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), walletTok)
+	require.NotContains(t, string(raw), credentialKeyNewAPIAccessToken)
+}
+
+func TestProbeUpstreamBalance_NewAPISubscriptionEmptyKeepsWallet(t *testing.T) {
+	t.Parallel()
+	const walletTok = "wallet-fixture-token"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"data":    map[string]any{"id": 952, "quota": 31_288_577.0, "used_quota": 0.0},
+			})
+		case "/api/subscription/self":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"data":    map[string]any{"subscriptions": []any{}},
+			})
+		case "/api/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"quota_per_unit": 500000.0},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                      "sk-tb",
+			"base_url":                     srv.URL + "/v1",
+			credentialKeyNewAPIAccessToken: walletTok,
+			credentialKeyNewAPIUserID:      952,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error, result.Error)
+	require.Equal(t, balanceSourceNewAPIWalletSubscription, result.Source)
+	require.True(t, result.HasWallet)
+	require.True(t, result.HasSubscription)
+	require.InDelta(t, 62.577154, result.BalanceUSD, 0.001)
+	require.Equal(t, 0.0, result.SubscriptionUSD)
+}
+
+func TestApplyBalanceProbeToExtra_ClearsStaleSubscription(t *testing.T) {
+	t.Parallel()
+	account := &Account{Extra: map[string]any{
+		extraKeyUpstreamBalanceSubscriptionUSD: 336.61,
+		extraKeyUpstreamBalanceWalletUSD:       10.0,
+	}}
+	now := time.Now().UTC()
+	updates := applyBalanceProbeToExtra(account, UpstreamBalanceResult{
+		BalanceUSD: 62.57,
+		HasWallet:  true,
+		WalletUSD:  62.57,
+		Source:     balanceSourceNewAPIUserSelf,
+	}, now)
+	require.Nil(t, updates[extraKeyUpstreamBalanceSubscriptionUSD])
+	require.InDelta(t, 62.57, updates[extraKeyUpstreamBalanceWalletUSD], 0.001)
+	require.Nil(t, account.Extra[extraKeyUpstreamBalanceSubscriptionUSD])
+	payload, err := json.Marshal(updates)
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), "wallet-fixture-token")
+	require.NotContains(t, string(payload), credentialKeyNewAPIAccessToken)
+}
+
+func TestProbeUpstreamBalance_NewAPISubscriptionWhenWalletFails(t *testing.T) {
+	t.Parallel()
+	const walletTok = "wallet-fixture-token"
+	now := time.Now().UTC().Unix()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self":
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "message": "Unauthorized"})
+		case "/api/subscription/self":
+			require.Equal(t, "Bearer "+walletTok, r.Header.Get("Authorization"))
+			require.Equal(t, "201", r.Header.Get("New-Api-User"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"data": map[string]any{
+					"subscriptions": []map[string]any{
+						{"subscription": map[string]any{
+							"amount_total": 111_000_000, "amount_used": 0,
+							"status": "active", "end_time": now + 86400,
+						}},
+					},
+				},
+			})
+		case "/api/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"quota_per_unit": 500000.0},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                      "sk-tb",
+			"base_url":                     srv.URL + "/v1",
+			credentialKeyNewAPIAccessToken: walletTok,
+			credentialKeyNewAPIUserID:      201,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error, result.Error)
+	require.Equal(t, balanceSourceNewAPIWalletSubscription, result.Source)
+	require.False(t, result.HasWallet)
+	require.True(t, result.HasSubscription)
+	require.InDelta(t, 222.0, result.SubscriptionUSD, 0.001)
+	require.InDelta(t, 222.0, result.BalanceUSD, 0.001)
+	require.False(t, result.HasUsed)
+	require.NotContains(t, result.Error, walletTok)
+}
+
+func TestProbeUpstreamBalance_OpenAIBilling1e8IsNotNewAPIWallet(t *testing.T) {
+	t.Parallel()
+	const walletTok = "wallet-fixture-token"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/user/self", "/api/subscription/self", "/v1/usage", "/api/usage/token", "/api/usage/token/", "/v1/dashboard/billing/credit_grants":
+			http.Error(w, "no", http.StatusNotFound)
+		case "/v1/dashboard/billing/subscription":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"hard_limit_usd":     100_000_000.0,
+				"has_payment_method": true,
+			})
+		case "/v1/dashboard/billing/usage":
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_usage": 0})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                      "sk-tb",
+			"base_url":                     srv.URL + "/v1",
+			credentialKeyNewAPIAccessToken: walletTok,
+			credentialKeyNewAPIUserID:      201,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error, result.Error)
+	require.Equal(t, balanceSourceSubscriptionUsage, result.Source)
+	require.False(t, result.HasWallet)
+	require.False(t, result.HasSubscription)
+	require.Equal(t, 0.0, result.WalletUSD)
+	require.Equal(t, 0.0, result.SubscriptionUSD)
+	updates := applyBalanceProbeToExtra(account, result, time.Now().UTC())
+	require.Nil(t, updates[extraKeyUpstreamBalanceWalletUSD])
+	require.Nil(t, updates[extraKeyUpstreamBalanceSubscriptionUSD])
 	require.NotContains(t, result.Error, walletTok)
 }
 

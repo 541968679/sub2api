@@ -14,19 +14,21 @@ const (
 	burnRateIncreaseEpsilon = 1e-6
 	burnRateZeroEpsilon     = 1e-9
 
-	burnKindBalanceUSD           = "balance_usd"
-	burnKindOAuth7dRemainingPct  = "oauth_7d_remaining_pct"
+	burnKindBalanceUSD            = "balance_usd"
+	burnKindOAuth7dRemainingPct   = "oauth_7d_remaining_pct"
 	burnKindFleet7dRemainingUnits = "fleet_7d_remaining_units"
 
-	extraKeyBurnSamples         = "burn_samples"
-	extraKeyUpstreamBalanceUSD  = "upstream_balance_usd"
-	extraKeyUpstreamBalanceAt   = "upstream_balance_at"
-	extraKeyUpstreamBalanceErr  = "upstream_balance_error"
-	extraKeyUpstreamBalanceSrc  = "upstream_balance_source"
+	extraKeyBurnSamples                    = "burn_samples"
+	extraKeyUpstreamBalanceUSD             = "upstream_balance_usd"
+	extraKeyUpstreamBalanceAt              = "upstream_balance_at"
+	extraKeyUpstreamBalanceErr             = "upstream_balance_error"
+	extraKeyUpstreamBalanceSrc             = "upstream_balance_source"
+	extraKeyUpstreamBalanceWalletUSD       = "upstream_balance_wallet_usd"
+	extraKeyUpstreamBalanceSubscriptionUSD = "upstream_balance_subscription_usd"
 	// Display-only fields (never affect scheduling / admission).
-	extraKeyUpstreamBalanceUsedUSD  = "upstream_balance_used_usd"
-	extraKeyDisplayBalanceTotalUSD  = "display_balance_total_usd"
-	extraKeyDisplayBalanceUsedUSD   = "display_balance_used_usd" // last manual/auto used shown
+	extraKeyUpstreamBalanceUsedUSD = "upstream_balance_used_usd"
+	extraKeyDisplayBalanceTotalUSD = "display_balance_total_usd"
+	extraKeyDisplayBalanceUsedUSD  = "display_balance_used_usd" // last manual/auto used shown
 )
 
 // BurnSample is one time-series point used for burn-rate regression.
