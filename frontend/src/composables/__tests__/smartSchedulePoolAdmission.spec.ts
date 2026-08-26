@@ -157,6 +157,24 @@ describe('normalizeSmartSchedulePairQuality', () => {
       n_ttft: 3,
       n_success: 20
     })
+    expect(
+      normalizeSmartSchedulePairQuality({
+        ttft_p50_ms: 80,
+        success_rate: 1,
+        ttft_samples: 3,
+        ok_samples: 6,
+        n: 10,
+        ttft_slow_count: 2,
+        ttft_consecutive_slow: 1,
+        quality_sched_max_slow_in_window: 3,
+        quality_sched_max_consecutive_slow: 2
+      })
+    ).toMatchObject({
+      ttft_slow_count: 2,
+      ttft_consecutive_slow: 1,
+      quality_sched_max_slow_in_window: 3,
+      quality_sched_max_consecutive_slow: 2
+    })
   })
 })
 

@@ -507,6 +507,10 @@ export type SmartSchedulePairQuality = {
   n_ttft?: number
   n_success?: number
   n_ok?: number
+  ttft_slow_count?: number | null
+  ttft_consecutive_slow?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
 }
 
 export type SmartSchedulePairQualitySnapshot = SmartSchedulePairQuality & {

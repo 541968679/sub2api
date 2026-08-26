@@ -53,10 +53,14 @@ type SmartSchedulePairQualityView struct {
 	TTFTSamples int      `json:"ttft_samples"`
 	OKCount     int      `json:"ok_count"`
 	OKSamples   int      `json:"ok_samples"`
-	N           int      `json:"n"`
-	NTTFT       int      `json:"n_ttft"`
-	NSuccess    int      `json:"n_success"`
-	NOK         int      `json:"n_ok"`
+	N                              int  `json:"n"`
+	NTTFT                          int  `json:"n_ttft"`
+	NSuccess                       int  `json:"n_success"`
+	NOK                            int  `json:"n_ok"`
+	TTFTSlowCount                  *int `json:"ttft_slow_count,omitempty"`
+	TTFTConsecutiveSlow            *int `json:"ttft_consecutive_slow,omitempty"`
+	QualitySchedMaxSlowInWindow    *int `json:"quality_sched_max_slow_in_window,omitempty"`
+	QualitySchedMaxConsecutiveSlow *int `json:"quality_sched_max_consecutive_slow,omitempty"`
 }
 
 // PairQualitySnapshot is one trend point after a recompute.

@@ -22,6 +22,22 @@
       <div class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-testid="smart-schedule-pair-quality-counts">
         {{ t('admin.users.smartSchedule.pairWindowCounts', pairQualityCountParams(quality)) }}
       </div>
+      <div
+        v-if="kc.show"
+        class="font-sans text-[10px]"
+        :class="kcToneClass"
+        data-testid="smart-schedule-pair-quality-kc"
+      >
+        <template v-if="kc.showK && kc.showC">
+          {{ t('admin.users.smartSchedule.pairLatencyKC', { slow: kc.slow, k: kc.k, consec: kc.consec, c: kc.c }) }}
+        </template>
+        <template v-else-if="kc.showK">
+          {{ t('admin.users.smartSchedule.pairLatencyK', { slow: kc.slow, k: kc.k }) }}
+        </template>
+        <template v-else>
+          {{ t('admin.users.smartSchedule.pairLatencyC', { consec: kc.consec, c: kc.c }) }}
+        </template>
+      </div>
     </div>
     <div v-else class="flex flex-col items-start gap-0.5">
       <span class="text-sm text-gray-400 dark:text-dark-500">—</span>
@@ -36,7 +52,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SmartSchedulePairQuality } from '@/api/admin/users'
-import { pairQualityCountParams } from '@/utils/smartScheduleWindowN'
+import { pairQualityCountParams, pairQualityLatencyKCParams } from '@/utils/smartScheduleWindowN'
 
 const props = withDefaults(
   defineProps<{
@@ -80,5 +96,18 @@ const successToneClass = computed(() => {
   if (rate < 0.9) return 'text-red-600 dark:text-red-400'
   if (rate < 0.95) return 'text-amber-600 dark:text-amber-400'
   return 'text-emerald-600 dark:text-emerald-400'
+})
+
+const kc = computed(() =>
+  props.quality ? pairQualityLatencyKCParams(props.quality) : { show: false, showK: false, showC: false, slow: 0, consec: 0, k: 0, c: 0 }
+)
+
+const kcToneClass = computed(() => {
+  const row = kc.value
+  if (!row.show) return 'text-gray-400 dark:text-gray-500'
+  if ((row.showK && row.slow >= row.k) || (row.showC && row.consec >= row.c)) {
+    return 'text-red-600 dark:text-red-400'
+  }
+  return 'text-gray-400 dark:text-gray-500'
 })
 </script>

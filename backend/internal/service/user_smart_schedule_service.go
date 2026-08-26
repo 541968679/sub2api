@@ -1086,6 +1086,7 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 				viewSnap.N = n
 			}
 			viewSnap = aliasPairQualityView(viewSnap)
+			attachPairQualitySchedKC(&viewSnap, live, policy)
 			platform.Accounts[i].PairQuality = &viewSnap
 			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil || platform.Accounts[i].Pinned {
 				continue
@@ -1168,6 +1169,8 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 		return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
 	}
 	emptyView := aliasPairQualityView(SmartSchedulePairQualityView{N: n, NTTFT: nTTFT, NSuccess: nOK, NOK: nOK})
+	policy := platformViewToPolicy(&row)
+	attachPairQualitySchedKC(&emptyView, nil, policy)
 	detail := &SmartSchedulePairQualityDetail{
 		AccountID: accountID,
 		UserID:    userID,
@@ -1187,6 +1190,7 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 			detail.Live.NSuccess = nOK
 			detail.Live.NOK = nOK
 			detail.Live = aliasPairQualityView(detail.Live)
+			attachPairQualitySchedKC(&detail.Live, live, policy)
 		}
 		detail.Current = detail.Live
 		if snaps := s.cache.ListPairQualitySnapshots(ctx, accountID, userID, platform, 200); snaps != nil {

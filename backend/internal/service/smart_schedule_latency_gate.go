@@ -261,6 +261,57 @@ func countSlowSamples(samples []int, threshold int) int {
 	return n
 }
 
+func countTrailingSlow(samples []int, threshold int) int {
+	n := 0
+	for i := len(samples) - 1; i >= 0; i-- {
+		if samples[i] <= threshold {
+			break
+		}
+		n++
+	}
+	return n
+}
+
+// pairQualitySchedKCSnapshot is the admin-cell K/C row for selectable composite.
+// Current counts use the sched TTFT window and first-token p50 threshold.
+func pairQualitySchedKCSnapshot(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (slow, consec, k, c int, ok bool) {
+	if policy == nil || !policy.SchedCompositeEnabled() {
+		return 0, 0, 0, 0, false
+	}
+	n, k, c := resolveSmartScheduleSchedKC(policy)
+	if k < 1 && c < 1 {
+		return 0, 0, 0, 0, false
+	}
+	if policy.QualityMaxP50TTFTMs == nil || *policy.QualityMaxP50TTFTMs < 1 {
+		return 0, 0, 0, 0, false
+	}
+	if live != nil {
+		window := recentLatencySamples(live.TTFTMs, n)
+		threshold := *policy.QualityMaxP50TTFTMs
+		slow = countSlowSamples(window, threshold)
+		consec = countTrailingSlow(window, threshold)
+	}
+	return slow, consec, k, c, true
+}
+
+func attachPairQualitySchedKC(view *SmartSchedulePairQualityView, live *PairQualityLive, policy *SmartSchedulePlatformPolicy) {
+	if view == nil {
+		return
+	}
+	slow, consec, k, c, ok := pairQualitySchedKCSnapshot(live, policy)
+	if !ok {
+		return
+	}
+	if k > 0 {
+		view.TTFTSlowCount = intPtr(slow)
+		view.QualitySchedMaxSlowInWindow = intPtr(k)
+	}
+	if c > 0 {
+		view.TTFTConsecutiveSlow = intPtr(consec)
+		view.QualitySchedMaxConsecutiveSlow = intPtr(c)
+	}
+}
+
 // evalLatencyWindows evaluates TTFT and duration windows with the same N/K/C gates.
 // durationMax nil means the duration window does not participate.
 func evalLatencyWindows(ttftSamples, durSamples []int, ttftMax, durMax *int, k, c, n int) (state string, reasons []SmartScheduleCooldownReason) {

@@ -70,6 +70,10 @@ export function normalizeSmartSchedulePairQuality(
     n_ttft?: number | null
     n_success?: number | null
     n_ok?: number | null
+    ttft_slow_count?: number | null
+    ttft_consecutive_slow?: number | null
+    quality_sched_max_slow_in_window?: number | null
+    quality_sched_max_consecutive_slow?: number | null
   } | null | undefined
 ): SmartSchedulePairQuality | null {
   if (!raw) return null
@@ -79,7 +83,7 @@ export function normalizeSmartSchedulePairQuality(
   const nSuccess = clampSmartScheduleWindowN(
     finiteNumber(raw.n_success) ?? finiteNumber(raw.n_ok) ?? finiteNumber(raw.n) ?? finiteNumber(raw.quality_window_n)
   )
-  return {
+  const out: SmartSchedulePairQuality = {
     ttft_p50_ms: finiteNumber(raw.ttft_p50_ms ?? raw.p50_ttft_ms),
     success_rate:
       raw.success_rate != null && Number.isFinite(raw.success_rate) ? raw.success_rate : null,
@@ -88,6 +92,39 @@ export function normalizeSmartSchedulePairQuality(
     n: clampSmartScheduleWindowN(raw.n ?? Math.max(nTtft, nSuccess)),
     n_ttft: nTtft,
     n_success: nSuccess
+  }
+  const slow = finiteNumber(raw.ttft_slow_count)
+  const consec = finiteNumber(raw.ttft_consecutive_slow)
+  const k = finiteNumber(raw.quality_sched_max_slow_in_window)
+  const c = finiteNumber(raw.quality_sched_max_consecutive_slow)
+  if (slow != null) out.ttft_slow_count = Math.max(0, Math.round(slow))
+  if (consec != null) out.ttft_consecutive_slow = Math.max(0, Math.round(consec))
+  if (k != null && k > 0) out.quality_sched_max_slow_in_window = Math.round(k)
+  if (c != null && c > 0) out.quality_sched_max_consecutive_slow = Math.round(c)
+  return out
+}
+
+export function pairQualityLatencyKCParams(quality: SmartSchedulePairQuality): {
+  show: boolean
+  showK: boolean
+  showC: boolean
+  slow: number
+  consec: number
+  k: number
+  c: number
+} {
+  const k = finiteNumber(quality.quality_sched_max_slow_in_window)
+  const c = finiteNumber(quality.quality_sched_max_consecutive_slow)
+  const showK = k != null && k > 0
+  const showC = c != null && c > 0
+  return {
+    show: showK || showC,
+    showK,
+    showC,
+    slow: Math.max(0, finiteNumber(quality.ttft_slow_count) ?? 0),
+    consec: Math.max(0, finiteNumber(quality.ttft_consecutive_slow) ?? 0),
+    k: showK ? k! : 0,
+    c: showC ? c! : 0
   }
 }
 

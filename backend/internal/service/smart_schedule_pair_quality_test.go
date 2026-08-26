@@ -898,6 +898,51 @@ func TestPairQualitySelectableBlocks_ZuogeSched10K3C2(t *testing.T) {
 	require.NotEmpty(t, reasons)
 	require.Equal(t, "ttft_consec", reasons[0].Code)
 	require.Contains(t, reasons[0].Detail, "连续C")
+
+	view := live.View()
+	attachPairQualitySchedKC(&view, live, policy)
+	require.NotNil(t, view.TTFTSlowCount)
+	require.Equal(t, 2, *view.TTFTSlowCount)
+	require.NotNil(t, view.TTFTConsecutiveSlow)
+	require.Equal(t, 2, *view.TTFTConsecutiveSlow)
+	require.NotNil(t, view.QualitySchedMaxSlowInWindow)
+	require.Equal(t, 3, *view.QualitySchedMaxSlowInWindow)
+	require.NotNil(t, view.QualitySchedMaxConsecutiveSlow)
+	require.Equal(t, 2, *view.QualitySchedMaxConsecutiveSlow)
+}
+
+func TestPairQualityView_SchedKCHiddenWhenCompositeOff(t *testing.T) {
+	t.Parallel()
+	policy := pureTTFTLatencyPolicy(7, latencyProbeN, latencyProbeN, latencyGateMs)
+	require.False(t, policy.SchedCompositeEnabled())
+	live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencySlowMs, 3))
+	view := live.View()
+	attachPairQualitySchedKC(&view, live, policy)
+	require.Nil(t, view.TTFTSlowCount)
+	require.Nil(t, view.TTFTConsecutiveSlow)
+	require.Nil(t, view.QualitySchedMaxSlowInWindow)
+	require.Nil(t, view.QualitySchedMaxConsecutiveSlow)
+}
+
+func TestPairQualityView_SchedKCZeroWhenNoLive(t *testing.T) {
+	t.Parallel()
+	p50 := 10000
+	policy := &SmartSchedulePlatformPolicy{
+		QualityMaxP50TTFTMs:            &p50,
+		QualitySchedWindowN:            intPtr(10),
+		QualitySchedMaxSlowInWindow:    intPtr(3),
+		QualitySchedMaxConsecutiveSlow: intPtr(2),
+	}
+	view := aliasPairQualityView(SmartSchedulePairQualityView{N: 10, NTTFT: 10, NSuccess: 50, NOK: 50})
+	attachPairQualitySchedKC(&view, nil, policy)
+	require.NotNil(t, view.TTFTSlowCount)
+	require.Equal(t, 0, *view.TTFTSlowCount)
+	require.NotNil(t, view.TTFTConsecutiveSlow)
+	require.Equal(t, 0, *view.TTFTConsecutiveSlow)
+	require.NotNil(t, view.QualitySchedMaxSlowInWindow)
+	require.Equal(t, 3, *view.QualitySchedMaxSlowInWindow)
+	require.NotNil(t, view.QualitySchedMaxConsecutiveSlow)
+	require.Equal(t, 2, *view.QualitySchedMaxConsecutiveSlow)
 }
 
 func TestPairQualitySelectable_CompositeOffUsesLegacyP50(t *testing.T) {

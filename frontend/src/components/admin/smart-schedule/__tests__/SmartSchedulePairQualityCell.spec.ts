@@ -5,6 +5,9 @@ import SmartSchedulePairQualityCell from '../SmartSchedulePairQualityCell.vue'
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
+      if (params && params.slow != null) {
+        return `${key}:${params.slow}/${params.k}/${params.consec ?? ''}/${params.c ?? ''}`
+      }
       if (params) return `${key}:${params.ttft}/${params.ok}/${params.nTtft ?? params.n}/${params.nOk ?? params.n}`
       return key
     }
@@ -46,5 +49,25 @@ describe('SmartSchedulePairQualityCell', () => {
       }
     })
     expect(w.get('[data-testid="smart-schedule-pair-quality-counts"]').text()).toContain('3/6/3/20')
+    expect(w.find('[data-testid="smart-schedule-pair-quality-kc"]').exists()).toBe(false)
+  })
+
+  it('adds a K/C row under success when sched composite is present', () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: 180,
+          success_rate: 0.95,
+          ttft_samples: 4,
+          ok_samples: 6,
+          n: 10,
+          ttft_slow_count: 2,
+          ttft_consecutive_slow: 1,
+          quality_sched_max_slow_in_window: 3,
+          quality_sched_max_consecutive_slow: 2
+        }
+      }
+    })
+    expect(w.get('[data-testid="smart-schedule-pair-quality-kc"]').text()).toContain('2/3/1/2')
   })
 })

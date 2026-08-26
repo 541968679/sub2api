@@ -1,3 +1,25 @@
+## 2026-08-26 - feat(smart-sched): show sched K/C on pair quality cell
+
+### What
+- Pair-quality cells add `K current/limit · C current/limit` under the TTFT/success counts when selectable composite is on.
+- Batch/detail views now include TTFT slow and trailing-consecutive counts against sched K/C.
+
+### Why
+Ops could see p50 and success but not how close a pair was to the sched K/C gates.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestPairQualitySelectableBlocks_ZuogeSched10K3C2|TestPairQualityView_SchedKC" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts -t "normalizeSmartSchedulePairQuality|K/C row|separate TTFT"`
+
+### Affected files
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_latency_gate.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
+`frontend/src/utils/smartScheduleWindowN.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+
 ## 2026-08-26 - release: 0.1.262 sched cache K/C + soft pair cooldown
 
 ### What

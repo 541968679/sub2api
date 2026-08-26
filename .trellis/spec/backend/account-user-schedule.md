@@ -129,7 +129,7 @@ if pairFull {
 - Independent of `account_schedule_users`. Do not write this policy onto shared account scheduler snapshots. Do not fold into `IsSchedulable()` or `SetTempUnschedulable`.
 - Lookup key is `SmartScheduleLookupPlatform(account, hint, bundle)`: OpenAI + (Claude-GPT bridge or AG-group) uses `antigravity` only while `bundle.EnabledPolicy(antigravity) != nil`; otherwise those requests keep `openai`. Native OpenAI groups always stay `account.Platform`. Once AG is on, never fall back across pools. Scheduler eligibility for bridge stays `account.Platform == openai`.
 - Track A account quality (`account-quality:live`, 15m / 5min cells, hard-close) is unchanged. Smart-schedule cooldown must not read that live quality number.
-- Track B pair quality `Q_{a,u,p}` is `(account_id, user_id, platform)` and feeds smart-schedule cooldown + the pool 配对质量 column. openai and antigravity pools are fully independent.
+- Track B pair quality `Q_{a,u,p}` is `(account_id, user_id, platform)` and feeds smart-schedule cooldown + the pool 配对质量 column. openai and antigravity pools are fully independent. When selectable composite is on, the cell adds `K current/limit · C current/limit` from the sched TTFT window (`ttft_slow_count`, `ttft_consecutive_slow`, `quality_sched_max_slow_in_window`, `quality_sched_max_consecutive_slow`). Hide that row when composite is off.
 
 ### 2. Signatures
 
