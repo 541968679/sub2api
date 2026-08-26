@@ -142,6 +142,12 @@ func TestCachedSmartScheduleBundle_ProbeConcurrencyRoundTrip(t *testing.T) {
 	require.Equal(t, service.ProbeConcurrencyModeCustom, got.Policies[service.PlatformAnthropic].ProbeConcurrencyMode)
 	require.Equal(t, 2, *got.Policies[service.PlatformAnthropic].ProbeConcurrency)
 	require.Equal(t, 2, got.Policies[service.PlatformAnthropic].ProbeInFlightCap(5))
+	require.False(t, got.Policies[service.PlatformAnthropic].ProbeLatencyV2, "v2 stays default false")
+
+	v2Stored := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {Enabled: true, ProbeLatencyV2: true},
+	}})
+	require.True(t, v2Stored.toBundle().Policies[service.PlatformAnthropic].ProbeLatencyV2)
 }
 
 func TestCachedSmartScheduleBundle_PausedRoundTrip(t *testing.T) {

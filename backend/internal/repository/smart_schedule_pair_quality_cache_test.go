@@ -51,10 +51,67 @@ func TestPairQualityCache_FailureNoTTFTFailoverAndIsolation(t *testing.T) {
 	require.Nil(t, cache.GetPairQuality(ctx, 8, 16, "openai"))
 }
 
-func TestPairQualityCache_ExpiryKeepsWindowsAndEntersProbing(t *testing.T) {
+func storeProbeLatencyV2(t *testing.T, cache *userSmartScheduleCache, userID int64, platform string, on bool) {
+	t.Helper()
+	cache.storeUserBundle(context.Background(), userID, &service.UserSmartScheduleBundle{
+		Policies: map[string]*service.SmartSchedulePlatformPolicy{
+			platform: {Enabled: true, ProbeLatencyV2: on},
+		},
+	})
+}
+
+func pairQualityEventTypes(events []service.PairQualityEvent) []string {
+	out := make([]string, 0, len(events))
+	for _, event := range events {
+		out = append(out, event.Type)
+	}
+	return out
+}
+
+func TestPairQualityCache_ExpiryZerosWindowsWhenProbeV2Off(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	storeProbeLatencyV2(t, cache, 16, "openai", false)
+	require.False(t, cache.Lookup(ctx, 16).Policy("openai").ProbeLatencyV2)
+	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(40), nil)
+	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
+	require.NotZero(t, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
+	require.False(t, cache.CooldownActive(ctx, 7, 16, "openai", now.Add(16*time.Minute)))
+	live := cache.GetPairQuality(ctx, 7, 16, "openai")
+	require.Equal(t, 0, live.OKCount, "257: expiry must zero pair windows")
+	require.Equal(t, 0, live.TTFTCount)
+	events := cache.ListPairQualityEvents(ctx, 7, 16, "openai", 20)
+	types := pairQualityEventTypes(events)
+	require.Contains(t, types, service.PairQualityEventExpiryZero)
+	require.Contains(t, types, service.PairQualityEventProbeEnter)
+	require.Less(t, indexOfEvent(types, service.PairQualityEventExpiryZero), indexOfEvent(types, service.PairQualityEventProbeEnter),
+		"expiry_zero must land before probe_enter so same-tick evaluate sees an empty window")
+	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"), "expiry must enter probing, not selectable")
+	require.False(t, cache.IsPinned(ctx, 7, 16, "openai"), "expiry must never enter pinned")
+	require.False(t, cache.IsProbing(ctx, 7, 17, "openai"), "other user is not backfilled")
+}
+
+func TestPairQualityCache_ExpiryZerosWindowsWhenPolicyMissing(t *testing.T) {
+	cache, _ := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(800), nil)
+	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
+	require.Nil(t, cache.Lookup(ctx, 16), "nil policy is treated as probe v2 off")
+	require.False(t, cache.CooldownActive(ctx, 7, 16, "openai", now.Add(16*time.Minute)))
+	live := cache.GetPairQuality(ctx, 7, 16, "openai")
+	require.Equal(t, 0, live.TTFTCount, "nil policy ⇒ expiry_zero")
+	require.Contains(t, pairQualityEventTypes(cache.ListPairQualityEvents(ctx, 7, 16, "openai", 20)), service.PairQualityEventExpiryZero)
+	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"))
+}
+
+func TestPairQualityCache_ExpiryKeepsWindowsWhenProbeV2On(t *testing.T) {
+	cache, _ := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	storeProbeLatencyV2(t, cache, 16, "openai", true)
+	require.True(t, cache.Lookup(ctx, 16).Policy("openai").ProbeLatencyV2)
 	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(40), nil)
 	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
 	require.NotZero(t, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
@@ -75,6 +132,15 @@ func TestPairQualityCache_ExpiryKeepsWindowsAndEntersProbing(t *testing.T) {
 		}
 	}
 	require.True(t, foundEnter)
+}
+
+func indexOfEvent(types []string, want string) int {
+	for i, typ := range types {
+		if typ == want {
+			return i
+		}
+	}
+	return -1
 }
 
 func TestPairQualityCache_ExpiryClearsResumeGrace(t *testing.T) {

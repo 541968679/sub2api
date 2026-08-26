@@ -1,3 +1,22 @@
+## 2026-08-26 - release: 0.1.261 restore 257 expiry_zero when probe v2 is off
+
+### What
+- Cooldown expiry again zeros the pair window (`expiry_zero`) when `ProbeLatencyV2` is off or policy is nil — the production 257 path. Same-tick probe evaluate then sees `TTFTCount < N` and cannot `cooldown_start` on the stale p50 that caused the previous cool.
+- `ProbeLatencyV2=true` still keeps the window (no `expiry_zero`). Flag stays default false; selectable `SchedCompositeEnabled` / K/C / 217 are unchanged.
+
+### Why
+v0.1.260 gated probe v2 off but shipped unconditional “expiry must not zero pair windows”. After cooldown TTL, MarkProbing reused the full stale TTFT window → `pairQualityLegacyP50Blocked` → same-second re-cool on a 3-minute loop with no new samples.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "LatencyGate|PairQuality|SmartSchedule|Probe|Expiry|Cooldown"`
+- `go test -tags=unit ./internal/repository -count=1 -run "PairQuality|Expiry|Cooldown|SmartSchedule"`
+
+### Affected files
+`backend/internal/repository/user_smart_schedule_cache.go`
+`backend/internal/repository/smart_schedule_pair_quality_cache_test.go`
+`backend/internal/repository/user_smart_schedule_cache_test.go`
+`backend/internal/service/smart_schedule_probe_test.go`
+
 ## 2026-08-25 - release: 0.1.260 path-β gray (zuoge 10/4/2)
 
 ### What

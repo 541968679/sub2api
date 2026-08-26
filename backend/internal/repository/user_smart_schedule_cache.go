@@ -335,8 +335,29 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
+	// 257: expiry_zero before MarkProbing / same-tick evaluate so stale p50
+	// cannot pairQualityLegacyP50Blocked → immediate re-cool. v2 keeps the window.
+	if !pairQualityKeepWindowsOnExpiry(c.lookupPairPolicy(ctx, userID, platform)) {
+		c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+	}
 	c.MarkProbing(ctx, accountID, userID, platform)
 	c.ClearPairResume(ctx, accountID, userID, platform)
+}
+
+func (c *userSmartScheduleCache) lookupPairPolicy(ctx context.Context, userID int64, platform string) *service.SmartSchedulePlatformPolicy {
+	if c == nil {
+		return nil
+	}
+	bundle := c.Lookup(ctx, userID)
+	if bundle == nil {
+		return nil
+	}
+	return bundle.Policy(platform)
+}
+
+// pairQualityKeepWindowsOnExpiry is ProbeLatencyV2 only. Nil policy is off (257).
+func pairQualityKeepWindowsOnExpiry(policy *service.SmartSchedulePlatformPolicy) bool {
+	return policy != nil && policy.ProbeLatencyV2
 }
 
 func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64, platform string) bool {
@@ -641,6 +662,7 @@ type cachedSmartSchedulePolicy struct {
 	CooldownMinutes          int                         `json:"cooldown_minutes"`
 	ProbeConcurrencyMode     string                      `json:"probe_concurrency_mode,omitempty"`
 	ProbeConcurrency         *int                        `json:"probe_concurrency,omitempty"`
+	ProbeLatencyV2           bool                        `json:"probe_latency_v2,omitempty"`
 	Members                  []cachedSmartScheduleMember `json:"members,omitempty"`
 }
 
@@ -668,6 +690,7 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 			CooldownMinutes:          policy.CooldownMinutes,
 			ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
 			ProbeConcurrency:         policy.ProbeConcurrency,
+			ProbeLatencyV2:           policy.ProbeLatencyV2,
 		}
 		for accountID := range policy.AccountIDs {
 			row.Members = append(row.Members, cachedSmartScheduleMember{
@@ -695,6 +718,7 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 			CooldownMinutes:          row.CooldownMinutes,
 			ProbeConcurrencyMode:     row.ProbeConcurrencyMode,
 			ProbeConcurrency:         row.ProbeConcurrency,
+			ProbeLatencyV2:           row.ProbeLatencyV2,
 			AccountIDs:               map[int64]struct{}{},
 			Caps:                     map[int64]int{},
 			Paused:                   map[int64]struct{}{},

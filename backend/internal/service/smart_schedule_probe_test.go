@@ -234,6 +234,122 @@ func TestEvaluateSmartSchedule_NoTrafficStaysProbing(t *testing.T) {
 	require.Equal(t, 0, lookup.startCalls)
 }
 
+// expiryAwareLookup mirrors expirePairCooldown: delete cooldown, 257 zero, then MarkProbing.
+type expiryAwareLookup struct {
+	memorySmartLookup
+	zeros []string
+}
+
+func (m *expiryAwareLookup) CooldownActive(ctx context.Context, accountID, userID int64, platform string, now time.Time) bool {
+	if m == nil || len(m.cooldownUntil) == 0 {
+		return false
+	}
+	key := smartPairKey(accountID, userID)
+	until := m.cooldownUntil[key]
+	if until <= 0 {
+		return false
+	}
+	if until > now.Unix() {
+		return true
+	}
+	delete(m.cooldownUntil, key)
+	if m.IsPinned(ctx, accountID, userID, platform) {
+		return false
+	}
+	var policy *SmartSchedulePlatformPolicy
+	if m.bundle != nil {
+		policy = m.bundle.Policy(platform)
+	}
+	if policy == nil || !policy.ProbeLatencyV2 {
+		n := DefaultSmartScheduleWindowN
+		if policy != nil {
+			n = policy.TTFTWindowN()
+		}
+		if m.pair == nil {
+			m.pair = map[string]*PairQualityLive{}
+		}
+		m.pair[key] = ZeroPairQualityLive(n)
+		m.zeros = append(m.zeros, PairQualityEventExpiryZero)
+	}
+	m.MarkProbing(ctx, accountID, userID, platform)
+	m.ClearPairResume(ctx, accountID, userID, platform)
+	return false
+}
+
+func TestEvaluateSmartSchedule_EmptyWindowAfterExpiry257NoCooldown(t *testing.T) {
+	t.Parallel()
+	p50 := 50
+	policy := probePolicy(7, 3, &p50, nil, false)
+	require.False(t, policy.ProbeLatencyV2)
+	empty := ZeroPairQualityLive(3)
+	require.Equal(t, 0, empty.TTFTCount)
+	require.False(t, pairQualityProbeBlocks(empty, policy), "TTFTCount < N must not legacy-p50 block")
+	lookup := &memorySmartLookup{
+		bundle:  smartBundle(PlatformAnthropic, policy),
+		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): empty},
+		probing: map[string]bool{smartPairKey(7, 16): true},
+	}
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, empty, time.Now().UTC(), nil))
+	require.Equal(t, 0, lookup.startCalls, "empty window after expiry must not cooldown_start")
+	require.Equal(t, 0, lookup.graduated)
+	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
+	pass, state := pairQualityProbeLatencyPass(empty, policy)
+	require.False(t, pass)
+	require.Equal(t, LatencyEvalPending, state)
+	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: TTFTCount < N still graduates")
+}
+
+func TestAdmitsScheduleUser_ExpiryZeroV2OffDoesNotRecooldownStaleP50(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	p50 := 50
+	policy := probePolicy(7, 3, &p50, nil, false)
+	require.False(t, policy.ProbeLatencyV2)
+	stale := mixedAndLive(3, 400, 3)
+	require.True(t, pairQualityProbeBlocks(stale, policy), "stale full p50 would re-cool if kept")
+
+	now := time.Now().UTC()
+	lookup := &expiryAwareLookup{memorySmartLookup: memorySmartLookup{
+		bundle:        smartBundle(PlatformAnthropic, policy),
+		pair:          map[string]*PairQualityLive{smartPairKey(7, 16): stale},
+		cooldownUntil: map[string]int64{smartPairKey(7, 16): now.Add(-time.Second).Unix()},
+	}}
+	acc := &Account{ID: 7, Platform: PlatformAnthropic}
+	require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
+	require.Equal(t, 0, lookup.startCalls, "same tick must not cooldown_start with stale p50")
+	require.True(t, lookup.IsProbing(ctx, 7, 16, PlatformAnthropic))
+	require.Contains(t, lookup.zeros, PairQualityEventExpiryZero)
+	cleared := lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic)
+	require.Equal(t, 0, cleared.TTFTCount)
+	require.Equal(t, 0, cleared.OKCount)
+	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: TTFTCount < N still graduates")
+}
+
+func TestAdmitsScheduleUser_ExpiryV2KeepsWindows(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	p50 := 50
+	policy := withProbeLatencyV2(probePolicy(7, 3, &p50, nil, false))
+	require.True(t, policy.ProbeLatencyV2)
+	kept := mixedAndLive(3, 10, 3)
+	now := time.Now().UTC()
+	lookup := &expiryAwareLookup{memorySmartLookup: memorySmartLookup{
+		bundle:        smartBundle(PlatformAnthropic, policy),
+		pair:          map[string]*PairQualityLive{smartPairKey(7, 16): kept},
+		cooldownUntil: map[string]int64{smartPairKey(7, 16): now.Add(-time.Second).Unix()},
+	}}
+	require.False(t, lookup.CooldownActive(ctx, 7, 16, PlatformAnthropic, now.Add(time.Second)))
+	require.NotContains(t, lookup.zeros, PairQualityEventExpiryZero)
+	live := lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic)
+	require.Equal(t, 3, live.OKCount, "expiry must not zero pair windows")
+	require.Equal(t, 3, live.TTFTCount)
+	require.True(t, lookup.IsProbing(ctx, 7, 16, PlatformAnthropic), "expiry still enters probing")
+	acc := &Account{ID: 7, Platform: PlatformAnthropic}
+	require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
+	require.Equal(t, 0, lookup.startCalls, "kept fast window must not cooldown_start")
+	require.Equal(t, 3, lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic).OKCount)
+}
+
 func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
