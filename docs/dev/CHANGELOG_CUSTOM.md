@@ -1,3 +1,21 @@
+## 2026-08-26 - release: 0.1.262 sched cache K/C + soft pair cooldown
+
+### What
+- Hot-path `smart-schedule:user:{id}` keeps sched N/K/C and duration so Lookup hits use C∨K∨p50 instead of legacy p50.
+- Soft/hard pair cooldown (218) ships in the same tag. After deploy, `DEL smart-schedule:user:16` so zuoge picks up K/C immediately.
+
+### Why
+Production user 16 had 10/3/2 in Postgres but the Redis policy DTO dropped those columns.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "TestCachedSmartScheduleBundle_LatencyGateRoundTrip|TestUserSmartScheduleCache_LookupKeepsSchedLatencyGate" -count=1`
+- `go test -tags=unit ./internal/service -run TestPairQualitySelectableBlocks_ZuogeSched10K3C2 -count=1`
+
+### Affected files
+`backend/cmd/server/VERSION`
+`backend/internal/repository/user_smart_schedule_cache.go`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
 ## 2026-08-26 - fix(smart-sched): keep sched N/K/C on user Redis cache
 
 ### What
