@@ -218,6 +218,9 @@ function eventLabel(type: string) {
   if (key === 'expiry_zero' || key === 'window_cleared' || key === 'zero') {
     return t('admin.users.smartSchedule.pairEventExpiryZero')
   }
+  if (key === 'soft_cooldown_end') {
+    return t('admin.users.smartSchedule.pairEventSoftCooldownEnd')
+  }
   return type
 }
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -57,6 +58,11 @@ func (r *userSmartScheduleRepository) ListByUser(ctx context.Context, userID int
 	}); err != nil {
 		return nil, err
 	}
+	if err := overlaySmartScheduleSoftCooldown(ctx, client, []int64{userID}, map[int64]*service.UserSmartScheduleBundle{
+		userID: bundle,
+	}); err != nil {
+		return nil, err
+	}
 	return bundle, nil
 }
 
@@ -102,6 +108,9 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 		return nil, err
 	}
 	if err := overlaySmartScheduleLatencyGate(ctx, client, userIDs, out); err != nil {
+		return nil, err
+	}
+	if err := overlaySmartScheduleSoftCooldown(ctx, client, userIDs, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -186,6 +195,9 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			return err
 		}
 		if err := writeSmartScheduleLatencyGate(txCtx, client, userID, platform, policy); err != nil {
+			return err
+		}
+		if err := writeSmartScheduleSoftCooldown(txCtx, client, userID, platform, policy.SoftCooldown); err != nil {
 			return err
 		}
 		return nil
@@ -628,4 +640,75 @@ func overlaySmartScheduleLatencyGate(
 		return fmt.Errorf("overlay smart schedule latency gate: %w", err)
 	}
 	return nil
+}
+
+func writeSmartScheduleSoftCooldown(ctx context.Context, client *dbent.Client, userID int64, platform string, soft bool) error {
+	if client == nil || userID <= 0 || platform == "" {
+		return nil
+	}
+	res, err := client.ExecContext(ctx, `
+		UPDATE user_smart_schedule_policies
+		SET soft_cooldown = $3
+		WHERE user_id = $1 AND platform = $2
+	`, userID, platform, soft)
+	if err != nil {
+		return fmt.Errorf("write smart schedule soft cooldown: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("write smart schedule soft cooldown: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("write smart schedule soft cooldown: policy row not found for user %d platform %s", userID, platform)
+	}
+	return nil
+}
+
+func overlaySmartScheduleSoftCooldown(
+	ctx context.Context,
+	client *dbent.Client,
+	userIDs []int64,
+	bundles map[int64]*service.UserSmartScheduleBundle,
+) error {
+	if client == nil || len(userIDs) == 0 || len(bundles) == 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT user_id, platform, soft_cooldown
+		FROM user_smart_schedule_policies
+		WHERE user_id = ANY($1)
+	`, pq.Array(userIDs))
+	if err != nil {
+		if isUndefinedColumnError(err) {
+			return nil
+		}
+		return fmt.Errorf("overlay smart schedule soft cooldown: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var userID int64
+		var platform string
+		var soft bool
+		if err := rows.Scan(&userID, &platform, &soft); err != nil {
+			return fmt.Errorf("scan smart schedule soft cooldown: %w", err)
+		}
+		bundle := bundles[userID]
+		if bundle == nil || bundle.Policies == nil {
+			continue
+		}
+		policy := bundle.Policies[platform]
+		if policy == nil {
+			continue
+		}
+		policy.SoftCooldown = soft
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("overlay smart schedule soft cooldown: %w", err)
+	}
+	return nil
+}
+
+func isUndefinedColumnError(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "42703"
 }

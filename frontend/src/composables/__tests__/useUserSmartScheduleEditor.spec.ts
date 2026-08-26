@@ -73,6 +73,7 @@ function emptyPlatform() {
     probe_concurrency_mode: 'follow_n' as const,
     probe_concurrency: null,
     cooldown_minutes: 15,
+    soft_cooldown: false,
     accounts: []
   }
 }
@@ -738,6 +739,101 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.currentDraft.windowNTtft).toBe(14)
     expect(w.vm.currentDraft.windowNSuccess).toBe(14)
     expect(w.vm.currentDraft.maxP50).toBe(200)
+    expect(w.vm.currentDraft.softCooldown).toBe(false)
+  })
+
+  it('keeps soft cooldown when applying the quality template', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          soft_cooldown: true,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 5 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.softCooldown).toBe(true)
+    w.vm.applyTemplateToDraft({
+      quality_max_p50_ttft_ms: 200,
+      quality_min_success_rate_percent: 90,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 20,
+      quality_condition: 'or'
+    })
+    expect(w.vm.currentDraft.softCooldown).toBe(true)
+    expect(w.vm.qualityGateFormFromDraft(w.vm.currentDraft)).not.toHaveProperty('soft_cooldown')
+  })
+
+  it('writes soft_cooldown on save', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              ...body,
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.softCooldown = true
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({ soft_cooldown: true })
+    )
+    expect(w.vm.currentDraft.softCooldown).toBe(true)
+  })
+
+  it('keeps soft cooldown after save even if GET omits the field', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, _body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    w.vm.currentDraft.softCooldown = true
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({ soft_cooldown: true })
+    )
+    expect(w.vm.currentDraft.softCooldown).toBe(true)
   })
 
   it('writes the two window N columns independently', async () => {

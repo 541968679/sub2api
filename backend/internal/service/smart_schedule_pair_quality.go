@@ -14,7 +14,8 @@ const (
 	MaxSmartScheduleWindowN     = 100
 
 	PairQualityEventCooldownStart = "cooldown_start"
-	PairQualityEventCooldownEnd   = "cooldown_end"
+	PairQualityEventCooldownEnd     = "cooldown_end"
+	PairQualityEventSoftCooldownEnd = "soft_cooldown_end"
 	PairQualityEventResumed       = "resumed"
 	PairQualityEventSelectable    = "selectable"
 	PairQualityEventExpiryZero    = "expiry_zero"

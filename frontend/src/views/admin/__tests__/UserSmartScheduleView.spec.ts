@@ -333,6 +333,7 @@ function emptyPlatform() {
     probe_concurrency_mode: 'follow_n' as const,
     probe_concurrency: null,
     cooldown_minutes: 15,
+    soft_cooldown: false,
     accounts: []
   }
 }
@@ -364,6 +365,7 @@ function echoSmartScheduleWrite(
     probe_concurrency_mode?: string | null
     probe_concurrency?: number | null
     cooldown_minutes?: number
+    soft_cooldown?: boolean
     accounts?: Array<{
       account_id: number
       platform?: string
@@ -390,6 +392,7 @@ function echoSmartScheduleWrite(
         probe_concurrency_mode: body.probe_concurrency_mode === 'custom' ? 'custom' : 'follow_n',
         probe_concurrency: body.probe_concurrency_mode === 'custom' ? body.probe_concurrency ?? null : null,
         cooldown_minutes: body.cooldown_minutes ?? 15,
+        soft_cooldown: Boolean(body.soft_cooldown),
         accounts: body.accounts ?? []
       }
     }
@@ -649,11 +652,25 @@ describe('UserSmartScheduleView', () => {
   })
 
   it('copies settings from another platform', async () => {
+    apiMocks.copySmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          soft_cooldown: true,
+          accounts: []
+        }
+      }
+    })
     const w = await mountPage()
     await w.get('[data-testid="smart-schedule-copy-from"]').setValue('openai')
     await w.get('[data-testid="smart-schedule-copy"]').trigger('click')
     await flushPromises()
     expect(apiMocks.copySmartSchedule).toHaveBeenCalledWith(99, 'anthropic', 'openai')
+    const switcher = w.get('[data-testid="smart-schedule-soft-cooldown"]')
+    expect(switcher.findAll('button')[1].attributes('aria-pressed')).toBe('true')
   })
 
   it('disables the platform when the last pool member is removed', async () => {
@@ -2033,8 +2050,135 @@ describe('UserSmartScheduleView', () => {
     const cell = w.get('[data-testid="smart-schedule-admission"]')
     expect(cell.attributes('data-admission')).toBe('cooling')
     expect(cell.text()).toContain('admin.users.smartSchedule.admissionCoolingRemaining')
-    expect(cell.text()).toContain('admin.users.smartSchedule.admissionCoolingUntil')
-    expect(cell.text()).toContain(cooldownReason)
+    expect(cell.text()).not.toContain('admin.users.smartSchedule.admissionCoolingUntil')
+    expect(cell.attributes('title')).toContain('admin.users.smartSchedule.admissionCoolingUntil')
+    expect(cell.get('[data-testid="smart-schedule-cooldown-reason"]').text()).toContain(cooldownReason)
+    expect(cell.find('[data-testid="smart-schedule-soft-chip"]').exists()).toBe(false)
+    expect(cell.find('[data-testid="smart-schedule-soft-progress"]').exists()).toBe(false)
+  })
+
+  it('saves the hard/soft cooldown switch with the platform PUT', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    const switcher = w.get('[data-testid="smart-schedule-soft-cooldown"]')
+    expect(switcher.text()).toContain('admin.users.smartSchedule.cooldownModeHard')
+    expect(switcher.text()).toContain('admin.users.smartSchedule.cooldownModeSoft')
+    await switcher.findAll('button')[1].trigger('click')
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({ soft_cooldown: true })
+    )
+    expect(switcher.findAll('button')[1].attributes('aria-pressed')).toBe('true')
+  })
+
+  it('keeps 软 selected after save when PUT echo omits soft_cooldown', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, _body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          platforms: {
+            ...makeView().platforms,
+            anthropic: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+            }
+          }
+        })
+    )
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-soft-cooldown"]').findAll('button')[1].trigger('click')
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({ soft_cooldown: true })
+    )
+    expect(
+      w.get('[data-testid="smart-schedule-soft-cooldown"]').findAll('button')[1].attributes('aria-pressed')
+    ).toBe('true')
+  })
+
+  it('shows soft chip and k/N progress only on a soft cooling row', async () => {
+    const cooldownUntil = new Date(Date.now() + 15 * 60_000).toISOString()
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          soft_cooldown: true,
+          accounts: [{
+            account_id: 11,
+            platform: 'anthropic',
+            max_concurrency: null,
+            cooldown_until: cooldownUntil,
+            cooldown_reason: '调度期 · 配对 · 成功率 0.80<0.90',
+            soft_cooldown_progress: {
+              ttft_count: 3,
+              n_ttft: 10,
+              ok_count: 8,
+              n_ok: 10,
+              duration_count: 0
+            }
+          }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    const cell = w.get('[data-testid="smart-schedule-admission"]')
+    expect(cell.get('[data-testid="smart-schedule-soft-chip"]').text()).toContain('admin.users.smartSchedule.admissionSoft')
+    expect(cell.get('[data-testid="smart-schedule-soft-progress"]').text()).toContain('3/10')
+    expect(cell.get('[data-testid="smart-schedule-soft-progress"]').text()).toContain('8/10')
+    expect(cell.get('[data-testid="smart-schedule-cooldown-reason"]').text()).toContain('成功率')
+    expect(cell.text()).not.toContain('admin.users.smartSchedule.admissionCoolingUntil')
   })
 
   it('does not invent probing from an expired cooldown_until', async () => {

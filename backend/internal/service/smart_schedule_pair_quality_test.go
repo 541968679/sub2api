@@ -128,6 +128,10 @@ type observeCacheStub struct {
 	starts             int
 	graduated          int
 	lastCooldownReason string
+	softLive           map[string]*PairQualityLive
+	softIngested       []int64
+	softEnded          []int64
+	events             []string
 }
 
 func (s *observeCacheStub) Lookup(context.Context, int64) *UserSmartScheduleBundle { return s.bundle }
@@ -140,6 +144,7 @@ func (s *observeCacheStub) StartCooldown(_ context.Context, accountID, userID in
 		s.cooling = map[string]bool{}
 	}
 	s.cooling[smartPairKey(accountID, userID)] = true
+	delete(s.softLive, smartPairKey(accountID, userID))
 }
 func (s *observeCacheStub) StartCooldownWithReason(_ context.Context, accountID, userID int64, _ string, _ int, _ time.Time, reason string) {
 	s.starts++
@@ -148,6 +153,7 @@ func (s *observeCacheStub) StartCooldownWithReason(_ context.Context, accountID,
 		s.cooling = map[string]bool{}
 	}
 	s.cooling[smartPairKey(accountID, userID)] = true
+	delete(s.softLive, smartPairKey(accountID, userID))
 }
 func (s *observeCacheStub) GetPairQuality(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
 	return s.live[smartPairKey(accountID, userID)]
@@ -238,21 +244,81 @@ func (s *observeCacheStub) GetPairResumeUntilBatch(_ context.Context, accountIDs
 func (s *observeCacheStub) Invalidate(context.Context, int64) error                       { return nil }
 func (s *observeCacheStub) ClearCooldown(context.Context, int64, int64, string) error     { return nil }
 func (s *observeCacheStub) ClearCooldownAllPlatforms(context.Context, int64, int64) error { return nil }
-func (s *observeCacheStub) SetCooldown(_ context.Context, _ int64, _ int64, _ string, _ int, _ time.Time) (time.Time, error) {
-	return time.Now().UTC(), nil
+func (s *observeCacheStub) SetCooldown(ctx context.Context, accountID, userID int64, platform string, minutes int, now time.Time) (time.Time, error) {
+	return s.SetCooldownWithReason(ctx, accountID, userID, platform, minutes, now, "")
 }
-func (s *observeCacheStub) SetCooldownWithReason(_ context.Context, _ int64, _ int64, _ string, _ int, now time.Time, _ string) (time.Time, error) {
+func (s *observeCacheStub) SetCooldownWithReason(_ context.Context, accountID, userID int64, _ string, minutes int, now time.Time, _ string) (time.Time, error) {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	return now, nil
+	if minutes < 1 {
+		minutes = 15
+	}
+	if s.cooling == nil {
+		s.cooling = map[string]bool{}
+	}
+	s.cooling[smartPairKey(accountID, userID)] = true
+	delete(s.softLive, smartPairKey(accountID, userID))
+	return now.Add(time.Duration(minutes) * time.Minute), nil
 }
 func (s *observeCacheStub) GetCooldownReason(context.Context, int64, int64, string) string { return "" }
 func (s *observeCacheStub) ApplyMemberPaused(context.Context, int64, int64, string, bool) error {
 	return nil
 }
-func (s *observeCacheStub) GetCooldownUntilBatch(context.Context, []int64, int64, string, time.Time) map[int64]time.Time {
-	return map[int64]time.Time{}
+func (s *observeCacheStub) GetCooldownUntilBatch(_ context.Context, accountIDs []int64, userID int64, _ string, now time.Time) map[int64]time.Time {
+	out := map[int64]time.Time{}
+	for _, accountID := range accountIDs {
+		if s.cooling[smartPairKey(accountID, userID)] {
+			out[accountID] = now.Add(15 * time.Minute)
+		}
+	}
+	return out
+}
+
+func (s *observeCacheStub) IngestSoftCooldown(_ context.Context, accountID, userID int64, _ string, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int, _ int) *PairQualityLive {
+	s.softIngested = append(s.softIngested, accountID)
+	key := smartPairKey(accountID, userID)
+	if s.softLive == nil {
+		s.softLive = map[string]*PairQualityLive{}
+	}
+	s.softLive[key] = ApplyPairQualityIngestWindows(s.softLive[key], nTTFT, nOK, success, firstTokenMs, durationMs)
+	return s.softLive[key]
+}
+
+func (s *observeCacheStub) GetSoftCooldown(_ context.Context, accountID, userID int64, _ string) *PairQualityLive {
+	return s.softLive[smartPairKey(accountID, userID)]
+}
+
+func (s *observeCacheStub) ZeroSoftCooldown(_ context.Context, accountID, userID int64, _ string) {
+	delete(s.softLive, smartPairKey(accountID, userID))
+}
+
+func (s *observeCacheStub) GetSoftCooldownBatch(_ context.Context, accountIDs []int64, userID int64, _ string) map[int64]*PairQualityLive {
+	out := map[int64]*PairQualityLive{}
+	for _, accountID := range accountIDs {
+		if live := s.GetSoftCooldown(context.Background(), accountID, userID, ""); live != nil {
+			out[accountID] = live
+		}
+	}
+	return out
+}
+
+func (s *observeCacheStub) SoftEndCooldown(_ context.Context, accountID, userID int64, _ string, _ string) {
+	s.softEnded = append(s.softEnded, accountID)
+	s.events = append(s.events, PairQualityEventSoftCooldownEnd)
+	delete(s.cooling, smartPairKey(accountID, userID))
+	delete(s.softLive, smartPairKey(accountID, userID))
+	if s.probing == nil {
+		s.probing = map[string]bool{}
+	}
+	s.probing[smartPairKey(accountID, userID)] = true
+	s.events = append(s.events, PairQualityEventProbeEnter)
+}
+
+func (s *observeCacheStub) AppendPairQualityEvent(_ context.Context, _ int64, _ int64, _ string, event PairQualityEvent) {
+	if event.Type != "" {
+		s.events = append(s.events, event.Type)
+	}
 }
 func (s *observeCacheStub) ZeroPairQuality(context.Context, int64, int64, string, string) {}
 func (s *observeCacheStub) ListPairQualitySnapshots(context.Context, int64, int64, string, int) []PairQualitySnapshot {
@@ -260,8 +326,6 @@ func (s *observeCacheStub) ListPairQualitySnapshots(context.Context, int64, int6
 }
 func (s *observeCacheStub) ListPairQualityEvents(context.Context, int64, int64, string, int) []PairQualityEvent {
 	return nil
-}
-func (s *observeCacheStub) AppendPairQualityEvent(context.Context, int64, int64, string, PairQualityEvent) {
 }
 func (s *observeCacheStub) IsProbingBatch(context.Context, []int64, int64, string) map[int64]bool {
 	return map[int64]bool{}
@@ -811,6 +875,29 @@ func TestPairQualitySelectable_P50WhenKAndCClosed(t *testing.T) {
 	blocked, reasons := pairQualitySelectableLatencyBlocked(live, policy)
 	require.True(t, blocked)
 	require.Equal(t, "ttft_p50", reasons[0].Code)
+}
+
+func TestPairQualitySelectableBlocks_ZuogeSched10K3C2(t *testing.T) {
+	t.Parallel()
+	p50 := 10000
+	policy := &SmartSchedulePlatformPolicy{
+		QualityMaxP50TTFTMs:            &p50,
+		QualityMinTTFTSamples:          intPtr(5),
+		QualityMinSuccessSamples:       intPtr(50),
+		QualitySchedWindowN:            intPtr(10),
+		QualitySchedMaxSlowInWindow:    intPtr(3),
+		QualitySchedMaxConsecutiveSlow: intPtr(2),
+		QualityCondition:               strPtr(QualityHardCloseConditionOr),
+	}
+	require.True(t, policy.SchedCompositeEnabled())
+
+	live := ApplyPairQualityIngestWindows(nil, 10, 50, true, intPtr(35850), nil)
+	live = ApplyPairQualityIngestWindows(live, 10, 50, true, intPtr(42811), nil)
+	blocked, reasons := pairQualitySelectableBlocksWithReasons(live, policy)
+	require.True(t, blocked, "two consecutive first-token overruns must sched-cool on C=2")
+	require.NotEmpty(t, reasons)
+	require.Equal(t, "ttft_consec", reasons[0].Code)
+	require.Contains(t, reasons[0].Detail, "连续C")
 }
 
 func TestPairQualitySelectable_CompositeOffUsesLegacyP50(t *testing.T) {

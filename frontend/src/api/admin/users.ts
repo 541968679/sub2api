@@ -393,6 +393,7 @@ export interface SmartScheduleAccountMember {
   current_concurrency?: number
   cooldown_until?: string | null
   cooldown_reason?: string | null
+  soft_cooldown_progress?: SmartScheduleSoftCooldownProgress | null
   resume_until?: string | null
   resume_chip_until?: string | null
   paused?: boolean
@@ -447,6 +448,7 @@ export interface SmartSchedulePlatformView {
   /** Custom probe in-flight cap (1–100). Meaningful when mode is `custom`. */
   probe_concurrency?: number | null
   cooldown_minutes: number
+  soft_cooldown?: boolean
   updated_at?: string
   accounts: SmartScheduleAccountMember[]
 }
@@ -483,7 +485,17 @@ export interface SmartSchedulePlatformWrite {
   probe_concurrency_mode?: SmartScheduleProbeConcurrencyMode | null
   probe_concurrency?: number | null
   cooldown_minutes: number
+  soft_cooldown?: boolean
   accounts: SmartScheduleAccountMember[]
+}
+
+export type SmartScheduleSoftCooldownProgress = {
+  ttft_count: number
+  n_ttft: number
+  ok_count: number
+  n_ok: number
+  duration_count: number
+  n_duration?: number
 }
 
 export type SmartSchedulePairQuality = {
@@ -508,6 +520,7 @@ export type SmartSchedulePairQualityEventType =
   | 'selectable'
   | 'pinned'
   | 'expiry_zero'
+  | 'soft_cooldown_end'
   | 'probe_enter'
   | 'probe_graduate'
 

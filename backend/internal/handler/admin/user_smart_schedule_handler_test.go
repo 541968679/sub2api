@@ -26,6 +26,23 @@ func newSmartScheduleJSONContext(method, body string, params []gin.Param) (*gin.
 	return c, w
 }
 
+func TestPutSmartScheduleRequest_OmittedSoftCooldownIsHard(t *testing.T) {
+	var omitted putSmartScheduleRequest
+	if err := json.Unmarshal([]byte(`{"enabled":true,"cooldown_minutes":15}`), &omitted); err != nil {
+		t.Fatal(err)
+	}
+	if omitted.SoftCooldown {
+		t.Fatal("omitted soft_cooldown must unmarshal as hard")
+	}
+	var on putSmartScheduleRequest
+	if err := json.Unmarshal([]byte(`{"enabled":true,"cooldown_minutes":15,"soft_cooldown":true}`), &on); err != nil {
+		t.Fatal(err)
+	}
+	if !on.SoftCooldown {
+		t.Fatal("soft_cooldown true must round-trip")
+	}
+}
+
 func TestGetUserSmartSchedule_InvalidID(t *testing.T) {
 	h := &UserHandler{adminService: newStubAdminService()}
 	c, w := newSmartScheduleJSONContext(http.MethodGet, "", []gin.Param{{Key: "id", Value: "abc"}})

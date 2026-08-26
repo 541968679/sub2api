@@ -162,6 +162,7 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	pinned := s.cache.IsPinned(ctx, obs.AccountID, obs.UserID, platform)
 	if pinned {
 		s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs)
+		s.ingestSoftCooldownForCoolingPeers(ctx, obs, platform, policy, now)
 		return
 	}
 	if s.cache.CooldownActive(ctx, obs.AccountID, obs.UserID, platform, now) {
@@ -170,11 +171,43 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 	live := s.cache.IngestPairQuality(ctx, obs.AccountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs)
 	probing := s.cache.IsProbing(ctx, obs.AccountID, obs.UserID, platform)
 	if pairQualityResumeBlocksEvaluate(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now) {
+		s.ingestSoftCooldownForCoolingPeers(ctx, obs, platform, policy, now)
 		return
 	}
 	clearLeftoverPairResumeIfProbing(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now)
 	qaLastN := loadSmartScheduleQA(ctx, s.qualityLiveCache, obs.AccountID, policy)
 	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now, qaLastN)
+	s.ingestSoftCooldownForCoolingPeers(ctx, obs, platform, policy, now)
+}
+
+func (s *UserSmartScheduleService) ingestSoftCooldownForCoolingPeers(ctx context.Context, obs PairQualityObservation, platform string, policy *SmartSchedulePlatformPolicy, now time.Time) {
+	if s == nil || s.cache == nil || policy == nil || !policy.SoftCooldown || obs.UserID <= 0 {
+		return
+	}
+	ids := make([]int64, 0, len(policy.AccountIDs))
+	for accountID := range policy.AccountIDs {
+		if accountID <= 0 || accountID == obs.AccountID || policy.IsPaused(accountID) {
+			continue
+		}
+		ids = append(ids, accountID)
+	}
+	if len(ids) == 0 {
+		return
+	}
+	untilByAccount := s.cache.GetCooldownUntilBatch(ctx, ids, obs.UserID, platform, now)
+	for accountID, until := range untilByAccount {
+		if until.IsZero() || !until.After(now) {
+			continue
+		}
+		if s.cache.IsPinned(ctx, accountID, obs.UserID, platform) {
+			continue
+		}
+		live := s.cache.IngestSoftCooldown(ctx, accountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs, policy.CooldownMinutes)
+		if !softCooldownMeets(live, policy) {
+			continue
+		}
+		s.cache.SoftEndCooldown(ctx, accountID, obs.UserID, platform, softCooldownMeetDetail(live, policy))
+	}
 }
 
 func (s *UserSmartScheduleService) Get(ctx context.Context, userID int64) (*UserSmartScheduleView, error) {
@@ -319,6 +352,7 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 		QualityMinTTFTSamples:          from.QualityMinTTFTSamples,
 		QualityCondition:               from.QualityCondition,
 		CooldownMinutes:                from.CooldownMinutes,
+		SoftCooldown:                   from.SoftCooldown,
 		ProbeConcurrencyMode:           from.ProbeConcurrencyMode,
 		ProbeConcurrency:               from.ProbeConcurrency,
 		Accounts:                       to.Accounts,
@@ -905,6 +939,11 @@ func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, user
 		if len(untilByAccount) == 0 {
 			continue
 		}
+		var softLives map[int64]*PairQualityLive
+		if platform.SoftCooldown {
+			softLives = s.cache.GetSoftCooldownBatch(ctx, ids, userID, platformKey)
+		}
+		policy := platformViewToPolicy(&platform)
 		for i := range platform.Accounts {
 			until, ok := untilByAccount[platform.Accounts[i].AccountID]
 			if !ok || until.IsZero() {
@@ -915,6 +954,13 @@ func (s *UserSmartScheduleService) hydratePairCooldown(ctx context.Context, user
 			if reason := s.cache.GetCooldownReason(ctx, platform.Accounts[i].AccountID, userID, platformKey); reason != "" {
 				reasonCopy := reason
 				platform.Accounts[i].CooldownReason = &reasonCopy
+			}
+			if platform.SoftCooldown {
+				var live *PairQualityLive
+				if softLives != nil {
+					live = softLives[platform.Accounts[i].AccountID]
+				}
+				platform.Accounts[i].SoftCooldownProgress = softCooldownProgressView(live, policy)
 			}
 		}
 		view.Platforms[platformKey] = platform
@@ -1355,6 +1401,7 @@ func platformViewToPolicy(view *SmartSchedulePlatformView) *SmartSchedulePlatfor
 		QualityMinTTFTSamples:          view.QualityMinTTFTSamples,
 		QualityCondition:               view.QualityCondition,
 		CooldownMinutes:                view.CooldownMinutes,
+		SoftCooldown:                   view.SoftCooldown,
 		ProbeConcurrencyMode:           view.ProbeConcurrencyMode,
 		ProbeConcurrency:               view.ProbeConcurrency,
 		QualityMaxSlowInWindow:         view.QualityMaxSlowInWindow,
@@ -1397,6 +1444,7 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 	if policy.CooldownMinutes >= MinSmartScheduleCooldownMinutes {
 		view.CooldownMinutes = policy.CooldownMinutes
 	}
+	view.SoftCooldown = policy.SoftCooldown
 	view.UpdatedAt = policy.UpdatedAt
 	accountIDs := make([]int64, 0, len(policy.AccountIDs))
 	for accountID := range policy.AccountIDs {

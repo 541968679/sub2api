@@ -340,6 +340,35 @@
                     data-testid="smart-schedule-cooldown"
                   />
                 </label>
+                <div class="flex min-w-0 items-center gap-1">
+                  <div
+                    class="inline-flex overflow-hidden rounded-md border border-gray-200 dark:border-dark-600"
+                    data-testid="smart-schedule-soft-cooldown"
+                  >
+                    <button
+                      type="button"
+                      class="px-2 py-0.5 text-xs"
+                      :class="!currentDraft.softCooldown ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900' : 'bg-white text-gray-600 dark:bg-dark-800 dark:text-gray-300'"
+                      :aria-pressed="!currentDraft.softCooldown"
+                      @click="currentDraft.softCooldown = false"
+                    >
+                      {{ t('admin.users.smartSchedule.cooldownModeHard') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="px-2 py-0.5 text-xs"
+                      :class="currentDraft.softCooldown ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900' : 'bg-white text-gray-600 dark:bg-dark-800 dark:text-gray-300'"
+                      :aria-pressed="currentDraft.softCooldown"
+                      @click="currentDraft.softCooldown = true"
+                    >
+                      {{ t('admin.users.smartSchedule.cooldownModeSoft') }}
+                    </button>
+                  </div>
+                  <HelpTooltip
+                    :content="currentDraft.softCooldown ? t('admin.users.smartSchedule.cooldownModeSoftHint') : t('admin.users.smartSchedule.cooldownModeHardHint')"
+                    width-class="w-72"
+                  />
+                </div>
                 <label class="flex min-w-0 items-center gap-1">
                   <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
                   <select v-model="currentDraft.condition" class="input w-24 !px-2 !py-1">
@@ -692,27 +721,48 @@
               </template>
               <template #cell-admission="{ row }">
                 <div
-                  class="flex flex-col gap-0.5"
+                  class="flex min-w-0 flex-col gap-0.5"
                   data-testid="smart-schedule-admission"
                   :data-admission="row.admission"
-                  :title="admissionTitle(row.admission)"
+                  :title="coolingCellTitle(row)"
                 >
-                  <span
-                    class="inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium"
-                    :class="admissionChipClass(row.admission)"
-                  >
-                    {{ admissionLabel(row.admission) }}
-                  </span>
-                  <span
-                    v-if="row.admission === 'cooling' && row.cooldown_until"
-                    class="text-[10px] text-amber-700 dark:text-amber-300"
-                  >
-                    {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
-                    ·
-                    {{ t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) }) }}
-                    <template v-if="row.cooldown_reason">
-                      · {{ row.cooldown_reason }}
+                  <div class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                    <span
+                      class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      :class="admissionChipClass(row.admission)"
+                    >
+                      {{ admissionLabel(row.admission) }}
+                    </span>
+                    <template v-if="row.admission === 'cooling'">
+                      <span
+                        v-if="row.soft_cooldown"
+                        class="shrink-0 text-[10px] text-amber-700 dark:text-amber-300"
+                        data-testid="smart-schedule-soft-chip"
+                      >
+                        {{ t('admin.users.smartSchedule.admissionSoft') }}
+                      </span>
+                      <span
+                        v-if="row.cooldown_until"
+                        class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
+                      >
+                        {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
+                      </span>
+                      <span
+                        v-if="row.soft_cooldown && row.soft_cooldown_progress"
+                        class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
+                        data-testid="smart-schedule-soft-progress"
+                      >
+                        {{ formatSoftCooldownProgress(row.soft_cooldown_progress) }}
+                      </span>
                     </template>
+                  </div>
+                  <span
+                    v-if="row.admission === 'cooling' && row.cooldown_reason"
+                    class="min-w-0 truncate text-[10px] text-gray-500 dark:text-gray-400"
+                    :title="row.cooldown_reason"
+                    data-testid="smart-schedule-cooldown-reason"
+                  >
+                    {{ row.cooldown_reason }}
                   </span>
                 </div>
               </template>
@@ -1217,6 +1267,7 @@ const {
   memberCurrent,
   memberCooldownUntil,
   memberCooldownReason,
+  memberSoftCooldownProgress,
   memberPaused,
   memberProbing,
   memberPinned,
@@ -1332,7 +1383,7 @@ const allPoolColumns = computed<Column[]>(() => [
   { key: 'claude_gpt_bridge', label: t('admin.users.smartSchedule.claudeGptBridge'), sortable: true, minWidth: 110 },
   { key: 'concurrency', label: t('admin.accounts.columns.capacity'), sortable: true, minWidth: 88 },
   { key: 'pair_cap', label: t('admin.users.smartSchedule.pairCap'), sortable: true, minWidth: 88 },
-  { key: 'admission', label: t('admin.users.smartSchedule.admission'), sortable: true, minWidth: 110 },
+  { key: 'admission', label: t('admin.users.smartSchedule.admission'), sortable: true, minWidth: 180 },
   { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, minWidth: 88 },
   { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, minWidth: 88 },
   { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false, minWidth: 88 },
@@ -1395,6 +1446,8 @@ const poolTableRows = computed(() =>
       pair_current: memberCurrent(account.id),
       cooldown_until: memberCooldownUntil(account.id),
       cooldown_reason: memberCooldownReason(account.id),
+      soft_cooldown: Boolean(currentDraft.value?.softCooldown),
+      soft_cooldown_progress: memberSoftCooldownProgress(account.id),
       sort_order: memberSortOrder(account.id),
       priority: liveAccountPriority(account),
       paused: memberPaused(account.id),
@@ -1440,6 +1493,28 @@ function admissionLabel(state: PoolAdmissionState) {
     default:
       return t('admin.users.smartSchedule.admissionSelectable')
   }
+}
+
+function coolingCellTitle(row: { admission: PoolAdmissionState; cooldown_until?: string | null }) {
+  if (row.admission === 'cooling' && row.cooldown_until) {
+    return t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) })
+  }
+  return admissionTitle(row.admission)
+}
+
+function formatSoftCooldownProgress(progress: {
+  ttft_count: number
+  n_ttft: number
+  ok_count: number
+  n_ok: number
+  duration_count?: number
+  n_duration?: number
+}) {
+  const parts = [`${progress.ttft_count}/${progress.n_ttft}`, `${progress.ok_count}/${progress.n_ok}`]
+  if (progress.n_duration && progress.n_duration > 0) {
+    parts.push(`${progress.duration_count ?? 0}/${progress.n_duration}`)
+  }
+  return parts.join(' · ')
 }
 
 function admissionTitle(state: PoolAdmissionState) {

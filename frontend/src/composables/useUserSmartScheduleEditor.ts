@@ -10,6 +10,7 @@ import type {
   SmartSchedulePlatform,
   SmartSchedulePlatformView,
   SmartScheduleProbeConcurrencyMode,
+  SmartScheduleSoftCooldownProgress,
   UserSmartScheduleView
 } from '@/api/admin/users'
 import {
@@ -62,6 +63,7 @@ export type SmartSchedulePoolMemberDraft = {
   current_concurrency?: number
   cooldown_until?: string | null
   cooldown_reason?: string | null
+  soft_cooldown_progress?: SmartScheduleSoftCooldownProgress | null
   resume_until?: string | null
   resume_chip_until?: string | null
   paused?: boolean
@@ -88,6 +90,7 @@ export type SmartSchedulePlatformDraft = {
   probeConcurrency: number | ''
   condition: 'or' | 'and'
   cooldownMinutes: number
+  softCooldown: boolean
   accounts: SmartSchedulePoolMemberDraft[]
 }
 
@@ -113,6 +116,7 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
     probeConcurrency: row.probeConcurrency,
     condition: row.condition,
     cooldownMinutes: row.cooldownMinutes,
+    softCooldown: Boolean(row.softCooldown),
     accounts: row.accounts.map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency
@@ -171,6 +175,7 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
     probeConcurrency: SMART_SCHEDULE_WINDOW_N_DEFAULT,
     condition: 'or',
     cooldownMinutes: 15,
+    softCooldown: false,
     accounts: []
   }
 }
@@ -212,6 +217,7 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
           : SMART_SCHEDULE_WINDOW_N_DEFAULT,
       condition: parsed.condition === 'and' ? 'and' : 'or',
       cooldownMinutes: parsed.cooldownMinutes || 15,
+      softCooldown: Boolean(parsed.softCooldown),
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
     }
   } catch {
@@ -317,6 +323,7 @@ export function useUserSmartScheduleEditor(
         : draft.windowNSuccess
     draft.condition = view.quality_condition === 'and' ? 'and' : 'or'
     draft.cooldownMinutes = view.cooldown_minutes || 15
+    draft.softCooldown = Boolean(view.soft_cooldown)
     draft.accounts = (view.accounts ?? []).map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency ?? null,
@@ -324,6 +331,7 @@ export function useUserSmartScheduleEditor(
       current_concurrency: item.current_concurrency ?? 0,
       cooldown_until: item.cooldown_until ?? null,
       cooldown_reason: item.cooldown_reason ?? null,
+      soft_cooldown_progress: item.soft_cooldown_progress ?? null,
       resume_until: item.resume_until ?? null,
       resume_chip_until: item.resume_chip_until ?? null,
       paused: Boolean(item.paused),
@@ -375,6 +383,16 @@ export function useUserSmartScheduleEditor(
     captureSnapshot(platform)
   }
 
+  function applyWrittenSoftCooldown(
+    platform: SmartSchedulePlatform,
+    payload: { soft_cooldown?: boolean }
+  ) {
+    const draft = drafts[platform]
+    if (!draft) return
+    draft.softCooldown = Boolean(payload.soft_cooldown)
+    captureSnapshot(platform)
+  }
+
   function mergeRuntimeMembers(platform: SmartSchedulePlatform, view: SmartSchedulePlatformView | undefined) {
     const draft = drafts[platform]
     if (!draft || !view) return
@@ -385,6 +403,7 @@ export function useUserSmartScheduleEditor(
       member.current_concurrency = live.current_concurrency ?? 0
       member.cooldown_until = live.cooldown_until ?? null
       member.cooldown_reason = live.cooldown_reason ?? null
+      member.soft_cooldown_progress = live.soft_cooldown_progress ?? null
       member.resume_until = live.resume_until ?? null
       member.resume_chip_until = live.resume_chip_until ?? null
       member.sort_order = live.sort_order ?? null
@@ -434,6 +453,10 @@ export function useUserSmartScheduleEditor(
 
   function memberCooldownUntil(accountId: number): string | null {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
+  }
+
+  function memberSoftCooldownProgress(accountId: number): SmartScheduleSoftCooldownProgress | null {
+    return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.soft_cooldown_progress ?? null
   }
 
   function memberPaused(accountId: number): boolean {
@@ -1021,6 +1044,7 @@ export function useUserSmartScheduleEditor(
         probeConcurrency: draft.probeConcurrency
       }),
       cooldown_minutes: draft.cooldownMinutes || 15,
+      soft_cooldown: Boolean(draft.softCooldown),
       accounts: draft.accounts.map((item) => ({
         account_id: item.account_id,
         platform: activePlatform.value,
@@ -1085,6 +1109,7 @@ export function useUserSmartScheduleEditor(
       const view = await adminAPI.users.updateSmartSchedule(userId.value, activePlatform.value, payload)
       applyPlatformView(activePlatform.value, view)
       applyWrittenWindowN(activePlatform.value, payload)
+      applyWrittenSoftCooldown(activePlatform.value, payload)
       await loadPoolDetails()
       if (!options?.silent) {
         appStore.showSuccess(t(options?.successKey || 'admin.users.smartSchedule.updateSuccess'))
@@ -1249,6 +1274,7 @@ export function useUserSmartScheduleEditor(
     memberCurrent,
     memberCooldownUntil,
     memberCooldownReason,
+    memberSoftCooldownProgress,
     memberPaused,
     memberProbing,
     memberPinned,

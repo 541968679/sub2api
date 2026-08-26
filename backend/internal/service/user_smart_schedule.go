@@ -27,10 +27,11 @@ type SmartScheduleAccountMember struct {
 	MaxConcurrency     *int                          `json:"max_concurrency,omitempty"`
 	SortOrder          *int                          `json:"sort_order"`
 	Priority           int                           `json:"priority"` // read-only live accounts.priority; writes ignore
-	CurrentConcurrency int                           `json:"current_concurrency,omitempty"`
-	CooldownUntil      *time.Time                    `json:"cooldown_until,omitempty"`
-	CooldownReason     *string                       `json:"cooldown_reason,omitempty"`
-	ResumeUntil        *time.Time                    `json:"resume_until,omitempty"`
+	CurrentConcurrency   int                           `json:"current_concurrency,omitempty"`
+	CooldownUntil        *time.Time                    `json:"cooldown_until,omitempty"`
+	CooldownReason       *string                       `json:"cooldown_reason,omitempty"`
+	SoftCooldownProgress *SoftCooldownProgress         `json:"soft_cooldown_progress,omitempty"`
+	ResumeUntil          *time.Time                    `json:"resume_until,omitempty"`
 	ResumeChipUntil    *time.Time                    `json:"resume_chip_until,omitempty"`
 	Paused             bool                          `json:"paused,omitempty"`
 	Probing            bool                          `json:"probing"`
@@ -38,6 +39,17 @@ type SmartScheduleAccountMember struct {
 	ProbeCap           *int                          `json:"probe_cap,omitempty"`
 	PairQuality        *SmartSchedulePairQualityView `json:"pair_quality,omitempty"`
 	WillCool           bool                          `json:"will_cool"`
+}
+
+// SoftCooldownProgress is the GET hydrate chip for a cooling pair under a soft policy.
+// n_duration is omitted unless a duration threshold is configured.
+type SoftCooldownProgress struct {
+	TTFTCount     int `json:"ttft_count"`
+	NTTFT         int `json:"n_ttft"`
+	OKCount       int `json:"ok_count"`
+	NOK           int `json:"n_ok"`
+	DurationCount int `json:"duration_count"`
+	NDuration     int `json:"n_duration,omitempty"`
 }
 
 // SmartScheduleSortAssignment is one membership row's pool display order.
@@ -56,6 +68,7 @@ type SmartSchedulePlatformPolicy struct {
 	QualityMinTTFTSamples          *int
 	QualityCondition               *string
 	CooldownMinutes                int
+	SoftCooldown                   bool
 	ProbeConcurrencyMode           string
 	ProbeConcurrency               *int
 	QualityMaxSlowInWindow         *int
@@ -204,6 +217,11 @@ type UserSmartScheduleCache interface {
 	IngestPairQuality(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int) *PairQualityLive
 	ZeroPairQuality(ctx context.Context, accountID, userID int64, platform string, eventType string)
 	GetPairQualityBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
+	IngestSoftCooldown(ctx context.Context, accountID, userID int64, platform string, nTTFT, nOK int, success bool, firstTokenMs, durationMs *int, minutes int) *PairQualityLive
+	GetSoftCooldown(ctx context.Context, accountID, userID int64, platform string) *PairQualityLive
+	ZeroSoftCooldown(ctx context.Context, accountID, userID int64, platform string)
+	GetSoftCooldownBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
+	SoftEndCooldown(ctx context.Context, accountID, userID int64, platform string, detail string)
 	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualitySnapshot
 	ListPairQualityEvents(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualityEvent
 	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, platform string, event PairQualityEvent)
@@ -249,6 +267,7 @@ type SmartSchedulePlatformWrite struct {
 	QualityMinTTFTSamples          *int
 	QualityCondition               *string
 	CooldownMinutes                int
+	SoftCooldown                   bool
 	ProbeConcurrencyMode           string
 	ProbeConcurrency               *int
 	QualityMaxSlowInWindow         *int
@@ -271,6 +290,7 @@ type SmartSchedulePlatformView struct {
 	QualityMinTTFTSamples          *int                         `json:"quality_min_ttft_samples"`
 	QualityCondition               *string                      `json:"quality_condition"`
 	CooldownMinutes                int                          `json:"cooldown_minutes"`
+	SoftCooldown                   bool                         `json:"soft_cooldown"`
 	ProbeConcurrencyMode           string                       `json:"probe_concurrency_mode"`
 	ProbeConcurrency               *int                         `json:"probe_concurrency"`
 	QualityMaxSlowInWindow         *int                         `json:"quality_max_slow_in_window"`

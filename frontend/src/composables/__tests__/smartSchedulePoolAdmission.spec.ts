@@ -41,6 +41,7 @@ function emptyPlatform(overrides: Partial<UserSmartScheduleView['platforms'][str
     quality_min_ttft_samples: null,
     quality_condition: null,
     cooldown_minutes: 15,
+    soft_cooldown: false,
     accounts: [],
     ...overrides
   }

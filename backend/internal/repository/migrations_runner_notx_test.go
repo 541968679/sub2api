@@ -360,6 +360,18 @@ ALTER TABLE t DROP COLUMN name;
 	})
 }
 
+func TestEmbedded218GooseDownIsNotExecutable(t *testing.T) {
+	raw, err := migrations.FS.ReadFile("218_smart_schedule_soft_cooldown.sql")
+	require.NoError(t, err)
+	full := string(raw)
+	require.Contains(t, full, "-- +goose Down")
+	require.Contains(t, full, "DROP COLUMN IF EXISTS soft_cooldown")
+	execSQL := migrationExecutableSQL(full)
+	require.Contains(t, execSQL, "ADD COLUMN IF NOT EXISTS soft_cooldown")
+	require.NotContains(t, execSQL, "DROP COLUMN")
+	require.NotContains(t, strings.ToLower(execSQL), "+goose down")
+}
+
 func TestEmbedded214And215GooseDownIsNotExecutable(t *testing.T) {
 	for _, name := range []string{
 		"214_smart_schedule_latency_gate.sql",

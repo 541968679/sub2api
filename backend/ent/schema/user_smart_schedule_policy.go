@@ -66,6 +66,8 @@ func (UserSmartSchedulePolicy) Fields() []ent.Field {
 		field.Int("cooldown_minutes").
 			Default(15).
 			SchemaType(map[string]string{dialect.Postgres: "integer"}),
+		field.Bool("soft_cooldown").
+			Default(false),
 	}
 }
 

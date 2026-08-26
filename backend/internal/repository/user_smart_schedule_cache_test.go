@@ -209,6 +209,168 @@ func TestUserSmartScheduleCache_PlatformIsolation(t *testing.T) {
 	require.True(t, cache.GetPairResumeUntilBatch(ctx, []int64{7}, 16, service.PlatformAntigravity, now)[7].Active(now))
 }
 
+func TestUserSmartScheduleCache_SoftCooldownWindow(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	ttft := 40
+
+	liveA := cache.IngestSoftCooldown(ctx, 7, 16, "openai", 3, 3, true, &ttft, nil, 15)
+	require.Equal(t, 1, liveA.OKCount)
+	require.Nil(t, cache.GetSoftCooldown(ctx, 8, 16, "openai"), "pair isolation")
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "anthropic"))
+
+	liveB := cache.IngestSoftCooldown(ctx, 8, 16, "openai", 3, 3, true, intPtrRepo(80), nil, 15)
+	require.Equal(t, 1, liveB.OKCount)
+	require.Equal(t, 1, cache.GetSoftCooldown(ctx, 7, 16, "openai").OKCount)
+
+	batch := cache.GetSoftCooldownBatch(ctx, []int64{7, 8, 9}, 16, "openai")
+	require.Equal(t, 1, batch[7].OKCount)
+	require.Equal(t, 1, batch[8].OKCount)
+	require.Nil(t, batch[9])
+
+	key := smartScheduleSoftCoolKey("openai", 7)
+	firstTTL, err := rdb.TTL(ctx, key).Result()
+	require.NoError(t, err)
+	cache.IngestSoftCooldown(ctx, 7, 17, "openai", 3, 3, true, &ttft, nil, 5)
+	shortTTL, err := rdb.TTL(ctx, key).Result()
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, shortTTL, firstTTL-time.Second, "TTL must not shorten")
+	cache.IngestSoftCooldown(ctx, 7, 16, "openai", 3, 3, true, &ttft, nil, 60)
+	longTTL, err := rdb.TTL(ctx, key).Result()
+	require.NoError(t, err)
+	require.Greater(t, longTTL, shortTTL)
+
+	cache.IngestSoftCooldown(ctx, 7, 16, "openai", 3, 3, true, &ttft, nil, 15)
+	require.NotNil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"))
+	_, err = cache.SetCooldown(ctx, 7, 16, "openai", 15, now)
+	require.NoError(t, err)
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "re-select cooldown zeros window")
+
+	require.NoError(t, cache.ClearCooldown(ctx, 7, 16, "openai"))
+	cache.IngestSoftCooldown(ctx, 7, 16, "openai", 3, 3, true, &ttft, nil, 15)
+	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "first StartCooldown zeros window")
+	cache.IngestSoftCooldown(ctx, 7, 16, "openai", 3, 3, true, &ttft, nil, 15)
+	cache.StartCooldown(ctx, 7, 16, "openai", 60, now.Add(time.Minute))
+	require.NotNil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "HSETNX no-op must not wipe window")
+
+	require.NoError(t, cache.ClearCooldown(ctx, 7, 16, "openai"))
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "leaving cooldown deletes window")
+}
+
+func TestCachedSmartScheduleBundle_LatencyGateRoundTrip(t *testing.T) {
+	ttft := 10000
+	dur := 80000
+	src := &service.SmartSchedulePlatformPolicy{
+		Enabled:                        true,
+		CooldownMinutes:                3,
+		QualityMaxP50TTFTMs:            &ttft,
+		QualityMinTTFTSamples:          intPtrRepo(5),
+		QualityMinSuccessSamples:       intPtrRepo(50),
+		QualityMaxSlowInWindow:         intPtrRepo(2),
+		QualityMaxConsecutiveSlow:      intPtrRepo(2),
+		QualityMaxP50DurationMs:        &dur,
+		QualitySchedWindowN:            intPtrRepo(10),
+		QualitySchedMaxSlowInWindow:    intPtrRepo(3),
+		QualitySchedMaxConsecutiveSlow: intPtrRepo(2),
+		AccountIDs:                     map[int64]struct{}{7: {}},
+	}
+	payload, err := json.Marshal(cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{
+		Policies: map[string]*service.SmartSchedulePlatformPolicy{service.PlatformOpenAI: src},
+	}))
+	require.NoError(t, err)
+	for _, key := range []string{
+		"quality_max_slow_in_window",
+		"quality_max_consecutive_slow",
+		"quality_max_p50_duration_ms",
+		"quality_sched_window_n",
+		"quality_sched_max_slow_in_window",
+		"quality_sched_max_consecutive_slow",
+	} {
+		require.Contains(t, string(payload), key, "storeUserBundle must keep latency-gate column %s", key)
+	}
+
+	var stored cachedSmartScheduleBundle
+	require.NoError(t, json.Unmarshal(payload, &stored))
+	got := stored.toBundle().Policies[service.PlatformOpenAI]
+	require.Equal(t, 2, *got.QualityMaxSlowInWindow)
+	require.Equal(t, 2, *got.QualityMaxConsecutiveSlow)
+	require.Equal(t, 80000, *got.QualityMaxP50DurationMs)
+	require.Equal(t, 10, *got.QualitySchedWindowN)
+	require.Equal(t, 3, *got.QualitySchedMaxSlowInWindow)
+	require.Equal(t, 2, *got.QualitySchedMaxConsecutiveSlow)
+	require.True(t, got.SchedCompositeEnabled(), "Lookup hit must keep selectable composite on")
+
+	empty := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{
+		Policies: map[string]*service.SmartSchedulePlatformPolicy{
+			service.PlatformOpenAI: {Enabled: true, QualityMaxP50TTFTMs: &ttft, QualityMinTTFTSamples: intPtrRepo(5)},
+		},
+	}).toBundle().Policies[service.PlatformOpenAI]
+	require.False(t, empty.SchedCompositeEnabled(), "unconfigured sched columns stay legacy p50")
+}
+
+func TestUserSmartScheduleCache_LookupKeepsSchedLatencyGate(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil)
+	ctx := context.Background()
+	ttft := 10000
+	dur := 80000
+	bundle := &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformOpenAI: {
+			Enabled:                        true,
+			CooldownMinutes:                3,
+			QualityMaxP50TTFTMs:            &ttft,
+			QualityMinTTFTSamples:          intPtrRepo(5),
+			QualityMaxP50DurationMs:        &dur,
+			QualitySchedWindowN:            intPtrRepo(10),
+			QualitySchedMaxSlowInWindow:    intPtrRepo(3),
+			QualitySchedMaxConsecutiveSlow: intPtrRepo(2),
+			AccountIDs:                     map[int64]struct{}{1724: {}},
+		},
+	}}
+	payload, err := json.Marshal(cachedSmartScheduleBundleFrom(bundle))
+	require.NoError(t, err)
+	require.NoError(t, rdb.Set(ctx, smartScheduleUserKey(16), payload, 0).Err())
+	got := cache.Lookup(ctx, 16)
+	require.NotNil(t, got)
+	policy := got.Policies[service.PlatformOpenAI]
+	require.NotNil(t, policy)
+	require.Equal(t, 10, *policy.QualitySchedWindowN)
+	require.Equal(t, 3, *policy.QualitySchedMaxSlowInWindow)
+	require.Equal(t, 2, *policy.QualitySchedMaxConsecutiveSlow)
+	require.Equal(t, 80000, *policy.QualityMaxP50DurationMs)
+	require.True(t, policy.SchedCompositeEnabled())
+
+	stale := `{"policies":{"openai":{"enabled":true,"quality_max_p50_ttft_ms":10000,"quality_min_ttft_samples":5,"cooldown_minutes":3}}}`
+	require.NoError(t, rdb.Set(ctx, smartScheduleUserKey(16), stale, 0).Err())
+	staleGot := cache.Lookup(ctx, 16).Policies[service.PlatformOpenAI]
+	require.False(t, staleGot.SchedCompositeEnabled(), "0.1.261 JSON without sched columns must stay legacy until invalidate")
+}
+
+func TestCachedSmartScheduleBundle_SoftCooldownRoundTrip(t *testing.T) {
+	dur := 80000
+	stored := cachedSmartScheduleBundleFrom(&service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:                 true,
+			CooldownMinutes:         15,
+			SoftCooldown:            true,
+			QualityMaxP50DurationMs: &dur,
+			QualitySchedWindowN:     intPtrRepo(10),
+			AccountIDs:              map[int64]struct{}{7: {}},
+		},
+	}})
+	got := stored.toBundle().Policies[service.PlatformAnthropic]
+	require.True(t, got.SoftCooldown)
+	require.Equal(t, 80000, *got.QualityMaxP50DurationMs)
+	require.Equal(t, 10, *got.QualitySchedWindowN)
+}
+
 func TestAccountUserSlotKey_IncludesPlatform(t *testing.T) {
 	ctxOAI := context.WithValue(context.Background(), ctxkey.ScheduleLookupPlatform, service.PlatformOpenAI)
 	ctxAG := context.WithValue(context.Background(), ctxkey.ScheduleLookupPlatform, service.PlatformAntigravity)

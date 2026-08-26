@@ -135,6 +135,7 @@ func (c *userSmartScheduleCache) StartCooldownWithReason(ctx context.Context, ac
 	if err != nil || !added {
 		return
 	}
+	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
 	ttl := time.Duration(minutes)*time.Minute + smartScheduleCooldownTTLBuffer
 	c.extendCooldownTTL(ctx, key, ttl)
 	event := service.PairQualityEvent{
@@ -202,6 +203,7 @@ func (c *userSmartScheduleCache) SetCooldownWithReason(ctx context.Context, acco
 	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), untilUnix).Err(); err != nil {
 		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
+	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
 	event := service.PairQualityEvent{
 		Ts:    now.Unix(),
@@ -300,6 +302,7 @@ func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, u
 	if err != nil {
 		return err
 	}
+	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
 	if n > 0 {
 		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 			Ts:   time.Now().UTC().Unix(),
@@ -327,11 +330,20 @@ func (c *userSmartScheduleCache) ClearCooldownAllPlatforms(ctx context.Context, 
 }
 
 func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, accountID, userID int64, platform string) {
+	c.enterProbeFromCooldown(ctx, accountID, userID, platform, "", "")
+}
+
+func (c *userSmartScheduleCache) SoftEndCooldown(ctx context.Context, accountID, userID int64, platform string, detail string) {
+	c.enterProbeFromCooldown(ctx, accountID, userID, platform, service.PairQualityEventSoftCooldownEnd, detail)
+}
+
+func (c *userSmartScheduleCache) enterProbeFromCooldown(ctx context.Context, accountID, userID int64, platform, extraType, detail string) {
 	if c == nil || c.rdb == nil {
 		return
 	}
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownReasonKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
+	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
 	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
@@ -339,6 +351,13 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 	// cannot pairQualityLegacyP50Blocked → immediate re-cool. v2 keeps the window.
 	if !pairQualityKeepWindowsOnExpiry(c.lookupPairPolicy(ctx, userID, platform)) {
 		c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+	}
+	if extraType != "" {
+		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
+			Ts:     time.Now().UTC().Unix(),
+			Type:   extraType,
+			Detail: detail,
+		})
 	}
 	c.MarkProbing(ctx, accountID, userID, platform)
 	c.ClearPairResume(ctx, accountID, userID, platform)
@@ -652,18 +671,25 @@ type cachedSmartScheduleMember struct {
 }
 
 type cachedSmartSchedulePolicy struct {
-	Enabled                  bool                        `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                        `json:"quality_max_p50_ttft_ms,omitempty"`
-	QualityMinSuccessRate    *float64                    `json:"quality_min_success_rate,omitempty"`
-	QualityWindowSamples     *int                        `json:"quality_window_samples,omitempty"`
-	QualityMinSuccessSamples *int                        `json:"quality_min_success_samples,omitempty"`
-	QualityMinTTFTSamples    *int                        `json:"quality_min_ttft_samples,omitempty"`
-	QualityCondition         *string                     `json:"quality_condition,omitempty"`
-	CooldownMinutes          int                         `json:"cooldown_minutes"`
-	ProbeConcurrencyMode     string                      `json:"probe_concurrency_mode,omitempty"`
-	ProbeConcurrency         *int                        `json:"probe_concurrency,omitempty"`
-	ProbeLatencyV2           bool                        `json:"probe_latency_v2,omitempty"`
-	Members                  []cachedSmartScheduleMember `json:"members,omitempty"`
+	Enabled                        bool                        `json:"enabled"`
+	QualityMaxP50TTFTMs            *int                        `json:"quality_max_p50_ttft_ms,omitempty"`
+	QualityMinSuccessRate          *float64                    `json:"quality_min_success_rate,omitempty"`
+	QualityWindowSamples           *int                        `json:"quality_window_samples,omitempty"`
+	QualityMinSuccessSamples       *int                        `json:"quality_min_success_samples,omitempty"`
+	QualityMinTTFTSamples          *int                        `json:"quality_min_ttft_samples,omitempty"`
+	QualityCondition               *string                     `json:"quality_condition,omitempty"`
+	CooldownMinutes                int                         `json:"cooldown_minutes"`
+	SoftCooldown                   bool                        `json:"soft_cooldown,omitempty"`
+	ProbeConcurrencyMode           string                      `json:"probe_concurrency_mode,omitempty"`
+	ProbeConcurrency               *int                        `json:"probe_concurrency,omitempty"`
+	QualityMaxSlowInWindow         *int                        `json:"quality_max_slow_in_window,omitempty"`
+	QualityMaxConsecutiveSlow      *int                        `json:"quality_max_consecutive_slow,omitempty"`
+	QualityMaxP50DurationMs        *int                        `json:"quality_max_p50_duration_ms,omitempty"`
+	QualitySchedWindowN            *int                        `json:"quality_sched_window_n,omitempty"`
+	QualitySchedMaxSlowInWindow    *int                        `json:"quality_sched_max_slow_in_window,omitempty"`
+	QualitySchedMaxConsecutiveSlow *int                        `json:"quality_sched_max_consecutive_slow,omitempty"`
+	ProbeLatencyV2                 bool                        `json:"probe_latency_v2,omitempty"`
+	Members                        []cachedSmartScheduleMember `json:"members,omitempty"`
 }
 
 type cachedSmartScheduleBundle struct {
@@ -680,17 +706,24 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 			continue
 		}
 		row := cachedSmartSchedulePolicy{
-			Enabled:                  policy.Enabled,
-			QualityMaxP50TTFTMs:      policy.QualityMaxP50TTFTMs,
-			QualityMinSuccessRate:    policy.QualityMinSuccessRate,
-			QualityWindowSamples:     policy.QualityWindowSamples,
-			QualityMinSuccessSamples: policy.QualityMinSuccessSamples,
-			QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
-			QualityCondition:         policy.QualityCondition,
-			CooldownMinutes:          policy.CooldownMinutes,
-			ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
-			ProbeConcurrency:         policy.ProbeConcurrency,
-			ProbeLatencyV2:           policy.ProbeLatencyV2,
+			Enabled:                        policy.Enabled,
+			QualityMaxP50TTFTMs:            policy.QualityMaxP50TTFTMs,
+			QualityMinSuccessRate:          policy.QualityMinSuccessRate,
+			QualityWindowSamples:           policy.QualityWindowSamples,
+			QualityMinSuccessSamples:       policy.QualityMinSuccessSamples,
+			QualityMinTTFTSamples:          policy.QualityMinTTFTSamples,
+			QualityCondition:               policy.QualityCondition,
+			CooldownMinutes:                policy.CooldownMinutes,
+			SoftCooldown:                   policy.SoftCooldown,
+			ProbeConcurrencyMode:           policy.ProbeConcurrencyMode,
+			ProbeConcurrency:               policy.ProbeConcurrency,
+			QualityMaxSlowInWindow:         policy.QualityMaxSlowInWindow,
+			QualityMaxConsecutiveSlow:      policy.QualityMaxConsecutiveSlow,
+			QualityMaxP50DurationMs:        policy.QualityMaxP50DurationMs,
+			QualitySchedWindowN:            policy.QualitySchedWindowN,
+			QualitySchedMaxSlowInWindow:    policy.QualitySchedMaxSlowInWindow,
+			QualitySchedMaxConsecutiveSlow: policy.QualitySchedMaxConsecutiveSlow,
+			ProbeLatencyV2:                 policy.ProbeLatencyV2,
 		}
 		for accountID := range policy.AccountIDs {
 			row.Members = append(row.Members, cachedSmartScheduleMember{
@@ -708,20 +741,27 @@ func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
 	out := &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}
 	for platform, row := range b.Policies {
 		policy := &service.SmartSchedulePlatformPolicy{
-			Enabled:                  row.Enabled,
-			QualityMaxP50TTFTMs:      row.QualityMaxP50TTFTMs,
-			QualityMinSuccessRate:    row.QualityMinSuccessRate,
-			QualityWindowSamples:     row.QualityWindowSamples,
-			QualityMinSuccessSamples: row.QualityMinSuccessSamples,
-			QualityMinTTFTSamples:    row.QualityMinTTFTSamples,
-			QualityCondition:         row.QualityCondition,
-			CooldownMinutes:          row.CooldownMinutes,
-			ProbeConcurrencyMode:     row.ProbeConcurrencyMode,
-			ProbeConcurrency:         row.ProbeConcurrency,
-			ProbeLatencyV2:           row.ProbeLatencyV2,
-			AccountIDs:               map[int64]struct{}{},
-			Caps:                     map[int64]int{},
-			Paused:                   map[int64]struct{}{},
+			Enabled:                        row.Enabled,
+			QualityMaxP50TTFTMs:            row.QualityMaxP50TTFTMs,
+			QualityMinSuccessRate:          row.QualityMinSuccessRate,
+			QualityWindowSamples:           row.QualityWindowSamples,
+			QualityMinSuccessSamples:       row.QualityMinSuccessSamples,
+			QualityMinTTFTSamples:          row.QualityMinTTFTSamples,
+			QualityCondition:               row.QualityCondition,
+			CooldownMinutes:                row.CooldownMinutes,
+			SoftCooldown:                   row.SoftCooldown,
+			ProbeConcurrencyMode:           row.ProbeConcurrencyMode,
+			ProbeConcurrency:               row.ProbeConcurrency,
+			QualityMaxSlowInWindow:         row.QualityMaxSlowInWindow,
+			QualityMaxConsecutiveSlow:      row.QualityMaxConsecutiveSlow,
+			QualityMaxP50DurationMs:        row.QualityMaxP50DurationMs,
+			QualitySchedWindowN:            row.QualitySchedWindowN,
+			QualitySchedMaxSlowInWindow:    row.QualitySchedMaxSlowInWindow,
+			QualitySchedMaxConsecutiveSlow: row.QualitySchedMaxConsecutiveSlow,
+			ProbeLatencyV2:                 row.ProbeLatencyV2,
+			AccountIDs:                     map[int64]struct{}{},
+			Caps:                           map[int64]int{},
+			Paused:                         map[int64]struct{}{},
 		}
 		for _, member := range row.Members {
 			if member.AccountID <= 0 {

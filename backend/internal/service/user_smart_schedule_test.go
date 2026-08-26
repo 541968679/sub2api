@@ -393,6 +393,7 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		QualityMinTTFTSamples:    policy.QualityMinTTFTSamples,
 		QualityCondition:         policy.QualityCondition,
 		CooldownMinutes:          policy.CooldownMinutes,
+		SoftCooldown:             policy.SoftCooldown,
 		ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
 		ProbeConcurrency:         policy.ProbeConcurrency,
 		AccountIDs:               map[int64]struct{}{},
@@ -1086,6 +1087,17 @@ func (s stubSmartCache) IngestPairQuality(context.Context, int64, int64, string,
 	return nil
 }
 func (s stubSmartCache) ZeroPairQuality(context.Context, int64, int64, string, string) {}
+func (s stubSmartCache) IngestSoftCooldown(context.Context, int64, int64, string, int, int, bool, *int, *int, int) *PairQualityLive {
+	return nil
+}
+func (s stubSmartCache) GetSoftCooldown(context.Context, int64, int64, string) *PairQualityLive {
+	return nil
+}
+func (s stubSmartCache) ZeroSoftCooldown(context.Context, int64, int64, string) {}
+func (s stubSmartCache) GetSoftCooldownBatch(context.Context, []int64, int64, string) map[int64]*PairQualityLive {
+	return map[int64]*PairQualityLive{}
+}
+func (s stubSmartCache) SoftEndCooldown(context.Context, int64, int64, string, string) {}
 func (s stubSmartCache) GetPairQualityBatch(context.Context, []int64, int64, string) map[int64]*PairQualityLive {
 	return map[int64]*PairQualityLive{}
 }

@@ -25,6 +25,7 @@ type putSmartScheduleRequest struct {
 	QualityMinTTFTSamples    *int                                 `json:"quality_min_ttft_samples"`
 	QualityCondition         *string                              `json:"quality_condition"`
 	CooldownMinutes          int                                  `json:"cooldown_minutes"`
+	SoftCooldown             bool                                 `json:"soft_cooldown"`
 	ProbeConcurrencyMode     string                               `json:"probe_concurrency_mode"`
 	ProbeConcurrency         *int                                 `json:"probe_concurrency"`
 	Accounts                 []service.SmartScheduleAccountMember `json:"accounts"`
@@ -149,6 +150,7 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		QualityMinTTFTSamples:    req.QualityMinTTFTSamples,
 		QualityCondition:         req.QualityCondition,
 		CooldownMinutes:          req.CooldownMinutes,
+		SoftCooldown:             req.SoftCooldown,
 		ProbeConcurrencyMode:     req.ProbeConcurrencyMode,
 		ProbeConcurrency:         req.ProbeConcurrency,
 		Accounts:                 req.Accounts,

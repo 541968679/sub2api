@@ -1,3 +1,75 @@
+## 2026-08-26 - fix(smart-sched): keep sched N/K/C on user Redis cache
+
+### What
+- `smart-schedule:user:{id}` now round-trips selectable N/K/C, duration p50, and probe K/C so Lookup hits keep `SchedCompositeEnabled()`.
+- Stale 0.1.261 JSON without those keys still evaluates as legacy p50 until invalidate / TTL / `DEL`.
+
+### Why
+Production user 16 had sched 10/3/2 in Postgres and on the admin page, but the hot-path cache dropped the columns, so every pair cooldown was p50-only.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "TestCachedSmartScheduleBundle_LatencyGateRoundTrip|TestUserSmartScheduleCache_LookupKeepsSchedLatencyGate" -count=1`
+- `go test -tags=unit ./internal/service -run TestPairQualitySelectableBlocks_ZuogeSched10K3C2 -count=1`
+
+### Affected files
+`backend/internal/repository/user_smart_schedule_cache.go`
+`backend/internal/repository/user_smart_schedule_cache_test.go`
+`backend/internal/service/smart_schedule_pair_quality_test.go`
+`.trellis/spec/backend/account-user-schedule.md`
+
+## 2026-08-26 - fix(smart-sched): keep 软 after save when GET omits soft_cooldown
+
+### What
+- Saving 软 no longer snaps the admin switch back to 硬 when the PUT echo omits `soft_cooldown` (stale binary or missing column 218).
+- Overlay write now errors if the policy row was not updated. GET overlay treats a missing `soft_cooldown` column as hard instead of failing the page.
+
+### Why
+Local `server.exe` from 2026-08-22 ignored the new field; `applyPlatformView` then did `Boolean(undefined) === false`.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts -t "soft cooldown"`
+- Restart local backend so air rebuilds and applies migrations 212–218.
+
+### Affected files
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`.trellis/spec/backend/account-user-schedule.md`
+
+## 2026-08-26 - feat(smart-sched): per-platform soft/hard pair cooldown
+
+### What
+- User×platform policy gains `soft_cooldown` (migration 218, default false = hard). Omitted PUT is hard. Copy-platform copies the flag; the site quality template does not.
+- Soft mode keeps `cooldown_minutes` as the ceiling, but other same-pool non-cooling completions (including pin) fill a per-pair Redis window `smart-schedule:soft-cool:{platform}:{accountID}`. When every configured selectable gate is **full and passing**, the pair enters probe the same way as wall-clock expiry (`soft_cooldown_end` then `probe_enter`).
+- Underfull is not a pass. Do not treat `pairQualityBlocks==false` as a meet. Hard policy never ingest the soft window. The request that cools account A does not enter A’s new window.
+- Admin admission cell: 硬|软 switch; cooling rows show 软 + remaining + k/N on the first line and `cooldown_reason` on the second; until-timestamp is tooltip-only.
+
+### Why
+Operators need a per-user-platform choice between waiting the full cooldown and leaving early once peer samples on this platform prove the pool is healthy again — without changing \(Q_a\) / \(Q_u\), account hard-close, or client protocol.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "SoftCooldown|SmartSchedule|PairQuality"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SoftCool|SmartSchedule|UserSmartSchedule"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run SmartSchedule`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts`
+
+### Affected files
+`backend/migrations/218_smart_schedule_soft_cooldown.sql`
+`backend/ent/schema/user_smart_schedule_policy.go`
+`backend/internal/repository/smart_schedule_soft_cooldown_cache.go`
+`backend/internal/repository/user_smart_schedule_cache.go`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`backend/internal/service/smart_schedule_soft_cooldown.go`
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/handler/admin/user_smart_schedule.go`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`frontend/src/api/admin/users.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`.trellis/spec/backend/account-user-schedule.md`
+
 ## 2026-08-26 - release: 0.1.261 restore 257 expiry_zero when probe v2 is off
 
 ### What

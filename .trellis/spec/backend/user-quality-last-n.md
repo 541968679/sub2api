@@ -24,7 +24,7 @@
 - Failover inclusion uses the same `schedule_use_failover_error_rate` ingest switch as \(Q_a\).
 - Empty windows are not snapshotted. Cache miss → empty stats + stamped resolved N, not 15-minute SQL.
 - Changing site N updates \(Q_a\) and inheriting \(Q_u\) users only. Override users stay on their N.
-- Pair \(Q_{a,u}\) and account hard-close stay unchanged.
+- Pair \(Q_{a,u}\) and account hard-close stay unchanged. Smart-schedule soft cooldown has its own per-cooling-pair window; do not reuse \(Q_u\) as that sample source.
 
 ### 4. Validation & Error Matrix
 
