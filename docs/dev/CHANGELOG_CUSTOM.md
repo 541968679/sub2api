@@ -1,3 +1,34 @@
+## 2026-08-26 - release: 0.1.265 skip audio/realtime in OpenAI capability probe
+
+### What
+- Same as the probe-model / targeted-reprobe fix below, plus `all_apikeys` so ops can re-probe every OpenAI API Key without changing `openai_responses_mode`.
+
+### Why
+Ship the selector fix and the admin execute path so production can correct false-negative rsupp/ccsupp flags.
+
+## 2026-08-26 - fix(openai): probe model skips audio/realtime and adds targeted reprobe
+
+### What
+- OpenAI API Key capability probe no longer uses the lexicographically first mapping value when that value is audio/realtime (`gpt-4o-audio-preview`, etc.).
+- Selector prefers exact `gpt-5.4` among chat mapping values, else the first remaining chat value, else `gpt-5.4`.
+- Admin `POST /api/v1/admin/accounts/openai-capability-reprobe` lists (default dry-run) or serially re-probes keys. Default scope is Q1=B (old sort-first model is audio/realtime and rsupp or ccsupp is explicit false). `all_apikeys=true` probes every OpenAI API Key. Execute reloads extra after each probe so the response shows post-probe flags. Does not write `openai_responses_mode`.
+
+### Why
+zhima / tntapi / bigsnake were marked `openai_responses_supported=false` because the old selector probed `gpt-4o-audio-preview`. Those hosts already succeed on `/v1/responses` with chat models.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestSelectResponsesProbeModel|TestDecideResponsesProbeSupport|TestDecideChatCompletionsProbeSupport|TestNeedsOpenAICapabilityReprobe|TestAccountTestService_OpenAIResponsesProbe|TestAccountTestService_ListAndReprobe"`
+- `go test -tags=unit ./internal/pkg/openai_compat -count=1 -run "TestResolveUpstreamAPI"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "TestAccountHandler_OpenAICapabilityReprobe"`
+
+### Affected files
+`backend/internal/service/openai_apikey_responses_probe.go`
+`backend/internal/service/openai_apikey_responses_probe_test.go`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/handler/admin/account_handler_openai_capability_reprobe_test.go`
+`backend/internal/server/routes/admin.go`
+`.trellis/spec/backend/openai-apikey-upstream-routing.md`
+
 ## 2026-08-26 - release: 0.1.264 selectable K/C/p50 independently opt-in
 
 ### What

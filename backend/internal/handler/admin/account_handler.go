@@ -1062,6 +1062,50 @@ func (h *AccountHandler) scheduleOpenAIResponsesProbe(account *service.Account) 
 	}()
 }
 
+// OpenAICapabilityReprobeRequest is the body for POST .../openai-capability-reprobe.
+// Omitted dry_run defaults to true. Omitted all_apikeys defaults to false
+// (Q1=B eligible only).
+type OpenAICapabilityReprobeRequest struct {
+	DryRun     *bool `json:"dry_run"`
+	AllAPIKeys *bool `json:"all_apikeys"`
+}
+
+// OpenAICapabilityReprobe lists or re-probes OpenAI API Keys.
+// dry_run=true (default) only lists; dry_run=false calls the existing probe
+// serially. all_apikeys=false (default) only includes Q1=B rows; true includes
+// every OpenAI API Key. Does not change openai_responses_mode, credentials,
+// or status.
+// POST /api/v1/admin/accounts/openai-capability-reprobe
+func (h *AccountHandler) OpenAICapabilityReprobe(c *gin.Context) {
+	if h.accountTestService == nil {
+		response.ErrorFrom(c, fmt.Errorf("account test service not configured"))
+		return
+	}
+
+	var req OpenAICapabilityReprobeRequest
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.BadRequest(c, "Invalid request: "+err.Error())
+			return
+		}
+	}
+	dryRun := true
+	if req.DryRun != nil {
+		dryRun = *req.DryRun
+	}
+	allAPIKeys := false
+	if req.AllAPIKeys != nil {
+		allAPIKeys = *req.AllAPIKeys
+	}
+
+	result, err := h.accountTestService.ReprobeOpenAIAPIKeysNeedingCapabilityReprobe(c.Request.Context(), dryRun, allAPIKeys)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 // Delete handles deleting an account
 // DELETE /api/v1/admin/accounts/:id
 func (h *AccountHandler) Delete(c *gin.Context) {

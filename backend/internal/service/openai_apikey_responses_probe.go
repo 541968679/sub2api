@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sort"
@@ -77,21 +78,202 @@ func openaiChatCompletionsProbePayload(modelID string) []byte {
 	return body
 }
 
-func selectResponsesProbeModel(account *Account) string {
+func isNonChatProbeModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.Contains(lower, "audio") || strings.Contains(lower, "realtime")
+}
+
+func mappingProbeValues(account *Account) []string {
+	if account == nil {
+		return nil
+	}
 	mapping := account.GetModelMapping()
-	candidates := make([]string, 0, len(mapping))
+	values := make([]string, 0, len(mapping))
 	for _, upstream := range mapping {
 		upstream = strings.TrimSpace(upstream)
 		if upstream == "" || strings.Contains(upstream, "*") {
 			continue
 		}
-		candidates = append(candidates, upstream)
+		values = append(values, upstream)
 	}
+	return values
+}
+
+// firstSortedMappingProbeModel is the old selector: mapping values, skip empty
+// and "*", sort.Strings, take [0], else DefaultTestModel. Used only for
+// reprobe eligibility so the new chat-aware selector cannot hide audio-first accounts.
+func firstSortedMappingProbeModel(account *Account) string {
+	candidates := mappingProbeValues(account)
 	if len(candidates) == 0 {
 		return openai.DefaultTestModel
 	}
 	sort.Strings(candidates)
 	return candidates[0]
+}
+
+func selectResponsesProbeModel(account *Account) string {
+	candidates := mappingProbeValues(account)
+	chat := make([]string, 0, len(candidates))
+	for _, model := range candidates {
+		if isNonChatProbeModel(model) {
+			continue
+		}
+		chat = append(chat, model)
+	}
+	for _, model := range chat {
+		if model == openai.DefaultTestModel {
+			return openai.DefaultTestModel
+		}
+	}
+	if len(chat) == 0 {
+		return openai.DefaultTestModel
+	}
+	sort.Strings(chat)
+	return chat[0]
+}
+
+func extraBoolFalse(extra map[string]any, key string) bool {
+	if extra == nil {
+		return false
+	}
+	v, ok := extra[key]
+	if !ok {
+		return false
+	}
+	flag, ok := v.(bool)
+	return ok && !flag
+}
+
+func extraBoolPtr(extra map[string]any, key string) *bool {
+	if extra == nil {
+		return nil
+	}
+	v, ok := extra[key]
+	if !ok {
+		return nil
+	}
+	flag, ok := v.(bool)
+	if !ok {
+		return nil
+	}
+	return &flag
+}
+
+// NeedsOpenAICapabilityReprobe is true for a live OpenAI API Key whose old
+// sort-first probe model is audio/realtime and whose Responses or Chat
+// Completions support flag is an explicit bool false. Missing or non-bool
+// extra keys are unknown and do not reprobe. Soft-deleted rows never reach
+// this predicate: ListAllWithFilters already excludes them, and Account has
+// no DeletedAt field.
+func NeedsOpenAICapabilityReprobe(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	if account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return false
+	}
+	if !isNonChatProbeModel(firstSortedMappingProbeModel(account)) {
+		return false
+	}
+	return extraBoolFalse(account.Extra, openai_compat.ExtraKeyResponsesSupported) ||
+		extraBoolFalse(account.Extra, openai_compat.ExtraKeyChatCompletionsSupported)
+}
+
+// OpenAICapabilityReprobeItem is one listed account. It never includes credentials.
+type OpenAICapabilityReprobeItem struct {
+	AccountID                    int64  `json:"account_id"`
+	Name                         string `json:"name"`
+	OldProbeModel                string `json:"old_probe_model"`
+	NewProbeModel                string `json:"new_probe_model"`
+	ResponsesMode                string `json:"openai_responses_mode,omitempty"`
+	ResponsesSupported           *bool  `json:"openai_responses_supported"`
+	ChatCompletionsSupported     *bool  `json:"openai_chat_completions_supported"`
+	NeedsOpenAICapabilityReprobe bool   `json:"needs_openai_capability_reprobe"`
+}
+
+// OpenAICapabilityReprobeResult is the dry-run / execute listing.
+type OpenAICapabilityReprobeResult struct {
+	DryRun     bool                          `json:"dry_run"`
+	AllAPIKeys bool                          `json:"all_apikeys"`
+	Count      int                           `json:"count"`
+	Accounts   []OpenAICapabilityReprobeItem `json:"accounts"`
+}
+
+func openAICapabilityReprobeItem(account *Account) OpenAICapabilityReprobeItem {
+	mode := ""
+	if account != nil && account.Extra != nil {
+		if raw, ok := account.Extra[openai_compat.ExtraKeyResponsesMode].(string); ok {
+			mode = raw
+		}
+	}
+	return OpenAICapabilityReprobeItem{
+		AccountID:                    account.ID,
+		Name:                         account.Name,
+		OldProbeModel:                firstSortedMappingProbeModel(account),
+		NewProbeModel:                selectResponsesProbeModel(account),
+		ResponsesMode:                mode,
+		ResponsesSupported:           extraBoolPtr(account.Extra, openai_compat.ExtraKeyResponsesSupported),
+		ChatCompletionsSupported:     extraBoolPtr(account.Extra, openai_compat.ExtraKeyChatCompletionsSupported),
+		NeedsOpenAICapabilityReprobe: NeedsOpenAICapabilityReprobe(account),
+	}
+}
+
+func (s *AccountTestService) ListOpenAIAPIKeysNeedingCapabilityReprobe(ctx context.Context) ([]Account, error) {
+	return s.ListOpenAIAPIKeysForCapabilityReprobe(ctx, false)
+}
+
+func (s *AccountTestService) ListOpenAIAPIKeysForCapabilityReprobe(ctx context.Context, allAPIKeys bool) ([]Account, error) {
+	if s == nil || s.accountRepo == nil {
+		return nil, errors.New("account repository is not available")
+	}
+	accounts, err := s.accountRepo.ListAllWithFilters(ctx, PlatformOpenAI, AccountTypeAPIKey, "", "", 0, "")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Account, 0)
+	for i := range accounts {
+		acc := &accounts[i]
+		if acc.Platform != PlatformOpenAI || acc.Type != AccountTypeAPIKey {
+			continue
+		}
+		if !allAPIKeys && !NeedsOpenAICapabilityReprobe(acc) {
+			continue
+		}
+		out = append(out, accounts[i])
+	}
+	return out, nil
+}
+
+func (s *AccountTestService) ReprobeOpenAIAPIKeysNeedingCapabilityReprobe(ctx context.Context, dryRun, allAPIKeys bool) (*OpenAICapabilityReprobeResult, error) {
+	accounts, err := s.ListOpenAIAPIKeysForCapabilityReprobe(ctx, allAPIKeys)
+	if err != nil {
+		return nil, err
+	}
+	result := &OpenAICapabilityReprobeResult{
+		DryRun:     dryRun,
+		AllAPIKeys: allAPIKeys,
+		Count:      len(accounts),
+		Accounts:   make([]OpenAICapabilityReprobeItem, 0, len(accounts)),
+	}
+	ids := make([]int64, 0, len(accounts))
+	for i := range accounts {
+		item := openAICapabilityReprobeItem(&accounts[i])
+		ids = append(ids, item.AccountID)
+		if dryRun {
+			result.Accounts = append(result.Accounts, item)
+			continue
+		}
+		s.ProbeOpenAIAPIKeyResponsesSupport(ctx, accounts[i].ID)
+		if reloaded, getErr := s.accountRepo.GetByID(ctx, accounts[i].ID); getErr == nil && reloaded != nil {
+			item = openAICapabilityReprobeItem(reloaded)
+		}
+		result.Accounts = append(result.Accounts, item)
+	}
+	logger.LegacyPrintf("service.openai_probe",
+		"capability_reprobe: dry_run=%v all_apikeys=%v count=%d ids=%v",
+		dryRun, allAPIKeys, result.Count, ids,
+	)
+	return result, nil
 }
 
 type openaiProbeHTTPResult struct {
