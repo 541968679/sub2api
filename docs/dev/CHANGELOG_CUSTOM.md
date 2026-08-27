@@ -1,3 +1,11 @@
+## 2026-08-27 - release: 0.1.267 show pair p50 from any TTFT sample
+
+### What
+- Ship the p50 display fix: pair-quality cells show p50 from any TTFT sample; empty phase alias no longer blanks live FIFO p50. Gate still waits for full N.
+
+### Why
+Production still runs `v0.1.266`, which hid underfull/empty-phase p50. Need a new GHCR tag before `update.sh` can pull the fix.
+
 ## 2026-08-27 - fix(smart-schedule): show pair p50 from underfull TTFT window
 
 ### What
