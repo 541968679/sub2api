@@ -11,9 +11,12 @@
 Haley locked enter-AND / exit-OR, soft-end → 调度期 (not 考察), time-windowed soft meet, and phase-correct admin cells.
 
 ### Verification
-- `go test -tags=unit ./internal/service -count=1 -run "EvalQuality|PairQuality|SoftCooldown|ProbeLatency|SmartScheduleProbe|SmartSchedulePair|Hydrate|WillCool|PhaseMetrics|Observe|SoftEnd|Cooldown"`
-- `go test -tags=unit ./internal/repository -count=1 -run "SoftEnd|ExpiryZeros|PairQualityCache_SoftEnd|SoftCooldown"`
-- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/utils/__tests__/accountQualityHardClose.spec.ts`
+- `go test -tags=unit ./internal/service -count=1 -run "EvalQuality|PairQuality|SoftCooldown|SmartScheduleProbe|Hydrate|WillCool|PhaseMetrics|Observe|Cooldown|AdmitsSchedule|CopyPlatform|SetPairAdmission|FilterPrecheck|ProbePrecheck"` (ok)
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Precheck|SoftCooldown|SoftEnd|ProbeLatency"` (ok)
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "SmartSchedule|PairQuality|Omitted"` (ok)
+- `go test -tags=unit ./migrations -count=1 -run "219|SoftCooldown218|Latency"` (ok)
+- `go test -tags=unit ./internal/service -count=1 -run "SmartSchedule|PairQuality|EvalQuality|SoftCooldown|ProbeLatency|ProbePrecheck|Hydrate|WillCool|PhaseMetrics|ObservePair|SetPairAdmission|CopyPlatform|AdmitsSchedule|FilterPrecheck|UserSmartSchedule|SoftEnd"` (ok, broader filter)
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts` (4 files, 135 tests, ok)
 
 ### Affected files
 `backend/internal/service/smart_schedule_eval.go`
