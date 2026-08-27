@@ -150,7 +150,7 @@ func TestPairQualityProbeGraduates_WokOnlySync(t *testing.T) {
 
 	p50 := 50
 	withTTFT := probePolicy(7, 3, &p50, &rate, false)
-	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "257: TTFT underfull still graduates")
+	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), withTTFT), "257: configured p50 + empty TTFT must not graduate")
 	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), withProbeLatencyV2(withTTFT)), "v2: empty W_ttft stays pending")
 }
 
@@ -162,9 +162,9 @@ func TestPairQualityProbeAndMixed_OnlyInProbe(t *testing.T) {
 	live := mixedAndLive(3, 400, 3)
 	require.Equal(t, 3, live.OKCount)
 	require.Equal(t, 3, live.TTFTCount)
-	require.False(t, pairQualityProbeBlocks(live, policy), "and: success passes so standard and must not cool")
+	require.True(t, pairQualityProbeBlocks(live, policy), "and is ignored: p50 fail cools")
 	require.False(t, pairQualityProbeGraduates(live, policy), "full W_ttft p50 fail must not graduate")
-	require.True(t, pairQualityProbeAndMixed(live, policy))
+	require.False(t, pairQualityProbeAndMixed(live, policy), "and_mixed is frozen off")
 
 	orPolicy := probePolicy(7, 3, &p50, &rate, false)
 	require.False(t, pairQualityProbeAndMixed(live, orPolicy), "or is not the mixed override")
@@ -215,8 +215,8 @@ func TestEvaluateSmartSchedule_SelectableMixedDoesNotUseOverride(t *testing.T) {
 		bundle: smartBundle(PlatformAnthropic, policy),
 		pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
-	require.Equal(t, 0, lookup.startCalls)
+	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.Equal(t, 1, lookup.startCalls, "OR-exit: selectable p50 fail cools even when condition=and")
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"), "no mark = not probing / no backfill")
 }
 
@@ -293,7 +293,7 @@ func TestEvaluateSmartSchedule_EmptyWindowAfterExpiry257NoCooldown(t *testing.T)
 	pass, state := pairQualityProbeLatencyPass(empty, policy)
 	require.False(t, pass)
 	require.Equal(t, LatencyEvalPending, state)
-	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: TTFTCount < N still graduates")
+	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: configured p50 + empty TTFT must not graduate")
 }
 
 func TestAdmitsScheduleUser_ExpiryZeroV2OffDoesNotRecooldownStaleP50(t *testing.T) {
@@ -319,7 +319,7 @@ func TestAdmitsScheduleUser_ExpiryZeroV2OffDoesNotRecooldownStaleP50(t *testing.
 	cleared := lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic)
 	require.Equal(t, 0, cleared.TTFTCount)
 	require.Equal(t, 0, cleared.OKCount)
-	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: TTFTCount < N still graduates")
+	require.False(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: configured p50 + empty TTFT must not graduate")
 }
 
 func TestAdmitsScheduleUser_ExpiryV2ZerosWindowsThenProbe(t *testing.T) {

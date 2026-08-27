@@ -606,6 +606,31 @@ describe('resolveQualityAdmissionHint', () => {
     ).toBe('will_cool')
   })
 
+  it('prefers backend willCool over local pair math', () => {
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        pairQuality: failingPair,
+        willCool: false
+      })
+    ).toBeNull()
+    expect(
+      resolveQualityAdmissionHint({
+        draft: savedLiveGate,
+        saved: savedLiveGate,
+        pairQuality: {
+          ttft_p50_ms: 10,
+          success_rate: 1,
+          ttft_samples: 10,
+          ok_samples: 10,
+          n: 10
+        },
+        willCool: true
+      })
+    ).toBe('will_cool')
+  })
+
   it('ignores leftover account 15m cells on the deprecated stats field', () => {
     expect(
       resolveQualityAdmissionHint({

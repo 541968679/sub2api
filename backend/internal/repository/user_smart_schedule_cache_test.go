@@ -262,6 +262,33 @@ func TestUserSmartScheduleCache_SoftCooldownWindow(t *testing.T) {
 	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "leaving cooldown deletes window")
 }
 
+func TestUserSmartScheduleCache_SoftCooldownLegacyBlobAndTimeWindow(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewUserSmartScheduleCache(rdb, nil).(*userSmartScheduleCache)
+	ctx := context.Background()
+	key := smartScheduleSoftCoolKey("openai", 7)
+
+	legacy, err := json.Marshal(encodePairQualityLive(service.ApplyPairQualityIngestWindows(nil, 2, 2, true, intPtrRepo(40), nil)))
+	require.NoError(t, err)
+	require.NoError(t, rdb.HSet(ctx, key, smartScheduleCooldownField(16), legacy).Err())
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "legacy no-ts blob must not false-meet")
+
+	old := time.Now().UTC().Add(-40 * time.Minute).Unix()
+	win := softCooldownWindow{
+		NTTFT: 2, NOK: 2,
+		Samples: []service.SoftCooldownSample{
+			{UnixTS: old, OK: true, TTFTMs: intPtrRepo(40)},
+			{UnixTS: old, OK: true, TTFTMs: intPtrRepo(50)},
+		},
+	}
+	payload, err := json.Marshal(win)
+	require.NoError(t, err)
+	require.NoError(t, rdb.HSet(ctx, key, smartScheduleCooldownField(16), payload).Err())
+	require.Nil(t, cache.GetSoftCooldown(ctx, 7, 16, "openai"), "samples older than cooldown_minutes must be dropped")
+}
+
 func TestCachedSmartScheduleBundle_LatencyGateRoundTrip(t *testing.T) {
 	ttft := 10000
 	dur := 80000

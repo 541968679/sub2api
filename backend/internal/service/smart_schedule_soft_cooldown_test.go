@@ -11,6 +11,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFilterSoftCooldownSamples_DropsOutsideAndLegacyEmpty(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 27, 18, 0, 0, 0, time.UTC)
+	since := now.Add(-15 * time.Minute)
+	samples := []SoftCooldownSample{
+		{UnixTS: now.Add(-20 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(40)},
+		{UnixTS: now.Add(-2 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(50)},
+	}
+	got := FilterSoftCooldownSamples(samples, since)
+	require.Len(t, got, 1)
+	require.Equal(t, 50, *got[0].TTFTMs)
+	require.Empty(t, FilterSoftCooldownSamples(nil, since))
+}
+
+func TestSoftCooldownMeets_TimeWindowAndKFail(t *testing.T) {
+	t.Parallel()
+	p50 := 200
+	rate := 0.9
+	policy := &SmartSchedulePlatformPolicy{
+		QualityMaxP50TTFTMs:            &p50,
+		QualityMinSuccessRate:          &rate,
+		QualityMinTTFTSamples:          intPtr(2),
+		QualityMinSuccessSamples:       intPtr(2),
+		QualitySchedWindowN:            intPtr(2),
+		QualitySchedMaxSlowInWindow:    intPtr(2),
+		QualitySchedMaxConsecutiveSlow: intPtr(2),
+	}
+	now := time.Date(2026, 8, 27, 18, 0, 0, 0, time.UTC)
+	outside := SoftLiveFromSamples([]SoftCooldownSample{
+		{UnixTS: now.Add(-40 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(40)},
+		{UnixTS: now.Add(-39 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(50)},
+	}, 2, 2)
+	require.False(t, softCooldownMeets(SoftLiveFromSamples(FilterSoftCooldownSamples([]SoftCooldownSample{
+		{UnixTS: now.Add(-40 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(40)},
+		{UnixTS: now.Add(-39 * time.Minute).Unix(), OK: true, TTFTMs: intPtr(50)},
+	}, now.Add(-15*time.Minute)), 2, 2), policy), "outside-window samples cannot meet")
+	require.NotNil(t, outside)
+
+	kFail := SoftLiveFromSamples([]SoftCooldownSample{
+		{UnixTS: now.Unix(), OK: true, TTFTMs: intPtr(900)},
+		{UnixTS: now.Unix(), OK: true, TTFTMs: intPtr(900)},
+	}, 2, 2)
+	require.False(t, softCooldownMeets(kFail, policy), "K/C fail cannot meet")
+
+	ok := SoftLiveFromSamples([]SoftCooldownSample{
+		{UnixTS: now.Unix(), OK: true, TTFTMs: intPtr(40)},
+		{UnixTS: now.Unix(), OK: true, TTFTMs: intPtr(50)},
+	}, 2, 2)
+	require.True(t, softCooldownMeets(ok, policy))
+}
+
 func TestSoftCooldownMeets_UnderfullIsNotPass(t *testing.T) {
 	t.Parallel()
 	p50 := 200
@@ -78,11 +129,11 @@ func TestSoftCooldownMeets_OrAndAndUnconfiguredSkipped(t *testing.T) {
 	andPolicy := *orPolicy
 	andPolicy.QualityCondition = strPtr(QualityHardCloseConditionAnd)
 
-	// Success full+pass, TTFT underfull.
+	// Success full+pass, TTFT underfull — enter-AND: neither or nor and may meet.
 	var live *PairQualityLive
 	live = ApplyPairQualityIngestWindows(live, 2, 2, true, nil, nil)
 	live = ApplyPairQualityIngestWindows(live, 2, 2, true, nil, nil)
-	require.True(t, softCooldownMeets(live, orPolicy))
+	require.False(t, softCooldownMeets(live, orPolicy), "or no longer single-side meets")
 	require.False(t, softCooldownMeets(live, &andPolicy))
 
 	successOnly := &SmartSchedulePlatformPolicy{
@@ -245,9 +296,10 @@ func TestObservePairCompletion_SoftCooldownEarlyExit(t *testing.T) {
 	})
 	require.Equal(t, []int64{7}, cache.softEnded)
 	require.Contains(t, cache.events, PairQualityEventSoftCooldownEnd)
-	require.Contains(t, cache.events, PairQualityEventProbeEnter)
+	require.Contains(t, cache.events, PairQualityEventExpiryZero)
+	require.NotContains(t, cache.events, PairQualityEventProbeEnter)
 	require.NotContains(t, cache.events, PairQualityEventCooldownEnd)
-	require.True(t, cache.IsProbing(ctx, 7, 16, PlatformAnthropic))
+	require.False(t, cache.IsProbing(ctx, 7, 16, PlatformAnthropic), "soft-end goes to selectable, not 考察")
 	require.False(t, cache.CooldownActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()))
 }
 
@@ -355,7 +407,7 @@ func TestObservePairCompletion_SoftCooldownManualSetCooldownEarlyExit(t *testing
 	require.Equal(t, []int64{7}, cache.softIngested)
 	require.Equal(t, []int64{7}, cache.softEnded)
 	require.Contains(t, cache.events, PairQualityEventSoftCooldownEnd)
-	require.True(t, cache.IsProbing(ctx, 7, 16, PlatformAnthropic))
+	require.False(t, cache.IsProbing(ctx, 7, 16, PlatformAnthropic), "soft-end goes to selectable, not 考察")
 }
 
 func TestObservePairCompletion_SoftCooldownManualSetCooldownHardWaits(t *testing.T) {

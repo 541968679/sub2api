@@ -2,8 +2,42 @@ package service
 
 import (
 	"fmt"
-	"strings"
+	"time"
 )
+
+// SoftCooldownSample is one peer completion in a cooling pair's soft window.
+// It is not a last-N Q_a sample and not an account-quality:precheck row.
+type SoftCooldownSample struct {
+	UnixTS     int64 `json:"ts"`
+	OK         bool  `json:"ok"`
+	TTFTMs     *int  `json:"ttft,omitempty"`
+	DurationMs *int  `json:"dur,omitempty"`
+}
+
+// FilterSoftCooldownSamples keeps samples with ts >= since (same formula as v2 precheck).
+func FilterSoftCooldownSamples(samples []SoftCooldownSample, since time.Time) []SoftCooldownSample {
+	if len(samples) == 0 {
+		return nil
+	}
+	sinceUnix := since.UTC().Unix()
+	out := make([]SoftCooldownSample, 0, len(samples))
+	for _, sample := range samples {
+		if sample.UnixTS < sinceUnix {
+			continue
+		}
+		out = append(out, sample)
+	}
+	return out
+}
+
+// SoftLiveFromSamples applies the shared ingest rules in chronological order.
+func SoftLiveFromSamples(samples []SoftCooldownSample, nTTFT, nOK int) *PairQualityLive {
+	var live *PairQualityLive
+	for _, sample := range samples {
+		live = ApplyPairQualityIngestWindows(live, nTTFT, nOK, sample.OK, sample.TTFTMs, sample.DurationMs)
+	}
+	return live
+}
 
 // softCooldownMeets is the locked positive-pass for a cooling pair's soft window.
 // Configured gates must be full and not broken. Underfull is not a pass.
@@ -12,24 +46,7 @@ func softCooldownMeets(live *PairQualityLive, policy *SmartSchedulePlatformPolic
 	if live == nil || policy == nil {
 		return false
 	}
-	successOn := policy.QualityMinSuccessRate != nil
-	ttftOn := policy.QualityMaxP50TTFTMs != nil
-	durOn := policy.QualityMaxP50DurationMs != nil
-	if !successOn && !ttftOn && !durOn {
-		return false
-	}
-	nOK := policy.SuccessWindowN()
-	nLat := softCooldownLatencyN(policy)
-
-	successPass := !successOn || softCooldownSuccessMeets(live, policy, nOK)
-	latencyOn := ttftOn || durOn
-	latencyPass := !latencyOn || softCooldownLatencyGateMeets(live, policy, nLat)
-
-	cond := strings.ToLower(strings.TrimSpace(derefString(policy.QualityCondition)))
-	if cond == QualityHardCloseConditionAnd {
-		return successPass && latencyPass
-	}
-	return (successOn && successPass) || (latencyOn && latencyPass)
+	return EvalQuality(live, SchedQualityKnobs(policy)).State == LatencyEvalPass
 }
 
 func softCooldownLatencyN(policy *SmartSchedulePlatformPolicy) int {

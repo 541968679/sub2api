@@ -344,7 +344,32 @@ func (c *userSmartScheduleCache) SoftEndCooldown(ctx context.Context, accountID,
 	if c.IsCooldownHard(ctx, accountID, userID, platform) {
 		return
 	}
-	c.enterProbeFromCooldown(ctx, accountID, userID, platform, service.PairQualityEventSoftCooldownEnd, detail)
+	c.softEndToSelectable(ctx, accountID, userID, platform, detail)
+}
+
+// softEndToSelectable leaves cooling into 调度期. It does not MarkProbing,
+// run 考察预检, or enter 考察期. Pair windows are zeroed (same as 预检 pass)
+// so leftover failing samples cannot immediately re-cool.
+func (c *userSmartScheduleCache) softEndToSelectable(ctx context.Context, accountID, userID int64, platform, detail string) {
+	if c == nil || c.rdb == nil {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownReasonKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
+	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
+	c.clearCooldownHard(ctx, accountID, userID, platform)
+	if c.IsPinned(ctx, accountID, userID, platform) {
+		return
+	}
+	c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+	c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
+		Ts:     time.Now().UTC().Unix(),
+		Type:   service.PairQualityEventSoftCooldownEnd,
+		Detail: detail,
+	})
+	c.ClearProbing(ctx, accountID, userID, platform)
+	c.ClearPairResume(ctx, accountID, userID, platform)
+	service.LogSmartScheduleEvent(service.SmartScheduleLogSoftEnd, userID, accountID, platform, service.CooldownPhaseSelectable, detail)
 }
 
 func (c *userSmartScheduleCache) EnterProbe(ctx context.Context, accountID, userID int64, platform string) service.ProbeAdmissionOutcome {
@@ -385,6 +410,7 @@ func (c *userSmartScheduleCache) enterProbeFromCooldown(ctx context.Context, acc
 		appendExtra()
 		c.MarkProbing(ctx, accountID, userID, platform)
 		c.ClearPairResume(ctx, accountID, userID, platform)
+		service.LogSmartScheduleEvent(service.SmartScheduleLogProbeEnter, userID, accountID, platform, service.CooldownPhaseProbe, detail)
 		return
 	}
 	minutes := service.ClampSmartScheduleCooldownMinutes(policy.CooldownMinutes)
@@ -398,12 +424,15 @@ func (c *userSmartScheduleCache) enterProbeFromCooldown(ctx context.Context, acc
 	switch ev.State {
 	case service.LatencyEvalFail:
 		c.ClearProbing(ctx, accountID, userID, platform)
-		c.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, time.Now().UTC(), service.FormatProbePrecheckCooldownDetail(ev.Reasons))
+		precheckDetail := service.FormatProbePrecheckCooldownDetail(ev.Reasons)
+		c.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, time.Now().UTC(), precheckDetail)
 		c.markCooldownHard(ctx, accountID, userID, platform, minutes)
+		service.LogSmartScheduleEvent(service.SmartScheduleLogCooldownStart, userID, accountID, platform, service.CooldownPhasePrecheck, precheckDetail)
 	case service.LatencyEvalPass:
 		c.ClearProbing(ctx, accountID, userID, platform)
 	default:
 		c.MarkProbing(ctx, accountID, userID, platform)
+		service.LogSmartScheduleEvent(service.SmartScheduleLogProbeEnter, userID, accountID, platform, service.CooldownPhaseProbe, detail)
 	}
 }
 

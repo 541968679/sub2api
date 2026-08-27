@@ -405,6 +405,9 @@ export interface SmartScheduleAccountMember {
   probing_cap?: number | null
   in_flight_cap?: number | null
   pair_probe_cap?: number | null
+  pair_quality?: SmartSchedulePairQuality | null
+  will_cool?: boolean
+  quality_reason?: string | null
 }
 
 export interface SmartScheduleSortAssignment {
@@ -500,6 +503,22 @@ export type SmartScheduleSoftCooldownProgress = {
   n_duration?: number
 }
 
+export type SmartScheduleQualityPhaseMetrics = {
+  p50_ttft_ms?: number | null
+  p50_duration_ms?: number | null
+  success_rate?: number | null
+  ttft_samples: number
+  n_ttft: number
+  ok_samples: number
+  n_ok: number
+  duration_samples?: number | null
+  n_duration?: number | null
+  slow?: number | null
+  k?: number | null
+  consec?: number | null
+  c?: number | null
+}
+
 export type SmartSchedulePairQuality = {
   ttft_p50_ms?: number | null
   success_rate?: number | null
@@ -513,6 +532,11 @@ export type SmartSchedulePairQuality = {
   ttft_consecutive_slow?: number | null
   quality_sched_max_slow_in_window?: number | null
   quality_sched_max_consecutive_slow?: number | null
+  probe?: SmartScheduleQualityPhaseMetrics | null
+  sched?: SmartScheduleQualityPhaseMetrics | null
+  soft?: SmartScheduleQualityPhaseMetrics | null
+  quality_reason?: string | null
+  metrics_phase?: 'probe' | 'sched' | 'soft' | 'exempt' | string | null
 }
 
 export type SmartSchedulePairQualitySnapshot = SmartSchedulePairQuality & {

@@ -370,16 +370,25 @@ export function resolveQualityAdmissionHint(input: {
   draft?: PoolQualityGateDraft | null
   saved?: PoolQualityGateDraft | null
   pairQuality?: SmartSchedulePairQuality | null
+  /** Backend hydrate of the same gate evaluate uses. Prefer over local pair math. */
+  willCool?: boolean
+  qualityReason?: string | null
   /** @deprecated Ignored. will_cool uses pairQuality, not account 15m cells. */
   stats?: unknown
   resumeActive?: boolean
   resumeChipActive?: boolean
 }): PoolQualityHint | null {
   if (input.resumeChipActive || input.resumeActive) return 'resumed'
-  if (isSavedQualityGateLive(input.saved) && pairQualityGateBreached(input.saved, input.pairQuality)) {
+  if (input.willCool === true) {
+    return 'will_cool'
+  }
+  if (input.willCool !== false && isSavedQualityGateLive(input.saved) && pairQualityGateBreached(input.saved, input.pairQuality)) {
     return 'will_cool'
   }
   if (hasQualityGateFromDraft(input.draft) && pairQualityGateBreached(input.draft, input.pairQuality)) {
+    if (input.willCool === false && isSavedQualityGateLive(input.saved) && pairQualityGateBreached(input.saved, input.pairQuality)) {
+      return null
+    }
     return 'unsaved_preview'
   }
   return null

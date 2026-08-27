@@ -221,6 +221,26 @@ func TestPairQualityCache_PinnedNoTTLNoBackfillAndBlocksCooldown(t *testing.T) {
 	require.True(t, foundPin)
 }
 
+func TestPairQualityCache_SoftEndGoesToSelectableNotProbe(t *testing.T) {
+	cache, _ := newPairQualityTestCache(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 27, 18, 0, 0, 0, time.UTC)
+	storeProbeLatencyV2(t, cache, 16, "openai", false)
+	cache.IngestPairQuality(ctx, 7, 16, "openai", 3, 3, true, intPtrRepo(900), nil)
+	cache.StartCooldown(ctx, 7, 16, "openai", 15, now)
+	require.True(t, cache.CooldownActive(ctx, 7, 16, "openai", now))
+	require.NotZero(t, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
+
+	cache.SoftEndCooldown(ctx, 7, 16, "openai", "soft_cooldown ttft=2/2 ok=2/2")
+	require.False(t, cache.CooldownActive(ctx, 7, 16, "openai", now), "soft-end must clear cooldown")
+	require.False(t, cache.IsProbing(ctx, 7, 16, "openai"), "soft-end must not MarkProbing")
+	require.Equal(t, 0, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount, "soft-end zeros pair windows like 预检 pass")
+	types := pairQualityEventTypes(cache.ListPairQualityEvents(ctx, 7, 16, "openai", 20))
+	require.Contains(t, types, service.PairQualityEventExpiryZero)
+	require.Contains(t, types, service.PairQualityEventSoftCooldownEnd)
+	require.NotContains(t, types, service.PairQualityEventProbeEnter)
+}
+
 func TestPairQualityCache_ExpiryWhilePinnedDoesNotProbe(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()

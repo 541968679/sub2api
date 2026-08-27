@@ -581,6 +581,9 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinSuccessSamples')
     expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityMinTtftSamples')
     expect(thresholdGrid.get('[data-testid="smart-schedule-cooldown"]').exists()).toBe(true)
+    expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityCondition')
+    expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityConditionOr')
+    expect(thresholdGrid.text()).not.toContain('admin.accounts.userSchedule.qualityConditionAnd')
 
     const tableRegion = w.get('[data-testid="smart-schedule-pool-table-region"]')
     expect(tableRegion.get('[data-testid="smart-schedule-pool-table"]').exists()).toBe(true)
@@ -1687,7 +1690,7 @@ describe('UserSmartScheduleView', () => {
           quality_min_success_samples: 1,
           quality_min_ttft_samples: 1,
           quality_condition: 'or',
-          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null, will_cool: true, quality_reason: '调度期 · 配对' }]
         }
       }
     })

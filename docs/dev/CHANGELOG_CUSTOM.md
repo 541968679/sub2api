@@ -1,3 +1,34 @@
+## 2026-08-27 - feat(smart-schedule): quality contract children 1–4
+
+### What
+- Shared `EvalQuality` is per configured metric: enter/meet is AND, exit is OR. Smart-schedule `quality_condition` is ignored at runtime (Track A unchanged).
+- Soft cooldown keeps peer samples with timestamps and `since = now - cooldown_minutes`. Legacy blobs without `samples` are an empty window.
+- Soft-end meet goes **directly to selectable** (ClearProbing, zero pair window). Hard countdown expiry still `enterProbeFromCooldown` / v2 预检.
+- Ingest fail writes cooldown; hydrate `will_cool` / `quality_reason` use the current admission knobs. Structured `cooldown_start` / `soft_end` / `probe_enter` logs.
+- GET pair-quality now ships `probe` / `sched` / `soft` blocks. Top-level p50/counts/K/C alias the active phase window (`recentLatencySamples`), not the full FIFO.
+
+### Why
+Haley locked enter-AND / exit-OR, soft-end → 调度期 (not 考察), time-windowed soft meet, and phase-correct admin cells.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "EvalQuality|PairQuality|SoftCooldown|ProbeLatency|SmartScheduleProbe|SmartSchedulePair|Hydrate|WillCool|PhaseMetrics|Observe|SoftEnd|Cooldown"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SoftEnd|ExpiryZeros|PairQualityCache_SoftEnd|SoftCooldown"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UserSmartScheduleView.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/utils/__tests__/accountQualityHardClose.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_eval.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_soft_cooldown.go`
+`backend/internal/service/smart_schedule_log.go`
+`backend/internal/service/user_smart_schedule_service.go`
+`backend/internal/repository/user_smart_schedule_cache.go`
+`backend/internal/repository/smart_schedule_soft_cooldown_cache.go`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/composables/smartSchedulePoolAdmission.ts`
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
+`frontend/src/api/admin/users.ts`
+
 ## 2026-08-27 - feat(smart-schedule): 考察期 v2 预检
 
 ### What

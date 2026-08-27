@@ -42,7 +42,7 @@ type AccountQualityPrecheckSample struct {
 }
 
 // ProbeQualityKnobs is the 考察期 / 考察预检 knob set (N首字, K/C default 2/2
-// when any latency threshold is set).
+// when any latency threshold is set). Condition is ignored at runtime.
 func ProbeQualityKnobs(policy *SmartSchedulePlatformPolicy) QualityEvalKnobs {
 	if policy == nil {
 		return QualityEvalKnobs{
@@ -59,53 +59,146 @@ func ProbeQualityKnobs(policy *SmartSchedulePlatformPolicy) QualityEvalKnobs {
 		LatencyN:    policy.TTFTWindowN(),
 		K:           k,
 		C:           c,
-		Condition:   derefString(policy.QualityCondition),
 	}
 }
 
-// EvalQuality is the shared 预检 / 正式考察 (and selectable-shaped) judge.
-// fail = success-fail ∨/∧ latency-fail, plus and-mixed when both sides are full
-// and they disagree. pass = every configured side is pass. Else pending.
-func EvalQuality(live *PairQualityLive, knobs QualityEvalKnobs) QualityEvalResult {
-	successSide, successReasons := evalSuccessSide(live, knobs)
-	latencySide, latencyReasons := evalLatencySide(live, knobs)
-	reasons := append([]SmartScheduleCooldownReason{}, successReasons...)
-	reasons = append(reasons, latencyReasons...)
-
-	successConfigured := successSide != qualitySideSkip
-	latencyConfigured := latencySide != qualitySideSkip
-	sFail := successSide == LatencyEvalFail
-	lFail := latencySide == LatencyEvalFail
-	sPass := successSide == LatencyEvalPass
-	lPass := latencySide == LatencyEvalPass
-	sFull := sPass || sFail
-	lFull := lPass || lFail
-	cond := strings.ToLower(strings.TrimSpace(knobs.Condition))
-
-	fail := false
-	if cond == QualityHardCloseConditionAnd {
-		if sFail && lFail {
-			fail = true
-		} else if successConfigured && latencyConfigured && sFull && lFull && sFail != lFail {
-			fail = true
-			reasons = []SmartScheduleCooldownReason{{Code: "and_mixed", Detail: "and 混合"}}
+// SchedQualityKnobs is the 调度期 / 软冷却 knob set. Composite on → sched N/K/C;
+// composite off → N首字 p50 only (no invented K/C). Condition is ignored.
+func SchedQualityKnobs(policy *SmartSchedulePlatformPolicy) QualityEvalKnobs {
+	if policy == nil {
+		return QualityEvalKnobs{
+			SuccessN: DefaultSmartScheduleWindowN,
+			LatencyN: DefaultSmartScheduleWindowN,
 		}
-	} else if sFail || lFail {
-		fail = true
 	}
-	if fail {
+	latencyN := policy.TTFTWindowN()
+	k, c := 0, 0
+	if policy.SchedCompositeEnabled() {
+		n, sk, sc := resolveSmartScheduleSchedKC(policy)
+		if n > 0 {
+			latencyN = n
+		}
+		k, c = sk, sc
+	}
+	return QualityEvalKnobs{
+		SuccessRate: policy.QualityMinSuccessRate,
+		SuccessN:    policy.SuccessWindowN(),
+		TTFTMax:     policy.QualityMaxP50TTFTMs,
+		DurMax:      policy.QualityMaxP50DurationMs,
+		LatencyN:    latencyN,
+		K:           k,
+		C:           c,
+	}
+}
+
+func qualityKnobsConfigured(knobs QualityEvalKnobs) bool {
+	if knobs.SuccessRate != nil {
+		return true
+	}
+	if knobs.TTFTMax != nil && *knobs.TTFTMax >= 1 {
+		return true
+	}
+	return knobs.DurMax != nil && *knobs.DurMax >= 1
+}
+
+type qualityMetricJudge struct {
+	state   string
+	reasons []SmartScheduleCooldownReason
+}
+
+// EvalQuality is the shared 预检 / 正式考察 / 调度 / 软 meet judge.
+// Per configured metric: fail OR-exits; pass is AND-enter. Condition is ignored.
+// Zero configured metrics → pending.
+func EvalQuality(live *PairQualityLive, knobs QualityEvalKnobs) QualityEvalResult {
+	var judges []qualityMetricJudge
+	if knobs.SuccessRate != nil {
+		side, reasons := evalSuccessSide(live, knobs)
+		judges = append(judges, qualityMetricJudge{state: side, reasons: reasons})
+	}
+	var ttft, dur []int
+	if live != nil {
+		ttft = live.TTFTMs
+		dur = live.DurationMs
+	}
+	n := knobs.LatencyN
+	if n < 1 {
+		n = DefaultSmartScheduleWindowN
+	}
+	judges = append(judges, evalFanMetrics(ttft, knobs.TTFTMax, knobs.K, knobs.C, n, "ttft_")...)
+	judges = append(judges, evalFanMetrics(dur, knobs.DurMax, knobs.K, knobs.C, n, "dur_")...)
+
+	if len(judges) == 0 {
+		return QualityEvalResult{State: LatencyEvalPending, Reasons: nil}
+	}
+	var reasons []SmartScheduleCooldownReason
+	allPass := true
+	anyFail := false
+	for _, j := range judges {
+		if j.state == LatencyEvalFail {
+			anyFail = true
+			reasons = append(reasons, j.reasons...)
+		}
+		if j.state != LatencyEvalPass {
+			allPass = false
+		}
+	}
+	if anyFail {
 		return QualityEvalResult{State: LatencyEvalFail, Reasons: orderCooldownReasons(reasons)}
 	}
-	if successConfigured && !sPass {
-		return QualityEvalResult{State: LatencyEvalPending, Reasons: nil}
+	if allPass {
+		return QualityEvalResult{State: LatencyEvalPass, Reasons: nil}
 	}
-	if latencyConfigured && !lPass {
-		return QualityEvalResult{State: LatencyEvalPending, Reasons: nil}
+	return QualityEvalResult{State: LatencyEvalPending, Reasons: nil}
+}
+
+// evalFanMetrics judges p50 / K / C independently on one latency fan.
+// Unset fan threshold skips p50 and that fan's K/C. Reuses pairSelectableLatencyGate for fail.
+func evalFanMetrics(samples []int, maxP50 *int, k, c, n int, prefix string) []qualityMetricJudge {
+	if maxP50 == nil || *maxP50 < 1 {
+		return nil
 	}
-	if !successConfigured && !latencyConfigured {
-		return QualityEvalResult{State: LatencyEvalPending, Reasons: nil}
+	if n < 1 {
+		n = DefaultSmartScheduleWindowN
 	}
-	return QualityEvalResult{State: LatencyEvalPass, Reasons: nil}
+	window := recentLatencySamples(samples, n)
+	_, rs := pairSelectableLatencyGate(window, maxP50, k, c, n)
+	rs = prefixLatencyReasonCodes(rs, prefix)
+
+	p50Fail, kFail, cFail := false, false, false
+	var p50Reasons, kReasons, cReasons []SmartScheduleCooldownReason
+	for _, r := range rs {
+		switch strings.TrimPrefix(r.Code, prefix) {
+		case "p50":
+			p50Fail = true
+			p50Reasons = append(p50Reasons, r)
+		case "slow_k":
+			kFail = true
+			kReasons = append(kReasons, r)
+		case "consec":
+			cFail = true
+			cReasons = append(cReasons, r)
+		}
+	}
+
+	out := make([]qualityMetricJudge, 0, 3)
+	out = append(out, metricReadyState(p50Fail, len(window) >= n, p50Reasons))
+	if k > 0 {
+		out = append(out, metricReadyState(kFail, len(window) >= k, kReasons))
+	}
+	if c > 0 {
+		out = append(out, metricReadyState(cFail, len(window) >= c, cReasons))
+	}
+	return out
+}
+
+func metricReadyState(failed, ready bool, reasons []SmartScheduleCooldownReason) qualityMetricJudge {
+	if failed {
+		return qualityMetricJudge{state: LatencyEvalFail, reasons: reasons}
+	}
+	if ready {
+		return qualityMetricJudge{state: LatencyEvalPass}
+	}
+	return qualityMetricJudge{state: LatencyEvalPending}
 }
 
 func evalSuccessSide(live *PairQualityLive, knobs QualityEvalKnobs) (string, []SmartScheduleCooldownReason) {
@@ -130,51 +223,6 @@ func evalSuccessSide(live *PairQualityLive, knobs QualityEvalKnobs) (string, []S
 		}}
 	}
 	return LatencyEvalPass, nil
-}
-
-func evalLatencySide(live *PairQualityLive, knobs QualityEvalKnobs) (string, []SmartScheduleCooldownReason) {
-	ttftOn := knobs.TTFTMax != nil && *knobs.TTFTMax >= 1
-	durOn := knobs.DurMax != nil && *knobs.DurMax >= 1
-	if !ttftOn && !durOn {
-		return qualitySideSkip, nil
-	}
-	n := knobs.LatencyN
-	if n < 1 {
-		n = DefaultSmartScheduleWindowN
-	}
-	var ttft, dur []int
-	if live != nil {
-		ttft = live.TTFTMs
-		dur = live.DurationMs
-	}
-	var reasons []SmartScheduleCooldownReason
-	anyFail := false
-	anyFullPass := false
-	if ttftOn {
-		window := recentLatencySamples(ttft, n)
-		if blocked, rs := pairSelectableLatencyGate(window, knobs.TTFTMax, knobs.K, knobs.C, n); blocked {
-			anyFail = true
-			reasons = append(reasons, prefixLatencyReasonCodes(rs, "ttft_")...)
-		} else if len(window) >= n {
-			anyFullPass = true
-		}
-	}
-	if durOn {
-		window := recentLatencySamples(dur, n)
-		if blocked, rs := pairSelectableLatencyGate(window, knobs.DurMax, knobs.K, knobs.C, n); blocked {
-			anyFail = true
-			reasons = append(reasons, prefixLatencyReasonCodes(rs, "dur_")...)
-		} else if len(window) >= n {
-			anyFullPass = true
-		}
-	}
-	if anyFail {
-		return LatencyEvalFail, reasons
-	}
-	if anyFullPass {
-		return LatencyEvalPass, nil
-	}
-	return LatencyEvalPending, nil
 }
 
 // FilterPrecheckSamples drops this user and samples older than since.

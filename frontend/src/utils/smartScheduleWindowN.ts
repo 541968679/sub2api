@@ -101,6 +101,11 @@ export function normalizeSmartSchedulePairQuality(
   if (consec != null) out.ttft_consecutive_slow = Math.max(0, Math.round(consec))
   if (k != null && k > 0) out.quality_sched_max_slow_in_window = Math.round(k)
   if (c != null && c > 0) out.quality_sched_max_consecutive_slow = Math.round(c)
+  if (raw.metrics_phase) out.metrics_phase = raw.metrics_phase
+  if (raw.quality_reason) out.quality_reason = raw.quality_reason
+  if (raw.probe) out.probe = raw.probe
+  if (raw.sched) out.sched = raw.sched
+  if (raw.soft) out.soft = raw.soft
   return out
 }
 

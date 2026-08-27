@@ -70,6 +70,8 @@ export type SmartSchedulePoolMemberDraft = {
   probing?: boolean
   pinned?: boolean
   probe_cap?: number | null
+  will_cool?: boolean
+  quality_reason?: string | null
 }
 
 export type SmartSchedulePlatformDraft = {
@@ -342,7 +344,9 @@ export function useUserSmartScheduleEditor(
       paused: Boolean(item.paused),
       probing: memberProbingFromApi(item),
       pinned: memberPinnedFromApi(item),
-      probe_cap: readBackendProbeCap(item)
+      probe_cap: readBackendProbeCap(item),
+      will_cool: Boolean(item.will_cool),
+      quality_reason: item.quality_reason ?? null
     }))
     return draft
   }
@@ -426,6 +430,8 @@ export function useUserSmartScheduleEditor(
       member.probing = memberProbingFromApi(live)
       member.pinned = memberPinnedFromApi(live)
       member.probe_cap = readBackendProbeCap(live)
+      member.will_cool = Boolean(live.will_cool)
+      member.quality_reason = live.quality_reason ?? null
     }
   }
 
@@ -468,6 +474,14 @@ export function useUserSmartScheduleEditor(
 
   function memberCooldownUntil(accountId: number): string | null {
     return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.cooldown_until ?? null
+  }
+
+  function memberWillCool(accountId: number): boolean {
+    return Boolean(currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.will_cool)
+  }
+
+  function memberQualityReason(accountId: number): string | null {
+    return currentDraft.value?.accounts.find((item) => item.account_id === accountId)?.quality_reason ?? null
   }
 
   function memberSoftCooldownProgress(accountId: number): SmartScheduleSoftCooldownProgress | null {
@@ -1291,6 +1305,8 @@ export function useUserSmartScheduleEditor(
     memberCurrent,
     memberCooldownUntil,
     memberCooldownReason,
+    memberWillCool,
+    memberQualityReason,
     memberSoftCooldownProgress,
     memberPaused,
     memberProbing,

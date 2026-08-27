@@ -39,6 +39,7 @@ type SmartScheduleAccountMember struct {
 	ProbeCap           *int                          `json:"probe_cap,omitempty"`
 	PairQuality        *SmartSchedulePairQualityView `json:"pair_quality,omitempty"`
 	WillCool           bool                          `json:"will_cool"`
+	QualityReason      *string                       `json:"quality_reason,omitempty"`
 }
 
 // SoftCooldownProgress is the GET hydrate chip for a cooling pair under a soft policy.
@@ -118,7 +119,10 @@ func (p *SmartSchedulePlatformPolicy) HasQualityMetrics() bool {
 	if p == nil {
 		return false
 	}
-	return p.QualityMaxP50TTFTMs != nil || p.QualityMinSuccessRate != nil
+	if p.QualityMaxP50TTFTMs != nil || p.QualityMinSuccessRate != nil {
+		return true
+	}
+	return p.QualityMaxP50DurationMs != nil
 }
 
 func (p *SmartSchedulePlatformPolicy) QualityGate() QualityHardCloseSettings {

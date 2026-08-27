@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -61,6 +60,139 @@ type SmartSchedulePairQualityView struct {
 	TTFTConsecutiveSlow            *int `json:"ttft_consecutive_slow,omitempty"`
 	QualitySchedMaxSlowInWindow    *int `json:"quality_sched_max_slow_in_window,omitempty"`
 	QualitySchedMaxConsecutiveSlow *int `json:"quality_sched_max_consecutive_slow,omitempty"`
+	Probe         *QualityPhaseMetrics `json:"probe,omitempty"`
+	Sched         *QualityPhaseMetrics `json:"sched,omitempty"`
+	Soft          *QualityPhaseMetrics `json:"soft,omitempty"`
+	QualityReason string               `json:"quality_reason,omitempty"`
+	MetricsPhase  string               `json:"metrics_phase,omitempty"`
+}
+
+const (
+	MetricsPhaseProbe  = "probe"
+	MetricsPhaseSched  = "sched"
+	MetricsPhaseSoft   = "soft"
+	MetricsPhaseExempt = "exempt"
+)
+
+// QualityPhaseMetrics is one stage's gate window (probe / sched / soft).
+type QualityPhaseMetrics struct {
+	P50TTFTMs       *int     `json:"p50_ttft_ms,omitempty"`
+	P50DurationMs   *int     `json:"p50_duration_ms,omitempty"`
+	SuccessRate     *float64 `json:"success_rate,omitempty"`
+	TTFTSamples     int      `json:"ttft_samples"`
+	NTTFT           int      `json:"n_ttft"`
+	OKSamples       int      `json:"ok_samples"`
+	NOK             int      `json:"n_ok"`
+	DurationSamples *int     `json:"duration_samples,omitempty"`
+	NDuration       *int     `json:"n_duration,omitempty"`
+	Slow            *int     `json:"slow,omitempty"`
+	K               *int     `json:"k,omitempty"`
+	Consec          *int     `json:"consec,omitempty"`
+	C               *int     `json:"c,omitempty"`
+}
+
+func qualityPhaseMetrics(live *PairQualityLive, knobs QualityEvalKnobs, includeDuration bool) QualityPhaseMetrics {
+	nLat := knobs.LatencyN
+	if nLat < 1 {
+		nLat = DefaultSmartScheduleWindowN
+	}
+	nOK := knobs.SuccessN
+	if nOK < 1 {
+		nOK = DefaultSmartScheduleWindowN
+	}
+	out := QualityPhaseMetrics{NTTFT: nLat, NOK: nOK}
+	if live == nil {
+		return out
+	}
+	ttft := recentLatencySamples(live.TTFTMs, nLat)
+	out.TTFTSamples = len(ttft)
+	out.P50TTFTMs = pairQualityP50(ttft)
+	okWindow := live.OK
+	if nOK > 0 && len(okWindow) > nOK {
+		okWindow = okWindow[len(okWindow)-nOK:]
+	}
+	out.OKSamples = len(okWindow)
+	if rate := pairQualitySuccessRate(okWindow); rate != nil {
+		out.SuccessRate = rate
+	}
+	if knobs.TTFTMax != nil && *knobs.TTFTMax >= 1 {
+		slow := countSlowSamples(ttft, *knobs.TTFTMax)
+		consec := countTrailingSlow(ttft, *knobs.TTFTMax)
+		if knobs.K > 0 {
+			out.Slow = intPtr(slow)
+			out.K = intPtr(knobs.K)
+		}
+		if knobs.C > 0 {
+			out.Consec = intPtr(consec)
+			out.C = intPtr(knobs.C)
+		}
+	}
+	if includeDuration && knobs.DurMax != nil && *knobs.DurMax >= 1 {
+		dur := recentLatencySamples(live.DurationMs, nLat)
+		out.DurationSamples = intPtr(len(dur))
+		out.NDuration = intPtr(nLat)
+		out.P50DurationMs = pairQualityP50(dur)
+	}
+	return out
+}
+
+func applyPhaseMetricsAlias(view *SmartSchedulePairQualityView, m QualityPhaseMetrics) {
+	if view == nil {
+		return
+	}
+	view.P50TTFTMs = m.P50TTFTMs
+	view.TTFTP50Ms = m.P50TTFTMs
+	view.SuccessRate = m.SuccessRate
+	view.TTFTCount = m.TTFTSamples
+	view.TTFTSamples = m.TTFTSamples
+	view.OKCount = m.OKSamples
+	view.OKSamples = m.OKSamples
+	view.NTTFT = m.NTTFT
+	view.NSuccess = m.NOK
+	view.NOK = m.NOK
+	view.N = maxSmartScheduleWindowN(m.NTTFT, m.NOK)
+	view.TTFTSlowCount = m.Slow
+	view.TTFTConsecutiveSlow = m.Consec
+	view.QualitySchedMaxSlowInWindow = m.K
+	view.QualitySchedMaxConsecutiveSlow = m.C
+}
+
+func attachPairQualityPhaseMetrics(view *SmartSchedulePairQualityView, live, softLive *PairQualityLive, policy *SmartSchedulePlatformPolicy, phase string) {
+	if view == nil {
+		return
+	}
+	if phase == "" {
+		phase = MetricsPhaseSched
+	}
+	includeDur := policy != nil && policy.QualityMaxP50DurationMs != nil
+	probe := qualityPhaseMetrics(live, ProbeQualityKnobs(policy), includeDur)
+	sched := qualityPhaseMetrics(live, SchedQualityKnobs(policy), includeDur)
+	view.Probe = &probe
+	view.Sched = &sched
+	view.MetricsPhase = phase
+	active := sched
+	switch phase {
+	case MetricsPhaseProbe:
+		active = probe
+	case MetricsPhaseSoft:
+		soft := qualityPhaseMetrics(softLive, SchedQualityKnobs(policy), includeDur)
+		view.Soft = &soft
+		active = soft
+	}
+	applyPhaseMetricsAlias(view, active)
+}
+
+func pairQualityMetricsPhase(probing, cooling, softPolicy, exempt bool) string {
+	if exempt {
+		return MetricsPhaseExempt
+	}
+	if probing {
+		return MetricsPhaseProbe
+	}
+	if cooling && softPolicy {
+		return MetricsPhaseSoft
+	}
+	return MetricsPhaseSched
 }
 
 // PairQualitySnapshot is one trend point after a recompute.
@@ -594,14 +726,11 @@ func pairQualityProbeLatencyBlocked(live *PairQualityLive, policy *SmartSchedule
 	if live == nil || policy == nil {
 		return false, nil
 	}
-	if policyProbeLatencyV2(policy) {
-		ev := EvalQuality(live, ProbeQualityKnobs(policy))
-		if ev.State == LatencyEvalFail {
-			return true, ev.Reasons
-		}
-		return false, nil
+	ev := EvalQuality(live, ProbeQualityKnobs(policy))
+	if ev.State == LatencyEvalFail {
+		return true, ev.Reasons
 	}
-	return pairQualityLegacyP50Blocked(live, policy)
+	return false, nil
 }
 
 func pairQualitySelectableLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
@@ -633,38 +762,23 @@ func pairQualitySelectableLatencyBlocked(live *PairQualityLive, policy *SmartSch
 }
 
 func combinePairQualityBlocks(successBlocked, latencyBlocked bool, condition string) bool {
-	cond := strings.ToLower(strings.TrimSpace(condition))
-	if cond == QualityHardCloseConditionAnd {
-		return successBlocked && latencyBlocked
-	}
+	_ = condition
 	return successBlocked || latencyBlocked
 }
 
 func pairQualityBlocksWithReasons(live *PairQualityLive, policy *SmartSchedulePlatformPolicy, selectable bool) (bool, []SmartScheduleCooldownReason) {
-	if policy == nil || !policy.HasQualityMetrics() {
+	if policy == nil {
 		return false, nil
 	}
-	successBlocked, successReasons := pairQualitySuccessBlocked(live, policy)
-	var latencyBlocked bool
-	var latencyReasons []SmartScheduleCooldownReason
+	knobs := ProbeQualityKnobs(policy)
 	if selectable {
-		latencyBlocked, latencyReasons = pairQualitySelectableLatencyBlocked(live, policy)
-	} else {
-		latencyBlocked, latencyReasons = pairQualityProbeLatencyBlocked(live, policy)
+		knobs = SchedQualityKnobs(policy)
 	}
-	if !successBlocked && !latencyBlocked {
-		return false, nil
+	ev := EvalQuality(live, knobs)
+	if ev.State == LatencyEvalFail {
+		return true, ev.Reasons
 	}
-	cond := derefString(policy.QualityCondition)
-	if !combinePairQualityBlocks(successBlocked, latencyBlocked, cond) {
-		if successBlocked && latencyBlocked {
-			return true, []SmartScheduleCooldownReason{{Code: "and_mixed", Detail: "and 混合"}}
-		}
-		return false, nil
-	}
-	reasons := append([]SmartScheduleCooldownReason{}, successReasons...)
-	reasons = append(reasons, latencyReasons...)
-	return true, orderCooldownReasons(reasons)
+	return false, nil
 }
 
 func pairQualityProbeBlocksWithReasons(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
@@ -702,73 +816,40 @@ func pairQualityProbeGraduates(live *PairQualityLive, policy *SmartSchedulePlatf
 }
 
 func pairQualityProbeLatencyPass(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, string) {
-	if policyProbeLatencyV2(policy) {
-		ev := EvalQuality(live, ProbeQualityKnobs(policy))
-		return ev.State == LatencyEvalPass, ev.State
+	ev := evalProbeQuality(live, policy)
+	return ev.State == LatencyEvalPass, ev.State
+}
+
+// evalProbeQuality is 257 and v2 formal-probe math: EvalQuality(ProbeQualityKnobs).
+// 257 with no configured metrics still graduates on a full W_ok (existing floor).
+func evalProbeQuality(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) QualityEvalResult {
+	knobs := ProbeQualityKnobs(policy)
+	ev := EvalQuality(live, knobs)
+	if ev.State != LatencyEvalPending {
+		return ev
 	}
-	if live == nil {
-		return false, LatencyEvalPending
+	if policyProbeLatencyV2(policy) || qualityKnobsConfigured(knobs) {
+		return ev
 	}
 	nOK := DefaultSmartScheduleWindowN
 	if policy != nil {
 		nOK = policy.SuccessWindowN()
 	}
-	if live.OKCount < nOK {
-		return false, LatencyEvalPending
+	if live != nil && live.OKCount >= nOK {
+		return QualityEvalResult{State: LatencyEvalPass}
 	}
-	if policy == nil || !policy.HasQualityMetrics() {
-		return true, LatencyEvalPass
-	}
-	if policy.QualityMinSuccessRate != nil {
-		if live.SuccessRate == nil || *live.SuccessRate < *policy.QualityMinSuccessRate {
-			return false, LatencyEvalFail
-		}
-	}
-	if policy.QualityMaxP50TTFTMs == nil && policy.QualityMaxP50DurationMs == nil {
-		return true, LatencyEvalPass
-	}
-	return pairQualityProbeLatencyPass257(live, policy)
+	return ev
 }
 
-// pairQualityProbeLatencyPass257 is production 257 graduate: W_ok full +
-// success-rate pass; TTFT underfull still graduates; full TTFT window must
-// pass p50. No Hold, no duration dual-window, no Q_a.
+// pairQualityProbeLatencyPass257 is kept as a name for callers/tests; 257 now
+// uses EvalQuality (configured p50 must be full-N to pass).
 func pairQualityProbeLatencyPass257(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, string) {
-	if policy == nil || policy.QualityMaxP50TTFTMs == nil {
-		return true, LatencyEvalPass
-	}
-	n := policy.TTFTWindowN()
-	if live.TTFTCount < n {
-		return true, LatencyEvalPass
-	}
-	if live.P50TTFTMs != nil && *live.P50TTFTMs > *policy.QualityMaxP50TTFTMs {
-		return false, LatencyEvalFail
-	}
-	return true, LatencyEvalPass
+	return pairQualityProbeLatencyPass(live, policy)
 }
 
-// pairQualityProbeAndMixed is the probing-only anti-deadlock override:
-// and + both windows full + one pass one fail → cool. Selectable does not use this.
+// pairQualityProbeAndMixed is frozen off: OR-exit already cools a single-side fail.
 func pairQualityProbeAndMixed(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) bool {
-	if live == nil || policy == nil || !policy.HasQualityMetrics() {
-		return false
-	}
-	gate := policy.QualityGate()
-	if strings.ToLower(strings.TrimSpace(gate.Condition)) != QualityHardCloseConditionAnd {
-		return false
-	}
-	nOK := policy.SuccessWindowN()
-	nTTFT := policy.TTFTWindowN()
-	if live.OKCount < nOK || live.TTFTCount < nTTFT {
-		return false
-	}
-	if gate.MaxP50TTFTMs == nil || gate.MinSuccessRate == nil {
-		return false
-	}
-	if pairQualityProbeBlocks(live, policy) || pairQualityProbeGraduates(live, policy) {
-		return false
-	}
-	return true
+	return false
 }
 
 // pairQualityResumeBlocksEvaluate is 豁免期 fail-open only (no probe mark).
@@ -811,34 +892,22 @@ func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleL
 		}
 		detail := formatSmartScheduleCooldownDetail(phase, sample, reasons)
 		lookup.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, now, detail)
+		LogSmartScheduleEvent(SmartScheduleLogCooldownStart, userID, accountID, platform, phase, detail)
 	}
 	if probing {
-		if policyProbeLatencyV2(policy) {
-			ev := EvalQuality(live, ProbeQualityKnobs(policy))
-			switch ev.State {
-			case LatencyEvalFail:
-				startCooldown(ev.Reasons, CooldownSamplePair)
-				return false
-			case LatencyEvalPass:
-				lookup.GraduateProbing(ctx, accountID, userID, platform)
-			}
-			return true
-		}
-		if blocked, reasons := pairQualityProbeBlocksWithReasons(live, policy); blocked {
-			startCooldown(reasons, CooldownSamplePair)
+		ev := evalProbeQuality(live, policy)
+		switch ev.State {
+		case LatencyEvalFail:
+			startCooldown(ev.Reasons, CooldownSamplePair)
 			return false
-		}
-		if pairQualityProbeAndMixed(live, policy) {
-			startCooldown([]SmartScheduleCooldownReason{{Code: "and_mixed", Detail: "and 混合"}}, CooldownSamplePair)
-			return false
-		}
-		if pass, _ := pairQualityProbeLatencyPass(live, policy); pass {
+		case LatencyEvalPass:
 			lookup.GraduateProbing(ctx, accountID, userID, platform)
 		}
 		return true
 	}
-	if blocked, reasons := pairQualitySelectableBlocksWithReasons(live, policy); blocked {
-		startCooldown(reasons, CooldownSamplePair)
+	ev := EvalQuality(live, SchedQualityKnobs(policy))
+	if ev.State == LatencyEvalFail {
+		startCooldown(ev.Reasons, CooldownSamplePair)
 		return false
 	}
 	return true

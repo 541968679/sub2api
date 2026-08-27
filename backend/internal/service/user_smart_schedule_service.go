@@ -1089,6 +1089,10 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 			continue
 		}
 		lives := s.cache.GetPairQualityBatch(ctx, ids, userID, platformKey)
+		var softLives map[int64]*PairQualityLive
+		if platform.SoftCooldown {
+			softLives = s.cache.GetSoftCooldownBatch(ctx, ids, userID, platformKey)
+		}
 		nTTFT := viewPolicyTTFTN(&platform)
 		nOK := viewPolicySuccessN(&platform)
 		n := maxSmartScheduleWindowN(nTTFT, nOK)
@@ -1104,19 +1108,39 @@ func (s *UserSmartScheduleService) hydratePairQuality(ctx context.Context, userI
 				viewSnap.N = n
 			}
 			viewSnap = aliasPairQualityView(viewSnap)
-			attachPairQualitySchedKC(&viewSnap, live, policy)
+			resumeActive := s.cache.PairResumeActive(ctx, platform.Accounts[i].AccountID, userID, platformKey, now)
+			cooling := platform.Accounts[i].CooldownUntil != nil
+			phase := pairQualityMetricsPhase(
+				platform.Accounts[i].Probing,
+				cooling,
+				platform.SoftCooldown,
+				platform.Accounts[i].Pinned || resumeActive,
+			)
+			var softLive *PairQualityLive
+			if softLives != nil {
+				softLive = softLives[platform.Accounts[i].AccountID]
+			}
+			attachPairQualityPhaseMetrics(&viewSnap, live, softLive, policy, phase)
+			if platform.Accounts[i].Paused || cooling || platform.Accounts[i].Pinned || resumeActive {
+				platform.Accounts[i].PairQuality = &viewSnap
+				continue
+			}
+			if policy.HasQualityMetrics() {
+				knobs := SchedQualityKnobs(policy)
+				phaseLabel := CooldownPhaseSelectable
+				if platform.Accounts[i].Probing {
+					knobs = ProbeQualityKnobs(policy)
+					phaseLabel = CooldownPhaseProbe
+				}
+				ev := EvalQuality(live, knobs)
+				if ev.State == LatencyEvalFail {
+					platform.Accounts[i].WillCool = true
+					reason := formatSmartScheduleCooldownDetail(phaseLabel, CooldownSamplePair, ev.Reasons)
+					platform.Accounts[i].QualityReason = &reason
+					viewSnap.QualityReason = reason
+				}
+			}
 			platform.Accounts[i].PairQuality = &viewSnap
-			if platform.Accounts[i].Paused || platform.Accounts[i].CooldownUntil != nil || platform.Accounts[i].Pinned {
-				continue
-			}
-			if s.cache.PairResumeActive(ctx, platform.Accounts[i].AccountID, userID, platformKey, now) {
-				continue
-			}
-			if !policy.HasQualityMetrics() {
-				continue
-			}
-			blocked, _ := pairQualitySelectableBlocksWithReasons(live, policy)
-			platform.Accounts[i].WillCool = blocked
 		}
 		view.Platforms[platformKey] = platform
 	}
@@ -1188,7 +1212,28 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 	}
 	emptyView := aliasPairQualityView(SmartSchedulePairQualityView{N: n, NTTFT: nTTFT, NSuccess: nOK, NOK: nOK})
 	policy := platformViewToPolicy(&row)
-	attachPairQualitySchedKC(&emptyView, nil, policy)
+	var member *SmartScheduleAccountMember
+	for i := range row.Accounts {
+		if row.Accounts[i].AccountID == accountID {
+			member = &row.Accounts[i]
+			break
+		}
+	}
+	phase := MetricsPhaseSched
+	if member != nil {
+		phase = pairQualityMetricsPhase(
+			member.Probing,
+			member.CooldownUntil != nil,
+			row.SoftCooldown,
+			member.Pinned || member.ResumeUntil != nil,
+		)
+		if member.PairQuality != nil {
+			emptyView = *member.PairQuality
+		}
+	}
+	if member == nil || member.PairQuality == nil {
+		attachPairQualityPhaseMetrics(&emptyView, nil, nil, policy, phase)
+	}
 	detail := &SmartSchedulePairQualityDetail{
 		AccountID: accountID,
 		UserID:    userID,
@@ -1208,7 +1253,14 @@ func (s *UserSmartScheduleService) GetPairQualityDetail(ctx context.Context, use
 			detail.Live.NSuccess = nOK
 			detail.Live.NOK = nOK
 			detail.Live = aliasPairQualityView(detail.Live)
-			attachPairQualitySchedKC(&detail.Live, live, policy)
+			var softLive *PairQualityLive
+			if row.SoftCooldown {
+				softLive = s.cache.GetSoftCooldown(ctx, accountID, userID, platform)
+			}
+			attachPairQualityPhaseMetrics(&detail.Live, live, softLive, policy, phase)
+			if member != nil && member.QualityReason != nil {
+				detail.Live.QualityReason = *member.QualityReason
+			}
 		}
 		detail.Current = detail.Live
 		if snaps := s.cache.ListPairQualitySnapshots(ctx, accountID, userID, platform, 200); snaps != nil {

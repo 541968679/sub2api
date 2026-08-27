@@ -70,7 +70,7 @@ func TestPairQualityProbeBlocks_UnderNAndOr(t *testing.T) {
 	andPolicy := *policy
 	and := QualityHardCloseConditionAnd
 	andPolicy.QualityCondition = &and
-	require.False(t, pairQualityProbeBlocks(live, &andPolicy), "and: success window is full of successes so success metric is not breached")
+	require.True(t, pairQualityProbeBlocks(live, &andPolicy), "and is ignored: single-side p50 fail still cools")
 }
 
 func TestPairQualitySelectableBlocks_SchedN20(t *testing.T) {
@@ -303,20 +303,22 @@ func (s *observeCacheStub) GetSoftCooldownBatch(_ context.Context, accountIDs []
 	return out
 }
 
-func (s *observeCacheStub) SoftEndCooldown(_ context.Context, accountID, userID int64, _ string, _ string) {
+func (s *observeCacheStub) SoftEndCooldown(_ context.Context, accountID, userID int64, platform string, detail string) {
 	s.softEnded = append(s.softEnded, accountID)
+	s.events = append(s.events, PairQualityEventExpiryZero)
 	s.events = append(s.events, PairQualityEventSoftCooldownEnd)
 	delete(s.cooling, smartPairKey(accountID, userID))
 	delete(s.softLive, smartPairKey(accountID, userID))
-	if s.probing == nil {
-		s.probing = map[string]bool{}
+	delete(s.probing, smartPairKey(accountID, userID))
+	if s.live != nil {
+		delete(s.live, smartPairKey(accountID, userID))
 	}
-	s.probing[smartPairKey(accountID, userID)] = true
-	s.events = append(s.events, PairQualityEventProbeEnter)
+	LogSmartScheduleEvent(SmartScheduleLogSoftEnd, userID, accountID, platform, CooldownPhaseSelectable, detail)
 }
 
 func (s *observeCacheStub) EnterProbe(ctx context.Context, accountID, userID int64, platform string) ProbeAdmissionOutcome {
 	s.MarkProbing(ctx, accountID, userID, platform)
+	LogSmartScheduleEvent(SmartScheduleLogProbeEnter, userID, accountID, platform, CooldownPhaseProbe, "")
 	return ProbeAdmissionProbing
 }
 func (s *observeCacheStub) IsCooldownHard(context.Context, int64, int64, string) bool { return false }
@@ -332,8 +334,14 @@ func (s *observeCacheStub) ListPairQualitySnapshots(context.Context, int64, int6
 func (s *observeCacheStub) ListPairQualityEvents(context.Context, int64, int64, string, int) []PairQualityEvent {
 	return nil
 }
-func (s *observeCacheStub) IsProbingBatch(context.Context, []int64, int64, string) map[int64]bool {
-	return map[int64]bool{}
+func (s *observeCacheStub) IsProbingBatch(_ context.Context, accountIDs []int64, userID int64, _ string) map[int64]bool {
+	out := map[int64]bool{}
+	for _, accountID := range accountIDs {
+		if s.probing[smartPairKey(accountID, userID)] {
+			out[accountID] = true
+		}
+	}
+	return out
 }
 func (s *observeCacheStub) IsPinnedBatch(context.Context, []int64, int64, string) map[int64]bool {
 	return map[int64]bool{}
@@ -625,7 +633,7 @@ func TestQualityGate_UsesSplitWindowN(t *testing.T) {
 
 	live := ApplyPairQualityIngestWindows(nil, 3, 20, true, intPtr(400), nil)
 	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400), nil)
-	require.False(t, pairQualityProbeBlocks(live, policy), "ttft 2 < N首字=3 must not probe-cool")
+	require.True(t, pairQualityProbeBlocks(live, policy), "C-at-C: two consecutive slow samples fail without full N")
 	live = ApplyPairQualityIngestWindows(live, 3, 20, true, intPtr(400), nil)
 	require.True(t, pairQualityProbeBlocks(live, policy), "ttft 3 >= N首字=3 p50 breach must probe-cool")
 	require.True(t, pairQualityBlocks(live, policy), "p50-only: 257 p50 uses N首字=3")
@@ -663,7 +671,7 @@ func TestPairQualityProbeGraduates_SplitN(t *testing.T) {
 	require.False(t, pairQualityProbeGraduates(live, policy), "ok 4 < N成功率=5")
 	live = ApplyPairQualityIngestWindows(live, 10, 5, true, nil, nil)
 	require.Equal(t, 5, live.OKCount)
-	require.True(t, pairQualityProbeGraduates(live, policy), "257: TTFT underfull still graduates when W_ok is full")
+	require.False(t, pairQualityProbeGraduates(live, policy), "257: configured p50 + underfull TTFT must not graduate")
 
 	require.False(t, pairQualityProbeGraduates(live, withProbeLatencyV2(policy)), "v2: TTFT window unfilled stays pending")
 }
@@ -862,7 +870,7 @@ func TestPairQualityDurationGate_IndependentWindow(t *testing.T) {
 	blocked, reasons := pairQualityProbeLatencyBlocked(live, policy)
 	require.True(t, blocked, "non-stream duration-only slow window must cool")
 	require.NotEmpty(t, reasons)
-	require.Equal(t, "dur_p50", reasons[0].Code, "v2 off: duration uses legacy p50 only")
+	require.Contains(t, []string{"dur_p50", "dur_slow_k", "dur_consec"}, reasons[0].Code, "257 and v2 share duration fail math")
 
 	v2Policy := withProbeLatencyV2(policy)
 	blocked, reasons = pairQualityProbeLatencyBlocked(live, v2Policy)
@@ -1019,8 +1027,8 @@ func TestPairQualityProbe_V2Off_UnderfullGraduatesNoHold(t *testing.T) {
 		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, nil, intPtr(dur))
 	}
 	pass, state := pairQualityProbeLatencyPass(live, policy)
-	require.True(t, pass, "257: TTFT full+fast graduates; Hold must not apply")
-	require.Equal(t, LatencyEvalPass, state)
+	require.False(t, pass, "257: configured duration underfull/K-fail cannot graduate")
+	require.Contains(t, []string{LatencyEvalPending, LatencyEvalFail}, state)
 	require.NotEqual(t, LatencyEvalHold, state)
 }
 

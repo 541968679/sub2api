@@ -73,7 +73,7 @@ func TestEvalQuality_Table(t *testing.T) {
 		require.Equal(t, LatencyEvalPass, ev.State)
 	})
 
-	t.Run("and_mixed_fail", func(t *testing.T) {
+	t.Run("and_condition_ignored_or_exit", func(t *testing.T) {
 		t.Parallel()
 		andKnobs := knobs
 		andKnobs.Condition = QualityHardCloseConditionAnd
@@ -82,14 +82,64 @@ func TestEvalQuality_Table(t *testing.T) {
 			live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(40), nil)
 		}
 		require.Equal(t, LatencyEvalPass, EvalQuality(live, knobs).State)
-		// success pass (3/3) + latency fail (C)
+		// success pass (3/3) + latency fail (C) — OR-exit even when Condition=and
 		live = nil
 		live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(900), nil)
 		live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(900), nil)
 		live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(900), nil)
 		ev := EvalQuality(live, andKnobs)
 		require.Equal(t, LatencyEvalFail, ev.State)
-		require.Equal(t, "and_mixed", ev.Reasons[0].Code)
+		require.NotEqual(t, "and_mixed", ev.Reasons[0].Code)
+		require.Contains(t, []string{"ttft_consec", "ttft_slow_k", "ttft_p50"}, ev.Reasons[0].Code)
+	})
+
+	t.Run("ac1_ttft_and_success_both_full_pass", func(t *testing.T) {
+		t.Parallel()
+		var live *PairQualityLive
+		for i := 0; i < n; i++ {
+			live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(40), nil)
+		}
+		require.Equal(t, LatencyEvalPass, EvalQuality(live, knobs).State)
+	})
+
+	t.Run("ac2_success_full_fail_ttft_underfull_is_fail", func(t *testing.T) {
+		t.Parallel()
+		var live *PairQualityLive
+		live = ApplyPairQualityIngestWindows(live, n, n, false, nil, nil)
+		live = ApplyPairQualityIngestWindows(live, n, n, false, nil, nil)
+		live = ApplyPairQualityIngestWindows(live, n, n, false, nil, nil)
+		ev := EvalQuality(live, knobs)
+		require.Equal(t, LatencyEvalFail, ev.State)
+		require.Equal(t, "success", ev.Reasons[0].Code)
+	})
+
+	t.Run("ac3_k_ready_at_k_fails_underfull_n", func(t *testing.T) {
+		t.Parallel()
+		var live *PairQualityLive
+		live = ApplyPairQualityIngestWindows(live, 10, 10, true, intPtr(900), nil)
+		live = ApplyPairQualityIngestWindows(live, 10, 10, true, intPtr(900), nil)
+		ev := EvalQuality(live, QualityEvalKnobs{TTFTMax: &p50, LatencyN: 10, K: 2, C: 2})
+		require.Equal(t, LatencyEvalFail, ev.State)
+		require.Contains(t, []string{"ttft_slow_k", "ttft_consec"}, ev.Reasons[0].Code)
+	})
+
+	t.Run("ac4_duration_underfull_cannot_pass", func(t *testing.T) {
+		t.Parallel()
+		dur := 800
+		var live *PairQualityLive
+		for i := 0; i < n; i++ {
+			live = ApplyPairQualityIngestWindows(live, n, n, true, intPtr(40), nil)
+		}
+		ev := EvalQuality(live, QualityEvalKnobs{
+			SuccessRate: &rate,
+			SuccessN:    n,
+			TTFTMax:     &p50,
+			DurMax:      &dur,
+			LatencyN:    n,
+			K:           2,
+			C:           2,
+		})
+		require.Equal(t, LatencyEvalPending, ev.State)
 	})
 
 	t.Run("duration_skipped_when_unconfigured", func(t *testing.T) {

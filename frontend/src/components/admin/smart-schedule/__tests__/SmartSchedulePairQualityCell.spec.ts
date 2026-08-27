@@ -70,4 +70,24 @@ describe('SmartSchedulePairQualityCell', () => {
     })
     expect(w.get('[data-testid="smart-schedule-pair-quality-kc"]').text()).toContain('2/3/1/2')
   })
+
+  it('labels the active gate window', () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: 2000,
+          success_rate: 1,
+          ttft_samples: 2,
+          ok_samples: 10,
+          n: 10,
+          n_ttft: 2,
+          n_success: 10,
+          metrics_phase: 'sched'
+        }
+      }
+    })
+    expect(w.get('[data-testid="smart-schedule-pair-quality-phase"]').text()).toContain(
+      'admin.users.smartSchedule.pairMetricsPhaseSched'
+    )
+  })
 })

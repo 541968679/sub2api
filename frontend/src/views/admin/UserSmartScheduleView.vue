@@ -400,13 +400,6 @@
                     width-class="w-72"
                   />
                 </div>
-                <label class="flex min-w-0 items-center gap-1">
-                  <span class="shrink-0 text-xs text-gray-500">{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
-                  <select v-model="currentDraft.condition" class="input w-24 !px-2 !py-1">
-                    <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
-                    <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
-                  </select>
-                </label>
               </div>
             </div>
 
@@ -788,12 +781,12 @@
                     </template>
                   </div>
                   <span
-                    v-if="row.admission === 'cooling' && row.cooldown_reason"
+                    v-if="admissionReasonText(row)"
                     class="min-w-0 truncate text-[10px] text-gray-500 dark:text-gray-400"
-                    :title="row.cooldown_reason"
+                    :title="admissionReasonText(row) ?? ''"
                     data-testid="smart-schedule-cooldown-reason"
                   >
-                    {{ row.cooldown_reason }}
+                    {{ admissionReasonText(row) }}
                   </span>
                 </div>
               </template>
@@ -1299,6 +1292,8 @@ const {
   memberCurrent,
   memberCooldownUntil,
   memberCooldownReason,
+  memberWillCool,
+  memberQualityReason,
   memberSoftCooldownProgress,
   memberPaused,
   memberProbing,
@@ -1467,6 +1462,8 @@ const poolTableRows = computed(() =>
         draft: currentDraft.value,
         saved: currentSavedDraft.value,
         pairQuality: pairQualityById.value[String(account.id)],
+        willCool: memberWillCool(account.id),
+        qualityReason: memberQualityReason(account.id),
         resumeActive: memberResumeActive(account.id),
         resumeChipActive: memberResumeChipActive(account.id)
       })
@@ -1478,6 +1475,7 @@ const poolTableRows = computed(() =>
       pair_current: memberCurrent(account.id),
       cooldown_until: memberCooldownUntil(account.id),
       cooldown_reason: memberCooldownReason(account.id),
+      quality_reason: memberQualityReason(account.id),
       soft_cooldown: Boolean(currentDraft.value?.softCooldown),
       soft_cooldown_progress: memberSoftCooldownProgress(account.id),
       sort_order: memberSortOrder(account.id),
@@ -1527,11 +1525,33 @@ function admissionLabel(state: PoolAdmissionState) {
   }
 }
 
-function coolingCellTitle(row: { admission: PoolAdmissionState; cooldown_until?: string | null }) {
+function coolingCellTitle(row: {
+  admission: PoolAdmissionState
+  cooldown_until?: string | null
+  cooldown_reason?: string | null
+  quality_reason?: string | null
+}) {
+  const reason = admissionReasonText(row)
   if (row.admission === 'cooling' && row.cooldown_until) {
-    return t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) })
+    const until = t('admin.users.smartSchedule.admissionCoolingUntil', { time: formatDateTime(row.cooldown_until) })
+    return reason ? `${until} · ${reason}` : until
   }
-  return admissionTitle(row.admission)
+  const title = admissionTitle(row.admission)
+  return reason ? (title ? `${title} · ${reason}` : reason) : title
+}
+
+function admissionReasonText(row: {
+  admission: PoolAdmissionState
+  cooldown_reason?: string | null
+  quality_reason?: string | null
+}): string | null {
+  if (row.admission === 'cooling') {
+    return row.cooldown_reason || row.quality_reason || null
+  }
+  if (row.admission === 'will_cool' || row.admission === 'selectable') {
+    return row.quality_reason || null
+  }
+  return row.quality_reason || null
 }
 
 function formatSoftCooldownProgress(progress: {

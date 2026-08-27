@@ -11,6 +11,13 @@
       v-else-if="quality"
       class="flex flex-col gap-0.5 font-mono text-[11px] leading-4"
     >
+      <div
+        v-if="phaseLabel"
+        class="font-sans text-[10px] text-gray-400 dark:text-gray-500"
+        data-testid="smart-schedule-pair-quality-phase"
+      >
+        {{ phaseLabel }}
+      </div>
       <div class="flex items-baseline gap-1" :class="p50ToneClass">
         <span class="font-sans text-[10px] text-gray-400 dark:text-gray-500">p50</span>
         <span class="text-sm font-medium">{{ p50Display }}</span>
@@ -96,6 +103,14 @@ const successToneClass = computed(() => {
   if (rate < 0.9) return 'text-red-600 dark:text-red-400'
   if (rate < 0.95) return 'text-amber-600 dark:text-amber-400'
   return 'text-emerald-600 dark:text-emerald-400'
+})
+
+const phaseLabel = computed(() => {
+  const phase = props.quality?.metrics_phase
+  if (phase === 'probe') return t('admin.users.smartSchedule.pairMetricsPhaseProbe')
+  if (phase === 'sched') return t('admin.users.smartSchedule.pairMetricsPhaseSched')
+  if (phase === 'soft') return t('admin.users.smartSchedule.pairMetricsPhaseSoft')
+  return ''
 })
 
 const kc = computed(() =>
