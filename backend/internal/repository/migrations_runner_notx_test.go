@@ -372,6 +372,18 @@ func TestEmbedded218GooseDownIsNotExecutable(t *testing.T) {
 	require.NotContains(t, strings.ToLower(execSQL), "+goose down")
 }
 
+func TestEmbedded219GooseDownIsNotExecutable(t *testing.T) {
+	raw, err := migrations.FS.ReadFile("219_smart_schedule_probe_latency_v2.sql")
+	require.NoError(t, err)
+	full := string(raw)
+	require.Contains(t, full, "-- +goose Down")
+	require.Contains(t, full, "DROP COLUMN IF EXISTS probe_latency_v2")
+	execSQL := migrationExecutableSQL(full)
+	require.Contains(t, execSQL, "ADD COLUMN IF NOT EXISTS probe_latency_v2")
+	require.NotContains(t, execSQL, "DROP COLUMN")
+	require.NotContains(t, strings.ToLower(execSQL), "+goose down")
+}
+
 func TestEmbedded214And215GooseDownIsNotExecutable(t *testing.T) {
 	for _, name := range []string{
 		"214_smart_schedule_latency_gate.sql",

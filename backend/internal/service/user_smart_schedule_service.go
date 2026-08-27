@@ -175,8 +175,7 @@ func (s *UserSmartScheduleService) ObservePairCompletion(ctx context.Context, ob
 		return
 	}
 	clearLeftoverPairResumeIfProbing(ctx, s.cache, probing, obs.AccountID, obs.UserID, platform, now)
-	qaLastN := loadSmartScheduleQA(ctx, s.qualityLiveCache, obs.AccountID, policy)
-	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now, qaLastN)
+	evaluateSmartSchedulePairQuality(ctx, s.cache, obs.AccountID, obs.UserID, platform, policy, live, now)
 	s.ingestSoftCooldownForCoolingPeers(ctx, obs, platform, policy, now)
 }
 
@@ -200,6 +199,9 @@ func (s *UserSmartScheduleService) ingestSoftCooldownForCoolingPeers(ctx context
 			continue
 		}
 		if s.cache.IsPinned(ctx, accountID, obs.UserID, platform) {
+			continue
+		}
+		if s.cache.IsCooldownHard(ctx, accountID, obs.UserID, platform) {
 			continue
 		}
 		live := s.cache.IngestSoftCooldown(ctx, accountID, obs.UserID, platform, policy.TTFTStorageN(), policy.SuccessWindowN(), obs.Success, obs.FirstTokenMs, obs.DurationMs, policy.CooldownMinutes)
@@ -353,6 +355,7 @@ func (s *UserSmartScheduleService) CopyPlatform(ctx context.Context, userID int6
 		QualityCondition:               from.QualityCondition,
 		CooldownMinutes:                from.CooldownMinutes,
 		SoftCooldown:                   from.SoftCooldown,
+		ProbeLatencyV2:                 from.ProbeLatencyV2,
 		ProbeConcurrencyMode:           from.ProbeConcurrencyMode,
 		ProbeConcurrency:               from.ProbeConcurrency,
 		Accounts:                       to.Accounts,
@@ -422,12 +425,27 @@ func (s *UserSmartScheduleService) SetPairAdmission(ctx context.Context, account
 			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
 				return nil, err
 			}
-			s.cache.MarkProbing(ctx, accountID, userID, platform)
+			outcome := s.cache.EnterProbe(ctx, accountID, userID, platform)
+			switch outcome {
+			case ProbeAdmissionCooling:
+				result.State = PairAdmissionCooling
+				until := s.cache.GetCooldownUntilBatch(ctx, []int64{accountID}, userID, platform, now)[accountID]
+				if !until.IsZero() {
+					result.CooldownUntil = &until
+				}
+			case ProbeAdmissionSelectable:
+				result.State = PairAdmissionSelectable
+			default:
+				result.Probing = true
+				cap := s.probeCapForPair(ctx, accountID, userID, platform)
+				result.ProbeCap = &cap
+			}
+		} else {
+			result.Probing = true
+			cap := s.probeCapForPair(ctx, accountID, userID, platform)
+			result.ProbeCap = &cap
 		}
 		s.clearPairResume(ctx, accountID, userID, platform)
-		result.Probing = true
-		cap := s.probeCapForPair(ctx, accountID, userID, platform)
-		result.ProbeCap = &cap
 	case PairAdmissionSelectable:
 		if s != nil && s.cache != nil {
 			if err := s.cache.ClearCooldown(ctx, accountID, userID, platform); err != nil {
@@ -1406,6 +1424,7 @@ func platformViewToPolicy(view *SmartSchedulePlatformView) *SmartSchedulePlatfor
 		QualityCondition:               view.QualityCondition,
 		CooldownMinutes:                view.CooldownMinutes,
 		SoftCooldown:                   view.SoftCooldown,
+		ProbeLatencyV2:                 view.ProbeLatencyV2,
 		ProbeConcurrencyMode:           view.ProbeConcurrencyMode,
 		ProbeConcurrency:               view.ProbeConcurrency,
 		QualityMaxSlowInWindow:         view.QualityMaxSlowInWindow,
@@ -1449,6 +1468,7 @@ func policyToView(platform string, policy *SmartSchedulePlatformPolicy) SmartSch
 		view.CooldownMinutes = policy.CooldownMinutes
 	}
 	view.SoftCooldown = policy.SoftCooldown
+	view.ProbeLatencyV2 = policy.ProbeLatencyV2
 	view.UpdatedAt = policy.UpdatedAt
 	accountIDs := make([]int64, 0, len(policy.AccountIDs))
 	for accountID := range policy.AccountIDs {

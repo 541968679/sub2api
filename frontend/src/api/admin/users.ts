@@ -449,6 +449,7 @@ export interface SmartSchedulePlatformView {
   probe_concurrency?: number | null
   cooldown_minutes: number
   soft_cooldown?: boolean
+  probe_latency_v2?: boolean
   updated_at?: string
   accounts: SmartScheduleAccountMember[]
 }
@@ -486,6 +487,7 @@ export interface SmartSchedulePlatformWrite {
   probe_concurrency?: number | null
   cooldown_minutes: number
   soft_cooldown?: boolean
+  probe_latency_v2?: boolean
   accounts: SmartScheduleAccountMember[]
 }
 

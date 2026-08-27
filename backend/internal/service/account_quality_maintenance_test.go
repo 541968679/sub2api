@@ -132,6 +132,8 @@ func (s *lastNCacheStub) ListUserLastNIDs(ctx context.Context) []int64 {
 	return s.ListLastNAccountIDs(ctx)
 }
 
+func (s *lastNCacheStub) IngestPrecheckSample(context.Context, int64, int64, bool, *int, *int) {}
+
 func (s *lastNCacheStub) ListLastNAccountIDs(_ context.Context) []int64 {
 	if s.ids != nil {
 		return append([]int64(nil), s.ids...)

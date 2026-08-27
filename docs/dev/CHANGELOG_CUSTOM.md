@@ -1,3 +1,34 @@
+## 2026-08-27 - feat(smart-schedule): 考察期 v2 预检
+
+### What
+- Per-user×platform `probe_latency_v2` switch (migration 219, default off). Omitted PUT = 257.
+- Shared `EvalQuality` for 考察预检 and formal probe: success full-N, latency C-at-C / K-at-K / p50-at-N, `or`/`and` plus and-mixed. Empty window cannot pass.
+- 考察开始（冷却到期 / 软结束 / 手选考察）先预检：账号完成样本流排除本用户、截最近冷却分钟。fail 再冷却（理由含「考察预检」且硬等）；pass 清窗进调度；pending 清窗进正式考察。
+- New Redis LIST `account-quality:precheck:{accountID}` — does not reuse last-N \(Q_a\). Formal probe no longer reads \(Q_a\) or Hold.
+- Precheck-fail hard-wait HASH TTL only lengthens (same shared-key rule as pair cooldown). Observe/admit no longer load last-N \(Q_a\) on every tick.
+
+### Why
+Haley: v2 必须在考察开始时用他人近期样本预检，且与正式考察 / 调度期同一套函数；本用户样本会把自己打进冷却循环。
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "EvalQuality|ProbePrecheck|ProbeLatency|PairQuality|SmartScheduleProbe|SoftCooldown|FilterPrecheck"`
+- `go test -tags=unit ./internal/repository -count=1 -run "SmartSchedule|PairQuality|Precheck|SoftCooldown|ProbeLatency"`
+- `go test -tags=unit ./internal/handler/admin -count=1 -run "Omitted"`
+- `go test -tags=unit ./migrations -count=1 -run "219|SoftCooldown218"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useUserSmartScheduleEditor.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/migrations/219_smart_schedule_probe_latency_v2.sql`
+`backend/internal/service/smart_schedule_eval.go`
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_latency_gate.go`
+`backend/internal/repository/account_quality_precheck_cache.go`
+`backend/internal/repository/user_smart_schedule_cache.go`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`.trellis/spec/backend/account-user-schedule.md`
+
 ## 2026-08-26 - release: 0.1.265 skip audio/realtime in OpenAI capability probe
 
 ### What

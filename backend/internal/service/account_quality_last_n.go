@@ -51,6 +51,7 @@ type AccountQualityLastNCache interface {
 	GetLastN(ctx context.Context, accountID int64) *AccountQualityLastN
 	GetLastNBatch(ctx context.Context, accountIDs []int64) map[int64]*AccountQualityLastN
 	IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *AccountQualityLastN
+	IngestPrecheckSample(ctx context.Context, accountID, userID int64, success bool, firstTokenMs, durationMs *int)
 	ListLastNAccountIDs(ctx context.Context) []int64
 }
 

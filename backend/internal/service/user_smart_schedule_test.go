@@ -394,6 +394,7 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		QualityCondition:         policy.QualityCondition,
 		CooldownMinutes:          policy.CooldownMinutes,
 		SoftCooldown:             policy.SoftCooldown,
+		ProbeLatencyV2:           policy.ProbeLatencyV2,
 		ProbeConcurrencyMode:     policy.ProbeConcurrencyMode,
 		ProbeConcurrency:         policy.ProbeConcurrency,
 		AccountIDs:               map[int64]struct{}{},
@@ -577,6 +578,7 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		require.Equal(t, 4, *dest.Accounts[0].MaxConcurrency)
 		require.Equal(t, ProbeConcurrencyModeFollowN, dest.ProbeConcurrencyMode)
 		require.Nil(t, dest.ProbeConcurrency)
+		require.False(t, dest.ProbeLatencyV2)
 	})
 
 	t.Run("copy copies probe settings as their own fields", func(t *testing.T) {
@@ -585,6 +587,7 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		from.QualityWindowSamples = intPtr(14)
 		from.ProbeConcurrencyMode = ProbeConcurrencyModeCustom
 		from.ProbeConcurrency = intPtr(2)
+		from.ProbeLatencyV2 = true
 		localRepo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, from)}
 		localRepo.bundle.Policies[PlatformOpenAI] = &SmartSchedulePlatformPolicy{
 			Enabled:         false,
@@ -601,6 +604,7 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		require.Equal(t, 2, *dest.ProbeConcurrency)
 		require.Equal(t, 14, *dest.QualityWindowSamples)
 		require.NotEqual(t, *dest.QualityWindowSamples, *dest.ProbeConcurrency)
+		require.True(t, dest.ProbeLatencyV2)
 	})
 
 	t.Run("copy onto empty dest forces enabled off", func(t *testing.T) {
@@ -872,6 +876,12 @@ func (s *admissionCacheRecorder) IsProbing(_ context.Context, accountID, userID 
 	return s.probing[smartPairKey(accountID, userID)]
 }
 
+func (s *admissionCacheRecorder) EnterProbe(ctx context.Context, accountID, userID int64, platform string) ProbeAdmissionOutcome {
+	s.ZeroPairQuality(ctx, accountID, userID, platform, PairQualityEventExpiryZero)
+	s.MarkProbing(ctx, accountID, userID, platform)
+	return ProbeAdmissionProbing
+}
+
 func (s *admissionCacheRecorder) MarkProbing(_ context.Context, accountID, userID int64, _ string) {
 	s.markedProbe++
 	if s.probing == nil {
@@ -1098,6 +1108,10 @@ func (s stubSmartCache) GetSoftCooldownBatch(context.Context, []int64, int64, st
 	return map[int64]*PairQualityLive{}
 }
 func (s stubSmartCache) SoftEndCooldown(context.Context, int64, int64, string, string) {}
+func (s stubSmartCache) EnterProbe(context.Context, int64, int64, string) ProbeAdmissionOutcome {
+	return ProbeAdmissionProbing
+}
+func (s stubSmartCache) IsCooldownHard(context.Context, int64, int64, string) bool { return false }
 func (s stubSmartCache) GetPairQualityBatch(context.Context, []int64, int64, string) map[int64]*PairQualityLive {
 	return map[int64]*PairQualityLive{}
 }

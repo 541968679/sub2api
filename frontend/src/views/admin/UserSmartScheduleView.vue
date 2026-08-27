@@ -181,9 +181,40 @@
                   class="rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
                   data-testid="smart-schedule-probe-phase-group"
                 >
-                  <p class="mb-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
-                    {{ t('admin.users.smartSchedule.probePhaseGroup') }}
-                  </p>
+                  <div class="mb-1 flex flex-wrap items-center justify-between gap-1">
+                    <p class="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                      {{ t('admin.users.smartSchedule.probePhaseGroup') }}
+                    </p>
+                    <div class="flex min-w-0 items-center gap-1">
+                      <div
+                        class="inline-flex overflow-hidden rounded-md border border-gray-200 dark:border-dark-600"
+                        data-testid="smart-schedule-probe-v2"
+                      >
+                        <button
+                          type="button"
+                          class="px-2 py-0.5 text-xs"
+                          :class="!currentDraft.probeLatencyV2 ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900' : 'bg-white text-gray-600 dark:bg-dark-800 dark:text-gray-300'"
+                          :aria-pressed="!currentDraft.probeLatencyV2"
+                          @click="currentDraft.probeLatencyV2 = false"
+                        >
+                          {{ t('admin.users.smartSchedule.probeLatencyV2Off') }}
+                        </button>
+                        <button
+                          type="button"
+                          class="px-2 py-0.5 text-xs"
+                          :class="currentDraft.probeLatencyV2 ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900' : 'bg-white text-gray-600 dark:bg-dark-800 dark:text-gray-300'"
+                          :aria-pressed="currentDraft.probeLatencyV2"
+                          @click="currentDraft.probeLatencyV2 = true"
+                        >
+                          {{ t('admin.users.smartSchedule.probeLatencyV2On') }}
+                        </button>
+                      </div>
+                      <HelpTooltip
+                        :content="t('admin.users.smartSchedule.probeLatencyV2Hint')"
+                        width-class="w-80"
+                      />
+                    </div>
+                  </div>
                   <div class="grid grid-cols-2 gap-x-2 gap-y-1 sm:grid-cols-3">
                     <label class="flex min-w-0 items-center gap-1">
                       <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">

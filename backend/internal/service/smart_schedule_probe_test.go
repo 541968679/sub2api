@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -182,7 +181,7 @@ func TestEvaluateSmartSchedule_ProbeGraduateKeepsWindows(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 1, lookup.graduated)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 3, lookup.GetPairQuality(context.Background(), 7, 16, "openai").OKCount, "graduate must keep windows")
@@ -200,7 +199,7 @@ func TestEvaluateSmartSchedule_ProbeAndMixedCools(t *testing.T) {
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
+	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 1, lookup.startCalls)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
@@ -216,7 +215,7 @@ func TestEvaluateSmartSchedule_SelectableMixedDoesNotUseOverride(t *testing.T) {
 		bundle: smartBundle(PlatformAnthropic, policy),
 		pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
 	require.Equal(t, 0, lookup.startCalls)
 	require.False(t, lookup.IsProbing(context.Background(), 7, 16, "openai"), "no mark = not probing / no backfill")
 }
@@ -228,7 +227,7 @@ func TestEvaluateSmartSchedule_NoTrafficStaysProbing(t *testing.T) {
 		bundle:  smartBundle(PlatformAnthropic, policy),
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, syncOKLive(3, 1), time.Now().UTC(), nil))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, syncOKLive(3, 1), time.Now().UTC()))
 	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 	require.Equal(t, 0, lookup.graduated)
 	require.Equal(t, 0, lookup.startCalls)
@@ -260,17 +259,15 @@ func (m *expiryAwareLookup) CooldownActive(ctx context.Context, accountID, userI
 	if m.bundle != nil {
 		policy = m.bundle.Policy(platform)
 	}
-	if policy == nil || !policy.ProbeLatencyV2 {
-		n := DefaultSmartScheduleWindowN
-		if policy != nil {
-			n = policy.TTFTWindowN()
-		}
-		if m.pair == nil {
-			m.pair = map[string]*PairQualityLive{}
-		}
-		m.pair[key] = ZeroPairQualityLive(n)
-		m.zeros = append(m.zeros, PairQualityEventExpiryZero)
+	n := DefaultSmartScheduleWindowN
+	if policy != nil {
+		n = policy.TTFTWindowN()
 	}
+	if m.pair == nil {
+		m.pair = map[string]*PairQualityLive{}
+	}
+	m.pair[key] = ZeroPairQualityLive(n)
+	m.zeros = append(m.zeros, PairQualityEventExpiryZero)
 	m.MarkProbing(ctx, accountID, userID, platform)
 	m.ClearPairResume(ctx, accountID, userID, platform)
 	return false
@@ -289,7 +286,7 @@ func TestEvaluateSmartSchedule_EmptyWindowAfterExpiry257NoCooldown(t *testing.T)
 		pair:    map[string]*PairQualityLive{smartPairKey(7, 16): empty},
 		probing: map[string]bool{smartPairKey(7, 16): true},
 	}
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, empty, time.Now().UTC(), nil))
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, empty, time.Now().UTC()))
 	require.Equal(t, 0, lookup.startCalls, "empty window after expiry must not cooldown_start")
 	require.Equal(t, 0, lookup.graduated)
 	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
@@ -325,29 +322,28 @@ func TestAdmitsScheduleUser_ExpiryZeroV2OffDoesNotRecooldownStaleP50(t *testing.
 	require.True(t, pairQualityProbeGraduates(syncOKLive(3, 3), policy), "257: TTFTCount < N still graduates")
 }
 
-func TestAdmitsScheduleUser_ExpiryV2KeepsWindows(t *testing.T) {
+func TestAdmitsScheduleUser_ExpiryV2ZerosWindowsThenProbe(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	p50 := 50
 	policy := withProbeLatencyV2(probePolicy(7, 3, &p50, nil, false))
 	require.True(t, policy.ProbeLatencyV2)
-	kept := mixedAndLive(3, 10, 3)
+	stale := mixedAndLive(3, 10, 3)
 	now := time.Now().UTC()
 	lookup := &expiryAwareLookup{memorySmartLookup: memorySmartLookup{
 		bundle:        smartBundle(PlatformAnthropic, policy),
-		pair:          map[string]*PairQualityLive{smartPairKey(7, 16): kept},
+		pair:          map[string]*PairQualityLive{smartPairKey(7, 16): stale},
 		cooldownUntil: map[string]int64{smartPairKey(7, 16): now.Add(-time.Second).Unix()},
 	}}
 	require.False(t, lookup.CooldownActive(ctx, 7, 16, PlatformAnthropic, now.Add(time.Second)))
-	require.NotContains(t, lookup.zeros, PairQualityEventExpiryZero)
+	require.Contains(t, lookup.zeros, PairQualityEventExpiryZero)
 	live := lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic)
-	require.Equal(t, 3, live.OKCount, "expiry must not zero pair windows")
-	require.Equal(t, 3, live.TTFTCount)
-	require.True(t, lookup.IsProbing(ctx, 7, 16, PlatformAnthropic), "expiry still enters probing")
+	require.Equal(t, 0, live.OKCount, "v2 expiry zeros leftover pair windows before formal probe")
+	require.Equal(t, 0, live.TTFTCount)
+	require.True(t, lookup.IsProbing(ctx, 7, 16, PlatformAnthropic), "pending precheck enters probing")
 	acc := &Account{ID: 7, Platform: PlatformAnthropic}
 	require.True(t, admitsScheduleUser(ctx, acc, nil, lookup))
-	require.Equal(t, 0, lookup.startCalls, "kept fast window must not cooldown_start")
-	require.Equal(t, 3, lookup.GetPairQuality(ctx, 7, 16, PlatformAnthropic).OKCount)
+	require.Equal(t, 0, lookup.startCalls)
 }
 
 func TestAdmitsScheduleUser_ProbingVsSelectable(t *testing.T) {
@@ -543,7 +539,8 @@ func TestUserSmartScheduleService_SetPairAdmissionProbing(t *testing.T) {
 	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"))
 	require.False(t, cache.PairResumeActive(ctx, 7, 16, PlatformAnthropic, time.Now().UTC()), "enter probing clears pair resume")
 	require.True(t, UserQualityResumeActive(quality.byID[7], 16, time.Now().UTC()), "enter probing must not clear Track A resume")
-	require.NotContains(t, cache.zeros, PairQualityEventProbeEnter, "probing must not zero pair windows")
+	require.Contains(t, cache.zeros, PairQualityEventExpiryZero)
+	require.NotContains(t, cache.zeros, PairQualityEventProbeEnter)
 
 	again, err := svc.SetPairAdmission(ctx, 7, 16, PairAdmissionSelectable)
 	require.NoError(t, err)
@@ -680,7 +677,7 @@ func TestEvaluateSmartSchedule_CooldownReasonPhaseAndBranch(t *testing.T) {
 				probing: map[string]bool{smartPairKey(7, 16): true},
 			},
 		}
-		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now, nil))
+		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now))
 		require.Equal(t, 1, lookup.startCalls)
 		require.Contains(t, lookup.lastReason, CooldownPhaseProbe)
 		require.Contains(t, lookup.lastReason, "超标K")
@@ -696,30 +693,23 @@ func TestEvaluateSmartSchedule_CooldownReasonPhaseAndBranch(t *testing.T) {
 				pair:   map[string]*PairQualityLive{smartPairKey(7, 16): live},
 			},
 		}
-		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now, nil))
+		require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, now))
 		require.Equal(t, 1, lookup.startCalls)
 		require.Contains(t, lookup.lastReason, CooldownPhaseSelectable)
 		require.Contains(t, lookup.lastReason, "连续C")
 	})
 }
 
-func TestEvaluateSmartSchedule_ProbeHoldNoCooldown(t *testing.T) {
+func TestEvaluateSmartSchedule_ProbePendingNoHold(t *testing.T) {
 	t.Parallel()
 	durGate := latencyDurGateMs
-	p50 := latencyGateMs
-	policy := withProbeLatencyV2(enabledSmartPolicy(7, 0, &p50))
+	policy := withProbeLatencyV2(enabledSmartPolicy(7, 0, nil))
 	policy.QualityMaxP50DurationMs = &durGate
 	policy.QualityMinTTFTSamples = intPtr(latencyProbeN)
 	policy.QualityMinSuccessSamples = intPtr(latencyProbeN)
 	policy.QualityCondition = strPtr(QualityHardCloseConditionOr)
 
-	var live *PairQualityLive
-	for i := 0; i < latencyProbeN; i++ {
-		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, intPtr(latencyFastMs), nil)
-	}
-	for _, dur := range []int{latencyDurSlowMs, latencyFastMs * 50, latencyDurSlowMs} {
-		live = ApplyPairQualityIngestWindows(live, latencyProbeN, latencyProbeN, true, nil, intPtr(dur))
-	}
+	live := ApplyPairQualityIngestWindows(nil, latencyProbeN, latencyProbeN, true, nil, intPtr(latencyDurSlowMs))
 
 	lookup := &cooldownReasonLookup{
 		memorySmartLookup: memorySmartLookup{
@@ -728,23 +718,18 @@ func TestEvaluateSmartSchedule_ProbeHoldNoCooldown(t *testing.T) {
 			probing: map[string]bool{smartPairKey(7, 16): true},
 		},
 	}
-	pass, state := pairQualityProbeLatencyPass(live, policy)
-	require.False(t, pass, "hold is not pass")
-	require.Equal(t, LatencyEvalHold, state)
-	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), nil))
-	require.Equal(t, 0, lookup.startCalls, "hold must not start cooldown")
+	ev := EvalQuality(live, ProbeQualityKnobs(policy))
+	require.Equal(t, LatencyEvalPending, ev.State, "underfull duration without C/K is pending, not hold")
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.Equal(t, 0, lookup.startCalls)
+	require.Equal(t, 0, lookup.graduated)
 	require.True(t, lookup.IsProbing(context.Background(), 7, 16, "openai"))
 }
 
-func TestEvaluateSmartSchedule_QAFirstGateBlocks(t *testing.T) {
+func TestEvaluateSmartSchedule_QALastNDoesNotBlockV2Probe(t *testing.T) {
 	t.Parallel()
 	policy := withProbeLatencyV2(latencyGatePolicy(7, latencyProbeN))
 	live := buildLiveFromTTFTObservations(latencyProbeN, latencyProbeN, repeatLatencyMs(latencyFastMs, latencyProbeN))
-	qa := &AccountQualityLastN{
-		N:      latencyProbeN,
-		TTFTMs: repeatLatencyMs(latencySlowMs, latencyProbeN),
-	}
-	RecomputeAccountQualityLastN(qa)
 
 	lookup := &cooldownReasonLookup{
 		memorySmartLookup: memorySmartLookup{
@@ -753,11 +738,9 @@ func TestEvaluateSmartSchedule_QAFirstGateBlocks(t *testing.T) {
 			probing: map[string]bool{smartPairKey(7, 16): true},
 		},
 	}
-	require.False(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC(), qa))
-	require.Equal(t, 1, lookup.startCalls)
-	require.Contains(t, lookup.lastReason, CooldownSampleQA)
-	require.True(t, strings.Contains(lookup.lastReason, "p50") || strings.Contains(lookup.lastReason, "连续C"),
-		"Q_a breach reason must name p50 or consecutive gate: %q", lookup.lastReason)
+	require.True(t, evaluateSmartSchedulePairQuality(context.Background(), lookup, 7, 16, "openai", policy, live, time.Now().UTC()))
+	require.Equal(t, 0, lookup.startCalls, "formal probe must not re-read Q_a last-N")
+	require.Equal(t, 1, lookup.graduated)
 }
 
 func TestObservePairCompletion_SelectableLatencyCooldownReason(t *testing.T) {

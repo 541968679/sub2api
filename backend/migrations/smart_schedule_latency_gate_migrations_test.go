@@ -43,6 +43,16 @@ func TestSmartScheduleLatencyGateRepair216IsIdempotentAndHasNoDown(t *testing.T)
 	require.Contains(t, sql, "quality_max_p50_duration_ms IS NULL")
 }
 
+func TestSmartScheduleProbeLatencyV2219(t *testing.T) {
+	raw, err := FS.ReadFile("219_smart_schedule_probe_latency_v2.sql")
+	require.NoError(t, err)
+	sql := string(raw)
+	require.Contains(t, sql, "-- +goose Up")
+	require.Contains(t, sql, "-- +goose Down")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS probe_latency_v2 BOOLEAN NOT NULL DEFAULT FALSE")
+	require.Contains(t, sql, "DROP COLUMN IF EXISTS probe_latency_v2")
+}
+
 func TestSmartScheduleSoftCooldown218(t *testing.T) {
 	raw, err := FS.ReadFile("218_smart_schedule_soft_cooldown.sql")
 	require.NoError(t, err)

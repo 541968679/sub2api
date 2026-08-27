@@ -141,6 +141,7 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 		return
 	}
 	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover)
+	s.lastN.IngestPrecheckSample(ctx, obs.AccountID, obs.UserID, obs.Success, obs.FirstTokenMs, obs.DurationMs)
 	if live == nil {
 		return
 	}

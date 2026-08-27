@@ -315,6 +315,11 @@ func (s *observeCacheStub) SoftEndCooldown(_ context.Context, accountID, userID 
 	s.events = append(s.events, PairQualityEventProbeEnter)
 }
 
+func (s *observeCacheStub) EnterProbe(ctx context.Context, accountID, userID int64, platform string) ProbeAdmissionOutcome {
+	s.MarkProbing(ctx, accountID, userID, platform)
+	return ProbeAdmissionProbing
+}
+func (s *observeCacheStub) IsCooldownHard(context.Context, int64, int64, string) bool { return false }
 func (s *observeCacheStub) AppendPairQualityEvent(_ context.Context, _ int64, _ int64, _ string, event PairQualityEvent) {
 	if event.Type != "" {
 		s.events = append(s.events, event.Type)

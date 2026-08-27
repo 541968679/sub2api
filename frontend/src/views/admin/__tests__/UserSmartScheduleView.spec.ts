@@ -334,6 +334,7 @@ function emptyPlatform() {
     probe_concurrency: null,
     cooldown_minutes: 15,
     soft_cooldown: false,
+    probe_latency_v2: false,
     accounts: []
   }
 }
@@ -366,6 +367,7 @@ function echoSmartScheduleWrite(
     probe_concurrency?: number | null
     cooldown_minutes?: number
     soft_cooldown?: boolean
+    probe_latency_v2?: boolean
     accounts?: Array<{
       account_id: number
       platform?: string
@@ -393,6 +395,7 @@ function echoSmartScheduleWrite(
         probe_concurrency: body.probe_concurrency_mode === 'custom' ? body.probe_concurrency ?? null : null,
         cooldown_minutes: body.cooldown_minutes ?? 15,
         soft_cooldown: Boolean(body.soft_cooldown),
+        probe_latency_v2: Boolean(body.probe_latency_v2),
         accounts: body.accounts ?? []
       }
     }
@@ -565,6 +568,10 @@ describe('UserSmartScheduleView', () => {
     expect(thresholdGrid.get('[data-testid="smart-schedule-sched-max-slow-c"]').exists()).toBe(true)
     expect(thresholdGrid.text()).toContain('admin.users.smartSchedule.schedMaxConsecutiveSlow')
     const probeGroup = thresholdGrid.get('[data-testid="smart-schedule-probe-phase-group"]')
+    expect(probeGroup.get('[data-testid="smart-schedule-probe-v2"]').exists()).toBe(true)
+    expect(probeGroup.get('[data-testid="smart-schedule-probe-v2"]').text()).toContain(
+      'admin.users.smartSchedule.probeLatencyV2Off'
+    )
     expect(probeGroup.get('[data-testid="smart-schedule-probe-concurrency-mode"]').exists()).toBe(true)
     expect(
       (probeGroup.get('[data-testid="smart-schedule-probe-concurrency-mode"]').element as HTMLSelectElement).value
@@ -2135,6 +2142,86 @@ describe('UserSmartScheduleView', () => {
     )
     expect(
       w.get('[data-testid="smart-schedule-soft-cooldown"]').findAll('button')[1].attributes('aria-pressed')
+    ).toBe('true')
+  })
+
+  it('writes probe_latency_v2 from the 考察区 switch', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    const w = await mountPage()
+    const switcher = w.get('[data-testid="smart-schedule-probe-v2"]')
+    expect(switcher.findAll('button')[0].attributes('aria-pressed')).toBe('true')
+    await switcher.findAll('button')[1].trigger('click')
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({ probe_latency_v2: true })
+    )
+    expect(switcher.findAll('button')[1].attributes('aria-pressed')).toBe('true')
+  })
+
+  it('keeps v2 selected after save when PUT echo omits probe_latency_v2', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'live-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, _body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          platforms: {
+            ...makeView().platforms,
+            anthropic: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+            }
+          }
+        })
+    )
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-probe-v2"]').findAll('button')[1].trigger('click')
+    await w.get('[data-testid="smart-schedule-save"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({ probe_latency_v2: true })
+    )
+    expect(
+      w.get('[data-testid="smart-schedule-probe-v2"]').findAll('button')[1].attributes('aria-pressed')
     ).toBe('true')
   })
 

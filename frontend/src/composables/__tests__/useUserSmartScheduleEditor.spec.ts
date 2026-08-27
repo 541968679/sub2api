@@ -836,6 +836,39 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.currentDraft.softCooldown).toBe(true)
   })
 
+  it('writes probe_latency_v2 on save and omitted GET stays off unless written', async () => {
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          default_platform: 'openai',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              ...body,
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.currentDraft.probeLatencyV2).toBe(false)
+    w.vm.currentDraft.probeLatencyV2 = true
+    await w.vm.onSave()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'openai',
+      expect.objectContaining({ probe_latency_v2: true })
+    )
+    expect(w.vm.currentDraft.probeLatencyV2).toBe(true)
+  })
+
   it('writes the two window N columns independently', async () => {
     apiMocks.updateSmartSchedule.mockImplementation(
       (_userId: number, _platform: string, body: Record<string, unknown>) =>

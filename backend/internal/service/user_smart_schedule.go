@@ -77,8 +77,8 @@ type SmartSchedulePlatformPolicy struct {
 	QualitySchedWindowN            *int
 	QualitySchedMaxSlowInWindow    *int
 	QualitySchedMaxConsecutiveSlow *int
-	// ProbeLatencyV2 enables 考察期 v2 (Hold / Q_a first gate / no-zero graduate).
-	// Default false. Not persisted; a future setting can hydrate this.
+	// ProbeLatencyV2 enables 考察期 v2 (考察预检 + evalQuality formal probe).
+	// Default false (257). Persisted per user×platform; omitted PUT = off.
 	ProbeLatencyV2 bool
 	UpdatedAt      time.Time
 	AccountIDs     map[int64]struct{}
@@ -222,6 +222,8 @@ type UserSmartScheduleCache interface {
 	ZeroSoftCooldown(ctx context.Context, accountID, userID int64, platform string)
 	GetSoftCooldownBatch(ctx context.Context, accountIDs []int64, userID int64, platform string) map[int64]*PairQualityLive
 	SoftEndCooldown(ctx context.Context, accountID, userID int64, platform string, detail string)
+	EnterProbe(ctx context.Context, accountID, userID int64, platform string) ProbeAdmissionOutcome
+	IsCooldownHard(ctx context.Context, accountID, userID int64, platform string) bool
 	ListPairQualitySnapshots(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualitySnapshot
 	ListPairQualityEvents(ctx context.Context, accountID, userID int64, platform string, limit int) []PairQualityEvent
 	AppendPairQualityEvent(ctx context.Context, accountID, userID int64, platform string, event PairQualityEvent)
@@ -276,6 +278,7 @@ type SmartSchedulePlatformWrite struct {
 	QualitySchedWindowN            *int
 	QualitySchedMaxSlowInWindow    *int
 	QualitySchedMaxConsecutiveSlow *int
+	ProbeLatencyV2                 bool
 	Accounts                       []SmartScheduleAccountMember
 }
 
@@ -299,6 +302,7 @@ type SmartSchedulePlatformView struct {
 	QualitySchedWindowN            *int                         `json:"quality_sched_window_n"`
 	QualitySchedMaxSlowInWindow    *int                         `json:"quality_sched_max_slow_in_window"`
 	QualitySchedMaxConsecutiveSlow *int                         `json:"quality_sched_max_consecutive_slow"`
+	ProbeLatencyV2                 bool                         `json:"probe_latency_v2"`
 	UpdatedAt                      time.Time                    `json:"updated_at,omitempty"`
 	Accounts                       []SmartScheduleAccountMember `json:"accounts"`
 }
@@ -317,6 +321,15 @@ const (
 	PairAdmissionResumed    = "resumed"
 	PairAdmissionSelectable = "selectable"
 	PairAdmissionPinned     = "pinned"
+)
+
+// ProbeAdmissionOutcome is the result of cooldown expiry / soft end / 手选考察.
+type ProbeAdmissionOutcome string
+
+const (
+	ProbeAdmissionProbing    ProbeAdmissionOutcome = PairAdmissionProbing
+	ProbeAdmissionSelectable ProbeAdmissionOutcome = PairAdmissionSelectable
+	ProbeAdmissionCooling    ProbeAdmissionOutcome = PairAdmissionCooling
 )
 
 // PairAdmissionResult is the admin response after switching a pair's live state.

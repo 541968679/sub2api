@@ -91,6 +91,7 @@ export type SmartSchedulePlatformDraft = {
   condition: 'or' | 'and'
   cooldownMinutes: number
   softCooldown: boolean
+  probeLatencyV2: boolean
   accounts: SmartSchedulePoolMemberDraft[]
 }
 
@@ -117,6 +118,7 @@ function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
     condition: row.condition,
     cooldownMinutes: row.cooldownMinutes,
     softCooldown: Boolean(row.softCooldown),
+    probeLatencyV2: Boolean(row.probeLatencyV2),
     accounts: row.accounts.map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency
@@ -176,6 +178,7 @@ export function emptySmartScheduleDraft(): SmartSchedulePlatformDraft {
     condition: 'or',
     cooldownMinutes: 15,
     softCooldown: false,
+    probeLatencyV2: false,
     accounts: []
   }
 }
@@ -218,6 +221,7 @@ export function draftFromSavedSnapshot(raw: string | undefined): SmartSchedulePl
       condition: parsed.condition === 'and' ? 'and' : 'or',
       cooldownMinutes: parsed.cooldownMinutes || 15,
       softCooldown: Boolean(parsed.softCooldown),
+      probeLatencyV2: Boolean(parsed.probeLatencyV2),
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
     }
   } catch {
@@ -324,6 +328,7 @@ export function useUserSmartScheduleEditor(
     draft.condition = view.quality_condition === 'and' ? 'and' : 'or'
     draft.cooldownMinutes = view.cooldown_minutes || 15
     draft.softCooldown = Boolean(view.soft_cooldown)
+    draft.probeLatencyV2 = Boolean(view.probe_latency_v2)
     draft.accounts = (view.accounts ?? []).map((item) => ({
       account_id: item.account_id,
       max_concurrency: item.max_concurrency ?? null,
@@ -390,6 +395,16 @@ export function useUserSmartScheduleEditor(
     const draft = drafts[platform]
     if (!draft) return
     draft.softCooldown = Boolean(payload.soft_cooldown)
+    captureSnapshot(platform)
+  }
+
+  function applyWrittenProbeLatencyV2(
+    platform: SmartSchedulePlatform,
+    payload: { probe_latency_v2?: boolean }
+  ) {
+    const draft = drafts[platform]
+    if (!draft) return
+    draft.probeLatencyV2 = Boolean(payload.probe_latency_v2)
     captureSnapshot(platform)
   }
 
@@ -1045,6 +1060,7 @@ export function useUserSmartScheduleEditor(
       }),
       cooldown_minutes: draft.cooldownMinutes || 15,
       soft_cooldown: Boolean(draft.softCooldown),
+      probe_latency_v2: Boolean(draft.probeLatencyV2),
       accounts: draft.accounts.map((item) => ({
         account_id: item.account_id,
         platform: activePlatform.value,
@@ -1110,6 +1126,7 @@ export function useUserSmartScheduleEditor(
       applyPlatformView(activePlatform.value, view)
       applyWrittenWindowN(activePlatform.value, payload)
       applyWrittenSoftCooldown(activePlatform.value, payload)
+      applyWrittenProbeLatencyV2(activePlatform.value, payload)
       await loadPoolDetails()
       if (!options?.silent) {
         appStore.showSuccess(t(options?.successKey || 'admin.users.smartSchedule.updateSuccess'))

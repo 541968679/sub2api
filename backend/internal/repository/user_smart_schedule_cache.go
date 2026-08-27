@@ -23,6 +23,7 @@ const (
 	smartScheduleResumeWatchPref   = "w:"
 	smartScheduleCooldownTTLBuffer = 2 * time.Hour
 	smartScheduleResumeTTL         = 40 * time.Minute
+	smartScheduleCooldownHardKeyPrefix = "smart-schedule:cooldown-hard:"
 )
 
 type userSmartScheduleCache struct {
@@ -61,6 +62,10 @@ func smartScheduleResumeKey(platform string, accountID int64) string {
 
 func smartScheduleResumeWatchingField(userID int64) string {
 	return smartScheduleResumeWatchPref + strconv.FormatInt(userID, 10)
+}
+
+func smartScheduleCooldownHardKey(platform string, accountID int64) string {
+	return smartScheduleCooldownHardKeyPrefix + service.SmartScheduleRedisPlatform(platform) + ":" + strconv.FormatInt(accountID, 10)
 }
 
 func (c *userSmartScheduleCache) Lookup(ctx context.Context, userID int64) *service.UserSmartScheduleBundle {
@@ -204,6 +209,7 @@ func (c *userSmartScheduleCache) SetCooldownWithReason(ctx context.Context, acco
 		return until, fmt.Errorf("set smart schedule cooldown: %w", err)
 	}
 	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
+	c.clearCooldownHard(ctx, accountID, userID, platform)
 	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
 	event := service.PairQualityEvent{
 		Ts:    now.Unix(),
@@ -303,6 +309,7 @@ func (c *userSmartScheduleCache) ClearCooldown(ctx context.Context, accountID, u
 		return err
 	}
 	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
+	c.clearCooldownHard(ctx, accountID, userID, platform)
 	if n > 0 {
 		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 			Ts:   time.Now().UTC().Unix(),
@@ -334,7 +341,21 @@ func (c *userSmartScheduleCache) expirePairCooldown(ctx context.Context, account
 }
 
 func (c *userSmartScheduleCache) SoftEndCooldown(ctx context.Context, accountID, userID int64, platform string, detail string) {
+	if c.IsCooldownHard(ctx, accountID, userID, platform) {
+		return
+	}
 	c.enterProbeFromCooldown(ctx, accountID, userID, platform, service.PairQualityEventSoftCooldownEnd, detail)
+}
+
+func (c *userSmartScheduleCache) EnterProbe(ctx context.Context, accountID, userID int64, platform string) service.ProbeAdmissionOutcome {
+	c.enterProbeFromCooldown(ctx, accountID, userID, platform, "", "")
+	if c.CooldownActive(ctx, accountID, userID, platform, time.Now().UTC()) {
+		return service.ProbeAdmissionCooling
+	}
+	if c.IsProbing(ctx, accountID, userID, platform) {
+		return service.ProbeAdmissionProbing
+	}
+	return service.ProbeAdmissionSelectable
 }
 
 func (c *userSmartScheduleCache) enterProbeFromCooldown(ctx context.Context, accountID, userID int64, platform, extraType, detail string) {
@@ -344,23 +365,74 @@ func (c *userSmartScheduleCache) enterProbeFromCooldown(ctx context.Context, acc
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 	_ = c.rdb.HDel(ctx, smartScheduleCooldownReasonKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 	c.ZeroSoftCooldown(ctx, accountID, userID, platform)
+	c.clearCooldownHard(ctx, accountID, userID, platform)
 	if c.IsPinned(ctx, accountID, userID, platform) {
 		return
 	}
-	// 257: expiry_zero before MarkProbing / same-tick evaluate so stale p50
-	// cannot pairQualityLegacyP50Blocked → immediate re-cool. v2 keeps the window.
-	if !pairQualityKeepWindowsOnExpiry(c.lookupPairPolicy(ctx, userID, platform)) {
-		c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
-	}
-	if extraType != "" {
+	policy := c.lookupPairPolicy(ctx, userID, platform)
+	appendExtra := func() {
+		if extraType == "" {
+			return
+		}
 		c.AppendPairQualityEvent(ctx, accountID, userID, platform, service.PairQualityEvent{
 			Ts:     time.Now().UTC().Unix(),
 			Type:   extraType,
 			Detail: detail,
 		})
 	}
-	c.MarkProbing(ctx, accountID, userID, platform)
+	if policy == nil || !policy.ProbeLatencyV2 {
+		c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+		appendExtra()
+		c.MarkProbing(ctx, accountID, userID, platform)
+		c.ClearPairResume(ctx, accountID, userID, platform)
+		return
+	}
+	minutes := service.ClampSmartScheduleCooldownMinutes(policy.CooldownMinutes)
+	since := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
+	samples := listAccountQualityPrecheckSamples(ctx, c.rdb, accountID, userID, since)
+	live := service.PairLiveFromPrecheckSamples(samples, policy.TTFTWindowN(), policy.SuccessWindowN())
+	ev := service.EvalQuality(live, service.ProbeQualityKnobs(policy))
+	c.ZeroPairQuality(ctx, accountID, userID, platform, service.PairQualityEventExpiryZero)
+	appendExtra()
 	c.ClearPairResume(ctx, accountID, userID, platform)
+	switch ev.State {
+	case service.LatencyEvalFail:
+		c.ClearProbing(ctx, accountID, userID, platform)
+		c.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, time.Now().UTC(), service.FormatProbePrecheckCooldownDetail(ev.Reasons))
+		c.markCooldownHard(ctx, accountID, userID, platform, minutes)
+	case service.LatencyEvalPass:
+		c.ClearProbing(ctx, accountID, userID, platform)
+	default:
+		c.MarkProbing(ctx, accountID, userID, platform)
+	}
+}
+
+func (c *userSmartScheduleCache) IsCooldownHard(ctx context.Context, accountID, userID int64, platform string) bool {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return false
+	}
+	raw, err := c.rdb.HGet(ctx, smartScheduleCooldownHardKey(platform, accountID), smartScheduleCooldownField(userID)).Result()
+	return err == nil && raw != ""
+}
+
+func (c *userSmartScheduleCache) markCooldownHard(ctx context.Context, accountID, userID int64, platform string, minutes int) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	minutes = service.ClampSmartScheduleCooldownMinutes(minutes)
+	key := smartScheduleCooldownHardKey(platform, accountID)
+	if err := c.rdb.HSet(ctx, key, smartScheduleCooldownField(userID), "1").Err(); err != nil {
+		return
+	}
+	// Same HASH is shared across users; only lengthen TTL (never Expire-down).
+	c.extendCooldownTTL(ctx, key, time.Duration(minutes)*time.Minute+smartScheduleCooldownTTLBuffer)
+}
+
+func (c *userSmartScheduleCache) clearCooldownHard(ctx context.Context, accountID, userID int64, platform string) {
+	if c == nil || c.rdb == nil || accountID <= 0 || userID <= 0 {
+		return
+	}
+	_ = c.rdb.HDel(ctx, smartScheduleCooldownHardKey(platform, accountID), smartScheduleCooldownField(userID)).Err()
 }
 
 func (c *userSmartScheduleCache) lookupPairPolicy(ctx context.Context, userID int64, platform string) *service.SmartSchedulePlatformPolicy {
@@ -372,11 +444,6 @@ func (c *userSmartScheduleCache) lookupPairPolicy(ctx context.Context, userID in
 		return nil
 	}
 	return bundle.Policy(platform)
-}
-
-// pairQualityKeepWindowsOnExpiry is ProbeLatencyV2 only. Nil policy is off (257).
-func pairQualityKeepWindowsOnExpiry(policy *service.SmartSchedulePlatformPolicy) bool {
-	return policy != nil && policy.ProbeLatencyV2
 }
 
 func (c *userSmartScheduleCache) IsProbing(ctx context.Context, accountID, userID int64, platform string) bool {

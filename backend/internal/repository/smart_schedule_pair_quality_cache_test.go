@@ -106,7 +106,7 @@ func TestPairQualityCache_ExpiryZerosWindowsWhenPolicyMissing(t *testing.T) {
 	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"))
 }
 
-func TestPairQualityCache_ExpiryKeepsWindowsWhenProbeV2On(t *testing.T) {
+func TestPairQualityCache_ExpiryV2ZerosThenFormalProbeWhenPrecheckPending(t *testing.T) {
 	cache, _ := newPairQualityTestCache(t)
 	ctx := context.Background()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
@@ -117,12 +117,10 @@ func TestPairQualityCache_ExpiryKeepsWindowsWhenProbeV2On(t *testing.T) {
 	require.NotZero(t, cache.GetPairQuality(ctx, 7, 16, "openai").OKCount)
 	require.False(t, cache.CooldownActive(ctx, 7, 16, "openai", now.Add(16*time.Minute)))
 	live := cache.GetPairQuality(ctx, 7, 16, "openai")
-	require.Equal(t, 1, live.OKCount, "expiry must not zero pair windows")
-	require.Equal(t, 1, live.TTFTCount)
-	for _, event := range cache.ListPairQualityEvents(ctx, 7, 16, "openai", 20) {
-		require.NotEqual(t, service.PairQualityEventExpiryZero, event.Type)
-	}
-	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"), "expiry must enter probing, not selectable")
+	require.Equal(t, 0, live.OKCount, "v2 pending precheck zeros leftover pair windows")
+	require.Equal(t, 0, live.TTFTCount)
+	require.Contains(t, pairQualityEventTypes(cache.ListPairQualityEvents(ctx, 7, 16, "openai", 20)), service.PairQualityEventExpiryZero)
+	require.True(t, cache.IsProbing(ctx, 7, 16, "openai"), "pending precheck enters formal probe")
 	require.False(t, cache.IsPinned(ctx, 7, 16, "openai"), "expiry must never enter pinned")
 	require.False(t, cache.IsProbing(ctx, 7, 17, "openai"), "other user is not backfilled")
 	foundEnter := false

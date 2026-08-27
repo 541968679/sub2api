@@ -15,9 +15,8 @@ const (
 	DefaultSmartScheduleSchedK = 4
 	DefaultSmartScheduleSchedC = 2
 
-	// SettingKeyProbeLatencyV2 is the 考察期 rewrite switch (Hold / Q_a / no-zero
-	// graduate / underfull C). Default off so selectable-only rollout does not
-	// activate that path. Tests may set SmartSchedulePlatformPolicy.ProbeLatencyV2.
+	// SettingKeyProbeLatencyV2 is the historical settings-key name. The live
+	// switch is per-user SmartSchedulePlatformPolicy.ProbeLatencyV2 (DB overlay).
 	SettingKeyProbeLatencyV2 = "probe_latency_v2"
 
 	// Email used by SQL backfills only (216 duration / 217 zuoge-only gray).
@@ -48,9 +47,19 @@ func policyProbeLatencyV2(policy *SmartSchedulePlatformPolicy) bool {
 	return policy != nil && policy.ProbeLatencyV2
 }
 
+func policyHasLatencyThreshold(policy *SmartSchedulePlatformPolicy) bool {
+	if policy == nil {
+		return false
+	}
+	if policy.QualityMaxP50TTFTMs != nil && *policy.QualityMaxP50TTFTMs >= 1 {
+		return true
+	}
+	return policy.QualityMaxP50DurationMs != nil && *policy.QualityMaxP50DurationMs >= 1
+}
+
 func resolveSmartScheduleLatencyKC(policy *SmartSchedulePlatformPolicy) (k, c int) {
 	k, c = 0, 0
-	if policy == nil || policy.QualityMaxP50TTFTMs == nil {
+	if !policyHasLatencyThreshold(policy) {
 		return k, c
 	}
 	if policy.QualityMaxSlowInWindow != nil && *policy.QualityMaxSlowInWindow > 0 {
@@ -144,9 +153,9 @@ func pairLatencyGate(samples []int, maxP50 *int, k, c, n int, requireFullForCons
 	return false, nil
 }
 
-// pairSelectableLatencyGate is the 调度期-only C∨K∨p50 helper.
-// C is ready at C (do not wait for N). K is ready at K (slow_count >= K).
-// p50 still requires a full N-sample window. Probe must not call this.
+// pairSelectableLatencyGate is the C∨K∨p50 helper shared by 调度期 and
+// evalQuality (预检 / 正式考察 v2). C is ready at C. K is ready at K.
+// p50 still requires a full N-sample window. 257 probe must not call this.
 func pairSelectableLatencyGate(samples []int, maxP50 *int, k, c, n int) (block bool, reasons []SmartScheduleCooldownReason) {
 	if maxP50 == nil || *maxP50 < 1 {
 		return false, nil

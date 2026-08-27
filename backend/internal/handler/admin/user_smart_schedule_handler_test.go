@@ -43,6 +43,23 @@ func TestPutSmartScheduleRequest_OmittedSoftCooldownIsHard(t *testing.T) {
 	}
 }
 
+func TestPutSmartScheduleRequest_OmittedProbeLatencyV2IsOff(t *testing.T) {
+	var omitted putSmartScheduleRequest
+	if err := json.Unmarshal([]byte(`{"enabled":true,"cooldown_minutes":15}`), &omitted); err != nil {
+		t.Fatal(err)
+	}
+	if omitted.ProbeLatencyV2 {
+		t.Fatal("omitted probe_latency_v2 must unmarshal as off")
+	}
+	var on putSmartScheduleRequest
+	if err := json.Unmarshal([]byte(`{"enabled":true,"cooldown_minutes":15,"probe_latency_v2":true}`), &on); err != nil {
+		t.Fatal(err)
+	}
+	if !on.ProbeLatencyV2 {
+		t.Fatal("probe_latency_v2 true must round-trip")
+	}
+}
+
 func TestGetUserSmartSchedule_InvalidID(t *testing.T) {
 	h := &UserHandler{adminService: newStubAdminService()}
 	c, w := newSmartScheduleJSONContext(http.MethodGet, "", []gin.Param{{Key: "id", Value: "abc"}})

@@ -505,21 +505,6 @@ func (l *PairQualityLive) ToAccountQualityStats() *AccountQualityStats {
 	return stats
 }
 
-func loadSmartScheduleQA(ctx context.Context, cache AccountQualityLiveCache, accountID int64, policy *SmartSchedulePlatformPolicy) *AccountQualityLastN {
-	if cache == nil || accountID <= 0 || policy == nil || policy.QualityMaxP50TTFTMs == nil {
-		return nil
-	}
-	reader, ok := cache.(AccountQualityLastNCache)
-	if !ok {
-		return nil
-	}
-	live := reader.GetLastN(ctx, accountID)
-	if live == nil {
-		return nil
-	}
-	return ProjectAccountQualityLastN(live, policy.TTFTWindowN())
-}
-
 func pairQualityTTFTMs(trueMs, firstMs *int) *int {
 	if trueMs != nil && *trueMs >= 0 {
 		return trueMs
@@ -609,26 +594,14 @@ func pairQualityProbeLatencyBlocked(live *PairQualityLive, policy *SmartSchedule
 	if live == nil || policy == nil {
 		return false, nil
 	}
-	if !policyProbeLatencyV2(policy) {
-		return pairQualityLegacyP50Blocked(live, policy)
-	}
-	n := policy.TTFTWindowN()
-	k, c := resolveSmartScheduleLatencyKC(policy)
-	var reasons []SmartScheduleCooldownReason
-	blocked := false
-	if policy.QualityMaxP50TTFTMs != nil {
-		if b, rs := pairLatencyGate(live.TTFTMs, policy.QualityMaxP50TTFTMs, k, c, n, false); b {
-			blocked = true
-			reasons = append(reasons, prefixLatencyReasonCodes(rs, "ttft_")...)
+	if policyProbeLatencyV2(policy) {
+		ev := EvalQuality(live, ProbeQualityKnobs(policy))
+		if ev.State == LatencyEvalFail {
+			return true, ev.Reasons
 		}
+		return false, nil
 	}
-	if policy.QualityMaxP50DurationMs != nil {
-		if b, rs := pairLatencyGate(live.DurationMs, policy.QualityMaxP50DurationMs, k, c, n, false); b {
-			blocked = true
-			reasons = append(reasons, prefixLatencyReasonCodes(rs, "dur_")...)
-		}
-	}
-	return blocked, reasons
+	return pairQualityLegacyP50Blocked(live, policy)
 }
 
 func pairQualitySelectableLatencyBlocked(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, []SmartScheduleCooldownReason) {
@@ -729,6 +702,10 @@ func pairQualityProbeGraduates(live *PairQualityLive, policy *SmartSchedulePlatf
 }
 
 func pairQualityProbeLatencyPass(live *PairQualityLive, policy *SmartSchedulePlatformPolicy) (bool, string) {
+	if policyProbeLatencyV2(policy) {
+		ev := EvalQuality(live, ProbeQualityKnobs(policy))
+		return ev.State == LatencyEvalPass, ev.State
+	}
 	if live == nil {
 		return false, LatencyEvalPending
 	}
@@ -750,19 +727,7 @@ func pairQualityProbeLatencyPass(live *PairQualityLive, policy *SmartSchedulePla
 	if policy.QualityMaxP50TTFTMs == nil && policy.QualityMaxP50DurationMs == nil {
 		return true, LatencyEvalPass
 	}
-	if !policyProbeLatencyV2(policy) {
-		return pairQualityProbeLatencyPass257(live, policy)
-	}
-	n := policy.TTFTWindowN()
-	k, c := resolveSmartScheduleLatencyKC(policy)
-	state, _ := evalLatencyWindows(
-		live.TTFTMs,
-		live.DurationMs,
-		policy.QualityMaxP50TTFTMs,
-		policy.QualityMaxP50DurationMs,
-		k, c, n,
-	)
-	return state == LatencyEvalPass, state
+	return pairQualityProbeLatencyPass257(live, policy)
 }
 
 // pairQualityProbeLatencyPass257 is production 257 graduate: W_ok full +
@@ -824,7 +789,7 @@ func clearLeftoverPairResumeIfProbing(ctx context.Context, lookup SmartScheduleL
 
 // evaluateSmartSchedulePairQuality applies cooldown / probe graduate on the hot path
 // and after ingest. 豁免期 (no probe mark) must be checked by the caller (no evaluate).
-func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, platform string, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time, qaLastN *AccountQualityLastN) bool {
+func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleLookup, accountID, userID int64, platform string, policy *SmartSchedulePlatformPolicy, live *PairQualityLive, now time.Time) bool {
 	if lookup != nil && lookup.IsPinned(ctx, accountID, userID, platform) {
 		return true
 	}
@@ -848,6 +813,17 @@ func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleL
 		lookup.StartCooldownWithReason(ctx, accountID, userID, platform, minutes, now, detail)
 	}
 	if probing {
+		if policyProbeLatencyV2(policy) {
+			ev := EvalQuality(live, ProbeQualityKnobs(policy))
+			switch ev.State {
+			case LatencyEvalFail:
+				startCooldown(ev.Reasons, CooldownSamplePair)
+				return false
+			case LatencyEvalPass:
+				lookup.GraduateProbing(ctx, accountID, userID, platform)
+			}
+			return true
+		}
 		if blocked, reasons := pairQualityProbeBlocksWithReasons(live, policy); blocked {
 			startCooldown(reasons, CooldownSamplePair)
 			return false
@@ -856,40 +832,8 @@ func evaluateSmartSchedulePairQuality(ctx context.Context, lookup SmartScheduleL
 			startCooldown([]SmartScheduleCooldownReason{{Code: "and_mixed", Detail: "and 混合"}}, CooldownSamplePair)
 			return false
 		}
-		if policyProbeLatencyV2(policy) && qaLastN != nil && policy != nil && policy.QualityMaxP50TTFTMs != nil {
-			n := policy.TTFTWindowN()
-			k, c := resolveSmartScheduleLatencyKC(policy)
-			qaTTFT := recentLatencySamples(qaLastN.TTFTMs, n)
-			qaDur := recentLatencySamples(qaLastN.DurationMs, n)
-			qaState, qaReasons := evalLatencyWindows(
-				qaTTFT, qaDur,
-				policy.QualityMaxP50TTFTMs,
-				policy.QualityMaxP50DurationMs,
-				k, c, n,
-			)
-			switch qaState {
-			case LatencyEvalFail:
-				startCooldown(prefixQAReasons(qaReasons), CooldownSampleQA)
-				return false
-			case LatencyEvalHold:
-				return true
-			case LatencyEvalPending, LatencyEvalPass:
-				// continue to pair latency graduation
-			}
-		}
-		if pass, state := pairQualityProbeLatencyPass(live, policy); pass {
+		if pass, _ := pairQualityProbeLatencyPass(live, policy); pass {
 			lookup.GraduateProbing(ctx, accountID, userID, platform)
-		} else if policyProbeLatencyV2(policy) && state == LatencyEvalFail {
-			k, c := resolveSmartScheduleLatencyKC(policy)
-			n := policy.TTFTWindowN()
-			if _, reasons := evalLatencyWindows(
-				live.TTFTMs, live.DurationMs,
-				policy.QualityMaxP50TTFTMs, policy.QualityMaxP50DurationMs,
-				k, c, n,
-			); len(reasons) > 0 {
-				startCooldown(reasons, CooldownSamplePair)
-				return false
-			}
 		}
 		return true
 	}
