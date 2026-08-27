@@ -1,3 +1,11 @@
+## 2026-08-27 - release: 0.1.266 smart-schedule quality contract + probe v2
+
+### What
+- Ship the unpushed smart-schedule batch: 考察 start precheck probe v2, enter-AND / exit-OR quality contract, and SoftEnd → selectable (not 考察).
+
+### Why
+Production still runs `v0.1.265`. These commits are already on `main` and need a new GHCR tag before `update.sh` can pull them.
+
 ## 2026-08-27 - feat(smart-schedule): quality contract children 1–4
 
 ### What
