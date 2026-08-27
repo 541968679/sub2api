@@ -106,6 +106,7 @@ func qualityPhaseMetrics(live *PairQualityLive, knobs QualityEvalKnobs, includeD
 	}
 	ttft := recentLatencySamples(live.TTFTMs, nLat)
 	out.TTFTSamples = len(ttft)
+	// Show p50 from any available samples (including 1). Judgment still waits for full N.
 	out.P50TTFTMs = pairQualityP50(ttft)
 	okWindow := live.OK
 	if nOK > 0 && len(okWindow) > nOK {
@@ -140,21 +141,31 @@ func applyPhaseMetricsAlias(view *SmartSchedulePairQualityView, m QualityPhaseMe
 	if view == nil {
 		return
 	}
-	view.P50TTFTMs = m.P50TTFTMs
-	view.TTFTP50Ms = m.P50TTFTMs
-	view.SuccessRate = m.SuccessRate
-	view.TTFTCount = m.TTFTSamples
-	view.TTFTSamples = m.TTFTSamples
-	view.OKCount = m.OKSamples
-	view.OKSamples = m.OKSamples
+	// Display is not gated on full N. An empty phase window (soft just opened,
+	// expiry_zero, wrong alias) must not wipe live FIFO p50 / success.
+	if m.P50TTFTMs != nil || m.TTFTSamples > 0 {
+		view.P50TTFTMs = m.P50TTFTMs
+		view.TTFTP50Ms = m.P50TTFTMs
+		view.TTFTCount = m.TTFTSamples
+		view.TTFTSamples = m.TTFTSamples
+	}
+	if m.SuccessRate != nil || m.OKSamples > 0 {
+		view.SuccessRate = m.SuccessRate
+		view.OKCount = m.OKSamples
+		view.OKSamples = m.OKSamples
+	}
 	view.NTTFT = m.NTTFT
 	view.NSuccess = m.NOK
 	view.NOK = m.NOK
 	view.N = maxSmartScheduleWindowN(m.NTTFT, m.NOK)
-	view.TTFTSlowCount = m.Slow
-	view.TTFTConsecutiveSlow = m.Consec
-	view.QualitySchedMaxSlowInWindow = m.K
-	view.QualitySchedMaxConsecutiveSlow = m.C
+	if m.Slow != nil || m.K != nil {
+		view.TTFTSlowCount = m.Slow
+		view.QualitySchedMaxSlowInWindow = m.K
+	}
+	if m.Consec != nil || m.C != nil {
+		view.TTFTConsecutiveSlow = m.Consec
+		view.QualitySchedMaxConsecutiveSlow = m.C
+	}
 }
 
 func attachPairQualityPhaseMetrics(view *SmartSchedulePairQualityView, live, softLive *PairQualityLive, policy *SmartSchedulePlatformPolicy, phase string) {

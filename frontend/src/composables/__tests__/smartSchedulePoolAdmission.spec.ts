@@ -120,6 +120,37 @@ describe('resolveSmartScheduleWindowN', () => {
 })
 
 describe('normalizeSmartSchedulePairQuality', () => {
+  it('keeps a 1-sample p50 and fills from nested phase when top-level is empty', () => {
+    expect(
+      normalizeSmartSchedulePairQuality({
+        ttft_p50_ms: 1800,
+        success_rate: 1,
+        ttft_samples: 1,
+        ok_samples: 1,
+        n: 10,
+        n_ttft: 10,
+        n_success: 10
+      })?.ttft_p50_ms
+    ).toBe(1800)
+    expect(
+      normalizeSmartSchedulePairQuality({
+        ttft_p50_ms: null,
+        success_rate: null,
+        ttft_samples: 0,
+        ok_samples: 0,
+        n: 10,
+        probe: {
+          p50_ttft_ms: 1800,
+          success_rate: 1,
+          ttft_samples: 1,
+          n_ttft: 10,
+          ok_samples: 1,
+          n_ok: 10
+        }
+      })
+    ).toMatchObject({ ttft_p50_ms: 1800, success_rate: 1 })
+  })
+
   it('reads backend canonical counts and p50 aliases', () => {
     expect(
       normalizeSmartSchedulePairQuality({

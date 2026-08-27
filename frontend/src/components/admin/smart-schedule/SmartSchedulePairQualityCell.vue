@@ -81,16 +81,41 @@ function formatMs(ms: number | null | undefined): string {
   return `${Math.round(ms)}ms`
 }
 
-const p50Display = computed(() => formatMs(props.quality?.ttft_p50_ms))
+function firstFinite(...vals: Array<number | null | undefined>): number | null {
+  for (const value of vals) {
+    if (value != null && Number.isFinite(value)) return value
+  }
+  return null
+}
+
+const p50Ms = computed(() =>
+  firstFinite(
+    props.quality?.ttft_p50_ms,
+    props.quality?.probe?.p50_ttft_ms,
+    props.quality?.sched?.p50_ttft_ms,
+    props.quality?.soft?.p50_ttft_ms
+  )
+)
+
+const successRate = computed(() =>
+  firstFinite(
+    props.quality?.success_rate,
+    props.quality?.probe?.success_rate,
+    props.quality?.sched?.success_rate,
+    props.quality?.soft?.success_rate
+  )
+)
+
+const p50Display = computed(() => formatMs(p50Ms.value))
 
 const successDisplay = computed(() => {
-  const rate = props.quality?.success_rate
-  if (rate == null || !Number.isFinite(rate)) return '—'
+  const rate = successRate.value
+  if (rate == null) return '—'
   return `${(rate * 100).toFixed(1)}%`
 })
 
 const p50ToneClass = computed(() => {
-  const ms = props.quality?.ttft_p50_ms
+  const ms = p50Ms.value
   if (ms == null) return 'text-gray-700 dark:text-gray-300'
   if (ms >= 3000) return 'text-red-600 dark:text-red-400'
   if (ms >= 1500) return 'text-amber-600 dark:text-amber-400'
@@ -98,7 +123,7 @@ const p50ToneClass = computed(() => {
 })
 
 const successToneClass = computed(() => {
-  const rate = props.quality?.success_rate
+  const rate = successRate.value
   if (rate == null) return 'text-gray-700 dark:text-gray-300'
   if (rate < 0.9) return 'text-red-600 dark:text-red-400'
   if (rate < 0.95) return 'text-amber-600 dark:text-amber-400'

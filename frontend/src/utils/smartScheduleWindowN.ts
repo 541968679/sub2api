@@ -83,10 +83,18 @@ export function normalizeSmartSchedulePairQuality(
   const nSuccess = clampSmartScheduleWindowN(
     finiteNumber(raw.n_success) ?? finiteNumber(raw.n_ok) ?? finiteNumber(raw.n) ?? finiteNumber(raw.quality_window_n)
   )
+  const topP50 = finiteNumber(raw.ttft_p50_ms ?? raw.p50_ttft_ms)
+  const nestedP50 = finiteNumber(
+    raw.probe?.p50_ttft_ms ?? raw.sched?.p50_ttft_ms ?? raw.soft?.p50_ttft_ms
+  )
+  const topSuccess =
+    raw.success_rate != null && Number.isFinite(raw.success_rate) ? raw.success_rate : null
+  const nestedSuccess = finiteNumber(
+    raw.probe?.success_rate ?? raw.sched?.success_rate ?? raw.soft?.success_rate
+  )
   const out: SmartSchedulePairQuality = {
-    ttft_p50_ms: finiteNumber(raw.ttft_p50_ms ?? raw.p50_ttft_ms),
-    success_rate:
-      raw.success_rate != null && Number.isFinite(raw.success_rate) ? raw.success_rate : null,
+    ttft_p50_ms: topP50 ?? nestedP50,
+    success_rate: topSuccess ?? nestedSuccess,
     ttft_samples: Math.max(0, finiteNumber(raw.ttft_samples ?? raw.ttft_count) ?? 0),
     ok_samples: Math.max(0, finiteNumber(raw.ok_samples ?? raw.ok_count ?? raw.success_samples) ?? 0),
     n: clampSmartScheduleWindowN(raw.n ?? Math.max(nTtft, nSuccess)),

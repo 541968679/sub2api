@@ -71,6 +71,50 @@ describe('SmartSchedulePairQualityCell', () => {
     expect(w.get('[data-testid="smart-schedule-pair-quality-kc"]').text()).toContain('2/3/1/2')
   })
 
+  it('shows p50 from a single underfull TTFT sample', () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: 1800,
+          success_rate: 1,
+          ttft_samples: 1,
+          ok_samples: 1,
+          n: 10,
+          n_ttft: 10,
+          n_success: 10,
+          metrics_phase: 'probe'
+        }
+      }
+    })
+    expect(w.text()).toContain('1800ms')
+    expect(w.text()).not.toMatch(/p50\s+—/)
+  })
+
+  it('falls back to probe-window p50 when top-level alias is empty', () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: null,
+          success_rate: null,
+          ttft_samples: 0,
+          ok_samples: 0,
+          n: 10,
+          metrics_phase: 'soft',
+          probe: {
+            p50_ttft_ms: 1800,
+            success_rate: 1,
+            ttft_samples: 1,
+            n_ttft: 10,
+            ok_samples: 1,
+            n_ok: 10
+          }
+        }
+      }
+    })
+    expect(w.text()).toContain('1800ms')
+    expect(w.text()).toContain('100.0%')
+  })
+
   it('labels the active gate window', () => {
     const w = mount(SmartSchedulePairQualityCell, {
       props: {

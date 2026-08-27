@@ -68,6 +68,78 @@ func TestHydratePairQuality_PhaseMetricsSchedWindowP50(t *testing.T) {
 	require.NotNil(t, member.QualityReason)
 }
 
+func underfullOneSampleLive(ttftMs int) *PairQualityLive {
+	return ApplyPairQualityIngestWindows(nil, 10, 10, true, intPtr(ttftMs), nil)
+}
+
+func TestQualityPhaseMetrics_OneTTFTSampleShowsP50(t *testing.T) {
+	t.Parallel()
+	p50 := 500
+	n := 10
+	policy := enabledSmartPolicy(7, 0, &p50)
+	policy.QualityMinTTFTSamples = &n
+	policy.QualityMinSuccessSamples = &n
+	live := underfullOneSampleLive(1800)
+	m := qualityPhaseMetrics(live, ProbeQualityKnobs(policy), false)
+	require.Equal(t, 1, m.TTFTSamples)
+	require.NotNil(t, m.P50TTFTMs)
+	require.Equal(t, 1800, *m.P50TTFTMs)
+	require.Equal(t, 1, m.OKSamples)
+	require.NotNil(t, m.SuccessRate)
+	require.InDelta(t, 1.0, *m.SuccessRate, 1e-9)
+}
+
+func TestApplyPhaseMetricsAlias_EmptyPhaseKeepsLiveP50(t *testing.T) {
+	t.Parallel()
+	live := underfullOneSampleLive(1800)
+	view := live.View()
+	require.NotNil(t, view.P50TTFTMs)
+	empty := qualityPhaseMetrics(nil, ProbeQualityKnobs(enabledSmartPolicy(7, 0, intPtr(500))), false)
+	applyPhaseMetricsAlias(&view, empty)
+	require.NotNil(t, view.P50TTFTMs)
+	require.Equal(t, 1800, *view.P50TTFTMs)
+	require.NotNil(t, view.SuccessRate)
+}
+
+func TestHydratePairQuality_OneTTFTSampleShowsP50UnderfullDoesNotCool(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p50 := 500
+	n := 10
+	policy := enabledSmartPolicy(7, 0, &p50)
+	policy.QualityMinTTFTSamples = &n
+	policy.QualityMinSuccessSamples = &n
+	policy.ProbeLatencyV2 = true
+	live := underfullOneSampleLive(9000)
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, policy)}
+	cache := &observeCacheStub{
+		live:    map[string]*PairQualityLive{smartPairKey(7, 16): live},
+		probing: map[string]bool{smartPairKey(7, 16): true},
+	}
+	svc := NewUserSmartScheduleService(repo, cache, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}, nil, nil)
+
+	view, err := svc.Get(ctx, 16)
+	require.NoError(t, err)
+	member := view.Platforms[PlatformAnthropic].Accounts[0]
+	require.True(t, member.Probing)
+	require.Equal(t, MetricsPhaseProbe, member.PairQuality.MetricsPhase)
+	require.NotNil(t, member.PairQuality.P50TTFTMs)
+	require.Equal(t, 9000, *member.PairQuality.P50TTFTMs)
+	require.Equal(t, 1, member.PairQuality.TTFTSamples)
+	require.False(t, member.WillCool, "1-sample p50 above max must not cool; judgment waits for full N")
+	require.Nil(t, member.QualityReason)
+
+	ev := EvalQuality(live, ProbeQualityKnobs(policy))
+	require.Equal(t, LatencyEvalPending, ev.State)
+
+	startsBefore := cache.starts
+	evaluateSmartSchedulePairQuality(ctx, cache, 7, 16, PlatformAnthropic, policy, live, time.Now().UTC())
+	require.Equal(t, startsBefore, cache.starts, "underfull p50 must not StartCooldown")
+	require.True(t, cache.IsProbing(ctx, 7, 16, PlatformAnthropic))
+}
+
 func TestHydratePairQuality_WillCoolUsesProbeKnobs(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

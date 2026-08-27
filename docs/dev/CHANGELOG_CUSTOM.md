@@ -1,3 +1,24 @@
+## 2026-08-27 - fix(smart-schedule): show pair p50 from underfull TTFT window
+
+### What
+- Pair-quality cell / phase-metrics alias always displays p50 (and success) from available samples, including 1 TTFT. Empty active-phase alias (soft just opened, expiry_zero) no longer wipes live FIFO p50.
+- Judgment is unchanged: full N to fail/pass p50; K/C can still early-fail.
+
+### Why
+v0.1.266 aliased top-level p50 to the active phase window. An empty phase window hid p50 on 考察/调度 cells even after a new sample arrived. Haley locked: display ≠ judgment.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "QualityPhaseMetrics_OneTTFT|ApplyPhaseMetricsAlias_EmptyPhase|HydratePairQuality_OneTTFT"`
+- `pnpm --dir frontend exec vitest run src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/composables/__tests__/smartSchedulePoolAdmission.spec.ts -t "1-sample|nested phase|underfull"`
+
+### Affected files
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_phase_metrics_test.go`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
+`frontend/src/utils/smartScheduleWindowN.ts`
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts`
+`frontend/src/composables/__tests__/smartSchedulePoolAdmission.spec.ts`
+
 ## 2026-08-27 - release: 0.1.266 smart-schedule quality contract + probe v2
 
 ### What
