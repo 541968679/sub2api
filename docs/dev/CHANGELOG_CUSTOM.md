@@ -1,3 +1,11 @@
+## 2026-08-28 - release: 0.1.268 OpenAI header-wait / first-useful-frame timeout
+
+### What
+- Ship the OpenAI wait-timeout gates as a new GHCR tag for production pull.
+
+### Why
+Production still runs `v0.1.267`. Need a new tag before `update.sh` can pull the header-wait and first-useful-frame abort.
+
 ## 2026-08-28 - fix(openai): abort committed first-useful-frame timeout
 
 ### What
