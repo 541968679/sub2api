@@ -746,6 +746,9 @@ func ClassifyOpsErrorRateCalibers(in OpsErrorCaliberInput) OpsErrorRateCalibers 
 	if in.UseFailover {
 		schedule = compareAccount && !scheduleSkip
 	}
+	if recovered && IsOpenAIWaitTimeoutOpsError(in.Message, in.UpstreamErrorMessage, in.ErrorBody) {
+		schedule = compareAccount && !scheduleSkip
+	}
 	return OpsErrorRateCalibers{
 		IsRecovered:                  recovered,
 		CountedInUserErrorRate:       user,

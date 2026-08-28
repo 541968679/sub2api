@@ -18,6 +18,7 @@ const {
   getScheduleErrorWhitelist,
   updateScheduleErrorWhitelist,
   getStreamTimeoutSettings,
+  getOpenAIWaitTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
   getGroups,
@@ -44,6 +45,7 @@ const {
   getScheduleErrorWhitelist: vi.fn(),
   updateScheduleErrorWhitelist: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
+  getOpenAIWaitTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
   getGroups: vi.fn(),
@@ -89,6 +91,7 @@ vi.mock("@/api", () => ({
       getScheduleErrorWhitelist,
       updateScheduleErrorWhitelist,
       getStreamTimeoutSettings,
+      getOpenAIWaitTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
     },
@@ -573,6 +576,7 @@ describe("admin SettingsView payment visible method controls", () => {
     getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -626,6 +630,10 @@ describe("admin SettingsView payment visible method controls", () => {
       temp_unsched_minutes: 5,
       threshold_count: 3,
       threshold_window_minutes: 10,
+    });
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({
+      header_wait_seconds: 90,
+      first_useful_frame_seconds: 30,
     });
     getRectifierSettings.mockResolvedValue({
       enabled: true,
@@ -1057,6 +1065,7 @@ describe("admin SettingsView wechat connect controls", () => {
     getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -1113,6 +1122,10 @@ describe("admin SettingsView wechat connect controls", () => {
       temp_unsched_minutes: 5,
       threshold_count: 3,
       threshold_window_minutes: 10,
+    });
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({
+      header_wait_seconds: 90,
+      first_useful_frame_seconds: 30,
     });
     getRectifierSettings.mockResolvedValue({
       enabled: true,
@@ -1292,6 +1305,7 @@ describe("admin SettingsView platform quota matrix", () => {
     getOAuthFleetSoft429Settings.mockReset();
     getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -1328,6 +1342,7 @@ describe("admin SettingsView platform quota matrix", () => {
       condition: "or",
     });
     getStreamTimeoutSettings.mockResolvedValue({});
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({});
     getRectifierSettings.mockResolvedValue({});
     getBetaPolicySettings.mockResolvedValue({});
     getGroups.mockResolvedValue([]);
@@ -1458,6 +1473,7 @@ describe("admin SettingsView quality hard-close card", () => {
     getQualityHardCloseSettings.mockReset();
     updateQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -1512,6 +1528,10 @@ describe("admin SettingsView quality hard-close card", () => {
       temp_unsched_minutes: 5,
       threshold_count: 3,
       threshold_window_minutes: 10,
+    });
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({
+      header_wait_seconds: 90,
+      first_useful_frame_seconds: 30,
     });
     getRectifierSettings.mockResolvedValue({
       enabled: true,
@@ -1595,6 +1615,7 @@ describe("admin SettingsView oauth fleet soft 429 card", () => {
     getQualityHardCloseSettings.mockReset();
     updateQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -1649,6 +1670,10 @@ describe("admin SettingsView oauth fleet soft 429 card", () => {
       temp_unsched_minutes: 5,
       threshold_count: 3,
       threshold_window_minutes: 10,
+    });
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({
+      header_wait_seconds: 90,
+      first_useful_frame_seconds: 30,
     });
     getRectifierSettings.mockResolvedValue({
       enabled: true,
@@ -1715,6 +1740,7 @@ describe("admin SettingsView schedule error whitelist", () => {
     getScheduleErrorWhitelist.mockReset();
     updateScheduleErrorWhitelist.mockReset();
     getStreamTimeoutSettings.mockReset();
+    getOpenAIWaitTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
     getGroups.mockReset();
@@ -1753,6 +1779,10 @@ describe("admin SettingsView schedule error whitelist", () => {
       temp_unsched_minutes: 5,
       threshold_count: 3,
       threshold_window_minutes: 10,
+    });
+    getOpenAIWaitTimeoutSettings.mockResolvedValue({
+      header_wait_seconds: 90,
+      first_useful_frame_seconds: 30,
     });
     getRectifierSettings.mockResolvedValue({
       enabled: true,

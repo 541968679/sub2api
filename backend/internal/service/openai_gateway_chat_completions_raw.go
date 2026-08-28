@@ -203,10 +203,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		stageClk = s.beginOpenAIStreamStageTiming(c, account, originalModel, "chat_raw", startTime)
 	}
 	stageClk.MarkDoStart()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, false, originalModel)
 	if err != nil {
 		stageClk.Complete(c)
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		return nil, err
 	}
 	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()
@@ -301,6 +301,18 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
 	stageClk := getOpenAIStreamStageClock(c)
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	defer stopOpenAIWaitTimer(firstFrameTimer)
+	firstFrameStartedAt := time.Now()
+	usefulFrameSeen := false
+	stopFirstFrameWatch := func() {
+		if usefulFrameSeen {
+			return
+		}
+		usefulFrameSeen = true
+		stopOpenAIWaitTimer(firstFrameTimer)
+		firstFrameCh = nil
+	}
 
 	writeStreamHeaders := func() {
 		if s.responseHeaderFilter != nil {
@@ -350,8 +362,56 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	doneScan := make(chan struct{})
+	defer close(doneScan)
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		for scanner.Scan() {
+			select {
+			case lines <- scanner.Text():
+			case <-doneScan:
+				return
+			}
+		}
+	}()
+
+scanRaw:
+	for {
+		var line string
+		select {
+		case next, ok := <-lines:
+			if !ok {
+				break scanRaw
+			}
+			line = next
+		case <-firstFrameCh:
+			if usefulFrameSeen {
+				firstFrameCh = nil
+				continue
+			}
+			ctx := context.Background()
+			if c != nil && c.Request != nil {
+				ctx = c.Request.Context()
+			}
+			silentFailover, timeoutErr := s.openAIFirstUsefulFrameTimeoutErr(ctx, c, account, originalModel, false, time.Since(firstFrameStartedAt), clientOutputStarted)
+			if !silentFailover {
+				writeOpenAIChatStreamErrorEvent(c, OpenAIFirstUsefulFrameTimeoutMarker)
+				return &OpenAIForwardResult{
+					RequestID:       requestID,
+					Usage:           usage,
+					Model:           originalModel,
+					BillingModel:    billingModel,
+					UpstreamModel:   upstreamModel,
+					ReasoningEffort: reasoningEffort,
+					ServiceTier:     serviceTier,
+					Stream:          true,
+					Duration:        time.Since(startTime),
+					FirstTokenMs:    firstTokenMs,
+				}, timeoutErr
+			}
+			return nil, timeoutErr
+		}
 		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			stageClk.MarkFirstSSE()
@@ -367,6 +427,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				}
 				if openAIChatPayloadStartsUsefulOutput(payload) {
 					stageClk.MarkFirstUsefulUpstream()
+					stopFirstFrameWatch()
 				}
 			}
 		}

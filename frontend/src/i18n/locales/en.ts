@@ -8234,6 +8234,16 @@ const enBase = {
         saved: 'Stream timeout settings saved',
         saveFailed: 'Failed to save stream timeout settings'
       },
+      openaiWaitTimeout: {
+        title: 'OpenAI header / first-useful-frame timeout',
+        description: 'End the hop if response headers never arrive, or if headers arrive but no useful output follows. Silent failover only before downstream output; after commit, abort with an error. 0 disables that gate. Clients do not need to change stream.',
+        headerWaitSeconds: 'Header wait (seconds)',
+        headerWaitSecondsHint: '0 disables; otherwise 10–600. Default 90. Do not apply this deadline to the whole response body.',
+        firstUsefulFrameSeconds: 'First useful frame (seconds)',
+        firstUsefulFrameSecondsHint: 'After headers, wait for useful output (not response.created). 0 disables; otherwise 5–300. Default 30.',
+        saved: 'OpenAI wait timeout settings saved',
+        saveFailed: 'Failed to save OpenAI wait timeout settings'
+      },
       rectifier: {
         title: 'Request Rectifier',
         description: 'Automatically fix request parameters and retry when upstream returns specific errors',

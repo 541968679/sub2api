@@ -931,6 +931,93 @@
             </div>
           </div>
 
+          <!-- OpenAI header / first-useful-frame timeout -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.openaiWaitTimeout.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.openaiWaitTimeout.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="openaiWaitTimeoutLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.openaiWaitTimeout.headerWaitSeconds") }}
+                  </label>
+                  <input
+                    v-model.number="openaiWaitTimeoutForm.header_wait_seconds"
+                    type="number"
+                    min="0"
+                    max="600"
+                    class="input w-64"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.openaiWaitTimeout.headerWaitSecondsHint")
+                    }}
+                  </p>
+                </div>
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.openaiWaitTimeout.firstUsefulFrameSeconds",
+                      )
+                    }}
+                  </label>
+                  <input
+                    v-model.number="
+                      openaiWaitTimeoutForm.first_useful_frame_seconds
+                    "
+                    type="number"
+                    min="0"
+                    max="300"
+                    class="input w-64"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.openaiWaitTimeout.firstUsefulFrameSecondsHint",
+                      )
+                    }}
+                  </p>
+                </div>
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    :disabled="openaiWaitTimeoutSaving"
+                    @click="saveOpenAIWaitTimeoutSettings"
+                  >
+                    {{
+                      openaiWaitTimeoutSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Request Rectifier Settings -->
           <div class="card">
             <div
@@ -6881,6 +6968,13 @@ const streamTimeoutForm = reactive({
   threshold_window_minutes: 10,
 });
 
+const openaiWaitTimeoutLoading = ref(true);
+const openaiWaitTimeoutSaving = ref(false);
+const openaiWaitTimeoutForm = reactive({
+  header_wait_seconds: 90,
+  first_useful_frame_seconds: 30,
+});
+
 // Rectifier 状态
 const rectifierLoading = ref(true);
 const rectifierSaving = ref(false);
@@ -8802,6 +8896,40 @@ async function saveStreamTimeoutSettings() {
   }
 }
 
+async function loadOpenAIWaitTimeoutSettings() {
+  openaiWaitTimeoutLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getOpenAIWaitTimeoutSettings();
+    Object.assign(openaiWaitTimeoutForm, settings);
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    openaiWaitTimeoutLoading.value = false;
+  }
+}
+
+async function saveOpenAIWaitTimeoutSettings() {
+  openaiWaitTimeoutSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateOpenAIWaitTimeoutSettings({
+      header_wait_seconds: openaiWaitTimeoutForm.header_wait_seconds,
+      first_useful_frame_seconds:
+        openaiWaitTimeoutForm.first_useful_frame_seconds,
+    });
+    Object.assign(openaiWaitTimeoutForm, updated);
+    appStore.showSuccess(t("admin.settings.openaiWaitTimeout.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openaiWaitTimeout.saveFailed"),
+      ),
+    );
+  } finally {
+    openaiWaitTimeoutSaving.value = false;
+  }
+}
+
 // Rectifier 方法
 async function loadRectifierSettings() {
   rectifierLoading.value = true;
@@ -9397,6 +9525,7 @@ onMounted(() => {
   loadOAuthFleetSoft429Settings();
   loadQualityHardCloseSettings();
   loadStreamTimeoutSettings();
+  loadOpenAIWaitTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();

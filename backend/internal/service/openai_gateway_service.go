@@ -3305,12 +3305,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		stageClk.MarkDoStart()
 		upstreamStart := time.Now()
-		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, false, originalModel)
 		headerMs := time.Since(upstreamStart).Milliseconds()
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 		if err != nil {
 			stageClk.Complete(c)
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+			return nil, err
 		}
 		stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 		logger.LegacyPrintf("service.openai_gateway",
@@ -3577,12 +3577,12 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 	stageClk.MarkDoStart()
 	upstreamStart := time.Now()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, true, reqModel)
 	headerMs := time.Since(upstreamStart).Milliseconds()
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 	if err != nil {
 		stageClk.Complete(c)
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
+		return nil, err
 	}
 	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()
@@ -4398,9 +4398,55 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 
 	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
 	stageClk := getOpenAIStreamStageClock(c)
+	doneScan := make(chan struct{})
+	defer close(doneScan)
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		for scanner.Scan() {
+			select {
+			case lines <- scanner.Text():
+			case <-doneScan:
+				return
+			}
+		}
+	}()
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	defer stopOpenAIWaitTimer(firstFrameTimer)
+	firstFrameStartedAt := time.Now()
+	usefulFrameSeen := false
+	stopFirstFrameWatch := func() {
+		if usefulFrameSeen {
+			return
+		}
+		usefulFrameSeen = true
+		stopOpenAIWaitTimer(firstFrameTimer)
+		firstFrameCh = nil
+	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+scanLines:
+	for {
+		var line string
+		select {
+		case next, ok := <-lines:
+			if !ok {
+				break scanLines
+			}
+			line = next
+		case <-firstFrameCh:
+			if usefulFrameSeen {
+				firstFrameCh = nil
+				continue
+			}
+			silentFailover, timeoutErr := s.openAIFirstUsefulFrameTimeoutErr(ctx, c, account, originalModel, true, time.Since(firstFrameStartedAt), clientOutputStarted)
+			if !silentFailover && !clientDisconnected {
+				if len(pendingLines) > 0 {
+					_ = writePendingLines()
+				}
+				writeOpenAIResponsesSSEErrorEvent(c, OpenAIFirstUsefulFrameTimeoutMarker)
+			}
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, timeoutErr
+		}
 		lineStartsClientOutput := false
 		commitDownstream := false
 		forceFlushFailedEvent := false
@@ -4470,6 +4516,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if trueFirstTokenMs == nil && openAIStreamDataStartsClientOutput(trimmedData, eventType) {
 				ms := int(time.Since(startTime).Milliseconds())
 				trueFirstTokenMs = &ms
+			}
+			if trueFirstTokenMs != nil {
+				stopFirstFrameWatch()
 			}
 			if lineStartsClientOutput && trimmedData != "[DONE]" {
 				stageClk.MarkFirstUsefulUpstream()
@@ -5293,6 +5342,18 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	if keepaliveTicker != nil {
 		keepaliveCh = keepaliveTicker.C
 	}
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	defer stopOpenAIWaitTimer(firstFrameTimer)
+	firstFrameStartedAt := time.Now()
+	usefulFrameSeen := false
+	stopFirstFrameWatch := func() {
+		if usefulFrameSeen {
+			return
+		}
+		usefulFrameSeen = true
+		stopOpenAIWaitTimer(firstFrameTimer)
+		firstFrameCh = nil
+	}
 	// Track downstream writes separately from upstream reads: pre-output failover
 	// can buffer response.created / response.in_progress, so keepalive must be
 	// based on downstream idle time.
@@ -5314,7 +5375,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			return
 		}
 		errorEventSent = true
-		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
+		payload := openAIResponsesStreamErrorEventPayload(reason)
 		if err := flushBuffered(); err != nil {
 			clientDisconnected = true
 			return
@@ -5532,6 +5593,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				ms := int(time.Since(startTime).Milliseconds())
 				trueFirstTokenMs = &ms
 			}
+			if trueFirstTokenMs != nil {
+				stopFirstFrameWatch()
+			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
 			commitDownstream := forceFlushFailedEvent || openAIStreamShouldCommitDownstream(data, eventType, flushPreamble)
 			if startsClientOutput {
@@ -5630,8 +5694,8 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		}
 	}
 
-	// 无超时/无 keepalive 的常见路径走同步扫描，减少 goroutine 与 channel 开销。
-	if streamInterval <= 0 && keepaliveInterval <= 0 {
+	// 无超时/无 keepalive / 无首有效帧闸 的常见路径走同步扫描，减少 goroutine 与 channel 开销。
+	if streamInterval <= 0 && keepaliveInterval <= 0 && firstFrameCh == nil {
 		defer putSSEScannerBuf64K(scanBuf)
 		for scanner.Scan() {
 			processSSELine(scanner.Text(), true)
@@ -5690,6 +5754,17 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
 			}
+
+		case <-firstFrameCh:
+			if usefulFrameSeen {
+				firstFrameCh = nil
+				continue
+			}
+			silentFailover, timeoutErr := s.openAIFirstUsefulFrameTimeoutErr(ctx, c, account, originalModel, false, time.Since(firstFrameStartedAt), clientOutputStarted)
+			if !silentFailover {
+				sendErrorEvent(OpenAIFirstUsefulFrameTimeoutMarker)
+			}
+			return resultWithUsage(), timeoutErr
 
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))

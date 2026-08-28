@@ -397,13 +397,19 @@ type QualityHardCloseSettings struct {
 	ScheduleUseFailoverErrorRate bool     `json:"schedule_use_failover_error_rate"`
 }
 
-// StreamTimeoutSettings 婵犵數鍋熺换婵喢归崶鈺冪煋闁圭虎鍠栫猾宥夋偣鏉炴媽顒熸俊鏌ヤ憾閺岋綁鎮欓崣澶樻＆闂佸憡菧閸婃妲?DTO
+// StreamTimeoutSettings 流超时处理配置 DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`
 	Action                 string `json:"action"`
 	TempUnschedMinutes     int    `json:"temp_unsched_minutes"`
 	ThresholdCount         int    `json:"threshold_count"`
 	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
+}
+
+// OpenAIWaitTimeoutSettings is the admin DTO for OpenAI header-wait / first-useful-frame timeouts.
+type OpenAIWaitTimeoutSettings struct {
+	HeaderWaitSeconds       int `json:"header_wait_seconds"`
+	FirstUsefulFrameSeconds int `json:"first_useful_frame_seconds"`
 }
 
 // RectifierSettings 闂佽崵濮村ú顓㈠绩闁秵鍎戝ù鍏兼綑閺嬩線鎮楀☉娆樼劷闁靛牞绠撻弻娑㈡晲閸愩劌顫囬梺鍛娗滈崐妤冩?DTO

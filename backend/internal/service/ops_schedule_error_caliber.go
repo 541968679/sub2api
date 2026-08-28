@@ -196,6 +196,15 @@ func SQLHardCountedUpstreamRequestFailedPredicate(prefix string) string {
 	return "(COALESCE(" + status + ", 0) = 502 AND " + sqlLowerLike(msg, "upstream request failed") + ")"
 }
 
+func SQLHardCountedOpenAIWaitTimeoutPredicate(prefix string) string {
+	_, _, _, msg, body := sqlOpsErrorCols(prefix)
+	up := prefix + "upstream_error_message"
+	hit := func(needle string) string {
+		return "(" + sqlLowerLike(msg, needle) + " OR " + sqlLowerLike(body, needle) + " OR " + sqlLowerLike(up, needle) + ")"
+	}
+	return "(" + hit(OpenAIHeaderWaitTimeoutMarker) + " OR " + hit(OpenAIFirstUsefulFrameTimeoutMarker) + ")"
+}
+
 // IsOpsAttentionError is the dedicated-ops family: group/model gap, routing miss,
 // routing 503, protocol mismatch. Client noise is not attention.
 // Attention does not follow the schedule whitelist.
@@ -325,6 +334,9 @@ func IsScheduleQualityExcludedMatch(in ScheduleErrorMatchInput, wl ScheduleError
 	if isHardCountedUpstreamRequestFailed(in.Status, in.Message) {
 		return false
 	}
+	if IsOpenAIWaitTimeoutOpsError(in.Message, in.UpstreamErrorMessage, in.Body) {
+		return false
+	}
 	// Pre-68060fbfb safety rail: keep excluding regardless of whitelist.
 	if IsAccountQualityRoutingModelMiss(in.Status, in.Phase, in.Type, in.Message, in.Body) {
 		return true
@@ -362,7 +374,7 @@ func SQLScheduleQualityExcludedPredicateWith(prefix string, wl ScheduleErrorWhit
 		}
 		parts = append(parts, sqlCustomRulePredicate(prefix, rule))
 	}
-	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + ")"
+	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + " AND NOT " + SQLHardCountedOpenAIWaitTimeoutPredicate(prefix) + ")"
 }
 
 func SQLExcludeAccountQualityScheduleNoise(prefix string) string {

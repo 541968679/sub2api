@@ -1,6 +1,10 @@
 package service
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
@@ -426,6 +430,81 @@ func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
 	}
 }
 
+const (
+	DefaultOpenAIHeaderWaitSeconds       = 90
+	DefaultOpenAIFirstUsefulFrameSeconds = 30
+	OpenAIHeaderWaitSecondsMin           = 10
+	OpenAIHeaderWaitSecondsMax           = 600
+	OpenAIFirstUsefulFrameSecondsMin     = 5
+	OpenAIFirstUsefulFrameSecondsMax     = 300
+	OpenAIHeaderWaitTimeoutMarker        = "openai_header_wait_timeout"
+	OpenAIFirstUsefulFrameTimeoutMarker  = "openai_first_useful_frame_timeout"
+)
+
+// OpenAIWaitTimeoutSettings is the admin-tunable OpenAI header-wait (R1)
+// and first-useful-frame (R2) timeout. 0 disables that gate.
+type OpenAIWaitTimeoutSettings struct {
+	HeaderWaitSeconds       int `json:"header_wait_seconds"`
+	FirstUsefulFrameSeconds int `json:"first_useful_frame_seconds"`
+}
+
+func DefaultOpenAIWaitTimeoutSettings() *OpenAIWaitTimeoutSettings {
+	return &OpenAIWaitTimeoutSettings{
+		HeaderWaitSeconds:       DefaultOpenAIHeaderWaitSeconds,
+		FirstUsefulFrameSeconds: DefaultOpenAIFirstUsefulFrameSeconds,
+	}
+}
+
+func (s OpenAIWaitTimeoutSettings) HeaderWaitDuration() time.Duration {
+	if s.HeaderWaitSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(s.HeaderWaitSeconds) * time.Second
+}
+
+func (s OpenAIWaitTimeoutSettings) FirstUsefulFrameDuration() time.Duration {
+	if s.FirstUsefulFrameSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(s.FirstUsefulFrameSeconds) * time.Second
+}
+
+func clampOpenAIWaitTimeoutSeconds(value, disabled, min, max, fallback int) int {
+	if value == disabled {
+		return disabled
+	}
+	if value < min || value > max {
+		return fallback
+	}
+	return value
+}
+
+// NormalizeOpenAIWaitTimeoutSettings clamps each field to 0 or its allowed
+// range. Out-of-range values become the code defaults (90 / 30).
+func NormalizeOpenAIWaitTimeoutSettings(in OpenAIWaitTimeoutSettings) OpenAIWaitTimeoutSettings {
+	return OpenAIWaitTimeoutSettings{
+		HeaderWaitSeconds: clampOpenAIWaitTimeoutSeconds(
+			in.HeaderWaitSeconds, 0, OpenAIHeaderWaitSecondsMin, OpenAIHeaderWaitSecondsMax, DefaultOpenAIHeaderWaitSeconds,
+		),
+		FirstUsefulFrameSeconds: clampOpenAIWaitTimeoutSeconds(
+			in.FirstUsefulFrameSeconds, 0, OpenAIFirstUsefulFrameSecondsMin, OpenAIFirstUsefulFrameSecondsMax, DefaultOpenAIFirstUsefulFrameSeconds,
+		),
+	}
+}
+
+func validateOpenAIWaitTimeoutSettings(in *OpenAIWaitTimeoutSettings) error {
+	if in == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	if in.HeaderWaitSeconds != 0 && (in.HeaderWaitSeconds < OpenAIHeaderWaitSecondsMin || in.HeaderWaitSeconds > OpenAIHeaderWaitSecondsMax) {
+		return fmt.Errorf("header_wait_seconds must be 0 or %d-%d", OpenAIHeaderWaitSecondsMin, OpenAIHeaderWaitSecondsMax)
+	}
+	if in.FirstUsefulFrameSeconds != 0 && (in.FirstUsefulFrameSeconds < OpenAIFirstUsefulFrameSecondsMin || in.FirstUsefulFrameSeconds > OpenAIFirstUsefulFrameSecondsMax) {
+		return fmt.Errorf("first_useful_frame_seconds must be 0 or %d-%d", OpenAIFirstUsefulFrameSecondsMin, OpenAIFirstUsefulFrameSecondsMax)
+	}
+	return nil
+}
+
 // RectifierSettings 请求整流器配置
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`                    // 总开关
@@ -507,16 +586,16 @@ const (
 // OAuthFleetSoft429Settings is the admin-configurable OAuth fleet soft-429 policy.
 // Empty/missing KV falls back to DefaultOAuthFleetSoft429Settings (Enabled=false).
 type OAuthFleetSoft429Settings struct {
-	Enabled                    bool     `json:"enabled"`
-	TTLSeconds                 int      `json:"ttl_seconds"`
-	LongResetPolicy            string   `json:"long_reset_policy"`
-	LongResetThresholdSeconds  int      `json:"long_reset_threshold_seconds"`
-	Scope                      string   `json:"scope"`
-	Platforms                  []string `json:"platforms"`
-	IncludeSetupToken          bool     `json:"include_setup_token"`
-	SoftStatusCodes            []int    `json:"soft_status_codes"`
-	SoftBodyCodes              []string `json:"soft_body_codes"`
-	HardBodyCodes              []string `json:"hard_body_codes"`
+	Enabled                   bool     `json:"enabled"`
+	TTLSeconds                int      `json:"ttl_seconds"`
+	LongResetPolicy           string   `json:"long_reset_policy"`
+	LongResetThresholdSeconds int      `json:"long_reset_threshold_seconds"`
+	Scope                     string   `json:"scope"`
+	Platforms                 []string `json:"platforms"`
+	IncludeSetupToken         bool     `json:"include_setup_token"`
+	SoftStatusCodes           []int    `json:"soft_status_codes"`
+	SoftBodyCodes             []string `json:"soft_body_codes"`
+	HardBodyCodes             []string `json:"hard_body_codes"`
 }
 
 // DefaultOAuthFleetSoft429Settings returns factory defaults. Enabled is false:

@@ -7877,6 +7877,16 @@ const zhBase = {
         saved: '流超时设置保存成功',
         saveFailed: '保存流超时设置失败'
       },
+      openaiWaitTimeout: {
+        title: 'OpenAI 等头 / 首有效帧超时',
+        description: '等不到上游响应头、或头到了却迟迟没有首个有效输出时结束该跳。未写出下游可换号；已写出则终止并报错。0 表示关闭该闸。不要求客户端改 stream。',
+        headerWaitSeconds: '等头超时（秒）',
+        headerWaitSecondsHint: '0 关闭；否则 10–600 秒。默认 90。不要把超时挂在整段响应体上。',
+        firstUsefulFrameSeconds: '首有效帧超时（秒）',
+        firstUsefulFrameSecondsHint: '头到达后等到有效输出（非 response.created）。0 关闭；否则 5–300 秒。默认 30。',
+        saved: 'OpenAI 等待超时设置保存成功',
+        saveFailed: '保存 OpenAI 等待超时设置失败'
+      },
       rectifier: {
         title: '请求整流器',
         description: '当上游返回特定错误时，自动修正请求参数并重试，提高请求成功率',

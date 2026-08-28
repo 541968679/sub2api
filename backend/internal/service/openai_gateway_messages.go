@@ -721,11 +721,20 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			c, upstreamReq, proxyURL, account.ID, account.Concurrency,
 		)
 	} else {
-		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		resp, err = s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, false, originalModel)
 	}
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
+		}
+		if !anthropicCompactRequest {
+			if errors.Is(err, context.Canceled) {
+				return nil, err
+			}
+			var failoverErr *UpstreamFailoverError
+			if errors.As(err, &failoverErr) {
+				return nil, err
+			}
 		}
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())
 		if anthropicCompactRequest {

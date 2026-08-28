@@ -1321,6 +1321,28 @@ export async function updateStreamTimeoutSettings(
   return data;
 }
 
+export interface OpenAIWaitTimeoutSettings {
+  header_wait_seconds: number;
+  first_useful_frame_seconds: number;
+}
+
+export async function getOpenAIWaitTimeoutSettings(): Promise<OpenAIWaitTimeoutSettings> {
+  const { data } = await apiClient.get<OpenAIWaitTimeoutSettings>(
+    "/admin/settings/openai-wait-timeout",
+  );
+  return data;
+}
+
+export async function updateOpenAIWaitTimeoutSettings(
+  settings: OpenAIWaitTimeoutSettings,
+): Promise<OpenAIWaitTimeoutSettings> {
+  const { data } = await apiClient.put<OpenAIWaitTimeoutSettings>(
+    "/admin/settings/openai-wait-timeout",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Rectifier Settings ====================
 
 /**
@@ -1511,6 +1533,8 @@ export const settingsAPI = {
   updateScheduleErrorWhitelist,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
+  getOpenAIWaitTimeoutSettings,
+  updateOpenAIWaitTimeoutSettings,
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,

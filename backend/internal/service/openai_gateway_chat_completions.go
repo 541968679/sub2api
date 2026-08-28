@@ -300,9 +300,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, false, originalModel)
 	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -697,6 +697,19 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	var finalResponse *apicompat.ResponsesResponse
 	acc := apicompat.NewBufferedResponseAccumulator()
 
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	defer stopOpenAIWaitTimer(firstFrameTimer)
+	firstFrameStartedAt := time.Now()
+	usefulFrameSeen := false
+	stopFirstFrameWatch := func() {
+		if usefulFrameSeen {
+			return
+		}
+		usefulFrameSeen = true
+		stopOpenAIWaitTimer(firstFrameTimer)
+		firstFrameCh = nil
+	}
+
 	processLine := func(line string) bool {
 		if !strings.HasPrefix(line, "data: ") || line == "data: [DONE]" {
 			return false
@@ -710,6 +723,10 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				zap.String("request_id", requestID),
 			)
 			return false
+		}
+
+		if openAIStreamDataStartsClientOutput(payload, event.Type) {
+			stopFirstFrameWatch()
 		}
 
 		acc.ProcessEvent(&event)
@@ -731,7 +748,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		timeoutSeconds = s.cfg.Gateway.StreamDataIntervalTimeout
 	}
 	interval := chatBufferedStreamInterval(timeoutSeconds)
-	if interval <= 0 {
+	if interval <= 0 && firstFrameCh == nil {
 		for scanner.Scan() {
 			if processLine(scanner.Text()) {
 				return finish()
@@ -775,6 +792,12 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var tickerC <-chan time.Time
+	if interval > 0 {
+		tickerC = ticker.C
+	} else {
+		ticker.Stop()
+	}
 	for {
 		select {
 		case ev, ok := <-events:
@@ -790,7 +813,21 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 			if processLine(ev.line) {
 				return finish()
 			}
-		case <-ticker.C:
+		case <-firstFrameCh:
+			if usefulFrameSeen || chatBufferedHasUsableTerminal(finalResponse) {
+				firstFrameCh = nil
+				continue
+			}
+			ctx := context.Background()
+			if c != nil && c.Request != nil {
+				ctx = c.Request.Context()
+			}
+			silentFailover, timeoutErr := s.openAIFirstUsefulFrameTimeoutErr(ctx, c, account, originalModel, false, time.Since(firstFrameStartedAt), false)
+			if !silentFailover {
+				writeOpenAIChatStreamErrorEvent(c, OpenAIFirstUsefulFrameTimeoutMarker)
+			}
+			return nil, timeoutErr
+		case <-tickerC:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < interval {
 				continue
@@ -857,6 +894,19 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	defer stopOpenAIWaitTimer(firstFrameTimer)
+	firstFrameStartedAt := time.Now()
+	usefulFrameSeen := false
+	stopFirstFrameWatch := func() {
+		if usefulFrameSeen {
+			return
+		}
+		usefulFrameSeen = true
+		stopOpenAIWaitTimer(firstFrameTimer)
+		firstFrameCh = nil
+	}
+
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
 			RequestID:     requestID,
@@ -885,6 +935,10 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				zap.String("request_id", requestID),
 			)
 			return false
+		}
+
+		if openAIStreamDataStartsClientOutput(payload, event.Type) {
+			stopFirstFrameWatch()
 		}
 
 		isTerminalEvent := isOpenAICompatResponsesTerminalEvent(event.Type)
@@ -1015,8 +1069,8 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
 	}
 
-	// No keepalive: fast synchronous path
-	if keepaliveInterval <= 0 {
+	// No keepalive and no first-frame gate: fast synchronous path
+	if keepaliveInterval <= 0 && firstFrameCh == nil {
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") || line == "data: [DONE]" {
@@ -1058,8 +1112,12 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}()
 	defer close(done)
 
-	keepaliveTicker := time.NewTicker(keepaliveInterval)
-	defer keepaliveTicker.Stop()
+	var keepaliveC <-chan time.Time
+	if keepaliveInterval > 0 {
+		keepaliveTicker := time.NewTicker(keepaliveInterval)
+		defer keepaliveTicker.Stop()
+		keepaliveC = keepaliveTicker.C
+	}
 	lastDataAt := time.Now()
 
 	for {
@@ -1081,7 +1139,23 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				return resultWithUsage(), terminalErr
 			}
 
-		case <-keepaliveTicker.C:
+		case <-firstFrameCh:
+			if usefulFrameSeen {
+				firstFrameCh = nil
+				continue
+			}
+			ctx := context.Background()
+			if c != nil && c.Request != nil {
+				ctx = c.Request.Context()
+			}
+			silentFailover, timeoutErr := s.openAIFirstUsefulFrameTimeoutErr(ctx, c, account, originalModel, false, time.Since(firstFrameStartedAt), false)
+			if !silentFailover {
+				writeOpenAIChatStreamErrorEvent(c, OpenAIFirstUsefulFrameTimeoutMarker)
+				return resultWithUsage(), timeoutErr
+			}
+			return nil, timeoutErr
+
+		case <-keepaliveC:
 			if time.Since(lastDataAt) < keepaliveInterval {
 				continue
 			}

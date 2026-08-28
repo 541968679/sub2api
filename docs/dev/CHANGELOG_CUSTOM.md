@@ -1,4 +1,53 @@
-## 2026-08-27 - release: 0.1.267 show pair p50 from any TTFT sample
+## 2026-08-28 - fix(openai): abort committed first-useful-frame timeout
+
+### What
+- R2 still silent-failovers when the downstream response is uncommitted.
+- After flush-preamble / keepalive / any committed write, R2 now writes a client error (Responses SSE `type:error`, or Chat Completions JSON/SSE error) and returns a non-failover `upstream response failed:` error. Handler does not switch accounts.
+- Does not wait for stream-interval timeout; `response.in_progress` keepalives would reset that clock.
+
+### Why
+B-class hangs (fast headers, no useful frame) with flush-preamble on could sit 10–20 minutes. Silent failover is impossible after commit; terminating the hop is enough.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "WaitTimeout|HeaderWait|FirstUsefulFrame|AbortOpenAIWaitTimeoutAfterCommit|ClassifyOpsErrorRateCalibers_OpenAIWaitTimeoutRecovered" -count=1`
+
+### Affected files
+`backend/internal/service/openai_wait_timeout.go`
+`backend/internal/service/openai_wait_timeout_test.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/openai_gateway_chat_completions.go`
+`backend/internal/service/openai_gateway_chat_completions_raw.go`
+`docs/dev/codebase/gateway.md`
+
+## 2026-08-27 - feat(openai): header-wait and first-useful-frame failover
+
+### What
+- New Settings KV `openai_wait_timeout_settings` (defaults 90s header wait / 30s first useful frame; `0` disables). Admin card under 流超时处理.
+- OpenAI HTTP `Do()` cancels only while waiting for headers (H2-safe; does not wrap the whole body in `WithTimeout`).
+- Stream paths fail over if headers arrived but `openAIStreamDataStartsClientOutput` never comes, and the downstream response is not committed.
+- Timeouts record Ops 502 with stable markers and count toward account schedule last-N even when Recovered; user error rate stays terminal-only. Global `schedule_use_failover_error_rate` stays off.
+
+### Why
+Production `stream_debug` showed most first-token stalls were `Do()` waiting for headers (p95 65s, max >15min). Stream-interval timeout only starts after body reads. Transport `ResponseHeaderTimeout` is unreliable on HTTP/2.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "WaitTimeout|HeaderWait|FirstUsefulFrame|ClassifyOpsErrorRateCalibers_OpenAIWaitTimeoutRecovered" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "OpenAIWaitTimeout" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts`
+
+### Affected files
+`backend/internal/service/openai_wait_timeout.go`
+`backend/internal/service/setting_openai_wait_timeout.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/openai_gateway_chat_completions.go`
+`backend/internal/service/openai_gateway_chat_completions_raw.go`
+`backend/internal/service/account_quality.go`
+`backend/internal/service/ops_schedule_error_caliber.go`
+`backend/internal/handler/admin/setting_handler.go`
+`frontend/src/views/admin/SettingsView.vue`
+`docs/dev/codebase/gateway.md`
+
+
 
 ### What
 - Ship the p50 display fix: pair-quality cells show p50 from any TTFT sample; empty phase alias no longer blanks live FIFO p50. Gate still waits for full N.

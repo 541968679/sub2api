@@ -158,10 +158,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		stageClk = s.beginOpenAIStreamStageTiming(c, account, originalModel, "responses_chat_fallback", startTime)
 	}
 	stageClk.MarkDoStart()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, false, originalModel)
 	if err != nil {
 		stageClk.Complete(c)
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		return nil, err
 	}
 	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()

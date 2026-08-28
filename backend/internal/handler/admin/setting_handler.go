@@ -3510,6 +3510,50 @@ func (h *SettingHandler) UpdateStreamTimeoutSettings(c *gin.Context) {
 	})
 }
 
+type UpdateOpenAIWaitTimeoutSettingsRequest struct {
+	HeaderWaitSeconds       int `json:"header_wait_seconds"`
+	FirstUsefulFrameSeconds int `json:"first_useful_frame_seconds"`
+}
+
+// GetOpenAIWaitTimeoutSettings GET /api/v1/admin/settings/openai-wait-timeout
+func (h *SettingHandler) GetOpenAIWaitTimeoutSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAIWaitTimeoutSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIWaitTimeoutSettings{
+		HeaderWaitSeconds:       settings.HeaderWaitSeconds,
+		FirstUsefulFrameSeconds: settings.FirstUsefulFrameSeconds,
+	})
+}
+
+// UpdateOpenAIWaitTimeoutSettings PUT /api/v1/admin/settings/openai-wait-timeout
+func (h *SettingHandler) UpdateOpenAIWaitTimeoutSettings(c *gin.Context) {
+	var req UpdateOpenAIWaitTimeoutSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.OpenAIWaitTimeoutSettings{
+		HeaderWaitSeconds:       req.HeaderWaitSeconds,
+		FirstUsefulFrameSeconds: req.FirstUsefulFrameSeconds,
+	}
+	if err := h.settingService.SetOpenAIWaitTimeoutSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetOpenAIWaitTimeoutSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAIWaitTimeoutSettings{
+		HeaderWaitSeconds:       updated.HeaderWaitSeconds,
+		FirstUsefulFrameSeconds: updated.FirstUsefulFrameSeconds,
+	})
+}
+
 // GetWebSearchEmulationConfig 获取 Web Search 模拟配置
 // GET /api/v1/admin/settings/web-search-emulation
 func (h *SettingHandler) GetWebSearchEmulationConfig(c *gin.Context) {

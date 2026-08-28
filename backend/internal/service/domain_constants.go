@@ -394,6 +394,11 @@ const (
 	// SettingKeyStreamTimeoutSettings stores JSON config for stream timeout handling.
 	SettingKeyStreamTimeoutSettings = "stream_timeout_settings"
 
+	// SettingKeyOpenAIWaitTimeoutSettings stores JSON for OpenAI header-wait
+	// and first-useful-frame timeouts. Independent of stream_timeout_settings
+	// (that KV only controls post-timeout account action and defaults Enabled=false).
+	SettingKeyOpenAIWaitTimeoutSettings = "openai_wait_timeout_settings"
+
 	// =========================
 	// Request Rectifier (请求整流器)
 	// =========================

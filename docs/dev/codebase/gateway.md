@@ -150,6 +150,23 @@ When a request is sampled, one completed line is emitted:
 
 Covered paths: native Responses HTTP (`responses_http` / `responses_passthrough`), Responses→Chat fallback (`responses_chat_fallback`), raw Chat (`chat_raw`). Sampling begins only for stream requests; `invalid_encrypted_content` same-request retry reuses the clock and resets Do/body stamps. No bodies/secrets in logs.
 
+## OpenAI header wait and first useful frame timeouts
+
+Two admin-tunable gates on OpenAI HTTP `/v1/responses` and `/v1/chat/completions` (convert-to-Responses stream/buffered, raw chat, Responses passthrough). Grok, native Anthropic, images, embeddings, count_tokens, WS, and compact are out of scope. Inbound contract is unchanged: clients may keep `stream:false` Chat Completions.
+
+Settings KV `openai_wait_timeout_settings` (not `stream_timeout_settings`). Admin GET/PUT `/api/v1/admin/settings/openai-wait-timeout`. Missing / bad JSON → 90s / 30s. `0` disables that gate. Hot path uses a 30s in-process cache.
+
+| Gate | Default | Meaning |
+|------|---------|---------|
+| `header_wait_seconds` (R1) | 90 | Request-level cancel if `Do()` has not returned headers. Uses `AfterFunc` + cancel **only while headers are outstanding**; after headers the body is not killed by this timer. Do **not** rely on `Transport.ResponseHeaderTimeout` (default 300s, unreliable on HTTP/2) and do **not** put `context.WithTimeout` on the whole request (that would abort long generation). |
+| `first_useful_frame_seconds` (R2) | 30 | After 2xx headers, wait until `openAIStreamDataStartsClientOutput` (same as `true_first_token_ms`). `response.created` / preamble do **not** stop this clock. S2 non-stream JSON has R1 only. |
+
+Uncommitted timeout: `HandleStreamTimeout` + `UpstreamFailoverError` 502 with marker `openai_header_wait_timeout` or `openai_first_useful_frame_timeout`, then existing failover. Client `Canceled` is not mapped to header-wait timeout. After downstream commit / preamble flush, R2 does not silent-failover (existing stream-interval / error-event path).
+
+`stream_timeout_settings` still only controls post-timeout account action (default `Enabled=false`). Stream **interval** timeout is idle between body frames after reads have started; R2 is “headers arrived, no useful frame yet”.
+
+Recovered hops with those markers count toward account schedule last-N even when `schedule_use_failover_error_rate` is off. They never enter the user error rate. Whitelist cannot exclude the markers.
+
 ## Core Flow
 
 ### Grok Image And Video Media
@@ -862,6 +879,16 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 | OpenAI Images upstream 400 passthrough | `OpenAIGatewayHandler.Images` binds an Images request context after parsing `/v1/images/*`. `OpenAIGatewayService.handleErrorResponse` uses that context to return upstream 400 user errors, such as invalid image dimensions, as downstream 400 with the upstream `error.message` and `error.type` instead of masking them as generic 502. Keep this scoped to Images requests. |
 | OpenAI OAuth image timeout/retry | The Codex `/responses` image tool path retries fast no-header transport failures up to 3 total attempts with short backoff. It also wraps the full upstream wait/body read in an image-generation timeout: 1K = 180s, 2K = 240s, 4K/unknown = 360s. Timeout errors return `image_generation_timeout` (504) before any non-streaming response is written; no-header retry exhaustion returns `image_generation_upstream_unreachable` (502). |
 | OpenAI Images response delivery | Non-streaming `/v1/images/*` responses use an 8 MiB memory threshold and spill larger bodies to a temporary file, while `gateway.upstream_response_read_max_bytes` remains a 128 MiB total bound. Local spool creation/write failure or exceeding that configured total bound happens after upstream generation: it returns `local_delivery_error` without account failover or an account-health penalty, avoiding duplicate generation and billing. Upstream body read interruption remains eligible for failover before any downstream bytes are committed. |
+
+## OpenAI header-wait and first-useful-frame timeout
+
+Settings KV `openai_wait_timeout_settings` (admin card under 流超时处理; not public): `header_wait_seconds` default 90 (`0` or 10–600), `first_useful_frame_seconds` default 30 (`0` or 5–300). Independent from `stream_timeout_settings`.
+
+- **R1 header wait**: `Do()` uses request-context `WithCancel` + `AfterFunc` only while headers are outstanding. Do not wrap the whole request in `WithTimeout`. Do not treat this as `Transport.ResponseHeaderTimeout` (unreliable on H2). Client `Canceled` is not a timeout failover.
+- **R2 first useful frame**: after 2xx headers, wait for `openAIStreamDataStartsClientOutput` (not `response.created` / `in_progress`).
+  - Uncommitted downstream → `UpstreamFailoverError` 502 + marker `openai_first_useful_frame_timeout` (silent account switch).
+  - Already committed (flush-preamble, keepalive `:`, or any write) → write a client error event and return `upstream response failed: openai_first_useful_frame_timeout…`. **Do not switch accounts.** Do not leave the hop to stream-interval timeout (`in_progress` keepalives reset that clock).
+- Markers also feed schedule last-N when Recovered; do not flip global `schedule_use_failover_error_rate`.
 
 ## OpenAI first_token_ms semantics
 
