@@ -1,3 +1,11 @@
+## 2026-08-28 - release: 0.1.269 display-only p95 on quality cells
+
+### What
+- Ship account/pair display-only p95 as a new GHCR tag for production pull.
+
+### Why
+Production still runs `v0.1.268`. Need a new tag before `update.sh` can pull the quality-cell p95 change.
+
 ## 2026-08-28 - feat(quality): display-only p95 on account and pair cells
 
 ### What
