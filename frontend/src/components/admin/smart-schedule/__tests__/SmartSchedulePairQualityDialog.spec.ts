@@ -47,7 +47,11 @@ vi.mock('@/components/common/LoadingSpinner.vue', () => ({
 }))
 
 vi.mock('vue-chartjs', () => ({
-  Line: { template: '<div data-testid="pair-quality-line" />' }
+  Line: {
+    props: ['data', 'options'],
+    template:
+      '<div data-testid="pair-quality-line">{{ (data?.datasets || []).map((d) => d.label).join(",") }}</div>'
+  }
 }))
 
 vi.mock('chart.js', () => ({
@@ -65,7 +69,14 @@ describe('SmartSchedulePairQualityDialog', () => {
   beforeEach(() => {
     apiMocks.getSmartSchedulePairQualityDetail.mockReset()
     apiMocks.getSmartSchedulePairQualityDetail.mockResolvedValue({
-      current: { ttft_p50_ms: 120, success_rate: 0.9, ttft_samples: 8, ok_samples: 10, n: 10 },
+      current: {
+        ttft_p50_ms: 120,
+        ttft_p95_ms: 450,
+        success_rate: 0.9,
+        ttft_samples: 8,
+        ok_samples: 10,
+        n: 10
+      },
       snapshots: [
         {
           captured_at: '2026-08-21T03:00:00.000Z',
@@ -88,7 +99,7 @@ describe('SmartSchedulePairQualityDialog', () => {
   })
 
   it('loads pair-quality detail instead of account quality-history', async () => {
-    const w = mount(SmartSchedulePairQualityDialog, {
+    mount(SmartSchedulePairQualityDialog, {
       props: {
         show: true,
         userId: 99,
@@ -130,6 +141,25 @@ describe('SmartSchedulePairQualityDialog', () => {
     expect(w.get('[data-testid="smart-schedule-pair-quality-events"]').text()).toContain(
       'admin.users.smartSchedule.pairEventProbeGraduate'
     )
+    expect(w.get('[data-testid="smart-schedule-pair-quality-current-p95"]').text()).toContain('450ms')
+    expect(w.get('[data-testid="pair-quality-line"]').text()).toContain('p50')
+    expect(w.get('[data-testid="pair-quality-line"]').text()).not.toContain('p95')
+  })
+
+  it('shows current p95 next to p50 and does not add a p95 trend series', async () => {
+    const w = mount(SmartSchedulePairQualityDialog, {
+      props: {
+        show: true,
+        userId: 99,
+        account: { id: 11, name: 'acc-11' } as any
+      }
+    })
+    await flushPromises()
+    expect(w.get('[data-testid="smart-schedule-pair-quality-current-p95"]').text()).toContain('450ms')
+    expect(w.text()).toContain('120ms')
+    const series = w.get('[data-testid="pair-quality-line"]').text()
+    expect(series).toContain('p50')
+    expect(series).not.toContain('p95')
   })
 
   it('shows empty trend when the pair-quality endpoint is missing', async () => {

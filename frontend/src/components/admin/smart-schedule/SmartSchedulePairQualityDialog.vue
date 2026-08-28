@@ -9,10 +9,14 @@
       <LoadingSpinner />
     </div>
     <div v-else class="space-y-5" data-testid="smart-schedule-pair-quality-dialog">
-      <section class="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 sm:grid-cols-3 dark:border-dark-600 dark:bg-dark-800">
+      <section class="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 sm:grid-cols-4 dark:border-dark-600 dark:bg-dark-800">
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">p50</p>
           <p class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ currentP50 }}</p>
+        </div>
+        <div data-testid="smart-schedule-pair-quality-current-p95">
+          <p class="text-xs text-gray-500 dark:text-gray-400">p95</p>
+          <p class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ currentP95 }}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.smartSchedule.pairSuccessShort') }}</p>
@@ -135,12 +139,30 @@ function formatMs(ms: number | null | undefined): string {
   return `${Math.round(ms)}ms`
 }
 
+function firstFinite(...vals: Array<number | null | undefined>): number | null {
+  for (const value of vals) {
+    if (value != null && Number.isFinite(value)) return value
+  }
+  return null
+}
+
 function formatRate(rate: number | null | undefined): string {
   if (rate == null || !Number.isFinite(rate)) return '—'
   return `${(rate * 100).toFixed(1)}%`
 }
 
 const currentP50 = computed(() => formatMs(current.value?.ttft_p50_ms))
+const currentP95 = computed(() =>
+  formatMs(
+    firstFinite(
+      current.value?.ttft_p95_ms,
+      current.value?.p95_ttft_ms,
+      current.value?.probe?.p95_ttft_ms,
+      current.value?.sched?.p95_ttft_ms,
+      current.value?.soft?.p95_ttft_ms
+    )
+  )
+)
 const currentSuccess = computed(() => formatRate(current.value?.success_rate))
 const currentCounts = computed(() => {
   if (!current.value) return '—'

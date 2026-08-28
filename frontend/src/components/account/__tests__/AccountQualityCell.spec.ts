@@ -49,14 +49,14 @@ describe('AccountQualityCell', () => {
     )
     expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="account-quality-failover-rate"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="user-quality-p95"]').text()).toContain('900ms')
+    expect(wrapper.get('[data-test="quality-p95"]').text()).toContain('900ms')
   })
 
-  it('account combined mode does not add a p95 row', () => {
+  it('account combined mode shows a p95 row', () => {
     const wrapper = mount(AccountQualityCell, {
       props: { mode: 'combined', stats, clickable: true }
     })
-    expect(wrapper.find('[data-test="user-quality-p95"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="quality-p95"]').text()).toContain('900ms')
     expect(wrapper.text()).toContain('300ms')
   })
 

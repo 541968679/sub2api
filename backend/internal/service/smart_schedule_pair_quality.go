@@ -47,6 +47,8 @@ type PairQualityLive struct {
 type SmartSchedulePairQualityView struct {
 	P50TTFTMs   *int     `json:"p50_ttft_ms"`
 	TTFTP50Ms   *int     `json:"ttft_p50_ms"`
+	P95TTFTMs   *int     `json:"p95_ttft_ms"`
+	TTFTP95Ms   *int     `json:"ttft_p95_ms"`
 	SuccessRate *float64 `json:"success_rate"`
 	TTFTCount   int      `json:"ttft_count"`
 	TTFTSamples int      `json:"ttft_samples"`
@@ -77,6 +79,8 @@ const (
 // QualityPhaseMetrics is one stage's gate window (probe / sched / soft).
 type QualityPhaseMetrics struct {
 	P50TTFTMs       *int     `json:"p50_ttft_ms,omitempty"`
+	P95TTFTMs       *int     `json:"p95_ttft_ms,omitempty"`
+	TTFTP95Ms       *int     `json:"ttft_p95_ms,omitempty"`
 	P50DurationMs   *int     `json:"p50_duration_ms,omitempty"`
 	SuccessRate     *float64 `json:"success_rate,omitempty"`
 	TTFTSamples     int      `json:"ttft_samples"`
@@ -106,8 +110,10 @@ func qualityPhaseMetrics(live *PairQualityLive, knobs QualityEvalKnobs, includeD
 	}
 	ttft := recentLatencySamples(live.TTFTMs, nLat)
 	out.TTFTSamples = len(ttft)
-	// Show p50 from any available samples (including 1). Judgment still waits for full N.
+	// Show p50/p95 from any available samples (including 1). Judgment still waits for full N.
 	out.P50TTFTMs = pairQualityP50(ttft)
+	out.P95TTFTMs = pairQualityP95(ttft)
+	out.TTFTP95Ms = out.P95TTFTMs
 	okWindow := live.OK
 	if nOK > 0 && len(okWindow) > nOK {
 		okWindow = okWindow[len(okWindow)-nOK:]
@@ -146,6 +152,8 @@ func applyPhaseMetricsAlias(view *SmartSchedulePairQualityView, m QualityPhaseMe
 	if m.P50TTFTMs != nil || m.TTFTSamples > 0 {
 		view.P50TTFTMs = m.P50TTFTMs
 		view.TTFTP50Ms = m.P50TTFTMs
+		view.P95TTFTMs = m.P95TTFTMs
+		view.TTFTP95Ms = m.P95TTFTMs
 		view.TTFTCount = m.TTFTSamples
 		view.TTFTSamples = m.TTFTSamples
 	}
@@ -485,6 +493,17 @@ func pairQualityP50(samples []int) *int {
 	return &v
 }
 
+// pairQualityP95 is display-only. Use the same sample slice as the p50 being shown.
+func pairQualityP95(samples []int) *int {
+	if len(samples) == 0 {
+		return nil
+	}
+	sorted := append([]int(nil), samples...)
+	sort.Ints(sorted)
+	v := sorted[p95Index(len(sorted))]
+	return &v
+}
+
 func pairQualitySuccessRate(ok []bool) *float64 {
 	if len(ok) == 0 {
 		return nil
@@ -534,6 +553,7 @@ func (l *PairQualityLive) View() SmartSchedulePairQualityView {
 	}
 	return aliasPairQualityView(SmartSchedulePairQualityView{
 		P50TTFTMs:   l.P50TTFTMs,
+		P95TTFTMs:   pairQualityP95(l.TTFTMs),
 		SuccessRate: l.SuccessRate,
 		TTFTCount:   l.TTFTCount,
 		OKCount:     l.OKCount,
@@ -566,6 +586,7 @@ func (l *PairQualityLive) Snapshot() PairQualitySnapshot {
 
 func aliasPairQualityView(view SmartSchedulePairQualityView) SmartSchedulePairQualityView {
 	view.TTFTP50Ms = view.P50TTFTMs
+	view.TTFTP95Ms = view.P95TTFTMs
 	view.TTFTSamples = view.TTFTCount
 	view.OKSamples = view.OKCount
 	if view.NTTFT < MinSmartScheduleWindowN {

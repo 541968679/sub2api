@@ -2115,7 +2115,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '用户 last-N 质量（该用户、全部账号）：上行 p50、p95 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。不是智能调度配对质量，也不是单账号质量。',
+          '用户 last-N 质量（该用户、全部账号）：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。不是智能调度配对质量，也不是单账号质量。',
         clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
         openShort: '打开',
         openAria: '打开用户质量窗口',
@@ -2473,7 +2473,7 @@ const zhBase = {
         probeConcurrencyCustom: '自定义',
         probeConcurrencyInvalid: '自定义考察并发必须是 1–100 的整数，不能为空',
         pairQuality: '配对质量',
-        pairQualityHint: '仅本用户 × 本账号的最近窗口：首字 p50、成功率、两窗条数各跟自己的 N。调度期开了综合门时，成功下方多一排 K 当前/门槛 · C 当前/门槛（首字窗超标 / 连续超标）。点击打开配对趋势与冷却/豁免期/可调度事件。不是账号 last-N 质量。',
+        pairQualityHint: '仅本用户 × 本账号的最近窗口：首字 p50、展示用 p95（不进配对门槛/K/C/选号）、成功率、两窗条数各跟自己的 N。调度期开了综合门时，成功下方多一排 K 当前/门槛 · C 当前/门槛（首字窗超标 / 连续超标）。点击打开配对趋势与冷却/豁免期/可调度事件。不是账号 last-N 质量。',
         pairQualityClickHint: '打开配对质量详情',
         pairQualityOpenShort: '详情',
         pairQualityDialogTitle: '{name} · 配对质量',
@@ -4216,7 +4216,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '账号 last-N 质量：上行 p50 首字延迟，中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。格子里还有 k/N。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。不是智能调度配对质量。',
+          '账号 last-N 质量：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。格子里还有 k/N。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。不是智能调度配对质量。',
         successShort: '率',
         failoverShort: '含',
         bridgeShort: '桥',

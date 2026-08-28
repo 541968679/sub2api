@@ -2265,7 +2265,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'User last-N quality (this user, all accounts): p50 and p95 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
+          'User last-N quality (this user, all accounts): p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
         clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
         openShort: 'Open',
         openAria: 'Open user quality window',
@@ -2605,7 +2605,7 @@ const enBase = {
         probeConcurrencyCustom: 'Custom',
         probeConcurrencyInvalid: 'Custom probe concurrency must be an integer from 1 to 100',
         pairQuality: 'Pair quality',
-        pairQualityHint: 'This user × this account’s last-N windows: TTFT p50, success rate, and each window count / its own N. When the selectable composite gate is on, a K current/limit · C current/limit row sits under success (TTFT-window slow / consecutive slow). Click for the pair trend and cooldown / exemption / selectable events. This is not the account last-N quality cell.',
+        pairQualityHint: 'This user × this account’s last-N windows: TTFT p50, display-only p95 (not used for pair gates, K/C, or selection), success rate, and each window count / its own N. When the selectable composite gate is on, a K current/limit · C current/limit row sits under success (TTFT-window slow / consecutive slow). Click for the pair trend and cooldown / exemption / selectable events. This is not the account last-N quality cell.',
         pairQualityClickHint: 'Open pair quality details',
         pairQualityOpenShort: 'Details',
         pairQualityDialogTitle: '{name} · Pair quality',
@@ -4630,7 +4630,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Account last-N quality: p50 first-token latency, then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The cell also shows k/N. The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings. This is not smart-schedule pair quality.',
+          'Account last-N quality: p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The cell also shows k/N. The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings. This is not smart-schedule pair quality.',
         successShort: 'ok',
         failoverShort: 'fo',
         bridgeShort: 'br',

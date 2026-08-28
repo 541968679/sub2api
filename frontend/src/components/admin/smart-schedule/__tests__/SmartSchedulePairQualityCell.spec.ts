@@ -15,7 +15,28 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('SmartSchedulePairQualityCell', () => {
-  it('renders p50, success rate, and window counts then emits click', async () => {
+  it('renders p50, p95, success rate, and window counts then emits click', async () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: 180,
+          ttft_p95_ms: 900,
+          success_rate: 0.95,
+          ttft_samples: 4,
+          ok_samples: 6,
+          n: 10
+        }
+      }
+    })
+    expect(w.text()).toContain('180ms')
+    expect(w.get('[data-testid="smart-schedule-pair-quality-p95"]').text()).toContain('900ms')
+    expect(w.text()).toContain('95.0%')
+    expect(w.get('[data-testid="smart-schedule-pair-quality-counts"]').text()).toContain('4/6/10/10')
+    await w.get('[data-testid="smart-schedule-pair-quality-cell"]').trigger('click')
+    expect(w.emitted('click')).toHaveLength(1)
+  })
+
+  it('shows an em dash when p95 is missing', () => {
     const w = mount(SmartSchedulePairQualityCell, {
       props: {
         quality: {
@@ -27,11 +48,35 @@ describe('SmartSchedulePairQualityCell', () => {
         }
       }
     })
-    expect(w.text()).toContain('180ms')
-    expect(w.text()).toContain('95.0%')
-    expect(w.get('[data-testid="smart-schedule-pair-quality-counts"]').text()).toContain('4/6/10/10')
-    await w.get('[data-testid="smart-schedule-pair-quality-cell"]').trigger('click')
-    expect(w.emitted('click')).toHaveLength(1)
+    expect(w.get('[data-testid="smart-schedule-pair-quality-p95"]').text()).toContain('p95')
+    expect(w.get('[data-testid="smart-schedule-pair-quality-p95"]').text()).toContain('—')
+  })
+
+  it('falls back to probe-window p95 when top-level alias is empty', () => {
+    const w = mount(SmartSchedulePairQualityCell, {
+      props: {
+        quality: {
+          ttft_p50_ms: null,
+          ttft_p95_ms: null,
+          p95_ttft_ms: null,
+          success_rate: null,
+          ttft_samples: 0,
+          ok_samples: 0,
+          n: 10,
+          metrics_phase: 'soft',
+          probe: {
+            p50_ttft_ms: 1800,
+            p95_ttft_ms: 4200,
+            success_rate: 1,
+            ttft_samples: 1,
+            n_ttft: 10,
+            ok_samples: 1,
+            n_ok: 10
+          }
+        }
+      }
+    })
+    expect(w.get('[data-testid="smart-schedule-pair-quality-p95"]').text()).toContain('4200ms')
   })
 
   it('uses separate TTFT and success denominators', () => {

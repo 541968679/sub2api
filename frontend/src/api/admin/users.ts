@@ -505,6 +505,8 @@ export type SmartScheduleSoftCooldownProgress = {
 
 export type SmartScheduleQualityPhaseMetrics = {
   p50_ttft_ms?: number | null
+  p95_ttft_ms?: number | null
+  ttft_p95_ms?: number | null
   p50_duration_ms?: number | null
   success_rate?: number | null
   ttft_samples: number
@@ -521,6 +523,8 @@ export type SmartScheduleQualityPhaseMetrics = {
 
 export type SmartSchedulePairQuality = {
   ttft_p50_ms?: number | null
+  p95_ttft_ms?: number | null
+  ttft_p95_ms?: number | null
   success_rate?: number | null
   ttft_samples: number
   ok_samples: number

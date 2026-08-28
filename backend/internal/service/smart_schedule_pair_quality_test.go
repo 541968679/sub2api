@@ -114,6 +114,49 @@ func TestPairQualityToStats_CrossUserIsolationShape(t *testing.T) {
 	require.Equal(t, int64(1), stats.TTFTSamples)
 	require.Equal(t, int64(1), stats.SuccessCount)
 	require.Equal(t, int64(0), stats.ErrorCount)
+	require.Nil(t, stats.P95TTFTMs, "ToAccountQualityStats must not project display p95 into hard-close stats")
+}
+
+func TestPairQualityP95_DiverseSamples(t *testing.T) {
+	t.Parallel()
+	samples := []int{100, 120, 140, 160, 180, 200, 250, 400, 800, 5000}
+	p50 := pairQualityP50(samples)
+	p95 := pairQualityP95(samples)
+	require.NotNil(t, p50)
+	require.NotNil(t, p95)
+	require.Equal(t, 190, *p50)
+	require.Equal(t, 5000, *p95)
+	require.Greater(t, *p95, *p50)
+}
+
+func TestPairQualityP95_OneSampleEqualsP50(t *testing.T) {
+	t.Parallel()
+	samples := []int{1800}
+	p50 := pairQualityP50(samples)
+	p95 := pairQualityP95(samples)
+	require.NotNil(t, p50)
+	require.NotNil(t, p95)
+	require.Equal(t, *p50, *p95)
+	require.Equal(t, 1800, *p95)
+	require.Nil(t, pairQualityP95(nil))
+}
+
+func TestPairQuality_HighP95PassingP50DoesNotCool(t *testing.T) {
+	t.Parallel()
+	p50Max := 500
+	policy := enabledSmartPolicy(7, 0, &p50Max)
+	n := 10
+	policy.QualityMinTTFTSamples = &n
+	policy.QualityMinSuccessSamples = &n
+	live := &PairQualityLive{N: 10, NTTFT: 10, NOK: 10}
+	for i := 0; i < 9; i++ {
+		live = ApplyPairQualityIngestWindows(live, 10, 10, true, intPtr(100), nil)
+	}
+	live = ApplyPairQualityIngestWindows(live, 10, 10, true, intPtr(9000), nil)
+	require.NotNil(t, pairQualityP50(live.TTFTMs))
+	require.Equal(t, 100, *pairQualityP50(live.TTFTMs))
+	require.Equal(t, 9000, *pairQualityP95(live.TTFTMs))
+	require.False(t, pairQualityBlocks(live, policy), "high display p95 must not cool when p50 passes")
 }
 
 type observeCacheStub struct {

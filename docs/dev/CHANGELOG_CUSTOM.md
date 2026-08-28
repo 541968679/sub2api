@@ -1,3 +1,31 @@
+## 2026-08-28 - feat(quality): display-only p95 on account and pair cells
+
+### What
+- Account combined quality cells now show last-N p95 (same row as the user cell). Pair-quality cells and the pair dialog current header show p95 from the same TTFT slice as the displayed p50.
+- p95 is display-only: not written to pair snapshots/Redis trend points, not copied into `ToAccountQualityStats`, and not used by latency gates, K/C, hard-close, or Settings.
+
+### Why
+p50 hides tail latency. Admins need to see p95 on the grid without changing scheduling.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "PairQuality|QualityPhase|AccountQuality|HydratePairQuality"`
+- `go test -tags=unit ./internal/service -count=1 -run "LatencyGate|HardClose"`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityCell.spec.ts src/components/admin/smart-schedule/__tests__/SmartSchedulePairQualityDialog.spec.ts`
+
+### Affected files
+`backend/internal/service/smart_schedule_pair_quality.go`
+`backend/internal/service/smart_schedule_pair_quality_test.go`
+`backend/internal/service/smart_schedule_phase_metrics_test.go`
+`frontend/src/components/account/AccountQualityCell.vue`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityCell.vue`
+`frontend/src/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue`
+`frontend/src/api/admin/users.ts`
+`frontend/src/utils/smartScheduleWindowN.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+`.trellis/spec/frontend/account-stability-window.md`
+
 ## 2026-08-28 - release: 0.1.268 OpenAI header-wait / first-useful-frame timeout
 
 ### What

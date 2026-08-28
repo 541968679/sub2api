@@ -17,6 +17,8 @@ func schedVsProbeLive() *PairQualityLive {
 		ttft[i] = 100
 		ok[i] = true
 	}
+	// Early spike so the 10-sample FIFO p95 (9000) differs from last-2 p95 (2000).
+	ttft[0] = 9000
 	ttft[8] = 2000
 	ttft[9] = 2000
 	ok[8] = true
@@ -59,10 +61,16 @@ func TestHydratePairQuality_PhaseMetricsSchedWindowP50(t *testing.T) {
 	require.Equal(t, MetricsPhaseSched, member.PairQuality.MetricsPhase)
 	require.NotNil(t, member.PairQuality.P50TTFTMs)
 	require.Equal(t, 2000, *member.PairQuality.P50TTFTMs)
+	require.NotNil(t, member.PairQuality.P95TTFTMs)
+	require.Equal(t, 2000, *member.PairQuality.P95TTFTMs, "sched N=2 p95 must use last 2 samples, not FIFO p95=9000")
+	require.NotNil(t, member.PairQuality.TTFTP95Ms)
+	require.Equal(t, 2000, *member.PairQuality.TTFTP95Ms)
 	require.Equal(t, 2, member.PairQuality.NTTFT)
 	require.NotNil(t, member.PairQuality.Probe)
 	require.NotNil(t, member.PairQuality.Probe.P50TTFTMs)
 	require.Equal(t, 100, *member.PairQuality.Probe.P50TTFTMs)
+	require.NotNil(t, member.PairQuality.Probe.P95TTFTMs)
+	require.Equal(t, 9000, *member.PairQuality.Probe.P95TTFTMs, "probe window still sees the 10-sample FIFO p95")
 	require.Equal(t, 10, member.PairQuality.Probe.NTTFT)
 	require.True(t, member.WillCool)
 	require.NotNil(t, member.QualityReason)
@@ -84,12 +92,14 @@ func TestQualityPhaseMetrics_OneTTFTSampleShowsP50(t *testing.T) {
 	require.Equal(t, 1, m.TTFTSamples)
 	require.NotNil(t, m.P50TTFTMs)
 	require.Equal(t, 1800, *m.P50TTFTMs)
+	require.NotNil(t, m.P95TTFTMs)
+	require.Equal(t, *m.P50TTFTMs, *m.P95TTFTMs)
 	require.Equal(t, 1, m.OKSamples)
 	require.NotNil(t, m.SuccessRate)
 	require.InDelta(t, 1.0, *m.SuccessRate, 1e-9)
 }
 
-func TestApplyPhaseMetricsAlias_EmptyPhaseKeepsLiveP50(t *testing.T) {
+func TestQualityPhaseMetrics_ApplyAliasEmptyPhaseKeepsLiveP50(t *testing.T) {
 	t.Parallel()
 	live := underfullOneSampleLive(1800)
 	view := live.View()
@@ -98,6 +108,8 @@ func TestApplyPhaseMetricsAlias_EmptyPhaseKeepsLiveP50(t *testing.T) {
 	applyPhaseMetricsAlias(&view, empty)
 	require.NotNil(t, view.P50TTFTMs)
 	require.Equal(t, 1800, *view.P50TTFTMs)
+	require.NotNil(t, view.P95TTFTMs)
+	require.Equal(t, 1800, *view.P95TTFTMs)
 	require.NotNil(t, view.SuccessRate)
 }
 
@@ -127,6 +139,8 @@ func TestHydratePairQuality_OneTTFTSampleShowsP50UnderfullDoesNotCool(t *testing
 	require.Equal(t, MetricsPhaseProbe, member.PairQuality.MetricsPhase)
 	require.NotNil(t, member.PairQuality.P50TTFTMs)
 	require.Equal(t, 9000, *member.PairQuality.P50TTFTMs)
+	require.NotNil(t, member.PairQuality.P95TTFTMs)
+	require.Equal(t, 9000, *member.PairQuality.P95TTFTMs)
 	require.Equal(t, 1, member.PairQuality.TTFTSamples)
 	require.False(t, member.WillCool, "1-sample p50 above max must not cool; judgment waits for full N")
 	require.Nil(t, member.QualityReason)

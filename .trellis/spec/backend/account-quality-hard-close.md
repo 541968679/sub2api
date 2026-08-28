@@ -19,6 +19,7 @@
 - `GET/PUT /api/v1/admin/accounts/:id/quality-hard-close`
 - `EvaluateAccountQualityHardClose(stats, resolved, alreadyPaused) (shouldPause, reason)`
 - `ProvideAccountQualityMaintenanceService` must `SetHardCloseEvaluator(...)`.
+- Pair `ToAccountQualityStats` must keep projecting only p50 / success / sample counts. Do **not** copy pair display `P95TTFTMs` into `AccountQualityStats` (hard-close still ignores p95; leaking it would invite a later reader).
 
 ### 3. Contracts
 

@@ -21,10 +21,9 @@
         <span class="text-sm font-medium">{{ hasTtft ? formatMs(stats!.p50_ttft_ms ?? stats!.avg_ttft_ms) : '—' }}</span>
       </div>
       <div
-        v-if="isUserSubject"
         class="flex items-baseline gap-1"
         :class="p95ToneClass"
-        data-test="user-quality-p95"
+        data-test="quality-p95"
       >
         <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">p95</span>
         <span class="text-sm font-medium">{{ hasTtft ? formatMs(stats!.p95_ttft_ms) : '—' }}</span>

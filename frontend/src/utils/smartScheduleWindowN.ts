@@ -62,6 +62,8 @@ export function resolveSmartScheduleWindowN(input: SmartScheduleWindowNInput): n
 export function normalizeSmartSchedulePairQuality(
   raw: Partial<SmartSchedulePairQuality> & {
     p50_ttft_ms?: number | null
+    p95_ttft_ms?: number | null
+    ttft_p95_ms?: number | null
     ttft_count?: number | null
     ok_count?: number | null
     quality_window_n?: number | null
@@ -87,6 +89,15 @@ export function normalizeSmartSchedulePairQuality(
   const nestedP50 = finiteNumber(
     raw.probe?.p50_ttft_ms ?? raw.sched?.p50_ttft_ms ?? raw.soft?.p50_ttft_ms
   )
+  const topP95 = finiteNumber(raw.ttft_p95_ms ?? raw.p95_ttft_ms)
+  const nestedP95 = finiteNumber(
+    raw.probe?.p95_ttft_ms ??
+      raw.probe?.ttft_p95_ms ??
+      raw.sched?.p95_ttft_ms ??
+      raw.sched?.ttft_p95_ms ??
+      raw.soft?.p95_ttft_ms ??
+      raw.soft?.ttft_p95_ms
+  )
   const topSuccess =
     raw.success_rate != null && Number.isFinite(raw.success_rate) ? raw.success_rate : null
   const nestedSuccess = finiteNumber(
@@ -100,6 +111,11 @@ export function normalizeSmartSchedulePairQuality(
     n: clampSmartScheduleWindowN(raw.n ?? Math.max(nTtft, nSuccess)),
     n_ttft: nTtft,
     n_success: nSuccess
+  }
+  const p95 = topP95 ?? nestedP95
+  if (p95 != null) {
+    out.ttft_p95_ms = p95
+    out.p95_ttft_ms = p95
   }
   const slow = finiteNumber(raw.ttft_slow_count)
   const consec = finiteNumber(raw.ttft_consecutive_slow)

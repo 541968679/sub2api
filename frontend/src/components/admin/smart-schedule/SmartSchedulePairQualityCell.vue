@@ -22,6 +22,14 @@
         <span class="font-sans text-[10px] text-gray-400 dark:text-gray-500">p50</span>
         <span class="text-sm font-medium">{{ p50Display }}</span>
       </div>
+      <div
+        class="flex items-baseline gap-1"
+        :class="p95ToneClass"
+        data-testid="smart-schedule-pair-quality-p95"
+      >
+        <span class="font-sans text-[10px] text-gray-400 dark:text-gray-500">p95</span>
+        <span class="text-sm font-medium">{{ p95Display }}</span>
+      </div>
       <div class="flex items-baseline gap-1" :class="successToneClass">
         <span class="font-sans text-[10px] text-gray-400 dark:text-gray-500">{{ t('admin.users.smartSchedule.pairSuccessShort') }}</span>
         <span class="text-sm font-medium">{{ successDisplay }}</span>
@@ -97,6 +105,16 @@ const p50Ms = computed(() =>
   )
 )
 
+const p95Ms = computed(() =>
+  firstFinite(
+    props.quality?.ttft_p95_ms,
+    props.quality?.p95_ttft_ms,
+    props.quality?.probe?.p95_ttft_ms,
+    props.quality?.sched?.p95_ttft_ms,
+    props.quality?.soft?.p95_ttft_ms
+  )
+)
+
 const successRate = computed(() =>
   firstFinite(
     props.quality?.success_rate,
@@ -107,6 +125,7 @@ const successRate = computed(() =>
 )
 
 const p50Display = computed(() => formatMs(p50Ms.value))
+const p95Display = computed(() => formatMs(p95Ms.value))
 
 const successDisplay = computed(() => {
   const rate = successRate.value
@@ -120,6 +139,14 @@ const p50ToneClass = computed(() => {
   if (ms >= 3000) return 'text-red-600 dark:text-red-400'
   if (ms >= 1500) return 'text-amber-600 dark:text-amber-400'
   return 'text-gray-700 dark:text-gray-300'
+})
+
+const p95ToneClass = computed(() => {
+  const ms = p95Ms.value
+  if (ms == null) return 'text-gray-500 dark:text-gray-400'
+  if (ms >= 5000) return 'text-red-600 dark:text-red-400'
+  if (ms >= 2500) return 'text-amber-600 dark:text-amber-400'
+  return 'text-gray-500 dark:text-gray-400'
 })
 
 const successToneClass = computed(() => {
