@@ -254,6 +254,25 @@ type UserSmartScheduleRepository interface {
 	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
 	UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) error
 	SetMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
+	ListMembershipsByAccount(ctx context.Context, accountID int64, platform string) ([]SmartScheduleAccountMembership, error)
+	AddMember(ctx context.Context, userID, accountID int64, platform string) error
+	RemoveMember(ctx context.Context, userID, accountID int64, platform string) error
+}
+
+// SmartScheduleAccountMembership is one user sitting in this account's smart pool.
+type SmartScheduleAccountMembership struct {
+	UserID             int64      `json:"user_id"`
+	Email              string     `json:"email"`
+	Deleted            bool       `json:"deleted"`
+	Platform           string     `json:"platform"`
+	Enabled            bool       `json:"enabled"`
+	Paused             bool       `json:"paused"`
+	Pinned             bool       `json:"pinned"`
+	Probing            bool       `json:"probing"`
+	CooldownUntil      *time.Time `json:"cooldown_until,omitempty"`
+	ResumeChipUntil    *time.Time `json:"resume_chip_until,omitempty"`
+	ResumeWatchUntil   *time.Time `json:"resume_watch_until,omitempty"`
+	CurrentConcurrency int        `json:"current_concurrency"`
 }
 
 // UserSmartScheduleSummary is the compact list-column view of one user's smart schedule.

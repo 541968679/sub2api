@@ -1127,6 +1127,9 @@ export interface Account {
   /** When true, only selected after all non-fallback peers are unavailable. */
   fallback_only?: boolean
 
+  /** Missing / non-false means unpooled users may still select this account. */
+  public_schedulable?: boolean
+
   user_schedule_mode?: 'unrestricted' | 'allow' | 'deny'
   schedule_users?: AccountScheduleUser[]
 

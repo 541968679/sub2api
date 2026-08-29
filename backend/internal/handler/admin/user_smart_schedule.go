@@ -46,6 +46,17 @@ type resumeSmartScheduleRequest struct {
 	Platform string `json:"platform"`
 }
 
+type smartScheduleMemberRequest struct {
+	UserID   int64  `json:"user_id"`
+	Platform string `json:"platform"`
+}
+
+type smartScheduleAdmissionBatchRequest struct {
+	Platform string  `json:"platform"`
+	UserIDs  []int64 `json:"user_ids"`
+	State    string  `json:"state"`
+}
+
 func (h *UserHandler) smartScheduleService() *service.UserSmartScheduleService {
 	if h == nil {
 		return nil
@@ -342,4 +353,90 @@ func (h *AccountHandler) ResumeSmartSchedule(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (h *AccountHandler) requireSmartScheduleAccount(c *gin.Context) (int64, bool) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return 0, false
+	}
+	if h.smartSchedule == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return 0, false
+	}
+	if _, err := h.adminService.GetAccount(c.Request.Context(), accountID); err != nil {
+		response.ErrorFrom(c, err)
+		return 0, false
+	}
+	return accountID, true
+}
+
+// ListSmartScheduleMemberships GET /admin/accounts/:id/smart-schedule-memberships
+func (h *AccountHandler) ListSmartScheduleMemberships(c *gin.Context) {
+	accountID, ok := h.requireSmartScheduleAccount(c)
+	if !ok {
+		return
+	}
+	rows, err := h.smartSchedule.ListAccountMemberships(c.Request.Context(), accountID, c.Query("platform"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"members": rows})
+}
+
+// AddSmartScheduleMember POST /admin/accounts/:id/smart-schedule-members
+func (h *AccountHandler) AddSmartScheduleMember(c *gin.Context) {
+	accountID, ok := h.requireSmartScheduleAccount(c)
+	if !ok {
+		return
+	}
+	var req smartScheduleMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserID <= 0 {
+		response.BadRequest(c, "user_id and platform are required")
+		return
+	}
+	if err := h.smartSchedule.AddAccountMember(c.Request.Context(), accountID, req.UserID, req.Platform); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": req.UserID, "platform": req.Platform})
+}
+
+// RemoveSmartScheduleMember DELETE /admin/accounts/:id/smart-schedule-members
+func (h *AccountHandler) RemoveSmartScheduleMember(c *gin.Context) {
+	accountID, ok := h.requireSmartScheduleAccount(c)
+	if !ok {
+		return
+	}
+	var req smartScheduleMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserID <= 0 {
+		response.BadRequest(c, "user_id and platform are required")
+		return
+	}
+	if err := h.smartSchedule.RemoveAccountMember(c.Request.Context(), accountID, req.UserID, req.Platform); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": req.UserID, "platform": req.Platform})
+}
+
+// SetSmartScheduleAdmissionBatch POST /admin/accounts/:id/smart-schedule-admission-batch
+func (h *AccountHandler) SetSmartScheduleAdmissionBatch(c *gin.Context) {
+	accountID, ok := h.requireSmartScheduleAccount(c)
+	if !ok {
+		return
+	}
+	var req smartScheduleAdmissionBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.State == "" {
+		response.BadRequest(c, "platform and state are required")
+		return
+	}
+	results, err := h.smartSchedule.SetAccountPairAdmissionBatch(c.Request.Context(), accountID, req.Platform, req.UserIDs, req.State)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"results": results})
 }

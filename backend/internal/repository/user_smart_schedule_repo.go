@@ -9,6 +9,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersmartscheduleaccount"
 	"github.com/Wei-Shaw/sub2api/ent/usersmartschedulepolicy"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -238,6 +239,156 @@ func (r *userSmartScheduleRepository) UpdateSortOrders(ctx context.Context, user
 			if n == 0 {
 				return fmt.Errorf("smart schedule account %d not found", order.AccountID)
 			}
+		}
+		return nil
+	})
+}
+
+func (r *userSmartScheduleRepository) ListMembershipsByAccount(ctx context.Context, accountID int64, platform string) ([]service.SmartScheduleAccountMembership, error) {
+	if r == nil || r.client == nil || accountID <= 0 {
+		return nil, nil
+	}
+	platform = strings.TrimSpace(strings.ToLower(platform))
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+		SELECT a.user_id,
+		       COALESCE(u.email, '') AS email,
+		       (u.deleted_at IS NOT NULL) AS deleted,
+		       a.platform,
+		       COALESCE(p.enabled, false) AS enabled,
+		       COALESCE(a.paused, false) AS paused
+		FROM user_smart_schedule_accounts a
+		LEFT JOIN users u ON u.id = a.user_id
+		LEFT JOIN user_smart_schedule_policies p
+		  ON p.user_id = a.user_id AND p.platform = a.platform
+		WHERE a.account_id = $1
+		  AND ($2 = '' OR a.platform = $2)
+		ORDER BY a.platform, u.email, a.user_id
+	`, accountID, platform)
+	if err != nil {
+		return nil, fmt.Errorf("list smart schedule memberships: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]service.SmartScheduleAccountMembership, 0)
+	for rows.Next() {
+		var row service.SmartScheduleAccountMembership
+		if err := rows.Scan(&row.UserID, &row.Email, &row.Deleted, &row.Platform, &row.Enabled, &row.Paused); err != nil {
+			return nil, fmt.Errorf("scan smart schedule membership: %w", err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list smart schedule memberships: %w", err)
+	}
+	return out, nil
+}
+
+func (r *userSmartScheduleRepository) AddMember(ctx context.Context, userID, accountID int64, platform string) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("smart schedule repository unavailable")
+	}
+	platform = strings.TrimSpace(strings.ToLower(platform))
+	if userID <= 0 || accountID <= 0 || !service.IsAllowedSmartSchedulePlatform(platform) {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "user_id, account_id, and platform are required")
+	}
+	return r.withTx(ctx, func(txCtx context.Context, client *dbent.Client) error {
+		exists, err := client.User.Query().Where(user.IDEQ(userID)).Exist(txCtx)
+		if err != nil {
+			return fmt.Errorf("check smart schedule user: %w", err)
+		}
+		if !exists {
+			return infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_USER", "user not found")
+		}
+		now := time.Now().UTC()
+		existingPolicy, err := client.UserSmartSchedulePolicy.Query().
+			Where(
+				usersmartschedulepolicy.UserIDEQ(userID),
+				usersmartschedulepolicy.PlatformEQ(platform),
+			).
+			Only(txCtx)
+		if err != nil && !dbent.IsNotFound(err) {
+			return fmt.Errorf("get smart schedule policy: %w", err)
+		}
+		if existingPolicy == nil {
+			if err := client.UserSmartSchedulePolicy.Create().
+				SetUserID(userID).
+				SetPlatform(platform).
+				SetEnabled(false).
+				SetCooldownMinutes(service.DefaultSmartScheduleCooldownMinutes).
+				SetCreatedAt(now).
+				SetUpdatedAt(now).
+				Exec(txCtx); err != nil {
+				return fmt.Errorf("create smart schedule policy: %w", err)
+			}
+		}
+		already, err := client.UserSmartScheduleAccount.Query().
+			Where(
+				usersmartscheduleaccount.UserIDEQ(userID),
+				usersmartscheduleaccount.AccountIDEQ(accountID),
+				usersmartscheduleaccount.PlatformEQ(platform),
+			).
+			Exist(txCtx)
+		if err != nil {
+			return fmt.Errorf("check smart schedule member: %w", err)
+		}
+		if already {
+			return nil
+		}
+		if err := client.UserSmartScheduleAccount.Create().
+			SetUserID(userID).
+			SetAccountID(accountID).
+			SetPlatform(platform).
+			SetCreatedAt(now).
+			Exec(txCtx); err != nil {
+			if dbent.IsConstraintError(err) {
+				return nil
+			}
+			return fmt.Errorf("insert smart schedule member: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *userSmartScheduleRepository) RemoveMember(ctx context.Context, userID, accountID int64, platform string) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("smart schedule repository unavailable")
+	}
+	platform = strings.TrimSpace(strings.ToLower(platform))
+	if userID <= 0 || accountID <= 0 || !service.IsAllowedSmartSchedulePlatform(platform) {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "user_id, account_id, and platform are required")
+	}
+	return r.withTx(ctx, func(txCtx context.Context, client *dbent.Client) error {
+		if _, err := client.UserSmartScheduleAccount.Delete().
+			Where(
+				usersmartscheduleaccount.UserIDEQ(userID),
+				usersmartscheduleaccount.AccountIDEQ(accountID),
+				usersmartscheduleaccount.PlatformEQ(platform),
+			).
+			Exec(txCtx); err != nil {
+			return fmt.Errorf("delete smart schedule member: %w", err)
+		}
+		remaining, err := client.UserSmartScheduleAccount.Query().
+			Where(
+				usersmartscheduleaccount.UserIDEQ(userID),
+				usersmartscheduleaccount.PlatformEQ(platform),
+			).
+			Count(txCtx)
+		if err != nil {
+			return fmt.Errorf("count remaining smart schedule members: %w", err)
+		}
+		if remaining > 0 {
+			return nil
+		}
+		if _, err := client.UserSmartSchedulePolicy.Update().
+			Where(
+				usersmartschedulepolicy.UserIDEQ(userID),
+				usersmartschedulepolicy.PlatformEQ(platform),
+				usersmartschedulepolicy.EnabledEQ(true),
+			).
+			SetEnabled(false).
+			SetUpdatedAt(time.Now().UTC()).
+			Save(txCtx); err != nil {
+			return fmt.Errorf("disable empty smart schedule pool: %w", err)
 		}
 		return nil
 	})

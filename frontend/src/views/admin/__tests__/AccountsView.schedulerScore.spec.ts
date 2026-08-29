@@ -106,6 +106,7 @@ function mountView() {
         CreateAccountModal: true,
         EditAccountModal: true,
         BulkEditAccountModal: true,
+        UnbindSubscriptionGroupsDialog: true,
         PlatformTypeBadge: true,
         AccountCapacityCell: true,
         AccountStatusIndicator: true,

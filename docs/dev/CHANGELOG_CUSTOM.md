@@ -1,3 +1,246 @@
+## 2026-08-29 - fix: Select dropdown contrast on dark modals
+
+### What
+- Dark-mode Select portal uses a lighter surface (`dark-600`), stronger border/ring, and a deeper shadow so the open list does not blend into `modal-content` (`dark-800`).
+- Unbind-subscription dialog platform field already uses shared `Select` + 40px trigger to match the threshold input.
+
+### Why
+Opening 平台 inside 按计费倍率解除订阅分组 painted a same-color panel over the hint/checkbox, so options looked like floating text.
+
+### Verification
+- Browser: `/admin/accounts` → 高倍率仅留按量分组 → open 平台; panel is a distinct card over the modal.
+
+### Affected files
+`frontend/src/components/common/Select.vue`
+`frontend/src/components/account/UnbindSubscriptionGroupsDialog.vue`
+
+## 2026-08-29 - fix: public-quality card height matches left ops
+
+### What
+- Compacted the Accounts-page public-schedule quality card (title + enable + save on one row; knobs in a 3×2 grid) and stretch-aligned it to the left filter/action band.
+
+### Why
+The stacked form was ~459px vs the left ops ~192px, so the right column dropped far below the toolbar.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/PublicScheduleQualityGlobalCard.spec.ts`
+- Browser: `/admin/accounts` left ops and quality card both 192px, top/bottom aligned; save still posts
+
+### Affected files
+`frontend/src/components/account/PublicScheduleQualityGlobalCard.vue`
+`frontend/src/components/account/__tests__/PublicScheduleQualityGlobalCard.spec.ts`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+
+## 2026-08-29 - feat: OpenAI OAuth 7d cycle history dialog
+
+### What
+- Clicking the OpenAI OAuth 7d L$/A$ chips (or the previous-cycle line) opens a dialog with both a L$/window-A$ line chart and a period table.
+- History API: `GET /api/v1/admin/accounts/:id/openai-7d-cycles` (current cycle first, then closed cycles). Dialog A$ is Codex-window A$, not the list chip's rolling 7 calendar days.
+- Fixed dialog mount: it lived in the non-usage-window `v-else` root, so OpenAI OAuth rows never rendered the popup.
+- Expired `codex_7d_reset_at` still returns the last window so the dialog is not empty; list L$ chip stays $0. Tiny costs use 4 decimals in the table.
+
+### Why
+Ops need more than the last closed L$ line on the list. Chart + table belong in one popup; the first mount put the dialog on the wrong Vue branch.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/OpenAI7dCycleDialog.spec.ts src/components/account/__tests__/UsageProgressBar.spec.ts src/components/account/__tests__/AccountUsageCell.spec.ts`
+- Browser: admin accounts → click L$ on an OpenAI OAuth row → dialog shows chart + table
+
+### Affected files
+`frontend/src/components/account/AccountUsageCell.vue`
+`frontend/src/components/account/UsageProgressBar.vue`
+`frontend/src/components/account/OpenAI7dCycleDialog.vue`
+`frontend/src/components/account/__tests__/AccountUsageCell.spec.ts`
+`frontend/src/components/account/__tests__/OpenAI7dCycleDialog.spec.ts`
+`frontend/src/api/admin/accounts.ts`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/server/routes/admin.go`
+`backend/internal/service/account_usage_service.go`
+`docs/dev/codebase/account.md`
+
+## 2026-08-29 - feat: global public-schedule quality on Accounts page
+
+### What
+- Public-schedule quality is a site-wide plane (`enabled` + knobs in Settings KV). Global editor sits on 账号管理 in the OAI Pro pool card slot; that pool card is hidden for now.
+- Unpooled selection prefers non-demoted accounts when the global switch is on. Per-account overlay UI is deferred.
+
+### Why
+The first UI put enable/knobs on the per-account stability dialog. We need to test the global plane first.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Unpooled|PublicSchedule|SchedulerLayered|OpenAIAccountScheduler|UserSmartSchedule|OAuthFleetSoft429|AccountQuality" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "PublicScheduleQuality" -count=1`
+- `go build -o NUL ./cmd/server`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountStabilityDialog.spec.ts src/components/account/__tests__/PublicScheduleQualityGlobalCard.spec.ts`
+
+### Affected files
+`backend/internal/service/public_schedule_quality.go`
+`backend/internal/service/public_schedule_quality_runtime.go`
+`backend/internal/service/public_schedule_quality_test.go`
+`backend/internal/service/gateway_service.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/openai_account_scheduler.go`
+`backend/internal/service/gemini_messages_compat_service.go`
+`backend/internal/handler/admin/setting_handler.go`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/components/account/PublicScheduleQualityGlobalCard.vue`
+`frontend/src/components/account/AccountStabilityDialog.vue`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/scheduler.md`
+
+## 2026-08-29 - feat: unbind subscription groups by billing rate
+
+### What
+- Admin can preview and apply dropping subscription (quota) groups from accounts whose billing `rate_multiplier` is strictly greater than a threshold. Standard (balance) groups stay.
+- Preview is dry-run. Apply re-scans live DB and writes per-account `BindGroups(id, keepIDs)`. It does not reuse bulk-update `group_ids`.
+
+### Why
+Existing bulk edit can only assign one shared group list. Ops needed a subtract-per-account action for high-rate accounts.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "UnbindSubscription|BillingRate" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "UnbindSubscription" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/account/__tests__/AccountBulkActionsBar.spec.ts src/components/account/__tests__/UnbindSubscriptionGroupsDialog.spec.ts src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`
+
+### Affected files
+`backend/internal/service/admin_service.go`
+`backend/internal/service/admin_unbind_subscription_groups.go`
+`backend/internal/service/admin_unbind_subscription_groups_test.go`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/handler/admin/account_handler_unbind_subscription_test.go`
+`backend/internal/handler/admin/admin_service_stub_test.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/api/admin/accounts.ts`
+`frontend/src/components/admin/account/AccountBulkActionsBar.vue`
+`frontend/src/components/account/UnbindSubscriptionGroupsDialog.vue`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
+## 2026-08-29 - docs: thin scheduler handbook
+
+### What
+- Rewrite `docs/dev/codebase/scheduler.md` as a file map + forbidden list. Drop scoring defaults, Redis key layouts, layer recipes, overflow rules, and commit-SHA provenance.
+- Pointer spec now says the handbook is not an algorithm dump.
+
+### Why
+Keep enough for later sessions to find the right files without publishing the selection IP.
+
+### Affected files
+`docs/dev/codebase/scheduler.md`
+`.trellis/spec/backend/scheduler-handbook.md`
+
+## 2026-08-29 - check: account-side three-layer schedule
+
+### What
+- Account membership hydrate now stamps `ScheduleLookupPlatform` so pair occupancy is not read from `_`.
+- Account schedule panel: OpenAI only shows openai+AG tabs; other platforms only their own tab. Batch six-state requires a selection and never omits `user_ids`.
+- `POST /public-schedulable` rejects a missing bool (omit no longer writes false).
+- Edit Account modal drops leftover allow/deny/cap/gate helpers and does not send those fields or `extra.public_schedulable` on Save. Immediate schedule PATCHes emit `updated` so the list stays in sync.
+
+### Why
+Trellis check found occupancy / batch / tab / leftover-form wipe risks in the account-side task.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "AdmitsScheduleUser|AllowsPublicSchedule|SmartSchedule" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "SmartSchedule|PublicSchedul" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/AccountSchedulePanel.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule_account.go`
+`backend/internal/service/user_smart_schedule_account_test.go`
+`backend/internal/handler/admin/account_handler.go`
+`frontend/src/components/account/AccountSchedulePanel.vue`
+`frontend/src/components/account/EditAccountModal.vue`
+
+## 2026-08-29 - feat: account-side three-layer schedule
+
+### What
+- Edit Account modal now has two top cards: **账号编辑** (config / groups / other) and **账号调度**.
+- Account scheduling has three immediate-write layers: master `schedulable`, public pool (`extra.public_schedulable`, missing = on), and this-account smart-pool members (add / remove / six-state switch, current platform only).
+- Unpooled hot path rejects an account when public pool is explicitly off. In-pool users are unchanged.
+- Edit modal no longer edits leftover allow / deny / pair-cap / quality-gate lists. Save does not rewrite those rows.
+- `UpdateAccount` keeps `extra.public_schedulable` so a later name/groups Save cannot re-open a closed public pool.
+
+### Why
+Ops need to see and change who can get one account without opening each user page, and without mixing public-pool traffic into `schedulable` or `fallback_only`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "AdmitsScheduleUser|AllowsPublicSchedule|SmartSchedule" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "SmartSchedule|PublicSchedul" -count=1`
+- `go test -tags=unit ./internal/repository -run "SchedulerExtra|SmartSchedule" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/AccountSchedulePanel.spec.ts`
+
+### Affected files
+`backend/internal/service/account.go`
+`backend/internal/service/account_user_schedule.go`
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_account.go`
+`backend/internal/service/admin_service.go`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`backend/internal/repository/scheduler_cache.go`
+`backend/internal/handler/admin/user_smart_schedule.go`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/components/account/EditAccountModal.vue`
+`frontend/src/components/account/AccountSchedulePanel.vue`
+`frontend/src/api/admin/accounts.ts`
+`docs/dev/codebase/account.md`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
+## 2026-08-29 - feat: public-schedule account quality plane
+
+### What
+- Add an account-level public-schedule quality plane (independent FIFO + six states) that reuses smart-schedule `EvalQuality`.
+- Unpooled selection prefers healthy accounts; cooling/probing/paused accounts stay selectable when nothing healthier remains.
+- Per-account `enabled` (default off) is the only gate. Site defaults cover N / knobs / cooldown. Existing account stability dialog can read/write params and state.
+- All completions ingest the public window; pooled users do not read this plane. `Q_a` / hard-close / `previous_response` are unchanged.
+
+### Why
+Retail unpooled users never fill pair windows. Account problems are usually account-wide, so shared account samples let low-volume users switch sooner.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "PublicSchedule|Unpooled|AccountQuality"`
+
+### Affected files
+`backend/internal/service/public_schedule_quality.go`
+`backend/internal/service/public_schedule_quality_runtime.go`
+`backend/internal/service/public_schedule_quality_cache.go`
+`backend/internal/service/public_schedule_quality_test.go`
+`backend/internal/repository/public_schedule_quality_cache.go`
+`backend/internal/service/gateway_service.go`
+`backend/internal/service/openai_account_scheduler.go`
+`backend/internal/service/account_unpooled_schedule.go`
+`backend/internal/service/gemini_messages_compat_service.go`
+`frontend/src/components/account/AccountStabilityDialog.vue`
+`docs/dev/codebase/scheduler.md`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
+## 2026-08-29 - feat: OpenAI OAuth 7d cycle history dialog
+
+### What
+- OpenAI OAuth 7d 条上的 L$/A$ 行可点，弹出各期曲线 + 表格。
+- 现周期 + 已关闭周期；L$ 来自 LiteLLM 快照/现场算，窗口内 A$/U$ 按 Codex 窗口从 `usage_logs` 现算（与条上滚动 7 日 A$ 公式相同、时间范围不同）。
+
+### Why
+列表只露上期一行，运营需要回看每一期消耗。
+
+### Verification
+- `go test -tags=unit ./internal/service -run "ListHistory|LiteLLM|OpenAI.*7d" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/OpenAI7dCycleDialog.spec.ts src/components/account/__tests__/UsageProgressBar.spec.ts src/components/account/__tests__/AccountUsageCell.spec.ts`
+
+### Affected files
+`backend/internal/service/openai_7d_litellm.go`
+`backend/internal/repository/openai_7d_cycle_repo.go`
+`backend/internal/handler/admin/account_handler.go`
+`frontend/src/components/account/OpenAI7dCycleDialog.vue`
+`frontend/src/components/account/UsageProgressBar.vue`
+`frontend/src/components/account/AccountUsageCell.vue`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
 ## 2026-08-29 - docs: intelligent-scheduling handbook
 
 ### What

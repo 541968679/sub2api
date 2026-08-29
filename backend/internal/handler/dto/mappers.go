@@ -245,6 +245,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		CreatedAt:               a.CreatedAt,
 		UpdatedAt:               a.UpdatedAt,
 		FallbackOnly:            a.IsFallbackOnly(),
+		PublicSchedulable:       a.AllowsPublicSchedule(),
 		Schedulable:             a.Schedulable,
 		RateLimitedAt:           a.RateLimitedAt,
 		RateLimitResetAt:        a.RateLimitResetAt,

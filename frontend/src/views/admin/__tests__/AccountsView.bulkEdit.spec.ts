@@ -74,13 +74,14 @@ const DataTableStub = {
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds', 'total', 'selectingAllFiltered'],
-  emits: ['delete', 'edit-filtered', 'select-filtered'],
+  emits: ['delete', 'edit-filtered', 'select-filtered', 'unbind-subscription-by-rate'],
   template: `
     <div>
       <span data-test="selected-count">{{ selectedIds.length }}</span>
       <button data-test="delete-selected" @click="$emit('delete')">delete selected</button>
       <button data-test="edit-filtered" @click="$emit('edit-filtered')">edit filtered</button>
       <button data-test="select-filtered" @click="$emit('select-filtered')">select filtered</button>
+      <button data-test="unbind-subscription-by-rate" @click="$emit('unbind-subscription-by-rate')">unbind subscription</button>
     </div>
   `
 }
@@ -130,6 +131,10 @@ const mountAccountsView = () => mount(AccountsView, {
       CreateAccountModal: true,
       EditAccountModal: true,
       BulkEditAccountModal: BulkEditAccountModalStub,
+      UnbindSubscriptionGroupsDialog: {
+        props: ['show'],
+        template: '<div v-if="show" data-test="unbind-subscription-dialog"></div>'
+      },
       PlatformTypeBadge: true,
       AccountCapacityCell: true,
       AccountStatusIndicator: true,
@@ -176,6 +181,16 @@ describe('admin AccountsView bulk edit scope', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('opens unbind-subscription dialog from the always-visible toolbar button', async () => {
+    const wrapper = mountAccountsView()
+
+    await flushPromises()
+    await wrapper.get('[data-test="unbind-subscription-by-rate"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="unbind-subscription-dialog"]').exists()).toBe(true)
   })
 
   it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {

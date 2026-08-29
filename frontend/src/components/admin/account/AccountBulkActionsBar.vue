@@ -62,6 +62,13 @@
       >
         {{ t('admin.accounts.bulkActions.editFiltered') }}
       </button>
+      <button
+        data-testid="unbind-subscription-by-rate"
+        @click="$emit('unbind-subscription-by-rate')"
+        class="btn btn-secondary btn-sm"
+      >
+        {{ t('admin.accounts.unbindSubscriptionByRate.button') }}
+      </button>
     </div>
   </div>
 </template>
@@ -88,7 +95,8 @@ defineEmits([
   'toggle-schedulable',
   'reset-status',
   'refresh-token',
-  'auto-assign-proxy'
+  'auto-assign-proxy',
+  'unbind-subscription-by-rate'
 ])
 
 const { t } = useI18n()

@@ -82,6 +82,27 @@ describe('UsageProgressBar', () => {
     expect(wrapper.text()).not.toContain('usage.resetNow')
   })
 
+  it('emits open-history when the clickable L/A row is clicked', async () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: {
+        label: '7d',
+        utilization: 12,
+        resetsAt: '2026-03-17T02:30:00Z',
+        color: 'emerald',
+        clickable: true,
+        litellmCost: 3.5,
+        windowStats: {
+          requests: 2,
+          tokens: 100,
+          cost: 1.23
+        }
+      }
+    })
+
+    await wrapper.find('[role="button"]').trigger('click')
+    expect(wrapper.emitted('open-history')).toHaveLength(1)
+  })
+
   it('shows LiteLLM cost chip next to account billed without changing A$', () => {
     const wrapper = mount(UsageProgressBar, {
       props: {

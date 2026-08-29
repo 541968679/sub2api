@@ -56,6 +56,7 @@ type GeminiMessagesCompatService struct {
 	responseHeaderFilter      *responseheaders.CompiledHeaderFilter
 	qualityLiveCache          AccountQualityLiveCache
 	smartScheduleCache        SmartScheduleLookup
+	publicSchedule            *PublicScheduleQualityService
 }
 
 func (s *GeminiMessagesCompatService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -70,6 +71,13 @@ func (s *GeminiMessagesCompatService) SetSmartScheduleCache(lookup SmartSchedule
 		return
 	}
 	s.smartScheduleCache = lookup
+}
+
+func (s *GeminiMessagesCompatService) SetPublicScheduleQuality(runtime *PublicScheduleQualityService) {
+	if s == nil {
+		return
+	}
+	s.publicSchedule = runtime
 }
 
 func (s *GeminiMessagesCompatService) admitsScheduleUser(ctx context.Context, account *Account) bool {
@@ -236,6 +244,11 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
+	if isUnpooledScheduleUser(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform) &&
+		s.publicSchedule != nil && s.publicSchedule.IsDemoted(ctx, account) {
+		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
+		return nil
+	}
 
 	// 验证账号是否可用于当前请求
 	// Verify account is usable for current request
@@ -343,8 +356,8 @@ func (s *GeminiMessagesCompatService) selectBestGeminiAccount(
 	platform string,
 	useMixedScheduling bool,
 ) *Account {
-	var selected *Account
 	precheckResult := s.buildPreCheckUsageResultMap(ctx, accounts, requestedModel)
+	usable := make([]*Account, 0, len(accounts))
 
 	for i := range accounts {
 		acc := &accounts[i]
@@ -361,14 +374,16 @@ func (s *GeminiMessagesCompatService) selectBestGeminiAccount(
 		if !s.admitsScheduleUser(ctx, acc) {
 			continue
 		}
+		usable = append(usable, acc)
+	}
 
-		// 选择最佳账号
-		if selected == nil {
-			selected = acc
-			continue
-		}
+	usable = preferPublicScheduleAccounts(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, usable,
+	)
 
-		if s.isBetterGeminiAccount(acc, selected) {
+	var selected *Account
+	for _, acc := range usable {
+		if selected == nil || s.isBetterGeminiAccount(acc, selected) {
 			selected = acc
 		}
 	}

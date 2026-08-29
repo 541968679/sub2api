@@ -38,10 +38,11 @@ type AccountQualityMaintenanceService struct {
 	lastN         AccountQualityLastNCache
 	userLastN     UserQualityLastNCache
 	userSnapshots UserQualitySnapshotRepository
-	settings      *SettingService
-	windowNLookup UserQualityWindowNLookup
-	running       int32
-	stopped       int32
+	settings       *SettingService
+	publicSchedule *PublicScheduleQualityService
+	windowNLookup  UserQualityWindowNLookup
+	running        int32
+	stopped        int32
 }
 
 // UserQualityWindowNLookup loads per-user Q_u overrides (nil = inherit site N).
@@ -152,6 +153,9 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 		}
 	}
 	s.EvaluateHardClose(ctx, map[int64]*AccountQualityStats{obs.AccountID: stats})
+	if s.publicSchedule != nil {
+		s.publicSchedule.ObserveCompletion(ctx, obs)
+	}
 }
 
 // GetLastNStatsBatch returns last-N Q_a for account list cells. Missing keys are empty stats with N stamped.
@@ -264,6 +268,13 @@ func (s *AccountQualityMaintenanceService) SetQualitySettings(settings *SettingS
 		return
 	}
 	s.settings = settings
+}
+
+func (s *AccountQualityMaintenanceService) SetPublicSchedule(runtime *PublicScheduleQualityService) {
+	if s == nil {
+		return
+	}
+	s.publicSchedule = runtime
 }
 
 func (s *AccountQualityMaintenanceService) scheduleUseFailoverErrorRate(ctx context.Context) bool {

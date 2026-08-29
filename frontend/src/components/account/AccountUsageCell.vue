@@ -152,12 +152,20 @@
           :resets-at="usageInfo.seven_day.resets_at"
           :window-stats="usageInfo.seven_day.window_stats"
           :litellm-cost="usageInfo.seven_day.litellm_cost"
+          :clickable="true"
           :show-now-when-idle="true"
           color="emerald"
+          @open-history="showOpenAI7dCycleHistory = true"
         />
         <div
           v-if="usageInfo?.seven_day?.previous_cycle"
-          class="text-[9px] text-gray-400 dark:text-gray-500"
+          class="cursor-pointer text-[9px] text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          :title="t('usage.cycleClickHint')"
+          data-test="openai-7d-previous-cycle"
+          role="button"
+          tabindex="0"
+          @click.stop="showOpenAI7dCycleHistory = true"
+          @keydown.enter.prevent="showOpenAI7dCycleHistory = true"
         >
           {{ t('usage.previousLiteLLMCycle', {
             cost: formatOpenAI7dLiteLLMCost(usageInfo.seven_day.previous_cycle.litellm_cost),
@@ -226,6 +234,11 @@
         <!-- Always allow on-demand upstream quota query, even before local data exists. -->
         <OpenAIQuotaResetCell :account="account" class="mt-1" />
       </div>
+      <OpenAI7dCycleDialog
+        :show="showOpenAI7dCycleHistory"
+        :account="account"
+        @close="showOpenAI7dCycleHistory = false"
+      />
     </template>
 
     <!-- Antigravity OAuth accounts: fetch usage from API -->
@@ -831,6 +844,7 @@ import { Icon } from '@/components/icons'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
+import OpenAI7dCycleDialog from './OpenAI7dCycleDialog.vue'
 import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 
 // Module-level cache shared across all AccountUsageCell instances
@@ -866,6 +880,7 @@ const unmounted = ref(false)
 onBeforeUnmount(() => { unmounted.value = true })
 
 const loading = ref(false)
+const showOpenAI7dCycleHistory = ref(false)
 const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)

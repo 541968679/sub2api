@@ -4,6 +4,13 @@
     <div
       v-if="showWindowStatsRow"
       class="mb-0.5 flex items-center"
+      :class="clickable ? 'cursor-pointer rounded hover:bg-gray-50 dark:hover:bg-gray-800/60' : ''"
+      :title="clickable ? t('usage.cycleClickHint') : undefined"
+      data-test="usage-window-stats"
+      role="button"
+      :tabindex="clickable ? 0 : undefined"
+      @click.stop="onStatsClick"
+      @keydown.enter.prevent="onStatsClick"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
         <template v-if="hasLocalWindowStats">
@@ -90,6 +97,7 @@ const props = withDefaults(
     color: 'indigo' | 'emerald' | 'purple' | 'amber'
     windowStats?: WindowStats | null
     litellmCost?: number | null
+    clickable?: boolean
     showNowWhenIdle?: boolean
     remainingCapacity?: boolean
     /** Tailwind width classes for the track; default matches account table cells. */
@@ -102,7 +110,16 @@ const props = withDefaults(
   }
 )
 
+const emit = defineEmits<{
+  'open-history': []
+}>()
+
 const { t } = useI18n()
+
+function onStatsClick() {
+  if (!props.clickable) return
+  emit('open-history')
+}
 
 // Reactive clock for countdown — only runs when a reset time is shown,
 // to avoid creating many idle timers across large account lists.

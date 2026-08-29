@@ -444,6 +444,82 @@ func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID in
 	return nil
 }
 
+func (s *stubSmartRepo) ListMembershipsByAccount(_ context.Context, _ int64, platform string) ([]SmartScheduleAccountMembership, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	platform = normalizeSmartSchedulePlatform(platform)
+	out := make([]SmartScheduleAccountMembership, 0)
+	if s.bundle == nil || s.bundle.Policies == nil {
+		return out, nil
+	}
+	for plat, policy := range s.bundle.Policies {
+		if policy == nil {
+			continue
+		}
+		if platform != "" && plat != platform {
+			continue
+		}
+		for accountID := range policy.AccountIDs {
+			_ = accountID
+			out = append(out, SmartScheduleAccountMembership{
+				UserID:   16,
+				Platform: plat,
+				Enabled:  policy.Enabled,
+				Paused:   policy.IsPaused(accountID),
+			})
+		}
+	}
+	return out, nil
+}
+
+func (s *stubSmartRepo) AddMember(_ context.Context, userID, accountID int64, platform string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	platform = normalizeSmartSchedulePlatform(platform)
+	if s.bundle == nil {
+		s.bundle = &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{}}
+	}
+	if s.bundle.Policies == nil {
+		s.bundle.Policies = map[string]*SmartSchedulePlatformPolicy{}
+	}
+	policy := s.bundle.Policies[platform]
+	if policy == nil {
+		policy = &SmartSchedulePlatformPolicy{
+			Enabled:         false,
+			CooldownMinutes: DefaultSmartScheduleCooldownMinutes,
+			AccountIDs:      map[int64]struct{}{},
+			Caps:            map[int64]int{},
+			SortOrders:      map[int64]int{},
+		}
+		s.bundle.Policies[platform] = policy
+	}
+	if policy.AccountIDs == nil {
+		policy.AccountIDs = map[int64]struct{}{}
+	}
+	policy.AccountIDs[accountID] = struct{}{}
+	_ = userID
+	return nil
+}
+
+func (s *stubSmartRepo) RemoveMember(_ context.Context, userID, accountID int64, platform string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	platform = normalizeSmartSchedulePlatform(platform)
+	if s.bundle == nil || s.bundle.Policies == nil {
+		return nil
+	}
+	policy := s.bundle.Policies[platform]
+	if policy == nil || policy.AccountIDs == nil {
+		return nil
+	}
+	delete(policy.AccountIDs, accountID)
+	if len(policy.AccountIDs) == 0 {
+		policy.Enabled = false
+	}
+	_ = userID
+	return nil
+}
+
 func (s *stubSmartRepo) UpdateSortOrders(_ context.Context, _ int64, platform string, orders []SmartScheduleSortAssignment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -656,10 +732,12 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 type stubPairConcurrency struct {
 	counts    map[int64]int
 	requested []int64
+	platforms []string
 }
 
-func (s *stubPairConcurrency) GetAccountUserConcurrencyBatch(_ context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
+func (s *stubPairConcurrency) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
 	s.requested = append([]int64(nil), accountIDs...)
+	s.platforms = append(s.platforms, ScheduleLookupPlatformFromContext(ctx))
 	out := make(map[int64]int, len(accountIDs))
 	for _, id := range accountIDs {
 		out[id] = s.counts[id]

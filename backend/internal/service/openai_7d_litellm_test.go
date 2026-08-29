@@ -9,9 +9,11 @@ import (
 )
 
 type stubOpenAI7dCycleRepo struct {
-	totals []AccountModelTokenTotals
-	insert []OpenAI7dCycle
-	latest *OpenAI7dCycle
+	totals      []AccountModelTokenTotals
+	insert      []OpenAI7dCycle
+	latest      *OpenAI7dCycle
+	cycles      []OpenAI7dCycle
+	windowStats *OpenAI7dWindowAccountStats
 }
 
 func (r *stubOpenAI7dCycleRepo) GetAccountModelTokenTotals(context.Context, int64, time.Time, time.Time) ([]AccountModelTokenTotals, error) {
@@ -26,6 +28,17 @@ func (r *stubOpenAI7dCycleRepo) InsertCycle(_ context.Context, cycle OpenAI7dCyc
 
 func (r *stubOpenAI7dCycleRepo) GetLatestCycle(context.Context, int64) (*OpenAI7dCycle, error) {
 	return r.latest, nil
+}
+
+func (r *stubOpenAI7dCycleRepo) ListCycles(context.Context, int64, int) ([]OpenAI7dCycle, error) {
+	return r.cycles, nil
+}
+
+func (r *stubOpenAI7dCycleRepo) GetWindowAccountStats(context.Context, int64, time.Time, time.Time) (*OpenAI7dWindowAccountStats, error) {
+	if r.windowStats == nil {
+		return &OpenAI7dWindowAccountStats{}, nil
+	}
+	return r.windowStats, nil
 }
 
 func TestComputeLiteLLMStandardCost_UsesLiteLLMOnly(t *testing.T) {
@@ -216,5 +229,92 @@ func TestAttachCurrent_SkipsAPIKey(t *testing.T) {
 	}, usage)
 	if usage.SevenDay.LiteLLMCost != nil {
 		t.Fatal("API key must not get L$")
+	}
+}
+
+func TestListHistory_CurrentThenClosed(t *testing.T) {
+	t.Parallel()
+	closedEnd := time.Now().UTC().Add(-24 * time.Hour)
+	closedStart := closedEnd.Add(-7 * 24 * time.Hour)
+	repo := &stubOpenAI7dCycleRepo{
+		cycles: []OpenAI7dCycle{{
+			AccountID:   8,
+			WindowStart: closedStart,
+			WindowEnd:   closedEnd,
+			LiteLLMCost: 9.25,
+			UsedPercent: 88,
+		}},
+		windowStats: &OpenAI7dWindowAccountStats{
+			Requests:    4,
+			Tokens:      400,
+			AccountCost: 1.5,
+			UserCost:    0.7,
+		},
+	}
+	svc := NewOpenAI7dLiteLLMCycleService(repo, nil)
+	hist := svc.ListHistory(context.Background(), &Account{
+		ID:       8,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"codex_7d_reset_at":     time.Now().UTC().Add(48 * time.Hour).Format(time.RFC3339),
+			"codex_7d_used_percent": 12.4,
+		},
+	})
+	if hist == nil || len(hist.Items) != 2 {
+		t.Fatalf("items = %v", hist)
+	}
+	if !hist.Items[0].Current || hist.Items[1].Current {
+		t.Fatalf("current must be first: %+v", hist.Items)
+	}
+	if hist.Items[1].LiteLLMCost != 9.25 || hist.Items[1].AccountCost != 1.5 {
+		t.Fatalf("closed row = %+v", hist.Items[1])
+	}
+}
+
+func TestListHistory_ExpiredResetStillIncludesCurrent(t *testing.T) {
+	t.Parallel()
+	ended := time.Now().UTC().Add(-48 * time.Hour)
+	repo := &stubOpenAI7dCycleRepo{
+		windowStats: &OpenAI7dWindowAccountStats{
+			Requests:    2,
+			Tokens:      200,
+			AccountCost: 0.4,
+			UserCost:    0.2,
+		},
+	}
+	svc := NewOpenAI7dLiteLLMCycleService(repo, nil)
+	hist := svc.ListHistory(context.Background(), &Account{
+		ID:       9,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"codex_7d_reset_at":     ended.Format(time.RFC3339),
+			"codex_7d_used_percent": 5,
+		},
+	})
+	if hist == nil || len(hist.Items) != 1 {
+		t.Fatalf("items = %v", hist)
+	}
+	if !hist.Items[0].Current || hist.Items[0].AccountCost != 0.4 || hist.Items[0].UsedPercent != 5 {
+		t.Fatalf("expired current = %+v", hist.Items[0])
+	}
+	if hist.Items[0].WindowEnd.UTC().Unix() != ended.Unix() {
+		t.Fatalf("window_end = %s want %s", hist.Items[0].WindowEnd, ended)
+	}
+}
+
+func TestListHistory_SkipsAPIKey(t *testing.T) {
+	t.Parallel()
+	svc := NewOpenAI7dLiteLLMCycleService(&stubOpenAI7dCycleRepo{
+		cycles: []OpenAI7dCycle{{LiteLLMCost: 1}},
+	}, nil)
+	hist := svc.ListHistory(context.Background(), &Account{
+		ID:       1,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+	})
+	if hist == nil || len(hist.Items) != 0 {
+		t.Fatalf("API key must not get history, got %+v", hist)
 	}
 }

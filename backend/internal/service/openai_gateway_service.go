@@ -425,6 +425,7 @@ type OpenAIGatewayService struct {
 	qualityLiveCache                    AccountQualityLiveCache
 	smartScheduleCache                  SmartScheduleLookup
 	accountQuality                      AccountQualityObserver
+	publicSchedule                      *PublicScheduleQualityService
 	openAI7dLiteLLM                     *OpenAI7dLiteLLMCycleService
 }
 
@@ -447,6 +448,17 @@ func (s *OpenAIGatewayService) SetAccountQualityObserver(observer AccountQuality
 		return
 	}
 	s.accountQuality = observer
+}
+
+func (s *OpenAIGatewayService) SetPublicScheduleQuality(runtime *PublicScheduleQualityService) {
+	if s == nil {
+		return
+	}
+	s.publicSchedule = runtime
+}
+
+func (s *OpenAIGatewayService) preferPublicSchedule(ctx context.Context, platform string, accounts []*Account) []*Account {
+	return preferPublicScheduleAccounts(ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, accounts)
 }
 
 func (s *OpenAIGatewayService) SetOpenAI7dLiteLLMCycles(cycles *OpenAI7dLiteLLMCycleService) {
@@ -2151,6 +2163,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 
 	// Hard fallback tier: exclude fallback_only accounts while any primary remains.
 	candidates = preferPrimaryAccounts(candidates)
+	candidates = s.preferPublicSchedule(ctx, eligibility.Platform, candidates)
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}

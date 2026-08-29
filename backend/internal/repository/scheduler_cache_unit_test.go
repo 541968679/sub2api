@@ -23,6 +23,21 @@ func TestBuildSchedulerMetadataAccount_CopiesUpstreamRateMultiplier(t *testing.T
 	require.Equal(t, 0.15, *got.UpstreamRateMultiplier)
 }
 
+func TestFilterSchedulerExtraKeepsPublicSchedulable(t *testing.T) {
+	got := filterSchedulerExtra(map[string]any{
+		"public_schedulable": false,
+		"fallback_only":      true,
+		"unused_large_field": "drop-me",
+	})
+	require.Equal(t, false, got["public_schedulable"])
+	require.Equal(t, true, got["fallback_only"])
+	require.Nil(t, got["unused_large_field"])
+
+	missing := filterSchedulerExtra(map[string]any{"unused_large_field": "drop-me"})
+	_, ok := missing["public_schedulable"]
+	require.False(t, ok)
+}
+
 func TestBuildSchedulerMetadataAccount_KeepsOpenAIWSFlags(t *testing.T) {
 	account := service.Account{
 		ID:       42,

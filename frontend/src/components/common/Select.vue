@@ -461,17 +461,18 @@ onUnmounted(() => {
 <style>
 .select-dropdown-portal {
   @apply w-max min-w-[200px];
-  @apply bg-white dark:bg-dark-800;
+  @apply bg-white dark:bg-dark-600;
   @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply border border-gray-200 dark:border-dark-400;
+  @apply shadow-xl shadow-black/15 dark:shadow-black/50;
+  @apply ring-1 ring-black/5 dark:ring-white/15;
   @apply overflow-hidden;
   pointer-events: auto !important;
 }
 
 .select-dropdown-portal .select-search {
   @apply flex items-center gap-2 px-3 py-2;
-  @apply border-b border-gray-100 dark:border-dark-700;
+  @apply border-b border-gray-100 dark:border-dark-500;
 }
 
 .select-dropdown-portal .select-search-input {
@@ -490,7 +491,7 @@ onUnmounted(() => {
   @apply px-4 py-2.5 text-sm;
   @apply text-gray-700 dark:text-gray-300;
   @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  @apply hover:bg-gray-50 dark:hover:bg-dark-500;
   pointer-events: auto !important;
 }
 
@@ -500,7 +501,7 @@ onUnmounted(() => {
 }
 
 .select-dropdown-portal .select-option-focused {
-  @apply bg-gray-100 dark:bg-dark-700;
+  @apply bg-gray-100 dark:bg-dark-500;
 }
 
 .select-dropdown-portal .select-option-disabled {

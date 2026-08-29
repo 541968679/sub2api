@@ -103,6 +103,7 @@ var ProviderSet = wire.NewSet(
 	NewUserQualitySnapshotRepository,
 	NewOpenAI7dCycleRepository,
 	NewAccountQualityLiveCache,
+	NewPublicScheduleQualityCache,
 	NewAntigravityUsageAggregator,
 	NewChannelMonitorRepository,
 	NewImageChannelMonitorRepository,

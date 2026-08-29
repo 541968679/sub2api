@@ -128,3 +128,74 @@ func (r *openAI7dCycleRepository) GetLatestCycle(ctx context.Context, accountID 
 	}
 	return &cycle, nil
 }
+
+func (r *openAI7dCycleRepository) ListCycles(ctx context.Context, accountID int64, limit int) ([]service.OpenAI7dCycle, error) {
+	if r == nil || r.sql == nil {
+		return nil, errors.New("openai 7d cycle repository is not initialized")
+	}
+	if accountID <= 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 36
+	}
+	const query = `
+		SELECT account_id, window_start, window_end, litellm_cost, used_percent, closed_at
+		FROM openai_oauth_7d_cycles
+		WHERE account_id = $1
+		ORDER BY window_end DESC
+		LIMIT $2
+	`
+	rows, err := r.sql.QueryContext(ctx, query, accountID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []service.OpenAI7dCycle
+	for rows.Next() {
+		var cycle service.OpenAI7dCycle
+		if err := rows.Scan(
+			&cycle.AccountID,
+			&cycle.WindowStart,
+			&cycle.WindowEnd,
+			&cycle.LiteLLMCost,
+			&cycle.UsedPercent,
+			&cycle.ClosedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, cycle)
+	}
+	return out, rows.Err()
+}
+
+func (r *openAI7dCycleRepository) GetWindowAccountStats(ctx context.Context, accountID int64, start, end time.Time) (*service.OpenAI7dWindowAccountStats, error) {
+	if r == nil || r.sql == nil {
+		return nil, errors.New("openai 7d cycle repository is not initialized")
+	}
+	if accountID <= 0 || !end.After(start) {
+		return &service.OpenAI7dWindowAccountStats{}, nil
+	}
+	// Same A$/token/U$ formula as usage_log_repo.GetAccountWindowStats, with an exclusive end.
+	const query = `
+		SELECT
+			COUNT(*) as requests,
+			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
+			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as cost,
+			COALESCE(SUM(actual_cost), 0) as user_cost
+		FROM usage_logs
+		WHERE account_id = $1 AND created_at >= $2 AND created_at < $3
+	`
+	stats := &service.OpenAI7dWindowAccountStats{}
+	err := r.sql.QueryRowContext(ctx, query, accountID, start.UTC(), end.UTC()).Scan(
+		&stats.Requests,
+		&stats.Tokens,
+		&stats.AccountCost,
+		&stats.UserCost,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}

@@ -49,10 +49,12 @@ func ProvideAdminHandlers(
 	smartSchedule *service.UserSmartScheduleService,
 	qualityMaintenance *service.AccountQualityMaintenanceService,
 	settingService *service.SettingService,
+	publicSchedule *service.PublicScheduleQualityService,
 ) *AdminHandlers {
 	accountHandler.SetSmartScheduleService(smartSchedule)
 	userHandler.SetQualityMaintenance(qualityMaintenance)
 	userHandler.SetSettingService(settingService)
+	settingHandler.SetPublicScheduleQualityService(publicSchedule)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,

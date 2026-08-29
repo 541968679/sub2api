@@ -97,7 +97,11 @@ type AdminService interface {
 	// ForceAntigravityPrivacy 强制重新设置 Antigravity OAuth 账号隐私，无论当前状态。
 	ForceAntigravityPrivacy(ctx context.Context, account *Account) string
 	SetAccountSchedulable(ctx context.Context, id int64, schedulable bool) (*Account, error)
+	SetAccountPublicSchedulable(ctx context.Context, id int64, publicSchedulable bool) (*Account, error)
 	BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error)
+	// UnbindSubscriptionGroupsByRate drops subscription groups from accounts whose
+	// billing rate is strictly greater than min_rate. Preview when DryRun is true.
+	UnbindSubscriptionGroupsByRate(ctx context.Context, input *UnbindSubscriptionGroupsByRateInput) (*UnbindSubscriptionGroupsByRateResult, error)
 	CheckMixedChannelRisk(ctx context.Context, currentAccountID int64, currentAccountPlatform string, groupIDs []int64) error
 
 	// Proxy management
@@ -2974,8 +2978,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。
 	if input.Extra != nil {
 		// 保留配额用量字段，防止编辑账号时意外重置。
-		// quality_hard_close 由专用 API 维护，编辑账号大表单不得整表替换掉它。
-		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start", AccountExtraQualityHardClose} {
+		// quality_hard_close / public_schedulable 由专用 API 维护，编辑账号大表单不得整表替换掉它们。
+		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start", AccountExtraQualityHardClose, AccountExtraPublicSchedulable} {
 			if v, ok := account.Extra[key]; ok {
 				input.Extra[key] = v
 			}
@@ -3470,6 +3474,18 @@ func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, 
 		return nil, err
 	}
 	return updated, nil
+}
+
+func (s *adminServiceImpl) SetAccountPublicSchedulable(ctx context.Context, id int64, publicSchedulable bool) (*Account, error) {
+	if _, err := s.accountRepo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
+		AccountExtraPublicSchedulable: publicSchedulable,
+	}); err != nil {
+		return nil, err
+	}
+	return s.accountRepo.GetByID(ctx, id)
 }
 
 // Proxy management implementations

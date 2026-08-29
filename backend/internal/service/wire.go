@@ -211,6 +211,7 @@ func ProvideAccountQualityMaintenanceService(
 	accountRepo AccountRepository,
 	settings *SettingService,
 	liveCache AccountQualityLiveCache,
+	publicSchedule *PublicScheduleQualityService,
 ) *AccountQualityMaintenanceService {
 	svc := NewAccountQualityMaintenanceService(repo, usageLogs, timingWheel)
 	svc.SetLeaderLock(lockCache, db)
@@ -218,8 +219,17 @@ func ProvideAccountQualityMaintenanceService(
 	svc.SetLiveQualityCache(liveCache)
 	svc.SetUserSnapshotRepo(userSnapshots)
 	svc.SetQualitySettings(settings)
+	svc.SetPublicSchedule(publicSchedule)
 	svc.Start()
 	return svc
+}
+
+func ProvidePublicScheduleQualityService(
+	cache PublicScheduleQualityCache,
+	settings *SettingService,
+	accountRepo AccountRepository,
+) *PublicScheduleQualityService {
+	return NewPublicScheduleQualityService(cache, settings, accountRepo)
 }
 
 func ProvideGatewayService(
@@ -253,6 +263,7 @@ func ProvideGatewayService(
 	liveCache AccountQualityLiveCache,
 	smartSchedule SmartScheduleLookup,
 	accountQuality AccountQualityObserver,
+	publicSchedule *PublicScheduleQualityService,
 ) *GatewayService {
 	svc := NewGatewayService(
 		accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -263,6 +274,7 @@ func ProvideGatewayService(
 	svc.SetQualityLiveCache(liveCache)
 	svc.SetSmartScheduleCache(smartSchedule)
 	svc.SetAccountQualityObserver(accountQuality)
+	svc.SetPublicScheduleQuality(publicSchedule)
 	return svc
 }
 
@@ -291,6 +303,7 @@ func ProvideOpenAIGatewayService(
 	liveCache AccountQualityLiveCache,
 	smartSchedule SmartScheduleLookup,
 	accountQuality AccountQualityObserver,
+	publicSchedule *PublicScheduleQualityService,
 ) *OpenAIGatewayService {
 	svc := NewOpenAIGatewayService(
 		accountRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
@@ -301,6 +314,7 @@ func ProvideOpenAIGatewayService(
 	svc.SetQualityLiveCache(liveCache)
 	svc.SetSmartScheduleCache(smartSchedule)
 	svc.SetAccountQualityObserver(accountQuality)
+	svc.SetPublicScheduleQuality(publicSchedule)
 	return svc
 }
 
@@ -316,6 +330,7 @@ func ProvideGeminiMessagesCompatService(
 	cfg *config.Config,
 	liveCache AccountQualityLiveCache,
 	smartSchedule SmartScheduleLookup,
+	publicSchedule *PublicScheduleQualityService,
 ) *GeminiMessagesCompatService {
 	svc := NewGeminiMessagesCompatService(
 		accountRepo, groupRepo, cache, schedulerSnapshot, tokenProvider, rateLimitService,
@@ -323,6 +338,7 @@ func ProvideGeminiMessagesCompatService(
 	)
 	svc.SetQualityLiveCache(liveCache)
 	svc.SetSmartScheduleCache(smartSchedule)
+	svc.SetPublicScheduleQuality(publicSchedule)
 	return svc
 }
 
@@ -755,6 +771,7 @@ var ProviderSet = wire.NewSet(
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideAccountQualityMaintenanceService,
+	ProvidePublicScheduleQualityService,
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
 	ProvideAntigravityQuotaFetcher,

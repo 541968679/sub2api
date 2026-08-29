@@ -299,11 +299,21 @@ func (s *GatewayService) escapeSessionStickyIfCheaperTier(ctx context.Context, g
 	if s == nil || s.cache == nil || sessionHash == "" {
 		return false
 	}
-	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
-		return false
+	if s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
+		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+		return true
 	}
-	_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
-	return true
+	platform := ""
+	if sticky != nil {
+		platform = sticky.Platform
+	}
+	if shouldEscapeSessionStickyForPublicQuality(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, candidates,
+	) {
+		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+		return true
+	}
+	return false
 }
 
 func (s *GatewayService) bindStickySessionAfterSelect(ctx context.Context, groupID *int64, sessionHash string, selected *Account, candidates []*Account, previous *Account) {
@@ -332,11 +342,21 @@ func (s *OpenAIGatewayService) escapeSessionStickyIfCheaperTier(ctx context.Cont
 	if s == nil || sessionHash == "" {
 		return false
 	}
-	if !s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
-		return false
+	if s.shouldEscapeSessionStickyForCheaperTier(ctx, sticky, candidates, overflow) {
+		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+		return true
 	}
-	_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
-	return true
+	platform := ""
+	if sticky != nil {
+		platform = sticky.Platform
+	}
+	if shouldEscapeSessionStickyForPublicQuality(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, candidates,
+	) {
+		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+		return true
+	}
+	return false
 }
 
 func (s *GatewayService) loadStickyEscapeCandidates(ctx context.Context, groupID *int64, platform string, isolated bool, excludedIDs map[int64]struct{}, loaded []Account) []*Account {

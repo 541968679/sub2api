@@ -206,6 +206,10 @@ type Account struct {
 	// When true, the account is only selected after all primary peers are unavailable.
 	FallbackOnly bool `json:"fallback_only"`
 
+	// PublicSchedulable is extracted from extra.public_schedulable.
+	// Missing / non-false means the account stays in the public (unpooled) pool.
+	PublicSchedulable bool `json:"public_schedulable"`
+
 	Schedulable bool `json:"schedulable"`
 
 	RateLimitedAt    *time.Time `json:"rate_limited_at"`

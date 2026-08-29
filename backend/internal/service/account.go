@@ -1095,6 +1095,11 @@ func (a *Account) IsOpenAIClaudeGPTBridgeEnabled() bool {
 	return a != nil && a.IsOpenAI() && a.getExtraBool("openai_claude_gpt_bridge_enabled")
 }
 
+// AccountExtraPublicSchedulable is the accounts.extra key for public-pool (unpooled)
+// scheduling. Missing / non-false means the account stays in the public pool
+// (same as today). Explicit false excludes only users without an EnabledPolicy.
+const AccountExtraPublicSchedulable = "public_schedulable"
+
 // AccountExtraFallbackOnly is the accounts.extra key for hard fallback-only scheduling.
 // When true, the account is selected only if no non-fallback peer remains in the
 // eligible candidate pool. Independent of soft priority weights.
@@ -1104,6 +1109,56 @@ const AccountExtraFallbackOnly = "fallback_only"
 // scheduling candidate. Default (missing key) is false.
 func (a *Account) IsFallbackOnly() bool {
 	return a != nil && a.getExtraBool(AccountExtraFallbackOnly)
+}
+
+// AllowsPublicSchedule reports whether unpooled users may select this account.
+// Nil account is false. Missing extra key is true (fail-open for old snapshots).
+func (a *Account) AllowsPublicSchedule() bool {
+	if a == nil {
+		return false
+	}
+	if a.Extra == nil {
+		return true
+	}
+	v, ok := a.Extra[AccountExtraPublicSchedulable]
+	if !ok || v == nil {
+		return true
+	}
+	switch b := v.(type) {
+	case bool:
+		return b
+	case string:
+		switch strings.TrimSpace(strings.ToLower(b)) {
+		case "0", "false", "no", "off":
+			return false
+		default:
+			return true
+		}
+	case float64:
+		return b != 0
+	case int:
+		return b != 0
+	case int64:
+		return b != 0
+	case json.Number:
+		i, err := b.Int64()
+		return err != nil || i != 0
+	default:
+		return true
+	}
+}
+
+// SetPublicSchedulable writes extra.public_schedulable. UpdateExtra cannot
+// delete keys, so both on and off persist an explicit bool. Missing key on a
+// later snapshot still fail-opens via AllowsPublicSchedule.
+func (a *Account) SetPublicSchedulable(enabled bool) {
+	if a == nil {
+		return
+	}
+	if a.Extra == nil {
+		a.Extra = make(map[string]any, 1)
+	}
+	a.Extra[AccountExtraPublicSchedulable] = enabled
 }
 
 // SetFallbackOnly writes or clears the fallback-only flag on Extra.

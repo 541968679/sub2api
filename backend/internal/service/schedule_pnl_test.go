@@ -85,6 +85,14 @@ func (s *perUserSmartRepo) UpdateSortOrders(context.Context, int64, string, []Sm
 	return nil
 }
 
+func (s *perUserSmartRepo) ListMembershipsByAccount(context.Context, int64, string) ([]SmartScheduleAccountMembership, error) {
+	return nil, nil
+}
+
+func (s *perUserSmartRepo) AddMember(context.Context, int64, int64, string) error { return nil }
+
+func (s *perUserSmartRepo) RemoveMember(context.Context, int64, int64, string) error { return nil }
+
 func (s *perUserSmartRepo) SetMemberPaused(context.Context, int64, int64, string, bool) error {
 	return nil
 }

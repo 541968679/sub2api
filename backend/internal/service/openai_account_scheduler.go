@@ -459,6 +459,13 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "cheaper_tier_available")
 		return nil, true, account, nil
 	}
+	if shouldEscapeSessionStickyForPublicQuality(
+		ctx, s.service.publicSchedule, s.service.smartScheduleCache, userID, req.Platform, account, peers,
+	) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "public_schedule_quality")
+		return nil, true, account, nil
+	}
 
 	result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, account)
 	if pairFull {
@@ -996,6 +1003,14 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	// "only when everyone else is unavailable".
 	candidates = preferPrimaryOpenAICandidates(candidates)
 	staleSnapshotCompactRetry = preferPrimaryOpenAICandidates(staleSnapshotCompactRetry)
+	candidates = preferPublicScheduleOpenAICandidates(
+		ctx, s.service.publicSchedule, s.service.smartScheduleCache,
+		scheduleUserIDFromContext(ctx, 0), req.Platform, candidates,
+	)
+	staleSnapshotCompactRetry = preferPublicScheduleOpenAICandidates(
+		ctx, s.service.publicSchedule, s.service.smartScheduleCache,
+		scheduleUserIDFromContext(ctx, 0), req.Platform, staleSnapshotCompactRetry,
+	)
 
 	candidateCount := len(candidates)
 	loadSkew := 0.0

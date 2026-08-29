@@ -11,8 +11,37 @@
       @submit.prevent="handleSubmit"
       class="space-y-5"
     >
+      <div class="flex flex-wrap gap-2" data-testid="edit-account-tabs">
+        <button
+          type="button"
+          class="rounded-xl border px-4 py-2 text-sm font-medium"
+          :class="
+            activeEditTab === 'edit'
+              ? 'border-primary-300 bg-primary-50 text-primary-800 dark:border-primary-800 dark:bg-primary-950/40 dark:text-primary-100'
+              : 'border-gray-200 bg-white text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200'
+          "
+          data-testid="edit-account-tab-edit"
+          @click="activeEditTab = 'edit'"
+        >
+          {{ t('admin.accounts.editZones.accountEdit') }}
+        </button>
+        <button
+          type="button"
+          class="rounded-xl border px-4 py-2 text-sm font-medium"
+          :class="
+            activeEditTab === 'schedule'
+              ? 'border-primary-300 bg-primary-50 text-primary-800 dark:border-primary-800 dark:bg-primary-950/40 dark:text-primary-100'
+              : 'border-gray-200 bg-white text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200'
+          "
+          data-testid="edit-account-tab-schedule"
+          @click="activeEditTab = 'schedule'"
+        >
+          {{ t('admin.accounts.editZones.accountSchedule') }}
+        </button>
+      </div>
       <div
-        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-2 lg:items-stretch lg:gap-4 xl:grid-cols-4"
+        v-show="activeEditTab === 'edit'"
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-2 lg:items-stretch lg:gap-4 xl:grid-cols-3"
         data-testid="edit-account-layout"
       >
         <!-- Zone 1: Account config -->
@@ -2727,217 +2756,12 @@
           </div>
         </section>
 
-        <!-- Zone 4: User schedule (last; collapsed by default below lg) -->
-        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-account-zone-user-schedule">
-          <button
-            type="button"
-            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600 lg:cursor-default"
-            data-testid="edit-account-zone-user-schedule-toggle"
-            @click="zoneScheduleExpanded = !zoneScheduleExpanded"
-          >
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.accounts.editZones.userSchedule') }}
-            </h3>
-            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 lg:hidden">
-              {{ zoneScheduleExpanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
-              <Icon :name="zoneScheduleExpanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
-            </span>
-          </button>
-          <div
-            class="min-h-0 flex-1 flex-col space-y-4 lg:flex lg:overflow-y-auto lg:pr-1"
-            :class="zoneScheduleExpanded ? 'flex' : 'hidden lg:flex'"
-            data-testid="edit-account-zone-user-schedule-body"
-          >
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.userSchedule.hint') }}
-            </p>
-            <div class="space-y-3" data-testid="edit-account-user-schedule-lists">
-              <div data-testid="edit-account-user-schedule-allow">
-                <label class="input-label">{{ t('admin.accounts.userSchedule.modeAllow') }}</label>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.allowHint') }}</p>
-                <OpenAIFastPolicyUserSelector
-                  v-model="form.allow_user_ids"
-                  :known-users="scheduleKnownUsers"
-                  @select="rememberScheduleUser"
-                />
-              </div>
-              <div data-testid="edit-account-user-schedule-deny">
-                <label class="input-label">{{ t('admin.accounts.userSchedule.modeDeny') }}</label>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.denyHint') }}</p>
-                <OpenAIFastPolicyUserSelector
-                  v-model="form.deny_user_ids"
-                  :known-users="scheduleKnownUsers"
-                  @select="rememberScheduleUser"
-                />
-              </div>
-              <div data-testid="edit-account-user-schedule-caps">
-                <label class="input-label">{{ t('admin.accounts.userSchedule.userConcurrency') }}</label>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.concurrencyHint') }}</p>
-                <div
-                  v-if="scheduleConcurrencyUserIds.length"
-                  class="mb-2 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-dark-600 dark:border-dark-600"
-                >
-                  <label
-                    v-for="userId in scheduleConcurrencyUserIds"
-                    :key="userId"
-                    class="flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-800 dark:text-gray-200"
-                  >
-                    <span class="min-w-0 truncate" :title="scheduleUserLabel(userId)">
-                      {{ scheduleUserLabel(userId) }}
-                    </span>
-                    <input
-                      :value="form.user_concurrency[userId] ?? ''"
-                      type="number"
-                      min="1"
-                      class="input input-sm w-24 shrink-0"
-                      :placeholder="t('admin.accounts.userSchedule.concurrencyPlaceholder')"
-                      :data-testid="`user-schedule-cap-${userId}`"
-                      @input="setUserConcurrency(userId, ($event.target as HTMLInputElement).value)"
-                    />
-                  </label>
-                </div>
-                <p v-else class="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                  {{ t('admin.accounts.userSchedule.concurrencyEmpty') }}
-                </p>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.capOnlyHint') }}</p>
-                <OpenAIFastPolicyUserSelector
-                  v-model="form.cap_only_user_ids"
-                  :known-users="scheduleKnownUsers"
-                  @select="rememberScheduleUser"
-                />
-              </div>
-              <div data-testid="edit-account-user-schedule-quality">
-                <label class="input-label">{{ t('admin.accounts.userSchedule.qualityGate') }}</label>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityGateHint') }}</p>
-                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400" data-testid="user-schedule-quality-template-hint">
-                  {{ t('admin.accounts.userSchedule.qualityTemplateHint') }}
-                </p>
-                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400" data-testid="user-schedule-quality-no-pause-hint">
-                  {{ t('admin.accounts.userSchedule.qualityNoPauseHint') }}
-                </p>
-                <div
-                  v-if="scheduleQualityUserIds.length"
-                  class="mb-2 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-dark-600 dark:border-dark-600"
-                >
-                  <div
-                    v-for="userId in scheduleQualityUserIds"
-                    :key="userId"
-                    class="space-y-2 px-3 py-2 text-sm text-gray-800 dark:text-gray-200"
-                  >
-                    <div class="flex min-w-0 items-center gap-1.5">
-                      <div class="min-w-0 truncate font-medium" :title="scheduleUserLabel(userId)">
-                        {{ scheduleUserLabel(userId) }}
-                      </div>
-                      <AccountUserQualityChip
-                        :user="qualityChipUser(userId)"
-                        :disabled="qualityResumeBusy"
-                        @start-window="startUserQualityWindow(userId)"
-                      />
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                      <label class="space-y-1">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMaxP50') }}</span>
-                        <input
-                          :value="form.user_quality_gates[userId]?.quality_max_p50_ttft_ms ?? ''"
-                          type="number"
-                          min="1"
-                          class="input input-sm w-full"
-                          :data-testid="`user-schedule-quality-p50-${userId}`"
-                          @input="setUserQualityField(userId, 'quality_max_p50_ttft_ms', ($event.target as HTMLInputElement).value)"
-                        />
-                      </label>
-                      <label class="space-y-1">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
-                        <input
-                          :value="form.user_quality_gates[userId]?.quality_min_success_rate_percent ?? ''"
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                          class="input input-sm w-full"
-                          :data-testid="`user-schedule-quality-success-${userId}`"
-                          @input="setUserQualityField(userId, 'quality_min_success_rate_percent', ($event.target as HTMLInputElement).value)"
-                        />
-                      </label>
-                      <label class="space-y-1 col-span-2">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityWindowN') }}</span>
-                        <input
-                          :value="userQualityWindowN(userId)"
-                          type="number"
-                          min="1"
-                          max="100"
-                          class="input input-sm w-full"
-                          :data-testid="`user-schedule-quality-window-n-${userId}`"
-                          @input="setUserQualityWindowN(userId, ($event.target as HTMLInputElement).value)"
-                        />
-                      </label>
-                    </div>
-                    <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                      <span>{{ t('admin.accounts.userSchedule.qualityCondition') }}</span>
-                      <select
-                        :value="form.user_quality_gates[userId]?.quality_condition ?? 'or'"
-                        class="input input-sm w-40"
-                        :data-testid="`user-schedule-quality-condition-${userId}`"
-                        @change="setUserQualityCondition(userId, ($event.target as HTMLSelectElement).value)"
-                      >
-                        <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
-                        <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
-                      </select>
-                    </label>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-xs"
-                        :data-testid="`user-schedule-quality-resume-${userId}`"
-                        :disabled="qualityResumeBusy || !userQualityGateHasValue(form.user_quality_gates[userId] ?? emptyUserQualityGate())"
-                        @click="resumeUserQualityGate(userId)"
-                      >
-                        {{ t('admin.accounts.userSchedule.qualityResume') }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-xs"
-                        :data-testid="`user-schedule-quality-apply-template-${userId}`"
-                        :disabled="qualityTemplateBusy"
-                        @click="applyUserQualityTemplate(userId)"
-                      >
-                        {{ t('admin.accounts.stability.applyTemplate') }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-secondary btn-xs"
-                        :data-testid="`user-schedule-quality-save-template-${userId}`"
-                        :disabled="qualityTemplateBusy"
-                        @click="saveUserQualityTemplate(userId)"
-                      >
-                        {{ t('admin.accounts.stability.saveTemplate') }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <p v-else class="mb-2 text-xs text-gray-400 dark:text-gray-500">
-                  {{ t('admin.accounts.userSchedule.qualityGateEmpty') }}
-                </p>
-                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityGateOnlyHint') }}</p>
-                <OpenAIFastPolicyUserSelector
-                  v-model="form.gate_only_user_ids"
-                  :known-users="scheduleKnownUsers"
-                  @select="rememberScheduleUser"
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              class="self-start text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
-              data-testid="user-schedule-restore-default"
-              :title="t('admin.accounts.userSchedule.restoreDefaultHint')"
-              @click="restoreUserScheduleDefault"
-            >
-              {{ t('admin.accounts.userSchedule.restoreDefault') }}
-            </button>
-          </div>
-        </section>
       </div>
+      <AccountSchedulePanel
+        v-if="activeEditTab === 'schedule' && account"
+        :account="account"
+        @updated="emit('updated', $event)"
+      />
 
     </form>
 
@@ -2999,7 +2823,6 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
-import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
 import type {
   Account,
   Proxy,
@@ -3016,9 +2839,8 @@ import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
-import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolicyUserSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
-import AccountUserQualityChip from '@/components/account/AccountUserQualityChip.vue'
+import AccountSchedulePanel from '@/components/account/AccountSchedulePanel.vue'
 import {
   applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
@@ -3040,15 +2862,6 @@ import {
 import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
-import {
-  ACCOUNT_QUALITY_WINDOW_SECONDS,
-  optionalNumber,
-  percentToSuccessRate,
-  scheduleUserHasQualityGate,
-  successRateToPercent,
-  type ScheduleUserQualityChipInput
-} from '@/utils/accountQualityHardClose'
-import { optionalAccountQualityWindowN, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
@@ -3122,11 +2935,11 @@ interface TempUnschedRuleForm {
 // State
 const submitting = ref(false)
 /** Zone 2 (groups): open by default; collapsible on mobile only */
+const activeEditTab = ref<'edit' | 'schedule'>('edit')
 const zone2Expanded = ref(true)
 /** Zone 3 (other features): expanded by default (create / edit / bulk aligned) */
 const zone3Expanded = ref(true)
 /** Zone 4 (user schedule, last): collapsed by default below lg */
-const zoneScheduleExpanded = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 const editNewAPIWalletUserId = ref('')
@@ -3522,19 +3335,7 @@ const form = reactive({
   upstream_rate_multiplier: 1,
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
-  expires_at: null as number | null,
-  allow_user_ids: [] as number[],
-  deny_user_ids: [] as number[],
-  cap_only_user_ids: [] as number[],
-  user_concurrency: {} as Record<number, number | null>,
-  gate_only_user_ids: [] as number[],
-  user_quality_gates: {} as Record<number, {
-    quality_max_p50_ttft_ms: number | null
-    quality_min_success_rate_percent: number | null
-    quality_min_success_samples: number | null
-    quality_min_ttft_samples: number | null
-    quality_condition: 'or' | 'and'
-  }>
+  expires_at: null as number | null
 })
 
 const statusOptions = computed(() => {
@@ -3555,273 +3356,9 @@ const expiresAtInput = computed({
   }
 })
 
-const scheduleUserDirectory = reactive<Record<number, { id: number; email: string; deleted: boolean }>>({})
-
-const rememberScheduleUser = (user: { id: number; email?: string; deleted?: boolean }) => {
-  if (!user || !Number.isInteger(user.id) || user.id <= 0) return
-  scheduleUserDirectory[user.id] = {
-    id: user.id,
-    email: user.email || scheduleUserDirectory[user.id]?.email || '',
-    deleted: Boolean(user.deleted)
-  }
-}
-
-const scheduleKnownUsers = computed(() => {
-  const byID: Record<number, { id: number; email: string; deleted: boolean }> = {
-    ...scheduleUserDirectory
-  }
-  for (const user of props.account?.schedule_users ?? []) {
-    byID[user.id] = {
-      id: user.id,
-      email: user.email || byID[user.id]?.email || '',
-      deleted: Boolean(user.deleted)
-    }
-  }
-  return Object.values(byID)
-})
-
-const scheduleUserLabel = (userId: number) => {
-  const known = scheduleKnownUsers.value.find((user) => user.id === userId)
-  if (known?.email) return known.email
-  return t('admin.settings.openaiFastPolicy.userIdFallback', { id: userId })
-}
-
-const scheduleConcurrencyUserIds = computed(() => {
-  const ids = [...form.allow_user_ids, ...form.deny_user_ids, ...form.cap_only_user_ids]
-  return [...new Set(ids.filter((id) => id > 0))]
-})
-
-const scheduleQualityUserIds = computed(() => {
-  const ids = [
-    ...form.allow_user_ids,
-    ...form.deny_user_ids,
-    ...form.cap_only_user_ids,
-    ...form.gate_only_user_ids
-  ]
-  return [...new Set(ids.filter((id) => id > 0))]
-})
-
-const emptyUserQualityGate = () => ({
-  quality_max_p50_ttft_ms: null as number | null,
-  quality_min_success_rate_percent: null as number | null,
-  quality_min_success_samples: null as number | null,
-  quality_min_ttft_samples: null as number | null,
-  quality_condition: 'or' as 'or' | 'and'
-})
-
-const ensureUserQualityGate = (userId: number) => {
-  if (!form.user_quality_gates[userId]) {
-    form.user_quality_gates[userId] = emptyUserQualityGate()
-  }
-  return form.user_quality_gates[userId]
-}
-
-const setUserQualityField = (
-  userId: number,
-  field: 'quality_max_p50_ttft_ms' | 'quality_min_success_rate_percent' | 'quality_min_success_samples' | 'quality_min_ttft_samples',
-  raw: string
-) => {
-  const gate = ensureUserQualityGate(userId)
-  gate[field] = optionalNumber(raw)
-}
-
-const userQualityWindowN = (userId: number): number | string => {
-  const gate = form.user_quality_gates[userId]
-  if (gate?.quality_min_success_samples == null && gate?.quality_min_ttft_samples == null) return ''
-  return resolveAccountQualityWindowN(gate)
-}
-
-const setUserQualityWindowN = (userId: number, raw: string) => {
-  const gate = ensureUserQualityGate(userId)
-  const n = optionalAccountQualityWindowN(raw)
-  gate.quality_min_success_samples = n
-  gate.quality_min_ttft_samples = n
-}
-
-const setUserQualityCondition = (userId: number, raw: string) => {
-  const gate = ensureUserQualityGate(userId)
-  gate.quality_condition = raw === 'and' ? 'and' : 'or'
-}
-
-const {
-  templateBusy: qualityTemplateBusy,
-  applyQualityTemplate,
-  saveQualityTemplate
-} = useQualityThresholdTemplate()
-
-const applyUserQualityTemplate = (userId: number) => {
-  void applyQualityTemplate((fields) => {
-    Object.assign(ensureUserQualityGate(userId), fields)
-  })
-}
-
-const saveUserQualityTemplate = (userId: number) => {
-  void saveQualityTemplate(form.user_quality_gates[userId] ?? emptyUserQualityGate())
-}
-
-const qualityResumeBusy = ref(false)
-const qualityRuntimeOverride = ref<Record<number, {
-  quality_blocked: boolean
-  quality_resumed_until: number | null
-  quality_window_until: number | null
-}>>({})
-
 watch(() => props.account?.id, () => {
-  qualityRuntimeOverride.value = {}
+  activeEditTab.value = 'edit'
 })
-
-const qualityChipUser = (userId: number): ScheduleUserQualityChipInput => {
-  const user = props.account?.schedule_users?.find((item) => item.id === userId)
-  const gate = form.user_quality_gates[userId]
-  const override = qualityRuntimeOverride.value[userId]
-  return {
-    quality_max_p50_ttft_ms: gate?.quality_max_p50_ttft_ms ?? user?.quality_max_p50_ttft_ms,
-    quality_min_success_rate: user?.quality_min_success_rate ?? percentToSuccessRate(gate?.quality_min_success_rate_percent),
-    quality_min_success_samples: gate?.quality_min_success_samples ?? user?.quality_min_success_samples,
-    quality_min_ttft_samples: gate?.quality_min_ttft_samples ?? user?.quality_min_ttft_samples,
-    quality_condition: gate?.quality_condition ?? user?.quality_condition,
-    quality_blocked: override?.quality_blocked ?? user?.quality_blocked,
-    quality_resumed_until: override?.quality_resumed_until ?? user?.quality_resumed_until ?? null,
-    quality_window_until: override?.quality_window_until ?? user?.quality_window_until ?? null
-  }
-}
-
-const setQualityRuntimeOverride = (userId: number, startWindow: boolean) => {
-  const nowSec = Math.floor(Date.now() / 1000)
-  qualityRuntimeOverride.value = {
-    ...qualityRuntimeOverride.value,
-    [userId]: {
-      quality_blocked: false,
-      quality_resumed_until: startWindow ? null : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS,
-      quality_window_until: startWindow
-        ? nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
-        : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS * 2
-    }
-  }
-}
-
-const resumeUserQualityGate = async (userId: number) => {
-  if (!props.account?.id || qualityResumeBusy.value) return
-  qualityResumeBusy.value = true
-  try {
-    await adminAPI.accounts.resumeUserQuality(props.account.id, userId)
-    setQualityRuntimeOverride(userId, false)
-    appStore.showSuccess(t('admin.accounts.userSchedule.qualityResumeSuccess'))
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : ''
-    appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))
-  } finally {
-    qualityResumeBusy.value = false
-  }
-}
-
-const startUserQualityWindow = async (userId: number) => {
-  if (!props.account?.id || qualityResumeBusy.value) return
-  qualityResumeBusy.value = true
-  try {
-    await adminAPI.accounts.resumeUserQuality(props.account.id, userId, true)
-    setQualityRuntimeOverride(userId, true)
-    appStore.showSuccess(t('admin.accounts.userSchedule.qualityWindowStartSuccess'))
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : ''
-    appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))
-  } finally {
-    qualityResumeBusy.value = false
-  }
-}
-
-const userQualityGateHasValue = (gate: {
-  quality_max_p50_ttft_ms: number | null
-  quality_min_success_rate_percent: number | null
-  quality_min_success_samples: number | null
-  quality_min_ttft_samples: number | null
-}) =>
-  gate.quality_max_p50_ttft_ms != null ||
-  gate.quality_min_success_rate_percent != null
-
-const setUserConcurrency = (userId: number, raw: string) => {
-  const parsed = Number(raw)
-  if (!raw.trim() || !Number.isFinite(parsed) || parsed < 1) {
-    form.user_concurrency[userId] = null
-    return
-  }
-  form.user_concurrency[userId] = Math.trunc(parsed)
-}
-
-const restoreUserScheduleDefault = () => {
-  form.allow_user_ids = []
-  form.deny_user_ids = []
-  form.cap_only_user_ids = []
-  form.user_concurrency = {}
-  form.gate_only_user_ids = []
-  form.user_quality_gates = {}
-}
-
-const hydrateUserScheduleForm = (account: {
-  user_schedule_mode?: string
-  schedule_users?: Array<{
-    id: number
-    email?: string
-    deleted?: boolean
-    allow?: boolean
-    deny?: boolean
-    max_concurrency?: number | null
-    quality_max_p50_ttft_ms?: number | null
-    quality_min_success_rate?: number | null
-    quality_min_success_samples?: number | null
-    quality_min_ttft_samples?: number | null
-    quality_condition?: 'or' | 'and' | null
-  }>
-}) => {
-  const users = account.schedule_users ?? []
-  for (const user of users) {
-    rememberScheduleUser(user)
-  }
-  const hasFlags = users.some((user) => user.allow || user.deny || (user.max_concurrency ?? 0) >= 1 || scheduleUserHasQualityGate(user))
-  if (hasFlags) {
-    form.allow_user_ids = users.filter((user) => user.allow).map((user) => user.id)
-    form.deny_user_ids = users.filter((user) => user.deny).map((user) => user.id)
-    form.cap_only_user_ids = users
-      .filter((user) => !user.allow && !user.deny && (user.max_concurrency ?? 0) >= 1)
-      .map((user) => user.id)
-    form.gate_only_user_ids = users
-      .filter((user) => !user.allow && !user.deny && (user.max_concurrency ?? 0) < 1 && scheduleUserHasQualityGate(user))
-      .map((user) => user.id)
-  } else if (account.user_schedule_mode === 'allow') {
-    form.allow_user_ids = users.map((user) => user.id)
-    form.deny_user_ids = []
-    form.cap_only_user_ids = []
-    form.gate_only_user_ids = []
-  } else if (account.user_schedule_mode === 'deny') {
-    form.allow_user_ids = []
-    form.deny_user_ids = users.map((user) => user.id)
-    form.cap_only_user_ids = []
-    form.gate_only_user_ids = []
-  } else {
-    form.allow_user_ids = []
-    form.deny_user_ids = []
-    form.cap_only_user_ids = []
-    form.gate_only_user_ids = []
-  }
-  const nextCaps: Record<number, number | null> = {}
-  const nextGates: typeof form.user_quality_gates = {}
-  for (const user of users) {
-    if ((user.max_concurrency ?? 0) >= 1) {
-      nextCaps[user.id] = user.max_concurrency as number
-    }
-    if (scheduleUserHasQualityGate(user)) {
-      nextGates[user.id] = {
-        quality_max_p50_ttft_ms: user.quality_max_p50_ttft_ms ?? null,
-        quality_min_success_rate_percent: successRateToPercent(user.quality_min_success_rate),
-        quality_min_success_samples: user.quality_min_success_samples ?? null,
-        quality_min_ttft_samples: user.quality_min_ttft_samples ?? null,
-        quality_condition: user.quality_condition === 'and' ? 'and' : 'or'
-      }
-    }
-  }
-  form.user_concurrency = nextCaps
-  form.user_quality_gates = nextGates
-}
 
 // Watchers
 const normalizePoolModeRetryCount = (value: number) => {
@@ -3916,7 +3453,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     ...(newAccount.group_ids ?? newAccount.groups?.map((group) => group.id) ?? [])
   ]
   form.expires_at = newAccount.expires_at ?? null
-  hydrateUserScheduleForm(newAccount)
 
   // Load intercept warmup requests setting (applies to all account types)
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
@@ -4888,28 +4424,11 @@ const handleSubmit = async () => {
     delete updatePayload.cap_only_user_ids
     delete updatePayload.gate_only_user_ids
     delete updatePayload.user_quality_gates
-    updatePayload.allow_user_ids = [...form.allow_user_ids]
-    updatePayload.deny_user_ids = [...form.deny_user_ids]
-    updatePayload.user_concurrencies = scheduleConcurrencyUserIds.value
-      .map((userId) => ({
-        user_id: userId,
-        max_concurrency: form.user_concurrency[userId]
-      }))
-      .filter((entry) => typeof entry.max_concurrency === 'number' && entry.max_concurrency >= 1)
-    updatePayload.user_quality_gates = scheduleQualityUserIds.value
-      .map((userId) => {
-        const gate = form.user_quality_gates[userId] ?? emptyUserQualityGate()
-        if (!userQualityGateHasValue(gate)) return null
-        return {
-          user_id: userId,
-          quality_max_p50_ttft_ms: gate.quality_max_p50_ttft_ms,
-          quality_min_success_rate: percentToSuccessRate(gate.quality_min_success_rate_percent),
-          quality_min_success_samples: gate.quality_min_success_samples,
-          quality_min_ttft_samples: gate.quality_min_ttft_samples,
-          quality_condition: gate.quality_condition
-        }
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry != null)
+    delete updatePayload.allow_user_ids
+    delete updatePayload.deny_user_ids
+    delete updatePayload.user_concurrencies
+    delete updatePayload.user_quality_gate_patch
+    delete updatePayload.user_concurrency_patch
 
     // For apikey type, handle credentials update
     if (props.account.type === 'apikey') {
@@ -5493,6 +5012,12 @@ const handleSubmit = async () => {
         delete newExtra.model_mapping_strict_scheduling
       }
       updatePayload.extra = newExtra
+    }
+
+    const extra = updatePayload.extra
+    if (extra && typeof extra === 'object') {
+      delete (extra as Record<string, unknown>).public_schedulable
+      delete (extra as Record<string, unknown>).quality_hard_close
     }
 
     const canContinue = await ensureAntigravityMixedChannelConfirmed(async () => {

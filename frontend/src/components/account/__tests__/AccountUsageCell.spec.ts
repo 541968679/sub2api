@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import AccountUsageCell from '../AccountUsageCell.vue'
 import type { Account } from '@/types'
 
-const { getUsage, setDisplayBalance, showSuccess, showError } = vi.hoisted(() => ({
+const { getUsage, getOpenAI7dCycleHistory, setDisplayBalance, showSuccess, showError } = vi.hoisted(() => ({
   getUsage: vi.fn(),
+  getOpenAI7dCycleHistory: vi.fn(),
   setDisplayBalance: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn()
@@ -14,6 +15,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       getUsage,
+      getOpenAI7dCycleHistory,
       setDisplayBalance
     }
   }
@@ -24,6 +26,14 @@ vi.mock('@/stores/app', () => ({
     showSuccess,
     showError
   })
+}))
+
+vi.mock('../OpenAI7dCycleDialog.vue', () => ({
+  default: {
+    name: 'OpenAI7dCycleDialog',
+    props: ['show', 'account'],
+    template: '<div v-if="show" data-test="openai-7d-cycle-dialog">cycle-dialog</div>'
+  }
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -287,6 +297,57 @@ describe('AccountUsageCell', () => {
 
     expect(wrapper.text()).toContain('7d|A0.03|L4.5')
     expect(wrapper.text()).toContain('usage.previousLiteLLMCycle')
+  })
+
+  it('OpenAI OAuth 点击上期 L$ 打开周期弹窗', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: null,
+      seven_day: {
+        utilization: 77,
+        resets_at: '2099-03-13T12:00:00Z',
+        remaining_seconds: 3600,
+        window_stats: {
+          requests: 3,
+          tokens: 300,
+          cost: 0.03,
+          standard_cost: 0.03,
+          user_cost: 0.03
+        },
+        litellm_cost: 4.5,
+        previous_cycle: {
+          litellm_cost: 9.25,
+          used_percent: 88.4,
+          window_start: '2026-08-14T00:00:00Z',
+          window_end: '2026-08-21T00:00:00Z'
+        }
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2011,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {
+            codex_7d_reset_at: '2099-03-13T12:00:00Z'
+          }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          OpenAIQuotaResetCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+    expect(wrapper.find('[data-test="openai-7d-cycle-dialog"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="openai-7d-previous-cycle"]').trigger('click')
+    expect(wrapper.get('[data-test="openai-7d-cycle-dialog"]').exists()).toBe(true)
   })
 
   it('OpenAI OAuth 有 codex 快照时仍然使用 /usage API 数据渲染', async () => {

@@ -38,6 +38,9 @@ type stubAdminService struct {
 	lastUpdateAccountID                 int64
 	lastUpdateAccountInput              *service.UpdateAccountInput
 	lastBulkUpdateInput                 *service.BulkUpdateAccountsInput
+	lastUnbindSubscriptionInput         *service.UnbindSubscriptionGroupsByRateInput
+	unbindSubscriptionResult            *service.UnbindSubscriptionGroupsByRateResult
+	unbindSubscriptionErr               error
 	checkMixedErr                       error
 	lastMixedCheck                      struct {
 		accountID int64
@@ -482,12 +485,33 @@ func (s *stubAdminService) SetAccountSchedulable(ctx context.Context, id int64, 
 	return &account, nil
 }
 
+func (s *stubAdminService) SetAccountPublicSchedulable(ctx context.Context, id int64, publicSchedulable bool) (*service.Account, error) {
+	account := service.Account{
+		ID:     id,
+		Name:   "account",
+		Status: service.StatusActive,
+		Extra:  map[string]any{service.AccountExtraPublicSchedulable: publicSchedulable},
+	}
+	return &account, nil
+}
+
 func (s *stubAdminService) BulkUpdateAccounts(ctx context.Context, input *service.BulkUpdateAccountsInput) (*service.BulkUpdateAccountsResult, error) {
 	s.lastBulkUpdateInput = input
 	if s.bulkUpdateAccountErr != nil {
 		return nil, s.bulkUpdateAccountErr
 	}
 	return &service.BulkUpdateAccountsResult{Success: len(input.AccountIDs), Failed: 0, SuccessIDs: input.AccountIDs}, nil
+}
+
+func (s *stubAdminService) UnbindSubscriptionGroupsByRate(ctx context.Context, input *service.UnbindSubscriptionGroupsByRateInput) (*service.UnbindSubscriptionGroupsByRateResult, error) {
+	s.lastUnbindSubscriptionInput = input
+	if s.unbindSubscriptionErr != nil {
+		return nil, s.unbindSubscriptionErr
+	}
+	if s.unbindSubscriptionResult != nil {
+		return s.unbindSubscriptionResult, nil
+	}
+	return &service.UnbindSubscriptionGroupsByRateResult{Accounts: []service.UnbindSubscriptionGroupsByRateAccount{}}, nil
 }
 
 func (s *stubAdminService) CheckMixedChannelRisk(ctx context.Context, currentAccountID int64, currentAccountPlatform string, groupIDs []int64) error {

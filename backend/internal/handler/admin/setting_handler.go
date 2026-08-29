@@ -80,6 +80,7 @@ type SettingHandler struct {
 	opsService           *service.OpsService
 	paymentConfigService *service.PaymentConfigService
 	paymentService       *service.PaymentService
+	publicSchedule       *service.PublicScheduleQualityService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -92,6 +93,13 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 		paymentConfigService: paymentConfigService,
 		paymentService:       paymentService,
 	}
+}
+
+func (h *SettingHandler) SetPublicScheduleQualityService(svc *service.PublicScheduleQualityService) {
+	if h == nil {
+		return
+	}
+	h.publicSchedule = svc
 }
 
 // GetSettings 获取所有系统设置
@@ -3204,6 +3212,47 @@ func (h *SettingHandler) UpdateQualityHardCloseSettings(c *gin.Context) {
 		return
 	}
 	response.Success(c, qualityHardCloseSettingsDTO(updatedSettings))
+}
+
+func publicScheduleQualitySettingsDTO(settings *service.PublicScheduleQualitySettings) service.PublicScheduleQualitySettings {
+	if settings == nil {
+		settings = service.DefaultPublicScheduleQualitySettings()
+	}
+	return *settings
+}
+
+// GetPublicScheduleQualitySettings 获取公共调度质量全局配置
+// GET /api/v1/admin/settings/public-schedule-quality
+func (h *SettingHandler) GetPublicScheduleQualitySettings(c *gin.Context) {
+	settings, err := h.settingService.GetPublicScheduleQualitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, publicScheduleQualitySettingsDTO(settings))
+}
+
+// UpdatePublicScheduleQualitySettings 更新公共调度质量全局配置
+// PUT /api/v1/admin/settings/public-schedule-quality
+func (h *SettingHandler) UpdatePublicScheduleQualitySettings(c *gin.Context) {
+	var settings service.PublicScheduleQualitySettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetPublicScheduleQualitySettings(c.Request.Context(), &settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if h.publicSchedule != nil {
+		h.publicSchedule.InvalidateSiteSettings()
+	}
+	updated, err := h.settingService.GetPublicScheduleQualitySettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, publicScheduleQualitySettingsDTO(updated))
 }
 
 // GetScheduleErrorWhitelist 获取调度错误白名单（预置族）

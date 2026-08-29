@@ -235,6 +235,9 @@ func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQual
 	lookupPlatform := smartScheduleLookupPlatformFromCtx(ctx, account, lookup)
 	policy := lookupEnabledSmartPolicy(ctx, lookup, userID, lookupPlatform)
 	if policy == nil {
+		if !account.AllowsPublicSchedule() {
+			return false
+		}
 		return account.AdmitsScheduleUser(userID, loadLiveQualityForAdmission(ctx, cache, account, false))
 	}
 	if !policy.HasAccount(account.ID) {

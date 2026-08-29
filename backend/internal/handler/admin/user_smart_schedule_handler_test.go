@@ -191,6 +191,67 @@ func TestResumeSmartSchedule_Paused(t *testing.T) {
 	}
 }
 
+func TestListSmartScheduleMemberships_ReturnsMembers(t *testing.T) {
+	repo := &serviceSmartRepoStub{bundle: &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:    true,
+			AccountIDs: map[int64]struct{}{7: {}},
+		},
+	}}}
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(repo, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodGet, "", []gin.Param{{Key: "id", Value: "7"}})
+	c.Request.URL.RawQuery = "platform=anthropic"
+	h.ListSmartScheduleMemberships(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"user_id":16`) {
+		t.Fatalf("expected membership user, got %s", w.Body.String())
+	}
+}
+
+func TestAddSmartScheduleMember_RequiresUserID(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"platform":"anthropic"}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.AddSmartScheduleMember(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetSmartScheduleAdmissionBatch_InvalidState(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"platform":"anthropic","state":"nope"}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.SetSmartScheduleAdmissionBatch(c)
+	if w.Code == http.StatusOK {
+		t.Fatalf("expected invalid state, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "SMART_SCHEDULE_ADMISSION_INVALID") {
+		t.Fatalf("expected admission invalid reason, got %s", w.Body.String())
+	}
+}
+
+func TestSetPublicSchedulable_UpdatesAccount(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService()}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"public_schedulable":false}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.SetPublicSchedulable(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"public_schedulable":false`) {
+		t.Fatalf("expected public_schedulable false, got %s", w.Body.String())
+	}
+}
+
+func TestSetPublicSchedulable_RequiresField(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService()}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.SetPublicSchedulable(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestResumeSmartSchedule_InvalidState(t *testing.T) {
 	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
 	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"user_id":16,"state":"nope"}`, []gin.Param{{Key: "id", Value: "7"}})
@@ -228,6 +289,67 @@ func (s *serviceSmartRepoStub) ReplacePlatform(_ context.Context, _ int64, _ str
 }
 
 func (s *serviceSmartRepoStub) UpdateSortOrders(_ context.Context, _ int64, _ string, _ []service.SmartScheduleSortAssignment) error {
+	return nil
+}
+
+func (s *serviceSmartRepoStub) ListMembershipsByAccount(_ context.Context, _ int64, platform string) ([]service.SmartScheduleAccountMembership, error) {
+	out := []service.SmartScheduleAccountMembership{}
+	if s == nil || s.bundle == nil || s.bundle.Policies == nil {
+		return out, nil
+	}
+	for plat, policy := range s.bundle.Policies {
+		if policy == nil {
+			continue
+		}
+		if platform != "" && plat != platform {
+			continue
+		}
+		for accountID := range policy.AccountIDs {
+			out = append(out, service.SmartScheduleAccountMembership{
+				UserID:   16,
+				Platform: plat,
+				Enabled:  policy.Enabled,
+				Paused:   policy.IsPaused(accountID),
+			})
+		}
+	}
+	return out, nil
+}
+
+func (s *serviceSmartRepoStub) AddMember(_ context.Context, _ int64, accountID int64, platform string) error {
+	if s == nil {
+		return nil
+	}
+	if s.bundle == nil {
+		s.bundle = &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}
+	}
+	if s.bundle.Policies == nil {
+		s.bundle.Policies = map[string]*service.SmartSchedulePlatformPolicy{}
+	}
+	policy := s.bundle.Policies[platform]
+	if policy == nil {
+		policy = &service.SmartSchedulePlatformPolicy{AccountIDs: map[int64]struct{}{}}
+		s.bundle.Policies[platform] = policy
+	}
+	if policy.AccountIDs == nil {
+		policy.AccountIDs = map[int64]struct{}{}
+	}
+	policy.AccountIDs[accountID] = struct{}{}
+	return nil
+}
+
+func (s *serviceSmartRepoStub) RemoveMember(_ context.Context, _ int64, accountID int64, platform string) error {
+	if s == nil || s.bundle == nil || s.bundle.Policies == nil {
+		return nil
+	}
+	policy := s.bundle.Policies[platform]
+	if policy == nil || policy.AccountIDs == nil {
+		return nil
+	}
+	delete(policy.AccountIDs, accountID)
+	if len(policy.AccountIDs) == 0 {
+		policy.Enabled = false
+	}
 	return nil
 }
 

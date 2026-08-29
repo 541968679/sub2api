@@ -4,9 +4,9 @@
       <template #filters>
         <!--
           Same horizontal band as the left ops area, two columns:
-          left = filters + action buttons; right = fleet card (fills empty right space).
+          left = filters + action buttons; right = public-quality card (same height).
         -->
-        <div class="flex flex-col items-stretch gap-4 xl:flex-row xl:items-start xl:gap-6">
+        <div class="flex flex-col items-stretch gap-4 xl:flex-row xl:items-stretch xl:gap-6">
           <!-- Left column: original toolbar (filters + actions) -->
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap-reverse items-start justify-between gap-3">
@@ -196,13 +196,11 @@
             </div>
           </div>
 
-          <!-- Right column: fleet card only (same row as left ops, separate column) -->
-          <div
-            v-if="(openaiFleetUsage && openaiFleetUsage.included_count > 0) || totalAICredits > 0"
-            class="flex w-full shrink-0 flex-col gap-2 xl:w-[22rem]"
-          >
+          <!-- Right column: same vertical band as the left ops area (OAI Pro pool card hidden for now) -->
+          <div class="flex w-full shrink-0 flex-col self-stretch xl:w-[22rem]">
+            <PublicScheduleQualityGlobalCard class="min-h-0 flex-1" />
             <div
-              v-if="openaiFleetUsage && openaiFleetUsage.included_count > 0"
+              v-if="false && openaiFleetUsage && openaiFleetUsage.included_count > 0"
               class="flex w-full flex-col gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3.5 shadow-sm dark:border-sky-700/40 dark:bg-sky-900/20"
               :title="t('admin.accounts.oauthFleetUsage.tooltip')"
             >
@@ -326,6 +324,7 @@
           @select-filtered="selectAllFilteredAccounts"
           @toggle-schedulable="handleBulkToggleSchedulable"
           @auto-assign-proxy="handleBulkAutoAssignProxy"
+          @unbind-subscription-by-rate="openUnbindSubscription"
         />
         <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
@@ -728,6 +727,11 @@
       @close="showBulkEdit = false"
       @updated="handleBulkUpdated"
     />
+    <UnbindSubscriptionGroupsDialog
+      :show="showUnbindSubscription"
+      @close="showUnbindSubscription = false"
+      @applied="handleUnbindSubscriptionApplied"
+    />
     <AccountStabilityDialog :show="showStability" :account="stabilityAcc" @close="showStability = false" @recovered="handleStabilityRecovered" />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
@@ -829,7 +833,7 @@ import {
 import { moveAccountInPageList } from './accountListOrder'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
+import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, UnbindSubscriptionGroupsDialog, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
@@ -847,6 +851,7 @@ import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountStabilityDialog from '@/components/account/AccountStabilityDialog.vue'
+import PublicScheduleQualityGlobalCard from '@/components/account/PublicScheduleQualityGlobalCard.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountUserScheduleCell from '@/components/account/AccountUserScheduleCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
@@ -943,6 +948,7 @@ const markExportedAfterExport = ref(false)
 const exportAccountLimit = ref<string | number>('')
 const deletingExported = ref(false)
 const showBulkEdit = ref(false)
+const showUnbindSubscription = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const selectingAllFiltered = ref(false)
 const showTempUnsched = ref(false)
@@ -1836,6 +1842,7 @@ const isAnyModalOpen = computed(() => {
     showImportData.value ||
     showExportDataDialog.value ||
     showBulkEdit.value ||
+    showUnbindSubscription.value ||
     showTempUnsched.value ||
     showStability.value ||
     showDeleteDialog.value ||
@@ -2528,6 +2535,12 @@ const handleBulkUpdated = () => {
   showBulkEdit.value = false
   bulkEditTarget.value = null
   clearSelection()
+  reload()
+}
+const openUnbindSubscription = () => {
+  showUnbindSubscription.value = true
+}
+const handleUnbindSubscriptionApplied = () => {
   reload()
 }
 const handleDataImported = () => { showImportData.value = false; reload() }

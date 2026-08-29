@@ -381,6 +381,10 @@ const (
 	// quality hard-close (temp unschedulable). Default is fully off.
 	SettingKeyQualityHardCloseSettings = "quality_hard_close_settings"
 
+	// SettingKeyPublicScheduleQualitySettings stores the site-wide public
+	// schedule quality plane (unpooled users). Default Enabled=false.
+	SettingKeyPublicScheduleQualitySettings = "public_schedule_quality_settings"
+
 	// SettingKeyScheduleErrorWhitelist stores JSON of preset schedule-error
 	// families. true = in whitelist = exclude from pair cooldown / last-N /
 	// account 15m schedule ErrorCount. Missing / {} / families:{} / all-false

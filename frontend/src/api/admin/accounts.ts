@@ -273,6 +273,27 @@ export async function getUsage(
   return data
 }
 
+export interface OpenAI7dCycleHistoryItem {
+  current: boolean
+  window_start: string
+  window_end: string
+  litellm_cost: number
+  account_cost: number
+  user_cost: number
+  used_percent: number
+  requests: number
+  tokens: number
+}
+
+export interface OpenAI7dCycleHistory {
+  items: OpenAI7dCycleHistoryItem[]
+}
+
+export async function getOpenAI7dCycleHistory(id: number): Promise<OpenAI7dCycleHistory> {
+  const { data } = await apiClient.get<OpenAI7dCycleHistory>(`/admin/accounts/${id}/openai-7d-cycles`)
+  return data
+}
+
 /**
  * Filter-independent OpenAI OAuth pro/prolite fleet 5h/7d usage.
  * Display: used_x / capacity with bar fill_x_percent = used/capacity*100.
@@ -483,6 +504,57 @@ export async function bulkUpdate(
   return data
 }
 
+export type UnbindSubscriptionGroupRef = {
+  id: number
+  name: string
+}
+
+export type UnbindSubscriptionGroupsAction =
+  | 'preview'
+  | 'skip_no_subscription'
+  | 'skip_empty'
+  | 'applied'
+  | 'failed'
+
+export type UnbindSubscriptionGroupsAccount = {
+  id: number
+  name: string
+  platform: string
+  rate: number
+  action: UnbindSubscriptionGroupsAction
+  remove_groups: UnbindSubscriptionGroupRef[]
+  keep_groups: UnbindSubscriptionGroupRef[]
+  would_be_empty: boolean
+  error?: string
+}
+
+export type UnbindSubscriptionGroupsByRateRequest = {
+  min_rate_multiplier: number
+  platform?: string
+  dry_run: boolean
+  allow_empty_groups?: boolean
+}
+
+export type UnbindSubscriptionGroupsByRateResult = {
+  matched: number
+  would_apply: number
+  skipped_no_subscription: number
+  skipped_would_be_empty: number
+  applied: number
+  failed: number
+  accounts: UnbindSubscriptionGroupsAccount[]
+}
+
+export async function unbindSubscriptionGroupsByRate(
+  payload: UnbindSubscriptionGroupsByRateRequest
+): Promise<UnbindSubscriptionGroupsByRateResult> {
+  const { data } = await apiClient.post<UnbindSubscriptionGroupsByRateResult>(
+    '/admin/accounts/unbind-subscription-groups-by-rate',
+    payload
+  )
+  return data
+}
+
 /**
  * Get account today statistics
  * @param id - Account ID
@@ -642,6 +714,75 @@ export async function updateQualityHardClose(
   return data
 }
 
+export type PublicScheduleQualityState =
+  | 'selectable'
+  | 'cooling'
+  | 'probing'
+  | 'paused'
+  | 'pinned'
+  | 'resumed'
+
+export interface PublicScheduleQualityOverlay {
+  enabled: boolean
+  ttft_window_n?: number | null
+  success_window_n?: number | null
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_max_p50_duration_ms?: number | null
+  quality_max_slow_in_window?: number | null
+  quality_max_consecutive_slow?: number | null
+  quality_sched_window_n?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
+  cooldown_minutes?: number | null
+  soft_cooldown?: boolean | null
+}
+
+export interface PublicScheduleQualityResolved extends PublicScheduleQualityOverlay {
+  ttft_window_n: number
+  success_window_n: number
+  cooldown_minutes: number
+  soft_cooldown: boolean
+}
+
+export interface PublicScheduleQualityView {
+  overlay: PublicScheduleQualityOverlay
+  resolved: PublicScheduleQualityResolved
+  state: PublicScheduleQualityState
+  until?: string | null
+  reason?: string
+  will_cool: boolean
+}
+
+export async function getPublicScheduleQuality(id: number): Promise<PublicScheduleQualityView> {
+  const { data } = await apiClient.get<PublicScheduleQualityView>(
+    `/admin/accounts/${id}/public-schedule-quality`
+  )
+  return data
+}
+
+export async function updatePublicScheduleQuality(
+  id: number,
+  overlay: PublicScheduleQualityOverlay
+): Promise<PublicScheduleQualityView> {
+  const { data } = await apiClient.put<PublicScheduleQualityView>(
+    `/admin/accounts/${id}/public-schedule-quality`,
+    overlay
+  )
+  return data
+}
+
+export async function setPublicScheduleQualityState(
+  id: number,
+  state: PublicScheduleQualityState
+): Promise<PublicScheduleQualityView> {
+  const { data } = await apiClient.post<PublicScheduleQualityView>(
+    `/admin/accounts/${id}/public-schedule-quality/state`,
+    { state }
+  )
+  return data
+}
+
 export type SmartScheduleAdmissionState =
   | 'paused'
   | 'cooling'
@@ -661,6 +802,74 @@ export interface SmartScheduleAdmissionResult {
   probing_cap?: number | null
   in_flight_cap?: number | null
   pair_probe_cap?: number | null
+}
+
+export interface SmartScheduleAccountMembership {
+  user_id: number
+  email: string
+  deleted: boolean
+  platform: string
+  enabled: boolean
+  paused: boolean
+  pinned?: boolean
+  probing?: boolean
+  cooldown_until?: string | null
+  resume_chip_until?: string | null
+  resume_watch_until?: string | null
+  current_concurrency?: number
+}
+
+export async function listSmartScheduleMemberships(
+  accountId: number,
+  platform?: string
+): Promise<SmartScheduleAccountMembership[]> {
+  const { data } = await apiClient.get<{ members: SmartScheduleAccountMembership[] }>(
+    `/admin/accounts/${accountId}/smart-schedule-memberships`,
+    { params: platform ? { platform } : undefined }
+  )
+  return data?.members ?? []
+}
+
+export async function addSmartScheduleMember(
+  accountId: number,
+  userId: number,
+  platform: string
+): Promise<void> {
+  await apiClient.post(`/admin/accounts/${accountId}/smart-schedule-members`, {
+    user_id: userId,
+    platform
+  })
+}
+
+export async function removeSmartScheduleMember(
+  accountId: number,
+  userId: number,
+  platform: string
+): Promise<void> {
+  await apiClient.delete(`/admin/accounts/${accountId}/smart-schedule-members`, {
+    data: { user_id: userId, platform }
+  })
+}
+
+export async function setSmartScheduleAdmissionBatch(
+  accountId: number,
+  payload: { platform: string; user_ids?: number[]; state: SmartScheduleAdmissionState }
+): Promise<SmartScheduleAdmissionResult[]> {
+  const { data } = await apiClient.post<{ results: SmartScheduleAdmissionResult[] }>(
+    `/admin/accounts/${accountId}/smart-schedule-admission-batch`,
+    payload
+  )
+  return data?.results ?? []
+}
+
+export async function setPublicSchedulable(
+  id: number,
+  publicSchedulable: boolean
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/public-schedulable`, {
+    public_schedulable: publicSchedulable
+  })
+  return data
 }
 
 /** Switch one user×account pair among paused / cooling / probing / resumed / selectable / pinned. Omitted state is resumed (豁免期), never pinned or probing. */
@@ -1216,14 +1425,23 @@ export const accountsAPI = {
   getStats,
   clearError,
   getUsage,
+  getOpenAI7dCycleHistory,
   getOpenAIOauthFleetUsage,
   getTodayStats,
   getBatchTodayStats,
   getBatchQualityStats,
   resumeSmartSchedule,
+  listSmartScheduleMemberships,
+  addSmartScheduleMember,
+  removeSmartScheduleMember,
+  setSmartScheduleAdmissionBatch,
+  setPublicSchedulable,
   getQualityHistory,
   getQualityHardClose,
   updateQualityHardClose,
+  getPublicScheduleQuality,
+  updatePublicScheduleQuality,
+  setPublicScheduleQualityState,
   resumeUserQuality,
   clearRateLimit,
   recoverState,
@@ -1244,6 +1462,7 @@ export const accountsAPI = {
   batchCreate,
   batchUpdateCredentials,
   bulkUpdate,
+  unbindSubscriptionGroupsByRate,
   previewFromCrs,
   syncFromCrs,
   exportData,

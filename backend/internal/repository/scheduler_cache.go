@@ -612,6 +612,8 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_claude_gpt_bridge_enabled",
 		// Hard last-resort tier for load-balance; must survive slim scheduler snapshots.
 		"fallback_only",
+		// Public-pool (unpooled) gate. Missing key must stay fail-open (in pool).
+		"public_schedulable",
 		// Per-account strict model_mapping allowlist for scheduling.
 		// Without this, IsModelSupported always sees legacy fallback from snapshots.
 		"model_mapping_strict_scheduling",

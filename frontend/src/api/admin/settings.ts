@@ -1208,6 +1208,39 @@ export async function updateQualityHardCloseSettings(
   return data;
 }
 
+export interface PublicScheduleQualitySettings {
+  enabled: boolean;
+  ttft_window_n: number;
+  success_window_n: number;
+  quality_max_p50_ttft_ms?: number | null;
+  quality_min_success_rate?: number | null;
+  quality_max_p50_duration_ms?: number | null;
+  quality_max_slow_in_window?: number | null;
+  quality_max_consecutive_slow?: number | null;
+  quality_sched_window_n?: number | null;
+  quality_sched_max_slow_in_window?: number | null;
+  quality_sched_max_consecutive_slow?: number | null;
+  cooldown_minutes: number;
+  soft_cooldown: boolean;
+}
+
+export async function getPublicScheduleQualitySettings(): Promise<PublicScheduleQualitySettings> {
+  const { data } = await apiClient.get<PublicScheduleQualitySettings>(
+    "/admin/settings/public-schedule-quality",
+  );
+  return data;
+}
+
+export async function updatePublicScheduleQualitySettings(
+  settings: PublicScheduleQualitySettings,
+): Promise<PublicScheduleQualitySettings> {
+  const { data } = await apiClient.put<PublicScheduleQualitySettings>(
+    "/admin/settings/public-schedule-quality",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Schedule Error Whitelist ====================
 
 export const SCHEDULE_ERROR_WHITELIST_FAMILY_IDS = [
@@ -1529,6 +1562,8 @@ export const settingsAPI = {
   updateOAuthFleetSoft429Settings,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
+  getPublicScheduleQualitySettings,
+  updatePublicScheduleQualitySettings,
   getScheduleErrorWhitelist,
   updateScheduleErrorWhitelist,
   getStreamTimeoutSettings,

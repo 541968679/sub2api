@@ -257,6 +257,7 @@
               max="100"
               step="0.1"
               class="input w-full"
+              data-test="stability-min-success-rate"
               :placeholder="resolvedPercentPlaceholder(resolved?.min_success_rate)"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">

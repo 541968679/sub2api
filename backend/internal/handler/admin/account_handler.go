@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -205,6 +206,14 @@ type BulkUpdateAccountFilters struct {
 	Group       string `json:"group"`
 	Search      string `json:"search"`
 	PrivacyMode string `json:"privacy_mode"`
+}
+
+// UnbindSubscriptionGroupsByRateRequest is POST /admin/accounts/unbind-subscription-groups-by-rate.
+type UnbindSubscriptionGroupsByRateRequest struct {
+	MinRateMultiplier *float64 `json:"min_rate_multiplier"`
+	Platform          string   `json:"platform"`
+	DryRun            *bool    `json:"dry_run"`
+	AllowEmptyGroups  bool     `json:"allow_empty_groups"`
 }
 
 // CheckMixedChannelRequest represents check mixed channel risk request
@@ -2129,6 +2138,42 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// UnbindSubscriptionGroupsByRate previews or applies dropping subscription groups
+// from accounts whose billing rate is strictly greater than the threshold.
+// POST /api/v1/admin/accounts/unbind-subscription-groups-by-rate
+func (h *AccountHandler) UnbindSubscriptionGroupsByRate(c *gin.Context) {
+	var req UnbindSubscriptionGroupsByRateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.MinRateMultiplier == nil {
+		response.BadRequest(c, "min_rate_multiplier is required")
+		return
+	}
+	if math.IsNaN(*req.MinRateMultiplier) || math.IsInf(*req.MinRateMultiplier, 0) {
+		response.BadRequest(c, "min_rate_multiplier must be a finite number")
+		return
+	}
+
+	dryRun := true
+	if req.DryRun != nil {
+		dryRun = *req.DryRun
+	}
+
+	result, err := h.adminService.UnbindSubscriptionGroupsByRate(c.Request.Context(), &service.UnbindSubscriptionGroupsByRateInput{
+		MinRateMultiplier: *req.MinRateMultiplier,
+		Platform:          req.Platform,
+		DryRun:            dryRun,
+		AllowEmptyGroups:  req.AllowEmptyGroups,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *service.BulkUpdateAccountFilters {
 	if filters == nil {
 		return nil
@@ -2311,6 +2356,32 @@ func (h *AccountHandler) GetUsage(c *gin.Context) {
 	}
 
 	response.Success(c, usage)
+}
+
+// GetOpenAI7dCycleHistory returns current plus closed Codex 7d L$/window A$ rows.
+// GET /api/v1/admin/accounts/:id/openai-7d-cycles
+func (h *AccountHandler) GetOpenAI7dCycleHistory(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.accountUsageService == nil {
+		response.ErrorFrom(c, fmt.Errorf("account usage service not configured"))
+		return
+	}
+	history, err := h.accountUsageService.ListOpenAI7dCycleHistory(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if history == nil {
+		history = &service.OpenAI7dCycleHistory{Items: []service.OpenAI7dCycleHistoryItem{}}
+	}
+	if history.Items == nil {
+		history.Items = []service.OpenAI7dCycleHistoryItem{}
+	}
+	response.Success(c, history)
 }
 
 // GetOpenAIOauthFleetUsage returns filter-independent pro/prolite OAuth fleet
@@ -2812,6 +2883,39 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 				"concurrency_cleared", cleaned.ConcurrencyCleared,
 			)
 		}
+	}
+
+	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+// SetPublicSchedulableRequest represents the request body for the public-pool switch.
+type SetPublicSchedulableRequest struct {
+	PublicSchedulable *bool `json:"public_schedulable"`
+}
+
+// SetPublicSchedulable handles toggling whether unpooled users may select this account.
+// POST /api/v1/admin/accounts/:id/public-schedulable
+func (h *AccountHandler) SetPublicSchedulable(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	var req SetPublicSchedulableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.PublicSchedulable == nil {
+		response.BadRequest(c, "public_schedulable is required")
+		return
+	}
+
+	account, err := h.adminService.SetAccountPublicSchedulable(c.Request.Context(), accountID, *req.PublicSchedulable)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
 
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))

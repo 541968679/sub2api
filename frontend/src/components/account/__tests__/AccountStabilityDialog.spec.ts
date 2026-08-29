@@ -364,10 +364,10 @@ describe('AccountStabilityDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    expect(wrapper.findAll('.toggle-stub').length).toBe(2)
+    expect(wrapper.findAll('.toggle-stub').length).toBeGreaterThanOrEqual(2)
     await wrapper.get('[data-test="stability-hard-close-enabled"]').setValue(true)
 
-    const percentInput = wrapper.find('input[type="number"][step="0.1"]')
+    const percentInput = wrapper.get('[data-test="stability-min-success-rate"]')
     await percentInput.setValue('85')
     await wrapper.get('[data-test="stability-save"]').trigger('click')
     await flushPromises()

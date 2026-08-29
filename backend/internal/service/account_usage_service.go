@@ -154,9 +154,9 @@ type WindowStats struct {
 
 // UsageProgress 使用量进度
 type UsageProgress struct {
-	Utilization      float64      `json:"utilization"`            // 使用率百分比 (0-100+，100表示100%)
-	ResetsAt         *time.Time   `json:"resets_at"`              // 重置时间
-	RemainingSeconds int          `json:"remaining_seconds"`      // 距重置剩余秒数
+	Utilization      float64                `json:"utilization"`            // 使用率百分比 (0-100+，100表示100%)
+	ResetsAt         *time.Time             `json:"resets_at"`              // 重置时间
+	RemainingSeconds int                    `json:"remaining_seconds"`      // 距重置剩余秒数
 	WindowStats      *WindowStats           `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
 	UsedRequests     int64                  `json:"used_requests,omitempty"`
 	LimitRequests    int64                  `json:"limit_requests,omitempty"`
@@ -363,6 +363,21 @@ func (s *AccountUsageService) SetGrokQuotaService(quota *GrokQuotaService) {
 
 func (s *AccountUsageService) SetOpenAI7dLiteLLMCycles(cycles *OpenAI7dLiteLLMCycleService) {
 	s.openAI7dLiteLLM = cycles
+}
+
+func (s *AccountUsageService) ListOpenAI7dCycleHistory(ctx context.Context, accountID int64) (*OpenAI7dCycleHistory, error) {
+	empty := &OpenAI7dCycleHistory{Items: []OpenAI7dCycleHistoryItem{}}
+	if s == nil || s.accountRepo == nil || accountID <= 0 {
+		return empty, nil
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if s.openAI7dLiteLLM == nil {
+		return empty, nil
+	}
+	return s.openAI7dLiteLLM.ListHistory(ctx, account), nil
 }
 
 // GetUsage 获取账号使用量

@@ -615,6 +615,7 @@ type GatewayService struct {
 	qualityLiveCache      AccountQualityLiveCache
 	smartScheduleCache    SmartScheduleLookup
 	accountQuality        AccountQualityObserver
+	publicSchedule        *PublicScheduleQualityService
 }
 
 func (s *GatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -636,6 +637,17 @@ func (s *GatewayService) SetAccountQualityObserver(observer AccountQualityObserv
 		return
 	}
 	s.accountQuality = observer
+}
+
+func (s *GatewayService) SetPublicScheduleQuality(runtime *PublicScheduleQualityService) {
+	if s == nil {
+		return
+	}
+	s.publicSchedule = runtime
+}
+
+func (s *GatewayService) preferPublicSchedule(ctx context.Context, platform string, accounts []*Account) []*Account {
+	return preferPublicScheduleAccounts(ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, accounts)
 }
 
 func (s *GatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
@@ -1738,6 +1750,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 			routingCandidates = append(routingCandidates, account)
 		}
+		routingCandidates = s.preferPublicSchedule(ctx, platform, routingCandidates)
 
 		if s.debugModelRoutingEnabled() {
 			logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed candidates: group_id=%v model=%s routed=%d candidates=%d filtered(excluded=%d missing=%d unsched=%d platform=%d model_scope=%d model_mapping=%d window_cost=%d)",
@@ -2147,6 +2160,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 	// Hard fallback tier: exclude fallback_only accounts while any primary remains.
 	candidates = preferPrimaryAccounts(candidates)
+	candidates = s.preferPublicSchedule(ctx, platform, candidates)
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}
