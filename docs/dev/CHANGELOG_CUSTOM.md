@@ -1,3 +1,20 @@
+## 2026-08-29 - fix: recover stale encrypted Codex compaction on invalid_encrypted_content
+
+### What
+- After upstream 400 `invalid_encrypted_content`, drop `type=compaction` / `compaction_summary` items that carry `encrypted_content`, then retry once on the current account. Unencrypted compaction and `context_compaction` stay; reasoning still only strips the ciphertext field.
+
+### Why
+Official Codex replays account-bound `cmp_*` after a schedule switch. Recovery used to look only for reasoning items and skip (`encrypted reasoning items are missing`), then forwarded the same ciphertext again. Overlay of Wei-Shaw `fe2172586`; no `cmp_*` sticky pin.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestTrimOpenAIEncryptedReasoningItems|TestOpenAIGatewayService_Forward_HTTPIngressRetriesInvalidEncryptedContent|TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContent"`
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/openai_gateway_encrypted_reasoning_test.go`
+`backend/internal/service/openai_ws_protocol_forward_test.go`
+`docs/dev/codebase/gateway.md`
+
 ## 2026-08-29 - docs: record production deploy of v0.1.271
 
 ### What

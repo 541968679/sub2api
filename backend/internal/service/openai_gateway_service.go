@@ -7073,6 +7073,9 @@ func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {
 	}
 }
 
+// sanitizeEncryptedReasoningInputItem cleans one input item after invalid_encrypted_content.
+// Encrypted compaction / compaction_summary items are dropped whole (Wei-Shaw fe2172586 overlay).
+// reasoning still only strips encrypted_content. context_compaction is unchanged.
 func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep bool) {
 	inputItem, ok := item.(map[string]any)
 	if !ok {
@@ -7080,20 +7083,26 @@ func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep
 	}
 
 	itemType, _ := inputItem["type"].(string)
-	if strings.TrimSpace(itemType) != "reasoning" {
+	switch strings.TrimSpace(itemType) {
+	case "compaction", "compaction_summary":
+		if _, encrypted := inputItem["encrypted_content"]; encrypted {
+			return nil, true, false
+		}
+		return item, false, true
+	case "reasoning":
+		_, hasEncryptedContent := inputItem["encrypted_content"]
+		if !hasEncryptedContent {
+			return item, false, true
+		}
+
+		delete(inputItem, "encrypted_content")
+		if len(inputItem) == 1 {
+			return nil, true, false
+		}
+		return inputItem, true, true
+	default:
 		return item, false, true
 	}
-
-	_, hasEncryptedContent := inputItem["encrypted_content"]
-	if !hasEncryptedContent {
-		return item, false, true
-	}
-
-	delete(inputItem, "encrypted_content")
-	if len(inputItem) == 1 {
-		return nil, true, false
-	}
-	return inputItem, true, true
 }
 
 func IsOpenAIResponsesCompactPathForTest(c *gin.Context) bool {
