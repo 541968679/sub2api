@@ -1,3 +1,11 @@
+## 2026-08-29 - docs: record production deploy of v0.1.272
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.272` (`9f550e0b4`, digest `sha256:c8e3e7550d98bae2ca43e1fc9ceb868b70f08b07cbf643d5617bbe332a1688d4`). Preflight passed, `/health` ok, healthy.
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-08-29 - release: 0.1.272 public-quality card + Codex compaction
 
 ### What
