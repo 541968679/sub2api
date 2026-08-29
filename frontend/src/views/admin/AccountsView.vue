@@ -199,8 +199,9 @@
           <!-- Right column: same vertical band as the left ops area (OAI Pro pool card hidden for now) -->
           <div class="flex w-full shrink-0 flex-col self-stretch xl:w-[22rem]">
             <PublicScheduleQualityGlobalCard class="min-h-0 flex-1" />
+            <template v-if="false">
             <div
-              v-if="false && openaiFleetUsage && openaiFleetUsage.included_count > 0"
+              v-if="(openaiFleetUsage?.included_count ?? 0) > 0"
               class="flex w-full flex-col gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3.5 shadow-sm dark:border-sky-700/40 dark:bg-sky-900/20"
               :title="t('admin.accounts.oauthFleetUsage.tooltip')"
             >
@@ -222,18 +223,18 @@
                   <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                     <div
                       class="h-full rounded-full transition-all duration-300"
-                      :class="fleetBarClass(openaiFleetUsage.fill_5h_percent)"
-                      :style="{ width: fleetBarWidth(openaiFleetUsage.fill_5h_percent) }"
+                      :class="fleetBarClass(openaiFleetUsage?.fill_5h_percent ?? 0)"
+                      :style="{ width: fleetBarWidth(openaiFleetUsage?.fill_5h_percent ?? 0) }"
                     />
                   </div>
                   <span
                     class="w-[5.5rem] shrink-0 text-right text-sm font-semibold tabular-nums"
-                    :class="fleetTextClass(openaiFleetUsage.fill_5h_percent)"
+                    :class="fleetTextClass(openaiFleetUsage?.fill_5h_percent ?? 0)"
                   >
                     {{
                       t('admin.accounts.oauthFleetUsage.fraction', {
-                        used: formatFleetUnits(openaiFleetUsage.used_5h),
-                        capacity: formatFleetUnits(openaiFleetUsage.capacity)
+                        used: formatFleetUnits(openaiFleetUsage?.used_5h ?? 0),
+                        capacity: formatFleetUnits(openaiFleetUsage?.capacity ?? 0)
                       })
                     }}
                   </span>
@@ -245,18 +246,18 @@
                   <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                     <div
                       class="h-full rounded-full transition-all duration-300"
-                      :class="fleetBarClass(openaiFleetUsage.fill_7d_percent)"
-                      :style="{ width: fleetBarWidth(openaiFleetUsage.fill_7d_percent) }"
+                      :class="fleetBarClass(openaiFleetUsage?.fill_7d_percent ?? 0)"
+                      :style="{ width: fleetBarWidth(openaiFleetUsage?.fill_7d_percent ?? 0) }"
                     />
                   </div>
                   <span
                     class="w-[5.5rem] shrink-0 text-right text-sm font-semibold tabular-nums"
-                    :class="fleetTextClass(openaiFleetUsage.fill_7d_percent)"
+                    :class="fleetTextClass(openaiFleetUsage?.fill_7d_percent ?? 0)"
                   >
                     {{
                       t('admin.accounts.oauthFleetUsage.fraction', {
-                        used: formatFleetUnits(openaiFleetUsage.used_7d),
-                        capacity: formatFleetUnits(openaiFleetUsage.capacity)
+                        used: formatFleetUnits(openaiFleetUsage?.used_7d ?? 0),
+                        capacity: formatFleetUnits(openaiFleetUsage?.capacity ?? 0)
                       })
                     }}
                   </span>
@@ -269,7 +270,7 @@
                 {{ fleetBurnLine }}
               </div>
               <div
-                v-else-if="openaiFleetUsage.burn_insufficient"
+                v-else-if="openaiFleetUsage?.burn_insufficient"
                 class="text-[11px] text-sky-600/80 dark:text-sky-400/80"
               >
                 {{ t('admin.accounts.oauthFleetUsage.burnInsufficient') }}
@@ -277,14 +278,15 @@
               <span class="text-xs leading-snug text-sky-700/90 dark:text-sky-300/90">
                 {{
                   t('admin.accounts.oauthFleetUsage.detail', {
-                    pro: openaiFleetUsage.pro_count,
-                    prolite: openaiFleetUsage.prolite_count,
-                    missing5h: openaiFleetUsage.missing_5h,
-                    missing7d: openaiFleetUsage.missing_7d
+                    pro: openaiFleetUsage?.pro_count ?? 0,
+                    prolite: openaiFleetUsage?.prolite_count ?? 0,
+                    missing5h: openaiFleetUsage?.missing_5h ?? 0,
+                    missing7d: openaiFleetUsage?.missing_7d ?? 0
                   })
                 }}
               </span>
             </div>
+            </template>
             <span
               v-if="totalAICredits > 0"
               class="inline-flex items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"

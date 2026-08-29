@@ -1,3 +1,22 @@
+## 2026-08-29 - release: 0.1.271 public-schedule quality
+
+### What
+- Ship the public-schedule quality batch as a new GHCR tag. `v0.1.270` exists but GHCR was never published (`vue-tsc`: hidden OAI Pro fleet card still typed `openaiFleetUsage` as possibly null).
+
+### Why
+Production still runs `v0.1.269`. Need a published tag before `update.sh` can pull this batch.
+
+## 2026-08-29 - fix: vue-tsc null-safety on hidden OAI Pro fleet card
+
+### What
+- Keep the OAI Pro pool card hidden (`v-if="false"`) and use optional chaining so `vue-tsc` does not fail on `openaiFleetUsage` being null.
+
+### Why
+`v0.1.270` Release stopped at `build-frontend`. The card is still deferred; only the typecheck had to pass.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`
+
 ## 2026-08-29 - release: 0.1.270 public-schedule quality
 
 ### What
