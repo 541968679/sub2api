@@ -1,3 +1,12 @@
+## 2026-08-29 - release: 0.1.270 public-schedule quality
+
+### What
+- Ship public-schedule quality (site card, six-state column, K/C on the quality cell, 7d LiteLLM cycle dialog, unbind-by-rate) as a new GHCR tag for production pull.
+- Default `Enabled=false`: selection is a no-op until an admin turns the site card on. Shadow Redis ingest still runs while off; turning it on can immediately cool accounts whose existing window already fails K=3/C=2.
+
+### Why
+Production still runs `v0.1.269`. Need a new tag before `update.sh` can pull this batch.
+
 ## 2026-08-29 - fix: public-quality ship blockers (Gemini sticky + extra preserve + legacy prefer)
 
 ### What
