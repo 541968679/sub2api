@@ -5,6 +5,8 @@
 
 ## Spark Shadow Routing
 
+> 策略真源见 [scheduler.md](./scheduler.md)。本节保留网关面契约，不替代手册。
+
 An OpenAI Spark shadow is selected and accounted as its own scheduling record,
 but `resolveCredentialAccount` dereferences `parent_account_id` before reading
 tokens or building ChatGPT/FedRAMP headers. HTTP and WebSocket paths keep the

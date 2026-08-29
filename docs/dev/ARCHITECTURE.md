@@ -429,6 +429,7 @@ export default keysAPI
 | 模块 | 文档 | 简述 |
 |------|------|------|
 | 代码地图索引 | [codebase/README.md](codebase/README.md) | 所有模块索引 |
+| 智能调度 | [codebase/scheduler.md](codebase/scheduler.md) | 选号热路径、准入、粘性、snapshot；策略真源 |
 | 账号管理 | [codebase/account.md](codebase/account.md) | 账号 CRUD、多 provider OAuth、AI Credits、批量导入 |
 | 计费系统 | [codebase/billing.md](codebase/billing.md) | 四级定价链、费用计算、费率乘数、缓存命中计费 |
 | 模型映射 | [codebase/model-mapping.md](codebase/model-mapping.md) | 模型白名单 / 映射、默认映射、网关解析、通配符 |

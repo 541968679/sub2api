@@ -36,8 +36,8 @@ These guides help you **ask the right questions before coding**.
 - [ ] Multiple consumers need the same data
 - [ ] You're not sure where to put some logic
 - [ ] You are adding an event kind, JSONL record, RPC payload, or config field
-- [ ] You are adding a scheduler admission or concurrency rule (every select path + snapshot meta + live quality cache if gated; smart-schedule user cache + pair cooldown HASH if user×platform gated)
-- [ ] You are changing smart-schedule pool membership, lookup platform, or Redis keys (AG vs openai must stay isolated; see account-user-schedule)
+- [ ] You are adding a scheduler admission or concurrency rule — 先读 scheduler.md，细则见 account-user-schedule（every select path + snapshot meta + live quality cache if gated; smart-schedule user cache + pair cooldown HASH if user×platform gated）
+- [ ] You are changing smart-schedule pool membership, lookup platform, or Redis keys — 先读 scheduler.md，细则见 account-user-schedule（AG vs openai must stay isolated）
 - [ ] UI / command code starts casting raw payload fields directly
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)

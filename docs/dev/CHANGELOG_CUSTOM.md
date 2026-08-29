@@ -1,3 +1,27 @@
+## 2026-08-29 - docs: intelligent-scheduling handbook
+
+### What
+- Add `docs/dev/codebase/scheduler.md` as the selection-strategy source of truth.
+- Add Trellis pointer `.trellis/spec/backend/scheduler-handbook.md` and index links in codebase README, ARCHITECTURE §7, backend/guides specs, plus a gateway-section cross-link.
+
+### Why
+Selection rules were split across `account.md`, `gateway.md`, and several Trellis specs. Later sessions need one handbook before changing account selection.
+
+### Verification
+- Index links resolve to `scheduler.md` / `scheduler-handbook.md`.
+- Diff is docs/spec only; no scheduler runtime files.
+
+### Affected files
+`docs/dev/codebase/scheduler.md`
+`.trellis/spec/backend/scheduler-handbook.md`
+`.trellis/spec/backend/index.md`
+`.trellis/spec/guides/index.md`
+`docs/dev/codebase/README.md`
+`docs/dev/ARCHITECTURE.md`
+`docs/dev/codebase/gateway.md`
+`docs/dev/codebase/account.md`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
 ## 2026-08-28 - feat: OpenAI OAuth LiteLLM 7d cycle cost
 
 ### What
