@@ -3,8 +3,9 @@
     <TablePageLayout>
       <template #filters>
         <!--
-          Same horizontal band as the left ops area, two columns:
-          left = filters + action buttons; right = public-quality card (same height).
+          Left = filters + action buttons. Right = public-quality card with the
+          same EvalQuality groups as the smart-schedule pool. Heights stay
+          locked together; extra knobs go sideways, not taller.
         -->
         <div class="flex flex-col items-stretch gap-4 xl:flex-row xl:items-stretch xl:gap-6">
           <!-- Left column: original toolbar (filters + actions) -->
@@ -196,8 +197,8 @@
             </div>
           </div>
 
-          <!-- Right column: same vertical band as the left ops area (OAI Pro pool card hidden for now) -->
-          <div class="flex w-full shrink-0 flex-col self-stretch xl:w-[22rem]">
+          <!-- Right column: public-quality editor (OAI Pro pool card hidden for now) -->
+          <div class="flex w-full shrink-0 flex-col self-stretch xl:w-[min(48rem,46%)]">
             <PublicScheduleQualityGlobalCard class="min-h-0 flex-1" />
             <template v-if="false">
             <div

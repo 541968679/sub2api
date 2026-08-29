@@ -15,6 +15,28 @@ Official Codex replays account-bound `cmp_*` after a schedule switch. Recovery u
 `backend/internal/service/openai_ws_protocol_forward_test.go`
 `docs/dev/codebase/gateway.md`
 
+## 2026-08-29 - fix: public-quality card shows the same EvalQuality knobs as smart schedule
+
+### What
+- Accounts-page public-quality card now has the smart-schedule groups: threshold (p50 TTFT / duration / success), probe (N首字 / N成功率 / K / C), selectable (sched N / K / C), and cooldown hard/soft.
+- Height stays locked to the left ops band. Layout is 1+2: one top bar (threshold + cooldown minutes + hard/soft) and two cards below (probe | selectable). Still no probe concurrency cap and no probe-precheck v2.
+
+### Why
+The compacted 6-field card hid knobs the runtime already uses (especially sched K/C default 3/2 and duration), so ops could not see or edit the same contract as the smart-schedule pool. Unlocking height would drop the table below the toolbar.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/PublicScheduleQualityGlobalCard.spec.ts src/views/admin/__tests__/AccountsView.publicQuality.spec.ts`
+- `pnpm --dir frontend run typecheck`
+- Browser `/admin/accounts`: card and left ops height-matched; 1+2 layout (threshold+cooldown top bar, probe|sched below); save PUT posts full knob set; OAI Pro card still hidden
+
+### Affected files
+`frontend/src/components/account/PublicScheduleQualityGlobalCard.vue`
+`frontend/src/components/account/__tests__/PublicScheduleQualityGlobalCard.spec.ts`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-29 - docs: record production deploy of v0.1.271
 
 ### What

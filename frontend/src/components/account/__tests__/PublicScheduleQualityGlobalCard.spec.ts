@@ -50,10 +50,16 @@ const ToggleStub = defineComponent({
     '<button type="button" :data-on="modelValue" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
 })
 
+const HelpTooltipStub = defineComponent({
+  name: 'HelpTooltip',
+  props: { content: { type: String, default: '' } },
+  template: '<span />'
+})
+
 function mountCard() {
   return mount(PublicScheduleQualityGlobalCard, {
     global: {
-      stubs: { Toggle: ToggleStub }
+      stubs: { Toggle: ToggleStub, HelpTooltip: HelpTooltipStub }
     }
   })
 }
@@ -70,6 +76,12 @@ describe('PublicScheduleQualityGlobalCard', () => {
       success_window_n: 10,
       quality_max_p50_ttft_ms: 3000,
       quality_min_success_rate: 0.9,
+      quality_max_p50_duration_ms: 80000,
+      quality_max_slow_in_window: 2,
+      quality_max_consecutive_slow: 2,
+      quality_sched_window_n: 10,
+      quality_sched_max_slow_in_window: 3,
+      quality_sched_max_consecutive_slow: 2,
       cooldown_minutes: 15,
       soft_cooldown: false
     })
@@ -79,22 +91,42 @@ describe('PublicScheduleQualityGlobalCard', () => {
       success_window_n: 8,
       quality_max_p50_ttft_ms: 2500,
       quality_min_success_rate: 0.85,
+      quality_max_p50_duration_ms: 60000,
+      quality_max_slow_in_window: 4,
+      quality_max_consecutive_slow: 3,
+      quality_sched_window_n: 12,
+      quality_sched_max_slow_in_window: 5,
+      quality_sched_max_consecutive_slow: 2,
       cooldown_minutes: 20,
       soft_cooldown: true
     })
   })
 
-  it('loads site settings into the global card', async () => {
+  it('loads the same EvalQuality groups as the smart-schedule pool', async () => {
     const wrapper = mountCard()
     await flushPromises()
 
     expect(getPublicScheduleQualitySettings).toHaveBeenCalledTimes(1)
-    expect(wrapper.get('[data-test="public-schedule-quality-global"]').classes()).toContain('h-full')
+    expect(wrapper.get('[data-test="public-quality-knob-strip"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="public-quality-top-bar"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="public-quality-threshold-group"]').text()).toContain(
+      'admin.users.smartSchedule.thresholdMsGroup'
+    )
+    expect(wrapper.get('[data-test="public-quality-probe-group"]').text()).toContain(
+      'admin.users.smartSchedule.probePhaseGroup'
+    )
+    expect(wrapper.get('[data-test="public-quality-sched-group"]').text()).toContain(
+      'admin.users.smartSchedule.schedPhaseGroup'
+    )
     expect(wrapper.get('[data-test="public-quality-ttft-n"]').element).toHaveProperty('value', '10')
     expect(wrapper.get('[data-test="public-quality-success-rate"]').element).toHaveProperty('value', '90')
+    expect(wrapper.get('[data-test="public-quality-p50-duration"]').element).toHaveProperty('value', '80000')
+    expect(wrapper.get('[data-test="public-quality-probe-k"]').element).toHaveProperty('value', '2')
+    expect(wrapper.get('[data-test="public-quality-sched-k"]').element).toHaveProperty('value', '3')
+    expect(wrapper.get('[data-test="public-quality-sched-c"]').element).toHaveProperty('value', '2')
   })
 
-  it('saves the global enable switch and knobs', async () => {
+  it('saves threshold, probe, sched, and cooldown knobs', async () => {
     const wrapper = mountCard()
     await flushPromises()
 
@@ -102,7 +134,13 @@ describe('PublicScheduleQualityGlobalCard', () => {
     await wrapper.get('[data-test="public-quality-ttft-n"]').setValue('8')
     await wrapper.get('[data-test="public-quality-success-n"]').setValue('8')
     await wrapper.get('[data-test="public-quality-p50"]').setValue('2500')
+    await wrapper.get('[data-test="public-quality-p50-duration"]').setValue('60000')
     await wrapper.get('[data-test="public-quality-success-rate"]').setValue('85')
+    await wrapper.get('[data-test="public-quality-probe-k"]').setValue('4')
+    await wrapper.get('[data-test="public-quality-probe-c"]').setValue('3')
+    await wrapper.get('[data-test="public-quality-sched-n"]').setValue('12')
+    await wrapper.get('[data-test="public-quality-sched-k"]').setValue('5')
+    await wrapper.get('[data-test="public-quality-sched-c"]').setValue('2')
     await wrapper.get('[data-test="public-quality-cooldown"]').setValue('20')
     await wrapper.get('[data-test="public-quality-soft"]').trigger('click')
     await wrapper.get('[data-test="public-quality-save"]').trigger('click')
@@ -114,6 +152,12 @@ describe('PublicScheduleQualityGlobalCard', () => {
       success_window_n: 8,
       quality_max_p50_ttft_ms: 2500,
       quality_min_success_rate: 0.85,
+      quality_max_p50_duration_ms: 60000,
+      quality_max_slow_in_window: 4,
+      quality_max_consecutive_slow: 3,
+      quality_sched_window_n: 12,
+      quality_sched_max_slow_in_window: 5,
+      quality_sched_max_consecutive_slow: 2,
       cooldown_minutes: 20,
       soft_cooldown: true
     })
