@@ -4155,7 +4155,9 @@ const zhBase = {
         availabilityAsc: '不可用优先',
         nameAsc: '名称 A-Z',
         lastUsedDesc: '最近使用',
-        priorityAsc: '低优先级在前'
+        priorityAsc: '低优先级在前',
+        upstreamRateAsc: '上游倍率低到高',
+        upstreamRateDesc: '上游倍率高到低'
       },
       // Schedulable toggle
       schedulable: '参与调度',

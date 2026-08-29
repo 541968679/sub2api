@@ -1,3 +1,25 @@
+## 2026-08-29 - fix: account list sorts by upstream rate from the column header
+
+### What
+- Clicking the account-list **上游倍率** header now shows sort arrows and toggles asc/desc.
+- The list API treats `sort_by=upstream_rate_multiplier` as the primary order; `extra.list_order` pins are only a tie-break so pinned rows no longer hide the column sort.
+- The filter sort dropdown also includes upstream rate low-to-high / high-to-low.
+
+### Why
+The column was marked sortable, but a custom header slot hid the DataTable arrows, and pin-first `list_order` kept the visible order unchanged after a click.
+
+### Verification
+- `go test -tags=unit ./internal/repository -count=1 -run TestAccountListColumnIsPrimary`
+- `pnpm --dir frontend exec vitest run src/components/common/__tests__/DataTable.spec.ts src/components/admin/account/__tests__/AccountTableFilters.spec.ts src/views/admin/__tests__/AccountsView.upstreamRateSort.spec.ts`
+
+### Affected files
+`frontend/src/components/common/DataTable.vue`
+`frontend/src/components/admin/account/AccountTableFilters.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`backend/internal/repository/account_repo.go`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-29 - docs: record production deploy of v0.1.272
 
 ### What

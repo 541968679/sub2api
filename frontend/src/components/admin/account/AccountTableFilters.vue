@@ -136,5 +136,7 @@ const sortOpts = computed(() => [
   { value: 'name:asc', label: t('admin.accounts.sort.nameAsc') },
   { value: 'last_used_at:desc', label: t('admin.accounts.sort.lastUsedDesc') },
   { value: 'priority:asc', label: t('admin.accounts.sort.priorityAsc') },
+  { value: 'upstream_rate_multiplier:asc', label: t('admin.accounts.sort.upstreamRateAsc') },
+  { value: 'upstream_rate_multiplier:desc', label: t('admin.accounts.sort.upstreamRateDesc') },
 ])
 </script>

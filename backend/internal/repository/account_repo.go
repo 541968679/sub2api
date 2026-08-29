@@ -861,6 +861,15 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 		}
 	}
 
+	if accountListColumnIsPrimary(sortBy) {
+		// Column-header sort must actually reorder rows. Keep list_order as a
+		// tie-break only so pinned accounts with the same value stay grouped.
+		if sortOrder == pagination.SortOrderDesc {
+			return []func(*entsql.Selector){dbent.Desc(field), pinFirst, dbent.Desc(dbaccount.FieldID)}
+		}
+		return []func(*entsql.Selector){dbent.Asc(field), pinFirst, dbent.Asc(dbaccount.FieldID)}
+	}
+
 	if sortOrder == pagination.SortOrderDesc {
 		return []func(*entsql.Selector){pinFirst, dbent.Desc(field), dbent.Desc(dbaccount.FieldID)}
 	}
@@ -868,6 +877,18 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 		return []func(*entsql.Selector){pinFirst, dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 	}
 	return []func(*entsql.Selector){pinFirst, dbent.Asc(field), dbent.Asc(dbaccount.FieldID)}
+}
+
+// accountListColumnIsPrimary reports whether an explicit column sort should beat
+// extra.list_order pins. Used when clicking a column header must visibly reorder
+// the admin list instead of only sorting inside the unpinned remainder.
+func accountListColumnIsPrimary(sortBy string) bool {
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case "upstream_rate_multiplier":
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *accountRepository) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {

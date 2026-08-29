@@ -4526,7 +4526,9 @@ const enBase = {
         availabilityAsc: 'Unavailable First',
         nameAsc: 'Name A-Z',
         lastUsedDesc: 'Recently Used',
-        priorityAsc: 'Priority Low First'
+        priorityAsc: 'Priority Low First',
+        upstreamRateAsc: 'Upstream Rate Low First',
+        upstreamRateDesc: 'Upstream Rate High First'
       },
       // Schedulable toggle
       schedulable: 'Schedulable',
