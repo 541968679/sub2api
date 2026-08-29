@@ -147,10 +147,13 @@ func TestPublicScheduleSoftCooldown_PassReturnsSelectable(t *testing.T) {
 	cache := NewMemoryPublicScheduleQualityCache()
 	runtime := NewPublicScheduleQualityService(cache, nil, nil)
 	rate := 0.5
+	k, c := 1, 1
 	enablePublicSite(runtime, func(site *PublicScheduleQualitySettings) {
 		site.TTFTWindowN = 1
 		site.SuccessWindowN = 1
 		site.QualityMinSuccessRate = &rate
+		site.QualitySchedMaxSlowInWindow = &k
+		site.QualitySchedMaxConsecutiveSlow = &c
 		site.CooldownMinutes = 15
 		site.SoftCooldown = true
 	})
@@ -174,6 +177,38 @@ func TestPublicScheduleCooldownExpiry_BecomesProbing(t *testing.T) {
 	require.Equal(t, PublicScheduleStateProbing, st.Normalized(time.Now()))
 }
 
+func TestGeminiStickyEscape_RequiresHealthyPeer(t *testing.T) {
+	cache := NewMemoryPublicScheduleQualityCache()
+	runtime := NewPublicScheduleQualityService(cache, nil, nil)
+	enablePublicSite(runtime)
+	require.True(t, cache.TryStartCooldown(context.Background(), 2, time.Now().Add(15*time.Minute), "fail", false))
+
+	demoted := testPublicAccount(2)
+	demoted.Platform = PlatformGemini
+	healthy := testPublicAccount(1)
+	healthy.Platform = PlatformGemini
+
+	withPeer := &GeminiMessagesCompatService{
+		accountRepo: &mockAccountRepoForGemini{
+			listByPlatformFunc: func(context.Context, []string) ([]Account, error) {
+				return []Account{*demoted, *healthy}, nil
+			},
+		},
+		publicSchedule: runtime,
+	}
+	require.True(t, withPeer.shouldEscapeGeminiStickyForPublicQuality(context.Background(), nil, PlatformGemini, demoted))
+
+	solo := &GeminiMessagesCompatService{
+		accountRepo: &mockAccountRepoForGemini{
+			listByPlatformFunc: func(context.Context, []string) ([]Account, error) {
+				return []Account{*demoted}, nil
+			},
+		},
+		publicSchedule: runtime,
+	}
+	require.False(t, solo.shouldEscapeGeminiStickyForPublicQuality(context.Background(), nil, PlatformGemini, demoted))
+}
+
 func TestPublicScheduleStickyEscape_DemotedWithHealthyPeer(t *testing.T) {
 	cache := NewMemoryPublicScheduleQualityCache()
 	runtime := NewPublicScheduleQualityService(cache, nil, nil)
@@ -187,6 +222,29 @@ func TestPublicScheduleStickyEscape_DemotedWithHealthyPeer(t *testing.T) {
 	require.False(t, shouldEscapeSessionStickyForPublicQuality(
 		context.Background(), runtime, testSmartLookup(PlatformAnthropic, 1, 2), 16, PlatformAnthropic, sticky, []*Account{healthy, sticky},
 	))
+}
+
+func TestPublicScheduleGetView_AttachesLatencyKC(t *testing.T) {
+	cache := NewMemoryPublicScheduleQualityCache()
+	runtime := NewPublicScheduleQualityService(cache, nil, nil)
+	enablePublicSite(runtime)
+	ms := 4000
+	runtime.ObserveCompletion(context.Background(), AccountQualityObservation{AccountID: 4, Success: true, FirstTokenMs: &ms})
+	runtime.ObserveCompletion(context.Background(), AccountQualityObservation{AccountID: 4, Success: true, FirstTokenMs: &ms})
+
+	view, err := runtime.GetView(context.Background(), testPublicAccount(4))
+	require.NoError(t, err)
+	require.NotNil(t, view.Quality)
+	require.NotNil(t, view.Quality.QualitySchedMaxSlowInWindow)
+	require.Equal(t, DefaultPublicScheduleSchedK, *view.Quality.QualitySchedMaxSlowInWindow)
+	require.NotNil(t, view.Quality.QualitySchedMaxConsecutiveSlow)
+	require.Equal(t, DefaultPublicScheduleSchedC, *view.Quality.QualitySchedMaxConsecutiveSlow)
+	require.NotNil(t, view.Quality.TTFTSlowCount)
+	require.Equal(t, 2, *view.Quality.TTFTSlowCount)
+
+	batch := runtime.GetViewBatch(context.Background(), []int64{4})
+	require.Contains(t, batch, int64(4))
+	require.Equal(t, view.State, batch[4].State)
 }
 
 func TestResolvePublicScheduleQuality_UsesSiteOnly(t *testing.T) {

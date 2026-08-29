@@ -527,6 +527,20 @@
               @click="openStabilityDialog(row)"
             />
           </template>
+          <template #header-public_quality="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.publicQuality.columnHint')" width-class="w-80" />
+            </div>
+          </template>
+          <template #cell-public_quality="{ row }">
+            <PublicScheduleQualityStateCell
+              :view="publicQualityByAccountId[String(row.id)] ?? null"
+              :loading="publicQualityLoading"
+              :switching="publicQualitySwitchingId === row.id"
+              @select="(state) => handlePublicQualityState(row.id, state)"
+            />
+          </template>
           <template #cell-groups="{ row }">
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
@@ -812,7 +826,12 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
-import type { AccountQualityStats, OpenAIOauthFleetUsageSummary } from '@/api/admin/accounts'
+import type {
+  AccountQualityStats,
+  OpenAIOauthFleetUsageSummary,
+  PublicScheduleQualityView
+} from '@/api/admin/accounts'
+import type { PairAdmissionLiveState } from '@/composables/smartSchedulePoolAdmission'
 import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
 import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { accountMatchesListFilters } from '@/utils/accountListFilters'
@@ -850,6 +869,7 @@ import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import PublicScheduleQualityStateCell from '@/components/account/PublicScheduleQualityStateCell.vue'
 import AccountStabilityDialog from '@/components/account/AccountStabilityDialog.vue'
 import PublicScheduleQualityGlobalCard from '@/components/account/PublicScheduleQualityGlobalCard.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
@@ -999,6 +1019,8 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   status: 120,
   schedulable: 110,
   user_schedule: 240,
+  quality_ttft: 132,
+  public_quality: 148,
   priority: 100,
   actions: 120
 }
@@ -1134,6 +1156,11 @@ const qualityStatsByAccountId = ref<Record<string, AccountQualityStats>>({})
 const qualityStatsLoading = ref(false)
 const qualityStatsError = ref<string | null>(null)
 const qualityStatsReqSeq = ref(0)
+const publicQualityByAccountId = ref<Record<string, PublicScheduleQualityView>>({})
+const publicQualityLoading = ref(false)
+const publicQualityError = ref<string | null>(null)
+const publicQualityReqSeq = ref(0)
+const publicQualitySwitchingId = ref<number | null>(null)
 const accountQualityWindowN = ref(ACCOUNT_QUALITY_WINDOW_N_DEFAULT)
 const usageManualRefreshToken = ref(0)
 
@@ -1349,6 +1376,69 @@ const refreshQualityStatsBatch = async () => {
     if (reqSeq === qualityStatsReqSeq.value) {
       qualityStatsLoading.value = false
     }
+  }
+}
+
+const refreshPublicQualityBatch = async () => {
+  if (hiddenColumns.has('public_quality')) {
+    publicQualityLoading.value = false
+    publicQualityError.value = null
+    return
+  }
+  const batchFn = adminAPI.accounts.getPublicScheduleQualityBatch
+  if (typeof batchFn !== 'function') {
+    return
+  }
+
+  const accountIDs = accounts.value.map(account => account.id)
+  const reqSeq = ++publicQualityReqSeq.value
+  if (accountIDs.length === 0) {
+    publicQualityByAccountId.value = {}
+    publicQualityError.value = null
+    publicQualityLoading.value = false
+    return
+  }
+
+  publicQualityLoading.value = true
+  publicQualityError.value = null
+
+  try {
+    const result = await batchFn(accountIDs)
+    if (reqSeq !== publicQualityReqSeq.value) return
+    const serverViews = result.views ?? {}
+    const nextViews: Record<string, PublicScheduleQualityView> = {}
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if (serverViews[key]) {
+        nextViews[key] = serverViews[key]
+      }
+    }
+    publicQualityByAccountId.value = nextViews
+  } catch (error) {
+    if (reqSeq !== publicQualityReqSeq.value) return
+    publicQualityError.value = 'Failed'
+    console.error('Failed to load public schedule quality:', error)
+  } finally {
+    if (reqSeq === publicQualityReqSeq.value) {
+      publicQualityLoading.value = false
+    }
+  }
+}
+
+const handlePublicQualityState = async (accountId: number, state: PairAdmissionLiveState) => {
+  publicQualitySwitchingId.value = accountId
+  try {
+    const view = await adminAPI.accounts.setPublicScheduleQualityState(accountId, state)
+    publicQualityByAccountId.value = {
+      ...publicQualityByAccountId.value,
+      [String(accountId)]: view
+    }
+    appStore.showSuccess(t('admin.accounts.publicQuality.switchSuccess'))
+  } catch (error) {
+    console.error('Failed to switch public schedule quality state:', error)
+    appStore.showError(t('admin.accounts.publicQuality.switchFailed'))
+  } finally {
+    publicQualitySwitchingId.value = null
   }
 }
 
@@ -1576,6 +1666,11 @@ const toggleColumn = (key: string) => {
       console.error('Failed to load account quality stats after showing column:', error)
     })
   }
+  if (key === 'public_quality' && wasHidden) {
+    refreshPublicQualityBatch().catch((error) => {
+      console.error('Failed to load public schedule quality after showing column:', error)
+    })
+  }
   if (key === 'scheduler_score') {
     // The server only returns scheduler scores when this column is visible, so reload the current page immediately.
     syncAccountListDerivedParams()
@@ -1753,7 +1848,7 @@ const load = async () => {
     isFirstLoad.value = false
     delete requestParams.lite
   }
-  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
+  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch(), refreshPublicQualityBatch()])
   refreshAICreditsTotal()
   refreshOpenAIOauthFleetUsage()
 }
@@ -1764,7 +1859,7 @@ const reload = async () => {
   beginFullAccountListLoad()
   pendingTodayStatsRefresh.value = false
   await baseReload()
-  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
+  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch(), refreshPublicQualityBatch()])
   refreshAICreditsTotal()
   refreshOpenAIOauthFleetUsage()
 }
@@ -1828,7 +1923,7 @@ const handleFilterUpdate = (newFilters: Record<string, unknown>) => {
 watch(loading, (isLoading, wasLoading) => {
   if (wasLoading && !isLoading && pendingTodayStatsRefresh.value) {
     pendingTodayStatsRefresh.value = false
-    Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()]).catch((error) => {
+    Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch(), refreshPublicQualityBatch()]).catch((error) => {
       console.error('Failed to refresh account side stats after table load:', error)
     })
   }
@@ -1943,6 +2038,7 @@ const refreshAccountsIncrementally = async () => {
     await Promise.all([
       refreshTodayStatsBatch(),
       refreshQualityStatsBatch(),
+      refreshPublicQualityBatch(),
       refreshOpenAIOauthFleetUsage()
     ])
   } catch (error) {
@@ -2073,7 +2169,8 @@ const allColumns = computed(() => {
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
     { key: 'user_schedule', label: t('admin.accounts.columns.userSchedule'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
-    { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false }
+    { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false },
+    { key: 'public_quality', label: t('admin.accounts.publicQuality.column'), sortable: false }
   ]
   if (!authStore.isSimpleMode) {
     c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })

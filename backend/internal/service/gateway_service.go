@@ -650,6 +650,33 @@ func (s *GatewayService) preferPublicSchedule(ctx context.Context, platform stri
 	return preferPublicScheduleAccounts(ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, accounts)
 }
 
+func (s *GatewayService) pickPreferredSchedulable(ctx context.Context, platform string, candidates []*Account, preferOAuth bool) *Account {
+	var selected *Account
+	for _, acc := range s.preferPublicSchedule(ctx, platform, candidates) {
+		if acc == nil {
+			continue
+		}
+		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuth) {
+			selected = acc
+		}
+	}
+	return selected
+}
+
+func (s *GatewayService) pickPreferredMixedSchedulable(ctx context.Context, platform string, candidates []*Account, preferOAuth bool) *Account {
+	var selected *Account
+	for _, acc := range s.preferPublicSchedule(ctx, platform, candidates) {
+		if acc == nil {
+			continue
+		}
+		preferOAuthThis := preferOAuth && acc.Platform == PlatformGemini && (selected == nil || selected.Platform == PlatformGemini)
+		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuthThis) {
+			selected = acc
+		}
+	}
+	return selected
+}
+
 func (s *GatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
 	return admitsScheduleUser(ctx, account, s.qualityLiveCache, s.smartScheduleCache)
 }
@@ -3324,7 +3351,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			}
 		}
 
-		var selected *Account
+		usable := make([]*Account, 0, len(accounts))
 		for i := range accounts {
 			acc := &accounts[i]
 			if _, ok := routingSet[acc.ID]; !ok {
@@ -3359,10 +3386,9 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 				continue
 			}
-			if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuth) {
-				selected = acc
-			}
+			usable = append(usable, acc)
 		}
+		selected := s.pickPreferredSchedulable(ctx, platform, usable, preferOAuth)
 
 		if selected != nil {
 			if sessionHash != "" && s.cache != nil {
@@ -3421,7 +3447,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 	// needsUpstreamCheck 仅在主选择循环中使用；粘性会话命中时跳过此检查，
 	// 因为粘性会话优先保持连接一致性，且 upstream 计费基准极少使用。
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
-	var selected *Account
+	usable := make([]*Account, 0, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
 		if _, excluded := excludedIDs[acc.ID]; excluded {
@@ -3456,10 +3482,9 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 			continue
 		}
-		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuth) {
-			selected = acc
-		}
+		usable = append(usable, acc)
 	}
+	selected := s.pickPreferredSchedulable(ctx, platform, usable, preferOAuth)
 
 	if selected == nil {
 		stats := s.logDetailedSelectionFailure(ctx, groupID, sessionHash, requestedModel, platform, accounts, excludedIDs, false)
@@ -3547,7 +3572,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			}
 		}
 
-		var selected *Account
+		usable := make([]*Account, 0, len(accounts))
 		for i := range accounts {
 			acc := &accounts[i]
 			if _, ok := routingSet[acc.ID]; !ok {
@@ -3586,11 +3611,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 				continue
 			}
-			preferOAuthThis := preferOAuth && acc.Platform == PlatformGemini && (selected == nil || selected.Platform == PlatformGemini)
-			if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuthThis) {
-				selected = acc
-			}
+			usable = append(usable, acc)
 		}
+		selected := s.pickPreferredMixedSchedulable(ctx, nativePlatform, usable, preferOAuth)
 
 		if selected != nil {
 			if sessionHash != "" && s.cache != nil {
@@ -3646,7 +3669,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 	// 3. 按优先级+最久未用选择（考虑模型支持和混合调度）
 	// needsUpstreamCheck 仅在主选择循环中使用；粘性会话命中时跳过此检查。
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
-	var selected *Account
+	usable := make([]*Account, 0, len(accounts))
 	for i := range accounts {
 		acc := &accounts[i]
 		if _, excluded := excludedIDs[acc.ID]; excluded {
@@ -3685,11 +3708,9 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		if !s.isAccountSchedulableForRPM(ctx, acc, false) {
 			continue
 		}
-		preferOAuthThis := preferOAuth && acc.Platform == PlatformGemini && (selected == nil || selected.Platform == PlatformGemini)
-		if selected == nil || isBetterSchedulableAccount(acc, selected, preferOAuthThis) {
-			selected = acc
-		}
+		usable = append(usable, acc)
 	}
+	selected := s.pickPreferredMixedSchedulable(ctx, nativePlatform, usable, preferOAuth)
 
 	if selected == nil {
 		stats := s.logDetailedSelectionFailure(ctx, groupID, sessionHash, requestedModel, nativePlatform, accounts, excludedIDs, true)

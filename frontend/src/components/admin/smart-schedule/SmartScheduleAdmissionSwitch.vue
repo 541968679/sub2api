@@ -6,7 +6,7 @@
       class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
       :class="triggerClass"
       :disabled="disabled"
-      :title="t('admin.users.smartSchedule.switchStateHint')"
+      :title="hintText"
       @click.stop="toggle"
     >
       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -61,10 +61,14 @@ const props = withDefaults(defineProps<{
   paused?: boolean
   pinned?: boolean
   disabled?: boolean
+  hint?: string
+  stateLabels?: Partial<Record<PairAdmissionLiveState, string>>
 }>(), {
   paused: false,
   pinned: false,
-  disabled: false
+  disabled: false,
+  hint: '',
+  stateLabels: () => ({})
 })
 
 const emit = defineEmits<{
@@ -77,6 +81,8 @@ const triggerX = ref(0)
 const triggerY = ref(0)
 
 const current = computed(() => pairAdmissionLiveState(props.admission, props.paused, props.pinned))
+
+const hintText = computed(() => props.hint || t('admin.users.smartSchedule.switchStateHint'))
 
 const triggerClass = computed(() => {
   if (props.disabled) return 'cursor-not-allowed text-gray-300 dark:text-gray-600'
@@ -104,6 +110,8 @@ const menuStyle = computed(() => ({
 }))
 
 function stateLabel(state: PairAdmissionLiveState) {
+  const override = props.stateLabels?.[state]
+  if (override) return override
   if (state === 'paused') return t('admin.users.smartSchedule.admissionPaused')
   if (state === 'cooling') return t('admin.users.smartSchedule.admissionCooling')
   if (state === 'probing') return t('admin.users.smartSchedule.admissionProbing')

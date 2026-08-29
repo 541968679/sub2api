@@ -8,6 +8,7 @@ const {
   listWithEtag,
   getBatchTodayStats,
   getBatchQualityStats,
+  getPublicScheduleQualityBatch,
   getAllProxies,
   getAllGroups,
   deleteAccount
@@ -16,6 +17,7 @@ const {
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getBatchQualityStats: vi.fn(),
+  getPublicScheduleQualityBatch: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
   deleteAccount: vi.fn()
@@ -28,6 +30,7 @@ vi.mock('@/api/admin', () => ({
       listWithEtag,
       getBatchTodayStats,
       getBatchQualityStats,
+      getPublicScheduleQualityBatch,
       delete: deleteAccount,
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
@@ -156,6 +159,7 @@ describe('admin AccountsView bulk edit scope', () => {
     listWithEtag.mockReset()
     getBatchTodayStats.mockReset()
     getBatchQualityStats.mockReset()
+    getPublicScheduleQualityBatch.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
     deleteAccount.mockReset()
@@ -174,6 +178,7 @@ describe('admin AccountsView bulk edit scope', () => {
     })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
+    getPublicScheduleQualityBatch.mockResolvedValue({ views: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
     deleteAccount.mockResolvedValue({ message: 'ok' })

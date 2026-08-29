@@ -167,15 +167,18 @@ func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Contex
 		byID = s.lastN.GetLastNBatch(ctx, ids)
 	}
 	out := make(map[int64]*AccountQualityStats, len(ids))
+	knobs := s.publicScheduleDisplayKnobs(ctx)
 	for _, id := range ids {
 		if live := byID[id]; live != nil {
 			st := live.ToAccountQualityStats()
 			StampAccountQualityWindowN(st, n)
+			StampAccountQualityLatencyKC(st, live.TTFTMs, knobs)
 			out[id] = st
 			continue
 		}
 		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
 		StampAccountQualityWindowN(st, n)
+		StampAccountQualityLatencyKC(st, nil, knobs)
 		out[id] = st
 	}
 	return out, nil
@@ -198,18 +201,22 @@ func (s *AccountQualityMaintenanceService) GetUserLastNStatsBatch(ctx context.Co
 	}
 	overrides := s.lookupUserWindowNBatch(ctx, needLookup)
 	out := make(map[int64]*AccountQualityStats, len(ids))
+	knobs := s.publicScheduleDisplayKnobs(ctx)
 	for _, id := range ids {
 		resolved, _ := s.resolveUserWindowN(byID[id], overrides[id], siteN)
 		if live := byID[id]; live != nil {
-			st := ProjectAccountQualityLastN(live, resolved).ToAccountQualityStats()
+			projected := ProjectAccountQualityLastN(live, resolved)
+			st := projected.ToAccountQualityStats()
 			StampAccountQualityWindowN(st, resolved)
 			ApplyAccountQualityScheduleCaliber(st, useFailover)
+			StampAccountQualityLatencyKC(st, projected.TTFTMs, knobs)
 			out[id] = st
 			continue
 		}
 		st := BuildAccountQualityStats(0, 0, TTFTAggregate{})
 		StampAccountQualityWindowN(st, resolved)
 		ApplyAccountQualityScheduleCaliber(st, useFailover)
+		StampAccountQualityLatencyKC(st, nil, knobs)
 		out[id] = st
 	}
 	return out, nil
@@ -275,6 +282,16 @@ func (s *AccountQualityMaintenanceService) SetPublicSchedule(runtime *PublicSche
 		return
 	}
 	s.publicSchedule = runtime
+}
+
+func (s *AccountQualityMaintenanceService) publicScheduleDisplayKnobs(ctx context.Context) QualityEvalKnobs {
+	site := DefaultPublicScheduleQualitySettings()
+	if s != nil && s.publicSchedule != nil {
+		if current, err := s.publicSchedule.SiteSettings(ctx); err == nil && current != nil {
+			site = current
+		}
+	}
+	return ResolvePublicScheduleQuality(*site, DefaultPublicScheduleQualityOverlay()).SchedKnobs()
 }
 
 func (s *AccountQualityMaintenanceService) scheduleUseFailoverErrorRate(ctx context.Context) bool {

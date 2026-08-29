@@ -9,6 +9,7 @@ const {
   getBatchTodayStats,
   getBatchQualityStats,
   getPublicScheduleQualityBatch,
+  setPublicScheduleQualityState,
   getAllProxies,
   getAllGroups
 } = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const {
   getBatchTodayStats: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getPublicScheduleQualityBatch: vi.fn(),
+  setPublicScheduleQualityState: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn()
 }))
@@ -29,9 +31,7 @@ vi.mock('@/api/admin', () => ({
       getBatchTodayStats,
       getBatchQualityStats,
       getPublicScheduleQualityBatch,
-      getQualityHistory: vi.fn(),
-      getQualityHardClose: vi.fn(),
-      updateQualityHardClose: vi.fn(),
+      setPublicScheduleQualityState,
       delete: vi.fn(),
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
@@ -75,21 +75,12 @@ const DataTableStub = {
   props: ['columns', 'data'],
   template: `
     <div data-test="data-table">
+      <div data-test="column-keys">{{ columns.map((col) => col.key).join(',') }}</div>
       <div v-for="row in data" :key="row.id" :data-test="'account-row-' + row.id">
-        <div data-test="quality-ttft">
-          <slot name="cell-quality_ttft" :row="row" />
-        </div>
-        <div data-test="actions">
-          <slot name="cell-actions" :row="row" />
-        </div>
+        <slot name="cell-public_quality" :row="row" />
       </div>
     </div>
   `
-}
-
-const StabilityDialogStub = {
-  props: ['show', 'account'],
-  template: '<div v-if="show" data-test="stability-dialog">{{ account?.id }}:{{ account?.name }}</div>'
 }
 
 function mountView() {
@@ -121,11 +112,13 @@ function mountView() {
         EditAccountModal: true,
         BulkEditAccountModal: true,
         UnbindSubscriptionGroupsDialog: true,
-        AccountStabilityDialog: StabilityDialogStub,
+        AccountStabilityDialog: true,
+        PublicScheduleQualityGlobalCard: true,
         PlatformTypeBadge: true,
         AccountCapacityCell: true,
         AccountStatusIndicator: true,
         AccountTodayStatsCell: true,
+        AccountQualityCell: true,
         AccountGroupsCell: true,
         AccountUserScheduleCell: true,
         AccountUsageCell: true,
@@ -137,7 +130,7 @@ function mountView() {
 
 const baseAccount = {
   id: 7,
-  name: 'stable-acc',
+  name: 'public-q',
   platform: 'openai',
   type: 'apikey',
   status: 'active',
@@ -154,7 +147,7 @@ const baseAccount = {
   temp_unschedulable_reason: null
 }
 
-describe('admin AccountsView stability window', () => {
+describe('admin AccountsView public quality column', () => {
   beforeEach(() => {
     localStorage.clear()
     listAccounts.mockReset()
@@ -162,6 +155,7 @@ describe('admin AccountsView stability window', () => {
     getBatchTodayStats.mockReset()
     getBatchQualityStats.mockReset()
     getPublicScheduleQualityBatch.mockReset()
+    setPublicScheduleQualityState.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
 
@@ -175,31 +169,54 @@ describe('admin AccountsView stability window', () => {
     listWithEtag.mockResolvedValue({ notModified: true, etag: null, data: null })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
-    getPublicScheduleQualityBatch.mockResolvedValue({ views: {} })
+    getPublicScheduleQualityBatch.mockResolvedValue({
+      views: {
+        '7': {
+          overlay: { enabled: false },
+          resolved: {
+            enabled: false,
+            ttft_window_n: 20,
+            success_window_n: 20,
+            cooldown_minutes: 15,
+            soft_cooldown: false
+          },
+          state: 'selectable',
+          will_cool: false
+        }
+      }
+    })
+    setPublicScheduleQualityState.mockResolvedValue({
+      overlay: { enabled: false },
+      resolved: {
+        enabled: false,
+        ttft_window_n: 20,
+        success_window_n: 20,
+        cooldown_minutes: 15,
+        soft_cooldown: false
+      },
+      state: 'paused',
+      will_cool: false
+    })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })
 
-  it('opens the stability dialog from the merged quality cell', async () => {
+  it('loads the public-quality column after quality and lets the switch persist', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.find('[data-test="stability-dialog"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="column-keys"]').text().split(',')).toContain('public_quality')
+    expect(getPublicScheduleQualityBatch).toHaveBeenCalledWith([7])
+    expect(wrapper.get('[data-testid="account-public-quality"]').attributes('data-state')).toBe('selectable')
 
-    const buttons = wrapper.findAll('[data-test="account-quality-cell-button"]')
-    expect(buttons).toHaveLength(1)
-
-    await buttons[0].trigger('click')
+    await wrapper.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
-  })
-
-  it('opens the stability dialog from the row action button', async () => {
-    const wrapper = mountView()
+    const paused = document.querySelector('[data-testid="smart-schedule-admission-paused"]') as HTMLButtonElement
+    expect(paused).toBeTruthy()
+    paused.click()
     await flushPromises()
-
-    await wrapper.get('[data-testid="account-open-stability"]').trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
+    expect(setPublicScheduleQualityState).toHaveBeenCalledWith(7, 'paused')
+    expect(wrapper.get('[data-testid="account-public-quality"]').attributes('data-state')).toBe('paused')
+    wrapper.unmount()
   })
 })

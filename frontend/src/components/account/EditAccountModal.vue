@@ -5018,6 +5018,7 @@ const handleSubmit = async () => {
     if (extra && typeof extra === 'object') {
       delete (extra as Record<string, unknown>).public_schedulable
       delete (extra as Record<string, unknown>).quality_hard_close
+      delete (extra as Record<string, unknown>).public_schedule_quality
     }
 
     const canContinue = await ensureAntigravityMixedChannelConfirmed(async () => {

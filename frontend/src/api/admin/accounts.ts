@@ -618,6 +618,11 @@ export interface AccountQualityStats {
   resume_users?: Record<string, number>
   /** Live-cache only: user_id → unix until for the post-resume fail-open window. */
   resume_watching_users?: Record<string, number>
+  /** Same EvalQuality K/C counters as smart-schedule pair quality cells. */
+  ttft_slow_count?: number | null
+  ttft_consecutive_slow?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
 }
 
 export interface BatchQualityStatsResponse {
@@ -752,11 +757,31 @@ export interface PublicScheduleQualityView {
   until?: string | null
   reason?: string
   will_cool: boolean
+  quality?: {
+    ttft_slow_count?: number | null
+    ttft_consecutive_slow?: number | null
+    quality_sched_max_slow_in_window?: number | null
+    quality_sched_max_consecutive_slow?: number | null
+  } | null
+}
+
+export interface BatchPublicScheduleQualityResponse {
+  views: Record<string, PublicScheduleQualityView>
 }
 
 export async function getPublicScheduleQuality(id: number): Promise<PublicScheduleQualityView> {
   const { data } = await apiClient.get<PublicScheduleQualityView>(
     `/admin/accounts/${id}/public-schedule-quality`
+  )
+  return data
+}
+
+export async function getPublicScheduleQualityBatch(
+  accountIds: number[]
+): Promise<BatchPublicScheduleQualityResponse> {
+  const { data } = await apiClient.post<BatchPublicScheduleQualityResponse>(
+    '/admin/accounts/public-schedule-quality/batch',
+    { account_ids: accountIds }
   )
   return data
 }
@@ -1440,6 +1465,7 @@ export const accountsAPI = {
   getQualityHardClose,
   updateQualityHardClose,
   getPublicScheduleQuality,
+  getPublicScheduleQualityBatch,
   updatePublicScheduleQuality,
   setPublicScheduleQualityState,
   resumeUserQuality,

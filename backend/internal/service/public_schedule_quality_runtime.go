@@ -161,11 +161,44 @@ func (s *PublicScheduleQualityService) GetView(ctx context.Context, account *Acc
 	}
 	overlay := ParseAccountPublicScheduleOverlay(account.Extra)
 	resolved := ResolvePublicScheduleQuality(*site, overlay)
-	state := s.effectiveState(ctx, account.ID)
+	return s.buildView(ctx, account.ID, overlay, resolved, s.effectiveState(ctx, account.ID), time.Now().UTC()), nil
+}
+
+func (s *PublicScheduleQualityService) GetViewBatch(ctx context.Context, accountIDs []int64) map[int64]*PublicScheduleQualityView {
+	out := map[int64]*PublicScheduleQualityView{}
+	if s == nil {
+		return out
+	}
+	site, err := s.SiteSettings(ctx)
+	if err != nil || site == nil {
+		site = DefaultPublicScheduleQualitySettings()
+	}
+	overlay := DefaultPublicScheduleQualityOverlay()
+	resolved := ResolvePublicScheduleQuality(*site, overlay)
 	now := time.Now().UTC()
+	states := s.stateBatch(ctx, accountIDs)
+	for _, id := range accountIDs {
+		if id <= 0 {
+			continue
+		}
+		out[id] = s.buildView(ctx, id, overlay, resolved, states[id], now)
+	}
+	return out
+}
+
+func (s *PublicScheduleQualityService) buildView(
+	ctx context.Context,
+	accountID int64,
+	overlay PublicScheduleQualityOverlay,
+	resolved PublicScheduleQualityResolved,
+	state *PublicScheduleRuntimeState,
+	now time.Time,
+) *PublicScheduleQualityView {
 	name := state.Normalized(now)
-	window := projectPublicScheduleLive(s.cacheWindow(ctx, account.ID), resolved.TTFTWindowN, resolved.SuccessWindowN)
+	window := projectPublicScheduleLive(s.cacheWindow(ctx, accountID), resolved.TTFTWindowN, resolved.SuccessWindowN)
 	eval := EvalQuality(window, resolved.SchedKnobs())
+	qv := window.View()
+	applyPhaseMetricsAlias(&qv, qualityPhaseMetrics(window, resolved.SchedKnobs(), resolved.QualityMaxP50DurationMs != nil))
 	view := &PublicScheduleQualityView{
 		Overlay:  overlay,
 		Resolved: resolved,
@@ -173,15 +206,12 @@ func (s *PublicScheduleQualityService) GetView(ctx context.Context, account *Acc
 		Until:    state.UntilPtr(),
 		Reason:   state.Reason,
 		WillCool: resolved.Enabled && name == PublicScheduleStateSelectable && eval.State == LatencyEvalFail,
+		Quality:  &qv,
 	}
 	if eval.State == LatencyEvalFail && view.Reason == "" {
 		view.Reason = formatPublicScheduleReasons(eval.Reasons)
 	}
-	if window != nil {
-		qv := window.View()
-		view.Quality = &qv
-	}
-	return view, nil
+	return view
 }
 
 func (s *PublicScheduleQualityService) UpdateOverlay(ctx context.Context, accountID int64, overlay PublicScheduleQualityOverlay) error {

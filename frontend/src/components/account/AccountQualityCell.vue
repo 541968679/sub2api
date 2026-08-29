@@ -43,6 +43,22 @@
       <div class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-test="account-quality-window-counts">
         {{ t('admin.accounts.quality.windowCounts', { ttft: stats!.ttft_samples ?? 0, ok: okSamples, n: windowN }) }}
       </div>
+      <div
+        v-if="kc.show"
+        class="font-sans text-[10px]"
+        :class="kcToneClass"
+        data-test="account-quality-kc"
+      >
+        <template v-if="kc.showK && kc.showC">
+          {{ t('admin.users.smartSchedule.pairLatencyKC', { slow: kc.slow, k: kc.k, consec: kc.consec, c: kc.c }) }}
+        </template>
+        <template v-else-if="kc.showK">
+          {{ t('admin.users.smartSchedule.pairLatencyK', { slow: kc.slow, k: kc.k }) }}
+        </template>
+        <template v-else>
+          {{ t('admin.users.smartSchedule.pairLatencyC', { consec: kc.consec, c: kc.c }) }}
+        </template>
+      </div>
     </div>
     <div
       v-else-if="mode === 'ttft' && hasTtft"
@@ -89,6 +105,7 @@ import {
   qualityFailoverSuccessRateValue
 } from '@/utils/accountQualityStats'
 import { qualityRateWindowK, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
+import { pairQualityLatencyKCParams } from '@/utils/smartScheduleWindowN'
 
 const props = withDefaults(
   defineProps<{
@@ -174,6 +191,21 @@ const failoverSuccessRate = computed(() =>
 const failoverDisplay = computed(
   () => formatQualityFailoverSuccessRate(props.stats, props.minSamples) ?? ''
 )
+
+const kc = computed(() =>
+  props.stats
+    ? pairQualityLatencyKCParams(props.stats)
+    : { show: false, showK: false, showC: false, slow: 0, consec: 0, k: 0, c: 0 }
+)
+
+const kcToneClass = computed(() => {
+  const row = kc.value
+  if (!row.show) return 'text-gray-400 dark:text-gray-500'
+  if ((row.showK && row.slow >= row.k) || (row.showC && row.consec >= row.c)) {
+    return 'text-red-600 dark:text-red-400'
+  }
+  return 'text-gray-400 dark:text-gray-500'
+})
 
 const displayText = computed(() => {
   if (props.mode !== 'success_rate') return ''

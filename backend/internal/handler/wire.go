@@ -52,6 +52,7 @@ func ProvideAdminHandlers(
 	publicSchedule *service.PublicScheduleQualityService,
 ) *AdminHandlers {
 	accountHandler.SetSmartScheduleService(smartSchedule)
+	accountHandler.SetPublicScheduleQualityService(publicSchedule)
 	userHandler.SetQualityMaintenance(qualityMaintenance)
 	userHandler.SetSettingService(settingService)
 	settingHandler.SetPublicScheduleQualityService(publicSchedule)

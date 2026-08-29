@@ -133,7 +133,14 @@ export function normalizeSmartSchedulePairQuality(
   return out
 }
 
-export function pairQualityLatencyKCParams(quality: SmartSchedulePairQuality): {
+export type LatencyKCFields = {
+  ttft_slow_count?: number | null
+  ttft_consecutive_slow?: number | null
+  quality_sched_max_slow_in_window?: number | null
+  quality_sched_max_consecutive_slow?: number | null
+}
+
+export function pairQualityLatencyKCParams(quality: LatencyKCFields): {
   show: boolean
   showK: boolean
   showC: boolean

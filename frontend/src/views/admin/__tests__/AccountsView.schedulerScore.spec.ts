@@ -8,6 +8,7 @@ const {
   listWithEtag,
   getBatchTodayStats,
   getBatchQualityStats,
+  getPublicScheduleQualityBatch,
   getAllProxies,
   getAllGroups
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getBatchQualityStats: vi.fn(),
+  getPublicScheduleQualityBatch: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn()
 }))
@@ -26,6 +28,7 @@ vi.mock('@/api/admin', () => ({
       listWithEtag,
       getBatchTodayStats,
       getBatchQualityStats,
+      getPublicScheduleQualityBatch,
       delete: vi.fn(),
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
@@ -144,6 +147,7 @@ describe('admin AccountsView scheduler score column', () => {
     listWithEtag.mockReset()
     getBatchTodayStats.mockReset()
     getBatchQualityStats.mockReset()
+    getPublicScheduleQualityBatch.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
 
@@ -198,6 +202,7 @@ describe('admin AccountsView scheduler score column', () => {
     })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
+    getPublicScheduleQualityBatch.mockResolvedValue({ views: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })

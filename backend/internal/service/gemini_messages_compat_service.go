@@ -244,8 +244,7 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
-	if isUnpooledScheduleUser(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform) &&
-		s.publicSchedule != nil && s.publicSchedule.IsDemoted(ctx, account) {
+	if s.shouldEscapeGeminiStickyForPublicQuality(ctx, groupID, platform, account) {
 		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
@@ -260,6 +259,27 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 	// Refresh session TTL and return account
 	_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), cacheKey, geminiStickySessionTTL)
 	return account
+}
+
+func (s *GeminiMessagesCompatService) shouldEscapeGeminiStickyForPublicQuality(
+	ctx context.Context,
+	groupID *int64,
+	platform string,
+	sticky *Account,
+) bool {
+	if s == nil || sticky == nil || s.publicSchedule == nil {
+		return false
+	}
+	if !s.publicSchedule.IsDemoted(ctx, sticky) {
+		return false
+	}
+	peers, err := s.listSchedulableAccountsOnce(ctx, groupID, platform, false)
+	if err != nil {
+		return false
+	}
+	return shouldEscapeSessionStickyForPublicQuality(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, accountPointers(peers),
+	)
 }
 
 // isAccountUsableForRequest 检查账号是否可用于当前请求。

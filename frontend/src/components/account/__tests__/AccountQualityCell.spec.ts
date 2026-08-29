@@ -261,4 +261,22 @@ describe('AccountQualityCell', () => {
     expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
   })
+
+  it('combined mode shows K/C like smart-schedule pair quality cells', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          ttft_slow_count: 2,
+          ttft_consecutive_slow: 1,
+          quality_sched_max_slow_in_window: 3,
+          quality_sched_max_consecutive_slow: 2
+        }
+      }
+    })
+    expect(wrapper.get('[data-test="account-quality-kc"]').text()).toBe(
+      'admin.users.smartSchedule.pairLatencyKC'
+    )
+  })
 })

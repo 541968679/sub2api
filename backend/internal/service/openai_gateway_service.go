@@ -1916,8 +1916,11 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 	if eligibility.RequestedModel == "" {
 		eligibility.RequestedModel = requestedModel
 	}
-	var selected *Account
-	selectedCompactTier := -1
+	type schedulePick struct {
+		acc         *Account
+		compactTier int
+	}
+	eligible := make([]schedulePick, 0, len(accounts))
 	compactBlocked := false
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
 	poolEligibility := openAIAccountCandidatePoolEligibility(eligibility)
@@ -1953,27 +1956,44 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 				continue
 			}
 		}
+		eligible = append(eligible, schedulePick{acc: fresh, compactTier: compactTier})
+	}
 
-		// 选择优先级最高且最久未使用的账号
-		// Select highest priority and least recently used
+	ptrs := make([]*Account, 0, len(eligible))
+	for _, item := range eligible {
+		ptrs = append(ptrs, item.acc)
+	}
+	keep := make(map[int64]struct{}, len(eligible))
+	for _, acc := range s.preferPublicSchedule(ctx, eligibility.Platform, ptrs) {
+		if acc != nil {
+			keep[acc.ID] = struct{}{}
+		}
+	}
+
+	var selected *Account
+	selectedCompactTier := -1
+	for _, item := range eligible {
+		if _, ok := keep[item.acc.ID]; !ok {
+			continue
+		}
 		if selected == nil {
-			selected = fresh
-			selectedCompactTier = compactTier
+			selected = item.acc
+			selectedCompactTier = item.compactTier
 			continue
 		}
 
 		// compact 模式下高 tier 优先；同 tier 内才比较 priority/LRU。
-		if eligibility.RequireCompact && compactTier != selectedCompactTier {
-			if compactTier > selectedCompactTier {
-				selected = fresh
-				selectedCompactTier = compactTier
+		if eligibility.RequireCompact && item.compactTier != selectedCompactTier {
+			if item.compactTier > selectedCompactTier {
+				selected = item.acc
+				selectedCompactTier = item.compactTier
 			}
 			continue
 		}
 
-		if s.isBetterAccount(fresh, selected) {
-			selected = fresh
-			selectedCompactTier = compactTier
+		if s.isBetterAccount(item.acc, selected) {
+			selected = item.acc
+			selectedCompactTier = item.compactTier
 		}
 	}
 

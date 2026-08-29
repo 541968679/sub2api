@@ -66,6 +66,7 @@ type AccountHandler struct {
 	settingService          *service.SettingService
 	qualityMaintenance      *service.AccountQualityMaintenanceService
 	smartSchedule           *service.UserSmartScheduleService
+	publicSchedule          *service.PublicScheduleQualityService
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -112,6 +113,13 @@ func (h *AccountHandler) SetSmartScheduleService(svc *service.UserSmartScheduleS
 		return
 	}
 	h.smartSchedule = svc
+}
+
+func (h *AccountHandler) SetPublicScheduleQualityService(svc *service.PublicScheduleQualityService) {
+	if h == nil {
+		return
+	}
+	h.publicSchedule = svc
 }
 
 // CreateAccountRequest represents create account request
@@ -2919,6 +2927,90 @@ func (h *AccountHandler) SetPublicSchedulable(c *gin.Context) {
 	}
 
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+type publicScheduleQualityStateRequest struct {
+	State string `json:"state"`
+}
+
+// GetPublicScheduleQuality returns the account public-schedule six-state view.
+// GET /api/v1/admin/accounts/:id/public-schedule-quality
+func (h *AccountHandler) GetPublicScheduleQuality(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.publicSchedule == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Public schedule quality unavailable")
+		return
+	}
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	view, err := h.publicSchedule.GetView(c.Request.Context(), account)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, view)
+}
+
+// GetBatchPublicScheduleQuality returns public-schedule views for the account list.
+// POST /api/v1/admin/accounts/public-schedule-quality/batch
+func (h *AccountHandler) GetBatchPublicScheduleQuality(c *gin.Context) {
+	var req BatchQualityStatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if h.publicSchedule == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Public schedule quality unavailable")
+		return
+	}
+	ids := normalizeInt64IDList(req.AccountIDs)
+	raw := h.publicSchedule.GetViewBatch(c.Request.Context(), ids)
+	views := make(map[string]*service.PublicScheduleQualityView, len(raw))
+	for id, view := range raw {
+		views[strconv.FormatInt(id, 10)] = view
+	}
+	response.Success(c, gin.H{"views": views})
+}
+
+// SetPublicScheduleQualityState writes one of the six public-schedule states.
+// POST /api/v1/admin/accounts/:id/public-schedule-quality/state
+func (h *AccountHandler) SetPublicScheduleQualityState(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.publicSchedule == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Public schedule quality unavailable")
+		return
+	}
+	var req publicScheduleQualityStateRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.State) == "" {
+		response.BadRequest(c, "state is required")
+		return
+	}
+	if err := h.publicSchedule.SetManualState(c.Request.Context(), accountID, req.State); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	view, err := h.publicSchedule.GetView(c.Request.Context(), account)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, view)
 }
 
 // SetDisplayBalanceRequest updates display-only balance fields on an account.

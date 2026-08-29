@@ -2284,7 +2284,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'User last-N quality (this user, all accounts): p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. This is not smart-schedule pair quality and not a single-account quality cell.',
+          'User last-N quality (this user, all accounts): p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N and the same K (slow samples in window) / C (consecutive slow) line as smart-schedule quality cells. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. The sample window is still user last-N, not pair FIFO.',
         clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
         openShort: 'Open',
         openAria: 'Open user quality window',
@@ -4675,7 +4675,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Account last-N quality: p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The cell also shows k/N. The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings. This is not smart-schedule pair quality.',
+          'Account last-N quality: p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The cell also shows k/N and the same K (slow samples in window) / C (consecutive slow) line as smart-schedule quality cells. The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings. The sample window is still account last-N (Q_a), not pair FIFO.',
         successShort: 'ok',
         failoverShort: 'fo',
         bridgeShort: 'br',
@@ -4756,6 +4756,24 @@ const enBase = {
       publicQuality: {
         title: 'Public schedule quality',
         hint: 'Affects unpooled users only. Samples are every request on the account. Off by default. When on, the same EvalQuality as smart schedule soft-demotes accounts; a cooling account can still be selected if nothing healthier remains.',
+        column: 'Public quality',
+        columnHint:
+          'This account’s public-schedule six-state (selectable / cooling / probing / paused / resumed / pinned). Affects unpooled users only; a cooling account can still be picked. Manually switchable. Numbers stay in the quality cell to the left.',
+        stateSelectable: 'Selectable',
+        statePaused: 'Paused',
+        stateCooling: 'Account cooling',
+        stateProbing: 'Probing',
+        stateResumed: 'Resume window',
+        statePinned: 'Pinned',
+        stateWillCool: 'Will cool',
+        stateWillCoolHint: 'Public quality is already failing. Completing a request will write this account’s cooldown.',
+        coolingUntil: 'Cooling until {time}',
+        coolingRemaining: '{minutes} min left',
+        soft: 'Soft cooldown',
+        switchState: 'Switch state',
+        switchStateHint: 'Manually switch this account’s public-schedule quality state: paused, cooling, probing, selectable, resume window, or pinned.',
+        switchSuccess: 'Public schedule quality state updated',
+        switchFailed: 'Failed to switch public schedule quality state',
         enabled: 'Enable global public quality',
         enabledHint: 'Turns the plane on for every account. Per-account overrides come later.',
         ttftN: 'TTFT N',

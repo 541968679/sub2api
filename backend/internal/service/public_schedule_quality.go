@@ -22,6 +22,8 @@ const (
 	DefaultPublicScheduleCooldownMinutes = DefaultSmartScheduleCooldownMinutes
 	DefaultPublicScheduleMaxP50TTFTMs   = DefaultQualityHardCloseMaxP50TTFTMs
 	DefaultPublicScheduleMinSuccessRate = DefaultQualityHardCloseMinSuccessRate
+	DefaultPublicScheduleSchedK         = 3
+	DefaultPublicScheduleSchedC         = 2
 
 	PublicScheduleStoreWindowN = MaxSmartScheduleWindowN
 	PublicScheduleResumeChip   = AccountQualityWindow
@@ -109,13 +111,17 @@ type PublicScheduleQualityView struct {
 func DefaultPublicScheduleQualitySettings() *PublicScheduleQualitySettings {
 	p50 := DefaultPublicScheduleMaxP50TTFTMs
 	rate := DefaultPublicScheduleMinSuccessRate
+	k := DefaultPublicScheduleSchedK
+	c := DefaultPublicScheduleSchedC
 	return &PublicScheduleQualitySettings{
-		TTFTWindowN:           DefaultPublicScheduleWindowN,
-		SuccessWindowN:        DefaultPublicScheduleWindowN,
-		QualityMaxP50TTFTMs:   &p50,
-		QualityMinSuccessRate: &rate,
-		CooldownMinutes:       DefaultPublicScheduleCooldownMinutes,
-		SoftCooldown:          false,
+		TTFTWindowN:                    DefaultPublicScheduleWindowN,
+		SuccessWindowN:                 DefaultPublicScheduleWindowN,
+		QualityMaxP50TTFTMs:            &p50,
+		QualityMinSuccessRate:          &rate,
+		QualitySchedMaxSlowInWindow:    &k,
+		QualitySchedMaxConsecutiveSlow: &c,
+		CooldownMinutes:                DefaultPublicScheduleCooldownMinutes,
+		SoftCooldown:                   false,
 	}
 }
 
@@ -137,6 +143,14 @@ func NormalizePublicScheduleQualitySettings(settings *PublicScheduleQualitySetti
 	settings.QualitySchedWindowN = normalizeOptionalWindowN(settings.QualitySchedWindowN)
 	settings.QualitySchedMaxSlowInWindow = normalizeOptionalPositiveInt(settings.QualitySchedMaxSlowInWindow)
 	settings.QualitySchedMaxConsecutiveSlow = normalizeOptionalPositiveInt(settings.QualitySchedMaxConsecutiveSlow)
+	if settings.QualitySchedMaxSlowInWindow == nil {
+		k := DefaultPublicScheduleSchedK
+		settings.QualitySchedMaxSlowInWindow = &k
+	}
+	if settings.QualitySchedMaxConsecutiveSlow == nil {
+		c := DefaultPublicScheduleSchedC
+		settings.QualitySchedMaxConsecutiveSlow = &c
+	}
 	if settings.QualityMinSuccessRate != nil {
 		rate := *settings.QualityMinSuccessRate
 		if rate < 0 {

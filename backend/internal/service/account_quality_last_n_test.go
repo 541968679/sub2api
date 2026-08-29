@@ -62,6 +62,26 @@ func TestApplyAccountQualityLastNIngest_Rules(t *testing.T) {
 	require.InDelta(t, 2.0/3.0, *live.SuccessRate, 1e-9)
 }
 
+func TestStampAccountQualityLatencyKC_MatchesPairCell(t *testing.T) {
+	t.Parallel()
+	p50 := 3000
+	stats := &AccountQualityStats{}
+	StampAccountQualityLatencyKC(stats, []int{100, 4000, 4100}, QualityEvalKnobs{
+		TTFTMax:  &p50,
+		LatencyN: 3,
+		K:        3,
+		C:        2,
+	})
+	require.NotNil(t, stats.TTFTSlowCount)
+	require.Equal(t, 2, *stats.TTFTSlowCount)
+	require.NotNil(t, stats.TTFTConsecutiveSlow)
+	require.Equal(t, 2, *stats.TTFTConsecutiveSlow)
+	require.NotNil(t, stats.QualitySchedMaxSlowInWindow)
+	require.Equal(t, 3, *stats.QualitySchedMaxSlowInWindow)
+	require.NotNil(t, stats.QualitySchedMaxConsecutiveSlow)
+	require.Equal(t, 2, *stats.QualitySchedMaxConsecutiveSlow)
+}
+
 func TestAccountQualityLastN_ToAccountQualityStats_StampsN(t *testing.T) {
 	t.Parallel()
 	live := ApplyAccountQualityLastNIngest(nil, 4, true, intPtr(100), nil)

@@ -494,6 +494,32 @@ func TestUpdateAccount_PreservesQualityHardCloseOverlay(t *testing.T) {
 	require.NotContains(t, updated.Extra, "quota_limit")
 }
 
+func TestUpdateAccount_PreservesPublicScheduleQualityOverlay(t *testing.T) {
+	overlay := map[string]any{"enabled": true, "use_global": false}
+	repo := &updateAccountOveragesRepoStub{
+		account: &Account{
+			ID:       13,
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeAPIKey,
+			Status:   StatusActive,
+			Extra: map[string]any{
+				AccountExtraPublicScheduleQuality: overlay,
+				AccountExtraPublicSchedulable:     true,
+				"quota_limit":                     100.0,
+			},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	updated, err := svc.UpdateAccount(context.Background(), 13, &UpdateAccountInput{
+		Extra: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, overlay, updated.Extra[AccountExtraPublicScheduleQuality])
+	require.Equal(t, true, updated.Extra[AccountExtraPublicSchedulable])
+	require.NotContains(t, updated.Extra, "quota_limit")
+}
+
 func TestAccountQualityHardCloseEvaluator_OptedInBreachPauses(t *testing.T) {
 	global := qualityHardCloseCfg(nil)
 	repo := &hardCloseAccountRepoStub{

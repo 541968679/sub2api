@@ -1,3 +1,58 @@
+## 2026-08-29 - fix: public-quality ship blockers (Gemini sticky + extra preserve + legacy prefer)
+
+### What
+- Gemini session sticky now clears for public-schedule quality only when the sticky account is demoted **and** a healthy peer exists (`shouldEscapeGeminiStickyForPublicQuality`).
+- `UpdateAccount` extra replace preserves `public_schedule_quality` with `quality_hard_close` / `public_schedulable`; the edit form also strips that key.
+- Anthropic/OpenAI LoadBatch-off legacy select now applies `preferPublicScheduleAccounts` before picking (same never-empty-pool rule).
+
+### Why
+Gemini previously dropped sticky on demotion alone, which can empty the session onto nothing when every peer is already cooling. A full extra replace would wipe the stored overlay. Legacy select would ignore the plane if LoadBatch is off.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestGeminiStickyEscape_RequiresHealthyPeer|TestPublicScheduleStickyEscape_DemotedWithHealthyPeer|TestUpdateAccount_PreservesPublicScheduleQualityOverlay|TestPreferPublicSchedule" -count=1`
+
+### Affected files
+`backend/internal/service/gemini_messages_compat_service.go`
+`backend/internal/service/admin_service.go`
+`backend/internal/service/gateway_service.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/service/public_schedule_quality_test.go`
+`backend/internal/service/account_quality_hard_close_test.go`
+`frontend/src/components/account/EditAccountModal.vue`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/scheduler.md`
+
+## 2026-08-29 - feat: public-quality K/C + six-state column
+
+### What
+- Account (and user) last-N quality cells now show the same K/C line as smart-schedule pair quality cells (`K {slow}/{k} · C {consec}/{c}`), stamped from public-schedule site knobs onto the existing \(Q_a\) / \(Q_u\) window.
+- Accounts list gains a `public_quality` column after 质量: six-state chip, remaining time, reason, and the shared admission switcher (account wording, not pair cooldown). Manual switch persists via `POST /admin/accounts/:id/public-schedule-quality/state`.
+
+### Why
+The quality cell was missing the pair-cell K/C counters, and the public-schedule six-state had APIs but no list surface.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestPublicScheduleGetView_AttachesLatencyKC -count=1`
+- `go test -tags=unit ./internal/handler/admin -run TestAccountHandler_PublicScheduleQuality -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/account/__tests__/PublicScheduleQualityStateCell.spec.ts src/views/admin/__tests__/AccountsView.publicQuality.spec.ts`
+
+### Affected files
+`backend/internal/service/account_quality.go`
+`backend/internal/service/account_quality_last_n.go`
+`backend/internal/service/account_quality_maintenance.go`
+`backend/internal/service/public_schedule_quality.go`
+`backend/internal/service/public_schedule_quality_runtime.go`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/api/admin/accounts.ts`
+`frontend/src/components/account/AccountQualityCell.vue`
+`frontend/src/components/account/PublicScheduleQualityStateCell.vue`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/scheduler.md`
+
 ## 2026-08-29 - fix: Select dropdown contrast on dark modals
 
 ### What

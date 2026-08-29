@@ -193,6 +193,22 @@ func StampAccountQualityWindowN(stats *AccountQualityStats, n int) {
 	stats.AccountQualityWindowN = n
 }
 
+// StampAccountQualityLatencyKC copies pair-quality K/C display fields onto Q_a stats.
+func StampAccountQualityLatencyKC(stats *AccountQualityStats, ttft []int, knobs QualityEvalKnobs) {
+	if stats == nil || knobs.TTFTMax == nil || *knobs.TTFTMax < 1 {
+		return
+	}
+	samples := recentLatencySamples(ttft, knobs.LatencyN)
+	if knobs.K > 0 {
+		stats.TTFTSlowCount = intPtr(countSlowSamples(samples, *knobs.TTFTMax))
+		stats.QualitySchedMaxSlowInWindow = intPtr(knobs.K)
+	}
+	if knobs.C > 0 {
+		stats.TTFTConsecutiveSlow = intPtr(countTrailingSlow(samples, *knobs.TTFTMax))
+		stats.QualitySchedMaxConsecutiveSlow = intPtr(knobs.C)
+	}
+}
+
 func ApplyAccountQualityLastNIngest(live *AccountQualityLastN, n int, success bool, firstTokenMs, durationMs *int) *AccountQualityLastN {
 	if live == nil {
 		live = &AccountQualityLastN{}

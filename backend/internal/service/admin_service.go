@@ -2978,8 +2978,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。
 	if input.Extra != nil {
 		// 保留配额用量字段，防止编辑账号时意外重置。
-		// quality_hard_close / public_schedulable 由专用 API 维护，编辑账号大表单不得整表替换掉它们。
-		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start", AccountExtraQualityHardClose, AccountExtraPublicSchedulable} {
+		// quality_hard_close / public_schedulable / public_schedule_quality 由专用 API 维护，编辑账号大表单不得整表替换掉它们。
+		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start", AccountExtraQualityHardClose, AccountExtraPublicSchedulable, AccountExtraPublicScheduleQuality} {
 			if v, ok := account.Extra[key]; ok {
 				input.Extra[key] = v
 			}

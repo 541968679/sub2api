@@ -2134,7 +2134,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '用户 last-N 质量（该用户、全部账号）：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。不是智能调度配对质量，也不是单账号质量。',
+          '用户 last-N 质量（该用户、全部账号）：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N，以及与智能调度质量格相同的 K（窗口内慢样本）/ C（连续慢样本）。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。样本窗口仍是用户 last-N，不是配对 FIFO。',
         clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
         openShort: '打开',
         openAria: '打开用户质量窗口',
@@ -4261,7 +4261,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '账号 last-N 质量：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。格子里还有 k/N。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。不是智能调度配对质量。',
+          '账号 last-N 质量：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。格子里还有 k/N，以及与智能调度质量格相同的 K（窗口内慢样本）/ C（连续慢样本）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。样本窗口仍是账号 last-N（Q_a），不是配对 FIFO。',
         successShort: '率',
         failoverShort: '含',
         bridgeShort: '桥',
@@ -4342,6 +4342,24 @@ const zhBase = {
       publicQuality: {
         title: '公共调度质量',
         hint: '只影响无池用户。样本是账号上的全部请求。默认关；打开后按与智能调度相同的 EvalQuality 软降权，冷却号仍可出号。',
+        column: '公共质量',
+        columnHint:
+          '该账号的公共调度六态（可调度 / 冷却 / 考察 / 暂停 / 豁免期 / 长期豁免）。只影响无池用户出号；冷却号仍可被选中。可手动切换。质量数字仍看左侧质量格。',
+        stateSelectable: '可调度',
+        statePaused: '已暂停',
+        stateCooling: '账号冷却',
+        stateProbing: '考察',
+        stateResumed: '豁免期',
+        statePinned: '长期豁免',
+        stateWillCool: '将写入冷却',
+        stateWillCoolHint: '当前公共质量已不达标。完成请求时会写入该账号冷却。',
+        coolingUntil: '冷却至 {time}',
+        coolingRemaining: '剩余 {minutes} 分钟',
+        soft: '软冷却',
+        switchState: '切换状态',
+        switchStateHint: '手动切换该账号公共调度质量状态：暂停、冷却、考察、调度、豁免期或长期豁免。',
+        switchSuccess: '已切换公共调度质量状态',
+        switchFailed: '切换公共调度质量状态失败',
         enabled: '启用全局公共质量',
         enabledHint: '打开后对所有账号生效。单账号覆盖以后再做。',
         ttftN: 'N 首字',
