@@ -1,3 +1,11 @@
+## 2026-08-29 - docs: record production deploy of v0.1.271
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.271` (`c52599b3e`, digest `sha256:2dae3a9ff0ddd85f48fa572319f16f5ce85c785789658a8adfd0e5cc3ec2fdca`). Preflight passed, `/health` ok, healthy. Site public-quality remains off (`public_quality_shadow` ingest is live).
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-08-29 - release: 0.1.271 public-schedule quality
 
 ### What
