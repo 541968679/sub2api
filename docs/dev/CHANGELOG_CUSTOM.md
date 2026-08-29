@@ -1,3 +1,11 @@
+## 2026-08-29 - release: 0.1.272 public-quality card + Codex compaction
+
+### What
+- Ship the Accounts public-quality 1+2 site card (full EvalQuality knobs, height-matched) and the Codex `invalid_encrypted_content` compaction retry.
+
+### Why
+Production is on `v0.1.271`. Need a published GHCR tag before `update.sh` can pull this pair.
+
 ## 2026-08-29 - fix: recover stale encrypted Codex compaction on invalid_encrypted_content
 
 ### What
