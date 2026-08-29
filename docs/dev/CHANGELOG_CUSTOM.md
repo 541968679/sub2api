@@ -1,3 +1,26 @@
+## 2026-08-29 - feat: select accounts by upstream rate on the accounts bulk bar
+
+### What
+- Accounts list bulk bar can one-click select accounts whose effective upstream rate is strictly above or below a threshold, inside the current list filters (same paging as 跨页全选).
+- oauth/apikey with a missing rate use `0.15`, not `1`. Equals is not selected. The billing-rate unbind dialog is unchanged.
+
+### Why
+Ops already use bulk edit to add subscription groups / enable Claude-GPT bridge. The missing piece was selecting cheap or expensive upstream-rate accounts without paging by hand.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountUpstreamRate.spec.ts src/components/admin/account/__tests__/AccountBulkActionsBar.spec.ts src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`
+
+### Affected files
+`frontend/src/utils/accountUpstreamRate.ts`
+`frontend/src/utils/__tests__/accountUpstreamRate.spec.ts`
+`frontend/src/components/admin/account/AccountBulkActionsBar.vue`
+`frontend/src/components/admin/account/__tests__/AccountBulkActionsBar.spec.ts`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-29 - fix: account list sorts by upstream rate from the column header
 
 ### What

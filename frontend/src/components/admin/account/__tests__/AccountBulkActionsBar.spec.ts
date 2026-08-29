@@ -37,4 +37,14 @@ describe('AccountBulkActionsBar', () => {
     expect(wrapper.get('[data-testid="unbind-subscription-by-rate"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="bulk-edit-filtered"]').exists()).toBe(true)
   })
+
+  it('emits select-by-upstream-rate with the current comparison and threshold', async () => {
+    const wrapper = mountBar([])
+    await wrapper.get('[data-testid="select-by-upstream-rate"]').trigger('click')
+    const comparison = wrapper.get('[data-testid="select-by-upstream-rate-comparison"]')
+    await comparison.setValue('gt')
+    await wrapper.get('[data-testid="select-by-upstream-rate-threshold"]').setValue(1.2)
+    await wrapper.get('[data-testid="select-by-upstream-rate-apply"]').trigger('click')
+    expect(wrapper.emitted('select-by-upstream-rate')).toEqual([[{ comparison: 'gt', threshold: 1.2 }]])
+  })
 })

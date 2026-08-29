@@ -26,6 +26,54 @@
               : t('admin.accounts.bulkActions.selectFiltered', { count: total })
           }}
         </button>
+        <span class="text-gray-300 dark:text-primary-800">/</span>
+        <div class="relative" ref="upstreamRateSelectRef">
+          <button
+            type="button"
+            data-testid="select-by-upstream-rate"
+            :disabled="selectingAllFiltered"
+            class="text-xs font-medium text-primary-700 hover:text-primary-800 disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary-300 dark:hover:text-primary-200"
+            @click="showUpstreamRateSelect = !showUpstreamRateSelect"
+          >
+            {{ t('admin.accounts.bulkActions.selectByUpstreamRate') }}
+          </button>
+          <div
+            v-if="showUpstreamRateSelect"
+            class="absolute left-0 z-50 mt-2 w-64 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            data-testid="select-by-upstream-rate-panel"
+          >
+            <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.bulkActions.selectByUpstreamRateHint') }}
+            </p>
+            <div class="flex items-center gap-2">
+              <select
+                v-model="upstreamRateComparison"
+                data-testid="select-by-upstream-rate-comparison"
+                class="input h-8 w-24 py-0 text-xs"
+              >
+                <option value="lt">{{ t('admin.accounts.bulkActions.selectByUpstreamRateBelow') }}</option>
+                <option value="gt">{{ t('admin.accounts.bulkActions.selectByUpstreamRateAbove') }}</option>
+              </select>
+              <input
+                v-model.number="upstreamRateThreshold"
+                data-testid="select-by-upstream-rate-threshold"
+                type="number"
+                min="0"
+                step="0.01"
+                class="input h-8 min-w-0 flex-1 py-0 text-xs"
+              />
+            </div>
+            <button
+              type="button"
+              data-testid="select-by-upstream-rate-apply"
+              class="btn btn-primary btn-sm mt-2 w-full"
+              :disabled="selectingAllFiltered || !isFiniteUpstreamRateThreshold"
+              @click="applyUpstreamRateSelect"
+            >
+              {{ t('admin.accounts.bulkActions.selectByUpstreamRateApply') }}
+            </button>
+          </div>
+        </div>
         <template v-if="selectedIds.length > 0">
           <span class="text-gray-300 dark:text-primary-800">/</span>
           <button
@@ -74,7 +122,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { UpstreamRateComparison } from '@/utils/accountUpstreamRate'
 
 withDefaults(defineProps<{
   selectedIds: number[]
@@ -85,19 +135,49 @@ withDefaults(defineProps<{
   selectingAllFiltered: false
 })
 
-defineEmits([
-  'delete',
-  'edit-selected',
-  'edit-filtered',
-  'clear',
-  'select-page',
-  'select-filtered',
-  'toggle-schedulable',
-  'reset-status',
-  'refresh-token',
-  'auto-assign-proxy',
-  'unbind-subscription-by-rate'
-])
+const emit = defineEmits<{
+  delete: []
+  'edit-selected': []
+  'edit-filtered': []
+  clear: []
+  'select-page': []
+  'select-filtered': []
+  'toggle-schedulable': [enabled: boolean]
+  'reset-status': []
+  'refresh-token': []
+  'auto-assign-proxy': []
+  'unbind-subscription-by-rate': []
+  'select-by-upstream-rate': [payload: { comparison: UpstreamRateComparison; threshold: number }]
+}>()
 
 const { t } = useI18n()
+const showUpstreamRateSelect = ref(false)
+const upstreamRateComparison = ref<UpstreamRateComparison>('lt')
+const upstreamRateThreshold = ref(1)
+const upstreamRateSelectRef = ref<HTMLElement | null>(null)
+
+const isFiniteUpstreamRateThreshold = computed(() => Number.isFinite(Number(upstreamRateThreshold.value)))
+
+function applyUpstreamRateSelect() {
+  if (!isFiniteUpstreamRateThreshold.value) return
+  emit('select-by-upstream-rate', {
+    comparison: upstreamRateComparison.value,
+    threshold: Number(upstreamRateThreshold.value)
+  })
+  showUpstreamRateSelect.value = false
+}
+
+function handleDocumentClick(event: MouseEvent) {
+  const root = upstreamRateSelectRef.value
+  if (!root || root.contains(event.target as Node)) return
+  showUpstreamRateSelect.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDocumentClick)
+})
 </script>

@@ -77,13 +77,14 @@ const DataTableStub = {
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds', 'total', 'selectingAllFiltered'],
-  emits: ['delete', 'edit-filtered', 'select-filtered', 'unbind-subscription-by-rate'],
+  emits: ['delete', 'edit-filtered', 'select-filtered', 'select-by-upstream-rate', 'unbind-subscription-by-rate'],
   template: `
     <div>
       <span data-test="selected-count">{{ selectedIds.length }}</span>
       <button data-test="delete-selected" @click="$emit('delete')">delete selected</button>
       <button data-test="edit-filtered" @click="$emit('edit-filtered')">edit filtered</button>
       <button data-test="select-filtered" @click="$emit('select-filtered')">select filtered</button>
+      <button data-test="select-by-upstream-rate" @click="$emit('select-by-upstream-rate', { comparison: 'lt', threshold: 1 })">select by upstream rate</button>
       <button data-test="unbind-subscription-by-rate" @click="$emit('unbind-subscription-by-rate')">unbind subscription</button>
     </div>
   `
@@ -260,6 +261,36 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(listAccounts).toHaveBeenNthCalledWith(2, 1, 1000, expect.objectContaining({ sort_by: 'created_at', sort_order: 'desc' }))
     expect(listAccounts).toHaveBeenNthCalledWith(3, 2, 1000, expect.objectContaining({ sort_by: 'created_at', sort_order: 'desc' }))
     expect(wrapper.get('[data-test="selected-count"]').text()).toBe('3')
+  })
+
+  it('selects only current-filter accounts whose effective upstream rate is strictly below the threshold', async () => {
+    listAccounts
+      .mockResolvedValueOnce({
+        items: [],
+        total: 3,
+        page: 1,
+        page_size: 20,
+        pages: 1
+      })
+      .mockResolvedValueOnce({
+        items: [
+          { id: 1, platform: 'openai', type: 'oauth' },
+          { id: 2, platform: 'openai', type: 'oauth', upstream_rate_multiplier: 1 },
+          { id: 3, platform: 'openai', type: 'oauth', upstream_rate_multiplier: 1.2 }
+        ],
+        total: 3,
+        page: 1,
+        page_size: 1000,
+        pages: 1
+      })
+
+    const wrapper = mountAccountsView()
+
+    await flushPromises()
+    await wrapper.get('[data-test="select-by-upstream-rate"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="selected-count"]').text()).toBe('1')
   })
 
   it('bulk deletes selected accounts in bounded batches and keeps failures selected', async () => {

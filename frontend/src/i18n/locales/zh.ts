@@ -4722,6 +4722,12 @@ const zhBase = {
         selectingFiltered: '正在选择...',
         selectFilteredSuccess: '已选择 {count} 个账号',
         selectFilteredFailed: '跨页全选失败',
+        selectByUpstreamRate: '按上游倍率选中',
+        selectByUpstreamRateHint: '按当前筛选分页拉取后，用有效上游倍率比较（空/非法/负数按类型默认：OAuth/API Key 0.15，其它 1）。等于阈值不选。',
+        selectByUpstreamRateAbove: '高于',
+        selectByUpstreamRateBelow: '低于',
+        selectByUpstreamRateApply: '选中',
+        selectByUpstreamRateFailed: '按上游倍率选择失败',
         clear: '清除选择',
         /** @deprecated use editSelected / editFiltered — same BulkEdit modal, different scope */
         edit: '编辑已选账号',

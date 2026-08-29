@@ -4971,6 +4971,12 @@ const enBase = {
         selectingFiltered: 'Selecting...',
         selectFilteredSuccess: 'Selected {count} account(s)',
         selectFilteredFailed: 'Failed to select all filtered accounts',
+        selectByUpstreamRate: 'Select by upstream rate',
+        selectByUpstreamRateHint: 'Pages the current filters, then compares effective upstream rate (nil/invalid/negative uses type default: 0.15 for OAuth/API Key, else 1). Equals are not selected.',
+        selectByUpstreamRateAbove: 'Above',
+        selectByUpstreamRateBelow: 'Below',
+        selectByUpstreamRateApply: 'Select',
+        selectByUpstreamRateFailed: 'Failed to select by upstream rate',
         clear: 'Clear selection',
         /** @deprecated use editSelected / editFiltered — same BulkEdit modal, different scope */
         edit: 'Edit selected',

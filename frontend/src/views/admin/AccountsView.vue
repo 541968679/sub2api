@@ -325,6 +325,7 @@
           @clear="clearSelection"
           @select-page="selectPageAccounts"
           @select-filtered="selectAllFilteredAccounts"
+          @select-by-upstream-rate="selectAccountsByUpstreamRate"
           @toggle-schedulable="handleBulkToggleSchedulable"
           @auto-assign-proxy="handleBulkAutoAssignProxy"
           @unbind-subscription-by-rate="openUnbindSubscription"
@@ -838,6 +839,10 @@ import type { PairAdmissionLiveState } from '@/composables/smartSchedulePoolAdmi
 import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
 import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { accountMatchesListFilters } from '@/utils/accountListFilters'
+import {
+  accountMatchesUpstreamRateSelection,
+  type UpstreamRateComparison
+} from '@/utils/accountUpstreamRate'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -2503,29 +2508,60 @@ const buildBulkEditFilterSnapshot = () => {
   }
 }
 
+const collectFilteredAccounts = async () => {
+  const filters = buildBulkEditFilterSnapshot()
+  const accounts: Account[] = []
+  const ids = new Set<number>()
+  let page = 1
+  let pages = 1
+
+  do {
+    const result = await adminAPI.accounts.list(page, SELECT_ALL_FILTERED_PAGE_SIZE, filters)
+    rememberAccountSelectionMetadata(result.items)
+    result.items.forEach((account) => {
+      if (ids.has(account.id)) return
+      ids.add(account.id)
+      accounts.push(account)
+    })
+    pages = result.pages || Math.ceil((result.total || ids.size) / SELECT_ALL_FILTERED_PAGE_SIZE) || page
+    page += 1
+  } while (page <= pages)
+
+  return accounts
+}
+
 const selectAllFilteredAccounts = async () => {
   if (selectingAllFiltered.value) return
   selectingAllFiltered.value = true
   try {
-    const filters = buildBulkEditFilterSnapshot()
-    const ids = new Set<number>()
-    let page = 1
-    let pages = 1
-
-    do {
-      const result = await adminAPI.accounts.list(page, SELECT_ALL_FILTERED_PAGE_SIZE, filters)
-      rememberAccountSelectionMetadata(result.items)
-      result.items.forEach((account) => ids.add(account.id))
-      pages = result.pages || Math.ceil((result.total || ids.size) / SELECT_ALL_FILTERED_PAGE_SIZE) || page
-      page += 1
-    } while (page <= pages)
-
-    const selectedIds = Array.from(ids)
+    const selectedIds = (await collectFilteredAccounts()).map((account) => account.id)
     setSelectedIds(selectedIds)
     appStore.showSuccess(t('admin.accounts.bulkActions.selectFilteredSuccess', { count: selectedIds.length }))
   } catch (error) {
     console.error('Failed to select all filtered accounts:', error)
     appStore.showError(t('admin.accounts.bulkActions.selectFilteredFailed'))
+  } finally {
+    selectingAllFiltered.value = false
+  }
+}
+
+const selectAccountsByUpstreamRate = async (payload: {
+  comparison: UpstreamRateComparison
+  threshold: number
+}) => {
+  if (selectingAllFiltered.value) return
+  selectingAllFiltered.value = true
+  try {
+    const selectedIds = (await collectFilteredAccounts())
+      .filter((account) =>
+        accountMatchesUpstreamRateSelection(account, payload.comparison, payload.threshold)
+      )
+      .map((account) => account.id)
+    setSelectedIds(selectedIds)
+    appStore.showSuccess(t('admin.accounts.bulkActions.selectFilteredSuccess', { count: selectedIds.length }))
+  } catch (error) {
+    console.error('Failed to select accounts by upstream rate:', error)
+    appStore.showError(t('admin.accounts.bulkActions.selectByUpstreamRateFailed'))
   } finally {
     selectingAllFiltered.value = false
   }

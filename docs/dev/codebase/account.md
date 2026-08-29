@@ -50,6 +50,7 @@ POST /api/v1/admin/accounts/unbind-subscription-groups-by-rate
 - Create omit → type default. Old Redis snapshots missing the field use the type default, not billing `1.0`.
 - Admin surfaces: create/edit/bulk, accounts list inline column, smart-schedule pool inline column, import/export.
 - Account list column header and the filter sort dropdown can order by `upstream_rate_multiplier`. That sort is the primary key (pins/`list_order` are only a tie-break). Other column sorts still pin-first.
+- Account-list bulk bar **按上游倍率选中** pages the current list filters (same as 跨页全选), then keeps ids whose `EffectiveUpstreamRate()` is strictly above or below a threshold. Equals is not selected. Missing / negative rates use the type default (`oauth`/`apikey` → `0.15`). This only writes the checkbox selection; add/remove groups and Claude-GPT bridge stay on existing bulk edit. Do not reuse `rate_multiplier`. The billing-rate unbind dialog is a separate action and still compares billing rate.
 
 Among already-eligible accounts, selection prefers the lowest upstream rate. Same rate falls through to priority / load / last_used / Sub2 score. `fallback_only` stays a hard partition; the overlay applies inside the active partition.
 
