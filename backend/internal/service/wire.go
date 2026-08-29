@@ -723,6 +723,7 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityGatewayService,
 	ProvideRateLimitService,
 	NewAccountUsageService,
+	NewOpenAI7dLiteLLMCycleService,
 	NewAccountTestService,
 	ProvideSettingService,
 	wire.Bind(new(GatewayNetworkRetrySettingsReader), new(*SettingService)),

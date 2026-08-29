@@ -157,9 +157,11 @@ type UsageProgress struct {
 	Utilization      float64      `json:"utilization"`            // 使用率百分比 (0-100+，100表示100%)
 	ResetsAt         *time.Time   `json:"resets_at"`              // 重置时间
 	RemainingSeconds int          `json:"remaining_seconds"`      // 距重置剩余秒数
-	WindowStats      *WindowStats `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
-	UsedRequests     int64        `json:"used_requests,omitempty"`
-	LimitRequests    int64        `json:"limit_requests,omitempty"`
+	WindowStats      *WindowStats           `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
+	UsedRequests     int64                  `json:"used_requests,omitempty"`
+	LimitRequests    int64                  `json:"limit_requests,omitempty"`
+	LiteLLMCost      *float64               `json:"litellm_cost,omitempty"`
+	PreviousCycle    *OpenAI7dPreviousCycle `json:"previous_cycle,omitempty"`
 }
 
 // AntigravityModelQuota Antigravity 单个模型的配额信息
@@ -323,6 +325,7 @@ type AccountUsageService struct {
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
 	openAIQuotaService      *OpenAIQuotaService
+	openAI7dLiteLLM         *OpenAI7dLiteLLMCycleService
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -356,6 +359,10 @@ func (s *AccountUsageService) SetOpenAIQuotaService(quota *OpenAIQuotaService) {
 
 func (s *AccountUsageService) SetGrokQuotaService(quota *GrokQuotaService) {
 	s.grokQuotaService = quota
+}
+
+func (s *AccountUsageService) SetOpenAI7dLiteLLMCycles(cycles *OpenAI7dLiteLLMCycleService) {
+	s.openAI7dLiteLLM = cycles
 }
 
 // GetUsage 获取账号使用量
@@ -915,8 +922,8 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		if account.IsShadow() && s.openAIQuotaService != nil {
 			if snapshot, err := s.openAIQuotaService.QueryUsage(ctx, account.ID); err == nil {
 				updates := buildCodexSparkWindowExtraUpdates(snapshot, now)
+				s.persistOpenAICodexProbeSnapshot(account, updates)
 				mergeAccountExtra(account, updates)
-				s.persistOpenAICodexProbeSnapshot(account.ID, updates)
 				if progress := buildCodexUsageProgressFromExtra(account.Extra, "5h", now); progress != nil {
 					usage.FiveHour = progress
 				}
@@ -954,6 +961,10 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 			usage.SevenDay = &UsageProgress{Utilization: 0}
 		}
 		usage.SevenDay.WindowStats = windowStatsFromAccountStats(stats)
+	}
+
+	if s.openAI7dLiteLLM != nil {
+		s.openAI7dLiteLLM.AttachCurrent(ctx, account, usage)
 	}
 
 	return usage, nil
@@ -1098,20 +1109,26 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 		return nil, err
 	}
 	if len(updates) > 0 {
-		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+		s.persistOpenAICodexProbeSnapshot(account, updates)
 		return updates, nil
 	}
 	return nil, nil
 }
 
-func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any) {
-	if s == nil || s.accountRepo == nil || accountID <= 0 {
+func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(account *Account, updates map[string]any) {
+	if s == nil || s.accountRepo == nil || account == nil || account.ID <= 0 {
 		return
 	}
 	if len(updates) == 0 {
 		return
 	}
+	if s.openAI7dLiteLLM != nil {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 8*time.Second)
+		s.openAI7dLiteLLM.CloseIfReset(closeCtx, account, updates)
+		closeCancel()
+	}
 
+	accountID := account.ID
 	go func() {
 		updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer updateCancel()

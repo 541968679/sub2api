@@ -82,6 +82,31 @@ describe('UsageProgressBar', () => {
     expect(wrapper.text()).not.toContain('usage.resetNow')
   })
 
+  it('shows LiteLLM cost chip next to account billed without changing A$', () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: {
+        label: '7d',
+        utilization: 12,
+        resetsAt: '2026-03-17T02:30:00Z',
+        color: 'emerald',
+        litellmCost: 3.5,
+        windowStats: {
+          requests: 2,
+          tokens: 100,
+          cost: 1.23,
+          user_cost: 0.4
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('A $1.23')
+    expect(wrapper.text()).toContain('L $3.50')
+    expect(wrapper.text()).toContain('U $0.40')
+    const titles = wrapper.findAll('span[title]').map((node) => node.attributes('title'))
+    expect(titles).toContain('usage.accountBilled')
+    expect(titles).toContain('usage.litellmCostHint')
+  })
+
   it('resetsAt 已过期且利用率为 0 时仍显示“现在”', () => {
     const wrapper = mount(UsageProgressBar, {
       props: {

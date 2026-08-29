@@ -225,6 +225,70 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('7d|77|300')
   })
 
+  it('OpenAI OAuth 7d 展示 L$ 与上期周期，不改 A$ stub', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: {
+        utilization: 15,
+        resets_at: '2099-03-08T12:00:00Z',
+        remaining_seconds: 3600,
+        window_stats: {
+          requests: 3,
+          tokens: 300,
+          cost: 0.03,
+          standard_cost: 0.03,
+          user_cost: 0.03
+        }
+      },
+      seven_day: {
+        utilization: 77,
+        resets_at: '2099-03-13T12:00:00Z',
+        remaining_seconds: 3600,
+        window_stats: {
+          requests: 3,
+          tokens: 300,
+          cost: 0.03,
+          standard_cost: 0.03,
+          user_cost: 0.03
+        },
+        litellm_cost: 4.5,
+        previous_cycle: {
+          litellm_cost: 9.25,
+          used_percent: 88.4,
+          window_start: '2026-08-14T00:00:00Z',
+          window_end: '2026-08-21T00:00:00Z'
+        }
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2010,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {
+            codex_7d_reset_at: '2099-03-13T12:00:00Z'
+          }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'windowStats', 'litellmCost'],
+            template: '<div class="usage-bar">{{ label }}|A{{ windowStats?.cost }}|L{{ litellmCost }}</div>'
+          },
+          AccountQuotaInfo: true,
+          OpenAIQuotaResetCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('7d|A0.03|L4.5')
+    expect(wrapper.text()).toContain('usage.previousLiteLLMCycle')
+  })
+
   it('OpenAI OAuth 有 codex 快照时仍然使用 /usage API 数据渲染', async () => {
     getUsage.mockResolvedValue({
       five_hour: {

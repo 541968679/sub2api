@@ -151,9 +151,19 @@
           :utilization="usageInfo.seven_day.utilization"
           :resets-at="usageInfo.seven_day.resets_at"
           :window-stats="usageInfo.seven_day.window_stats"
+          :litellm-cost="usageInfo.seven_day.litellm_cost"
           :show-now-when-idle="true"
           color="emerald"
         />
+        <div
+          v-if="usageInfo?.seven_day?.previous_cycle"
+          class="text-[9px] text-gray-400 dark:text-gray-500"
+        >
+          {{ t('usage.previousLiteLLMCycle', {
+            cost: formatOpenAI7dLiteLLMCost(usageInfo.seven_day.previous_cycle.litellm_cost),
+            percent: formatOpenAI7dUsedPercent(usageInfo.seven_day.previous_cycle.used_percent)
+          }) }}
+        </div>
         <div
           v-if="burnRateLine"
           class="text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
@@ -1669,6 +1679,16 @@ const formatKeyTokens = computed(() => {
   if (!props.todayStats) return ''
   return formatCompactNumber(props.todayStats.tokens)
 })
+
+function formatOpenAI7dLiteLLMCost(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '0.00'
+  return value.toFixed(2)
+}
+
+function formatOpenAI7dUsedPercent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '0'
+  return String(Math.round(value))
+}
 
 function formatBalanceUSD(value: number): string {
   if (!Number.isFinite(value)) return '—'

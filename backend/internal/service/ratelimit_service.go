@@ -30,6 +30,7 @@ type RateLimitService struct {
 	settingService           *SettingService
 	tokenCacheInvalidator    TokenCacheInvalidator
 	oauthFleetSoft429Cache   OAuthFleetSoft429Cache
+	openAI7dLiteLLM          *OpenAI7dLiteLLMCycleService
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 }
@@ -101,6 +102,13 @@ func (s *RateLimitService) SetSettingService(settingService *SettingService) {
 // SetTokenCacheInvalidator 设置 token 缓存清理器（可选依赖）
 func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvalidator) {
 	s.tokenCacheInvalidator = invalidator
+}
+
+func (s *RateLimitService) SetOpenAI7dLiteLLMCycles(cycles *OpenAI7dLiteLLMCycleService) {
+	if s == nil {
+		return
+	}
+	s.openAI7dLiteLLM = cycles
 }
 
 // HandleOpenAIImageRateLimit stores image-specific OpenAI 429s in the image generation model scope.
@@ -1634,6 +1642,9 @@ func (s *RateLimitService) persistOpenAICodexSnapshot(ctx context.Context, accou
 	updates := buildCodexUsageExtraUpdates(snapshot, time.Now())
 	if len(updates) == 0 {
 		return
+	}
+	if s.openAI7dLiteLLM != nil {
+		s.openAI7dLiteLLM.CloseIfReset(ctx, account, updates)
 	}
 	if err := s.accountRepo.UpdateExtra(ctx, account.ID, updates); err != nil {
 		slog.Warn("openai_codex_snapshot_persist_failed", "account_id", account.ID, "error", err)

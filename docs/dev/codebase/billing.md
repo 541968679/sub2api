@@ -65,6 +65,10 @@ Compatibility notes for custom billing/ops features:
   upstream model. In an Antigravity bridge group, write these rules as
   `platform=antigravity, model=gpt-5.5` or leave `platform` empty; a rule written
   as `platform=openai, model=gpt-5.5` will not match that Antigravity group.
+- OpenAI OAuth 7d `L$` (`seven_day.litellm_cost`) is a read-only LiteLLM ×
+  real-token estimate. Price the `upstream_model` when set (Claude→GPT bridge),
+  else requested/model. It must not change stored billing, `actual_cost`,
+  `true_cost`, display transforms, or the A$ window_stats SQL.
 
 ## OpenAI GPT-5.6 Pricing (2026-07-10)
 

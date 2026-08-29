@@ -1226,6 +1226,13 @@ export interface WindowStats {
   user_cost?: number
 }
 
+export interface OpenAI7dPreviousCycle {
+  litellm_cost: number
+  used_percent: number
+  window_start: string
+  window_end: string
+}
+
 export interface UsageProgress {
   utilization: number // Percentage (0-100+, 100 = 100%)
   resets_at: string | null
@@ -1233,6 +1240,8 @@ export interface UsageProgress {
   window_stats?: WindowStats | null // 窗口期统计（从窗口开始到当前的使用量）
   used_requests?: number
   limit_requests?: number
+  litellm_cost?: number | null
+  previous_cycle?: OpenAI7dPreviousCycle | null
 }
 
 // Antigravity 单个模型的配额信息

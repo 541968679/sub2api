@@ -1082,6 +1082,8 @@ const enBase = {
     userBilled: 'User billed',
     userDisplayCost: 'User display',
     accountBilled: 'Account billed',
+    litellmCostHint: 'LiteLLM list prices × real tokens for the current Codex 7-day cycle (no display prices or multipliers)',
+    previousLiteLLMCycle: 'Prev L ${cost} · {percent}%',
     resetNow: 'Now',
     resetPending: 'Pending refresh',
     accountMultiplier: 'Account rate',

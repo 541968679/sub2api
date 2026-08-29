@@ -1037,6 +1037,8 @@ const zhBase = {
     userBilled: '用户扣费',
     userDisplayCost: '用户展示',
     accountBilled: '账号计费',
+    litellmCostHint: 'LiteLLM 标价 × 真实 token（当前 Codex 7 日周期，不含展示价/倍率）',
+    previousLiteLLMCycle: '上期 L ${cost} · {percent}%',
     resetNow: '现在',
     resetPending: '待刷新',
     accountMultiplier: '账号倍率',

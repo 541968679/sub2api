@@ -2,25 +2,34 @@
   <div>
     <!-- Window stats row (above progress bar) -->
     <div
-      v-if="windowStats && (windowStats.requests > 0 || windowStats.tokens > 0)"
+      v-if="showWindowStatsRow"
       class="mb-0.5 flex items-center"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-          {{ formatRequests }} req
-        </span>
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-          {{ formatTokens }}
-        </span>
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-          A ${{ formatAccountCost }}
-        </span>
+        <template v-if="hasLocalWindowStats">
+          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+            {{ formatRequests }} req
+          </span>
+          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+            {{ formatTokens }}
+          </span>
+          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
+            A ${{ formatAccountCost }}
+          </span>
+          <span
+            v-if="windowStats?.user_cost != null"
+            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+            :title="t('usage.userBilled')"
+          >
+            U ${{ formatUserCost }}
+          </span>
+        </template>
         <span
-          v-if="windowStats?.user_cost != null"
+          v-if="litellmCost != null"
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-          :title="t('usage.userBilled')"
+          :title="t('usage.litellmCostHint')"
         >
-          U ${{ formatUserCost }}
+          L ${{ formatLiteLLMCost }}
         </span>
       </div>
     </div>
@@ -80,6 +89,7 @@ const props = withDefaults(
     resetsAt?: string | null
     color: 'indigo' | 'emerald' | 'purple' | 'amber'
     windowStats?: WindowStats | null
+    litellmCost?: number | null
     showNowWhenIdle?: boolean
     remainingCapacity?: boolean
     /** Tailwind width classes for the track; default matches account table cells. */
@@ -226,9 +236,22 @@ const formatTokens = computed(() => {
   return formatCompactNumber(props.windowStats.tokens)
 })
 
+const hasLocalWindowStats = computed(() => {
+  return !!(props.windowStats && (props.windowStats.requests > 0 || props.windowStats.tokens > 0))
+})
+
+const showWindowStatsRow = computed(() => {
+  return hasLocalWindowStats.value || props.litellmCost != null
+})
+
 const formatAccountCost = computed(() => {
   if (!props.windowStats) return '0.00'
   return props.windowStats.cost.toFixed(2)
+})
+
+const formatLiteLLMCost = computed(() => {
+  if (props.litellmCost == null || !Number.isFinite(props.litellmCost)) return '0.00'
+  return props.litellmCost.toFixed(2)
 })
 
 const formatUserCost = computed(() => {

@@ -101,6 +101,7 @@ var ProviderSet = wire.NewSet(
 	NewCreditSnapshotRepository,
 	NewAccountQualitySnapshotRepository,
 	NewUserQualitySnapshotRepository,
+	NewOpenAI7dCycleRepository,
 	NewAccountQualityLiveCache,
 	NewAntigravityUsageAggregator,
 	NewChannelMonitorRepository,

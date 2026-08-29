@@ -425,6 +425,7 @@ type OpenAIGatewayService struct {
 	qualityLiveCache                    AccountQualityLiveCache
 	smartScheduleCache                  SmartScheduleLookup
 	accountQuality                      AccountQualityObserver
+	openAI7dLiteLLM                     *OpenAI7dLiteLLMCycleService
 }
 
 func (s *OpenAIGatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -446,6 +447,13 @@ func (s *OpenAIGatewayService) SetAccountQualityObserver(observer AccountQuality
 		return
 	}
 	s.accountQuality = observer
+}
+
+func (s *OpenAIGatewayService) SetOpenAI7dLiteLLMCycles(cycles *OpenAI7dLiteLLMCycleService) {
+	if s == nil {
+		return
+	}
+	s.openAI7dLiteLLM = cycles
 }
 
 func (s *OpenAIGatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
@@ -7743,8 +7751,13 @@ func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, acc
 	}
 
 	go func() {
-		updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		updateCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
+		if s.openAI7dLiteLLM != nil {
+			if account, err := s.accountRepo.GetByID(updateCtx, accountID); err == nil && account != nil {
+				s.openAI7dLiteLLM.CloseIfReset(updateCtx, account, updates)
+			}
+		}
 		_ = s.accountRepo.UpdateExtra(updateCtx, accountID, updates)
 	}()
 }

@@ -1,3 +1,34 @@
+## 2026-08-28 - feat: OpenAI OAuth LiteLLM 7d cycle cost
+
+### What
+- OpenAI OAuth 账号 7d 配额条旁新增 `L$`：当前 LiteLLM 标价 × 真实 token，窗口对齐该号 `codex_7d_reset_at`。
+- `codex_7d_reset_at` 前跳 ≥1h 时把上期 L$ / used% / 窗口写入 `openai_oauth_7d_cycles`；列表只展示最近一期。
+- A$ / U$ / `actual_cost` / `true_cost` / 展示变换与 A$ 窗口 SQL 不改。
+
+### Why
+运营需要看「按 LiteLLM 标价的本 Codex 7 日周期成本」，且不能和账号计费 A$ 或用户扣费混在一起。
+
+### Verification
+- `go test -tags=unit ./internal/service -run "LiteLLM|OpenAI.*7d|Codex" -count=1`
+- `go test -tags=unit ./internal/repository -run "OpenAIOAuth7d|AccountWindow" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUsageCell.spec.ts src/components/account/__tests__/UsageProgressBar.spec.ts`
+
+### Affected files
+`backend/migrations/220_openai_oauth_7d_cycles.sql`
+`backend/ent/schema/openai_oauth_7d_cycle.go`
+`backend/internal/repository/openai_7d_cycle_repo.go`
+`backend/internal/service/openai_7d_litellm.go`
+`backend/internal/service/account_usage_service.go`
+`backend/internal/service/ratelimit_service.go`
+`backend/internal/service/openai_gateway_service.go`
+`frontend/src/components/account/UsageProgressBar.vue`
+`frontend/src/components/account/AccountUsageCell.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+`docs/dev/codebase/billing.md`
+`docs/dev/CHANGELOG_CUSTOM.md`
+
 ## 2026-08-28 - release: 0.1.269 display-only p95 on quality cells
 
 ### What
