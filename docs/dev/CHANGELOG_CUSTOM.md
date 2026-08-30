@@ -1,3 +1,11 @@
+## 2026-08-30 - release: 0.1.273 account upstream-rate sort and bulk select
+
+### What
+- Ship account-list column sort by upstream rate, plus bulk-bar select by effective upstream rate (strict gt/lt, current filters).
+
+### Why
+Production is on `v0.1.272`. Need a published GHCR tag before `update.sh` can pull these two commits.
+
 ## 2026-08-29 - feat: select accounts by upstream rate on the accounts bulk bar
 
 ### What
