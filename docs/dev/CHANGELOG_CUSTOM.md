@@ -1,3 +1,11 @@
+## 2026-08-30 - release: 0.1.274 copy-from-user schedule plus upstream-rate ops
+
+### What
+- Ship cross-user current-platform smart-schedule pool copy (preview + confirm), plus the already-tagged `0.1.273` account-list upstream-rate sort and bulk select.
+
+### Why
+Production is still on `v0.1.272`. Fold the committed copy-from-user work into the next GHCR tag instead of deploying `0.1.273` alone.
+
 ## 2026-08-30 - feat: copy smart-schedule pool from another user
 
 ### What
