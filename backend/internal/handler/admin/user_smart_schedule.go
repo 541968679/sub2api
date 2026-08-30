@@ -40,6 +40,12 @@ type copySmartScheduleRequest struct {
 	FromPlatform string `json:"from_platform"`
 }
 
+type copyFromUserSmartScheduleRequest struct {
+	SourceUserID   int64                          `json:"source_user_id"`
+	SourceRevision string                         `json:"source_revision"`
+	Slices         service.SmartScheduleCopySlices `json:"slices"`
+}
+
 type resumeSmartScheduleRequest struct {
 	UserID   int64  `json:"user_id"`
 	State    string `json:"state"`
@@ -228,6 +234,89 @@ func (h *UserHandler) CopyUserSmartSchedule(c *gin.Context) {
 		return
 	}
 	view, err := svc.CopyPlatform(c.Request.Context(), userID, platform, req.FromPlatform)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, view)
+}
+
+func (h *UserHandler) requireSmartScheduleUser(c *gin.Context) (int64, bool) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return 0, false
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return 0, false
+	}
+	return userID, true
+}
+
+func (h *UserHandler) requireCopyFromSourceUser(c *gin.Context, targetID, sourceID int64) bool {
+	if sourceID <= 0 || sourceID == targetID {
+		response.ErrorFrom(c, infraerrors.BadRequest("SMART_SCHEDULE_COPY_INVALID", "source_user_id is required and must be a different user"))
+		return false
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), sourceID); err != nil {
+		if infraerrors.IsNotFound(err) {
+			response.ErrorFrom(c, infraerrors.BadRequest("SMART_SCHEDULE_COPY_INVALID", "source user not found"))
+			return false
+		}
+		response.ErrorFrom(c, err)
+		return false
+	}
+	return true
+}
+
+// PreviewCopyFromUserSmartSchedule GET /admin/users/:id/smart-schedule/:platform/copy-from-preview
+func (h *UserHandler) PreviewCopyFromUserSmartSchedule(c *gin.Context) {
+	userID, ok := h.requireSmartScheduleUser(c)
+	if !ok {
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	sourceID, err := strconv.ParseInt(c.Query("source_user_id"), 10, 64)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("SMART_SCHEDULE_COPY_INVALID", "source_user_id is required and must be a different user"))
+		return
+	}
+	if !h.requireCopyFromSourceUser(c, userID, sourceID) {
+		return
+	}
+	preview, err := svc.PreviewCopyFromUser(c.Request.Context(), userID, c.Param("platform"), sourceID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, preview)
+}
+
+// CopyFromUserSmartSchedule POST /admin/users/:id/smart-schedule/:platform/copy-from
+func (h *UserHandler) CopyFromUserSmartSchedule(c *gin.Context) {
+	userID, ok := h.requireSmartScheduleUser(c)
+	if !ok {
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	var req copyFromUserSmartScheduleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if !h.requireCopyFromSourceUser(c, userID, req.SourceUserID) {
+		return
+	}
+	view, err := svc.CopyFromUser(c.Request.Context(), userID, c.Param("platform"), req.SourceUserID, req.SourceRevision, req.Slices)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

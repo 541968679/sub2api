@@ -6,6 +6,7 @@ import type { Account, WindowStats } from '@/types'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import type {
   SchedulePnlSummary,
+  SmartScheduleCopySlices,
   SmartSchedulePairQuality,
   SmartSchedulePlatform,
   SmartSchedulePlatformView,
@@ -254,6 +255,7 @@ export function useUserSmartScheduleEditor(
   const loading = ref(false)
   const submitting = ref(false)
   const copying = ref(false)
+  const copyingFromUser = ref(false)
   const statsLoading = ref(false)
   const emptyPoolError = ref(false)
   const initialLoaded = ref(false)
@@ -1190,6 +1192,46 @@ export function useUserSmartScheduleEditor(
     }
   }
 
+  function discardCurrentDraft() {
+    drafts[activePlatform.value] = draftFromSavedSnapshot(savedSnapshots[activePlatform.value])
+  }
+
+  async function onCopyFromUser(payload: {
+    source_user_id: number
+    source_revision: string
+    slices: SmartScheduleCopySlices
+  }) {
+    if (!userId.value) return false
+    if (isPlatformDirty(activePlatform.value)) {
+      appStore.showError(t('admin.users.smartSchedule.copyFromUserDirty'))
+      return false
+    }
+    copyingFromUser.value = true
+    try {
+      const view = await adminAPI.users.copySmartScheduleFromUser(
+        userId.value,
+        activePlatform.value,
+        payload
+      )
+      applyPlatformView(activePlatform.value, view)
+      await loadPoolDetails()
+      appStore.showSuccess(t('admin.users.smartSchedule.copyFromUserSuccess'))
+      return true
+    } catch (error: unknown) {
+      appStore.showError(
+        extractApiErrorMessage(error, t('admin.users.smartSchedule.copyFromUserFailed'), {
+          SMART_SCHEDULE_COPY_EMPTY_SOURCE: t('admin.users.smartSchedule.copyFromUserEmptySource'),
+          SMART_SCHEDULE_COPY_STALE: t('admin.users.smartSchedule.copyFromUserStale'),
+          SMART_SCHEDULE_COPY_SLICES: t('admin.users.smartSchedule.copyFromUserFailed'),
+          SMART_SCHEDULE_EMPTY_POOL: t('admin.users.smartSchedule.emptyPool')
+        })
+      )
+      return false
+    } finally {
+      copyingFromUser.value = false
+    }
+  }
+
   async function setPairAdmission(accountId: number, state: PairAdmissionLiveState) {
     if (!userId.value) return
     try {
@@ -1269,6 +1311,7 @@ export function useUserSmartScheduleEditor(
     initialLoaded,
     submitting,
     copying,
+    copyingFromUser,
     refreshing,
     statsLoading,
     candidatesLoaded,
@@ -1334,6 +1377,8 @@ export function useUserSmartScheduleEditor(
     onToggleEnabled,
     onSave,
     onCopy,
+    onCopyFromUser,
+    discardCurrentDraft,
     setPairAdmission,
     refreshAll,
     ensureCandidates,

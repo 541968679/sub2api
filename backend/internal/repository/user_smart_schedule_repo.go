@@ -126,6 +126,14 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 }
 
 func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userID int64, platform string, policy service.SmartSchedulePlatformWrite) error {
+	return r.replacePlatform(ctx, userID, platform, policy, false)
+}
+
+func (r *userSmartScheduleRepository) ReplacePlatformWithMemberPaused(ctx context.Context, userID int64, platform string, policy service.SmartSchedulePlatformWrite) error {
+	return r.replacePlatform(ctx, userID, platform, policy, true)
+}
+
+func (r *userSmartScheduleRepository) replacePlatform(ctx context.Context, userID int64, platform string, policy service.SmartSchedulePlatformWrite, writePausedFromMembers bool) error {
 	if r == nil || r.client == nil {
 		return fmt.Errorf("smart schedule repository unavailable")
 	}
@@ -168,9 +176,13 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 				return fmt.Errorf("update smart schedule policy: %w", err)
 			}
 		}
-		pausedIDs, err := listPausedSmartScheduleAccountIDs(txCtx, client, userID, platform)
-		if err != nil {
-			return err
+		var keepPaused []int64
+		if !writePausedFromMembers {
+			pausedIDs, err := listPausedSmartScheduleAccountIDs(txCtx, client, userID, platform)
+			if err != nil {
+				return err
+			}
+			keepPaused = remainingPausedSmartScheduleIDs(pausedIDs, policy.Accounts)
 		}
 		if _, err := client.UserSmartScheduleAccount.Delete().
 			Where(
@@ -180,7 +192,6 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			Exec(txCtx); err != nil {
 			return fmt.Errorf("clear smart schedule accounts: %w", err)
 		}
-		keepPaused := remainingPausedSmartScheduleIDs(pausedIDs, policy.Accounts)
 		for _, member := range policy.Accounts {
 			create := client.UserSmartScheduleAccount.Create().
 				SetUserID(userID).
@@ -196,6 +207,9 @@ func (r *userSmartScheduleRepository) ReplacePlatform(ctx context.Context, userI
 			if err := create.Exec(txCtx); err != nil {
 				return fmt.Errorf("insert smart schedule account %d: %w", member.AccountID, err)
 			}
+		}
+		if writePausedFromMembers {
+			keepPaused = pausedAccountIDsFromMembers(policy.Accounts)
 		}
 		if err := restoreSmartSchedulePaused(txCtx, client, userID, platform, keepPaused); err != nil {
 			return err
@@ -525,6 +539,16 @@ func applySmartSchedulePolicyQualityUpdate(update *dbent.UserSmartSchedulePolicy
 	} else {
 		update.ClearQualityCondition()
 	}
+}
+
+func pausedAccountIDsFromMembers(members []service.SmartScheduleAccountMember) []int64 {
+	out := make([]int64, 0)
+	for _, member := range members {
+		if member.AccountID > 0 && member.Paused {
+			out = append(out, member.AccountID)
+		}
+	}
+	return out
 }
 
 func remainingPausedSmartScheduleIDs(pausedIDs []int64, members []service.SmartScheduleAccountMember) []int64 {

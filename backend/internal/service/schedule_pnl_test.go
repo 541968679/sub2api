@@ -81,6 +81,10 @@ func (s *perUserSmartRepo) ReplacePlatform(context.Context, int64, string, Smart
 	return nil
 }
 
+func (s *perUserSmartRepo) ReplacePlatformWithMemberPaused(context.Context, int64, string, SmartSchedulePlatformWrite) error {
+	return nil
+}
+
 func (s *perUserSmartRepo) UpdateSortOrders(context.Context, int64, string, []SmartScheduleSortAssignment) error {
 	return nil
 }

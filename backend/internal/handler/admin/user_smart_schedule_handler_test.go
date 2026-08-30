@@ -118,6 +118,109 @@ func TestCopyUserSmartSchedule_RequiresFromPlatform(t *testing.T) {
 	}
 }
 
+func TestPreviewCopyFromUserSmartSchedule_RequiresSourceUser(t *testing.T) {
+	svc := service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: svc}
+	c, w := newSmartScheduleJSONContext(http.MethodGet, "", []gin.Param{
+		{Key: "id", Value: "99"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.PreviewCopyFromUserSmartSchedule(c)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "SMART_SCHEDULE_COPY_INVALID") {
+		t.Fatalf("expected copy-invalid, got %s", w.Body.String())
+	}
+}
+
+func TestCopyFromUserSmartSchedule_SameUserRejected(t *testing.T) {
+	svc := service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: svc}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"source_user_id":99,"source_revision":"x","slices":{"pool":true}}`, []gin.Param{
+		{Key: "id", Value: "99"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.CopyFromUserSmartSchedule(c)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "SMART_SCHEDULE_COPY_INVALID") {
+		t.Fatalf("expected copy-invalid, got %s", w.Body.String())
+	}
+}
+
+func TestCopyFromUserSmartSchedule_CopiesPool(t *testing.T) {
+	source := &service.SmartSchedulePlatformPolicy{
+		Enabled:         true,
+		CooldownMinutes: 15,
+		AccountIDs:      map[int64]struct{}{11: {}},
+		Paused:          map[int64]struct{}{11: {}},
+	}
+	repo := &serviceSmartRepoStub{byUser: map[int64]*service.UserSmartScheduleBundle{
+		16: {Policies: map[string]*service.SmartSchedulePlatformPolicy{service.PlatformAnthropic: source}},
+		99: {Policies: map[string]*service.SmartSchedulePlatformPolicy{
+			service.PlatformAnthropic: {Enabled: false, CooldownMinutes: 15, AccountIDs: map[int64]struct{}{}},
+		}},
+	}}
+	svc := service.NewUserSmartScheduleService(repo, nil, &handlerSmartAccountStub{accounts: []*service.Account{
+		{ID: 11, Platform: service.PlatformAnthropic},
+	}}, nil, nil)
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: svc}
+	c, w := newSmartScheduleJSONContext(http.MethodGet, "", []gin.Param{
+		{Key: "id", Value: "99"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	c.Request.URL.RawQuery = "source_user_id=16"
+	h.PreviewCopyFromUserSmartSchedule(c)
+	if w.Code != 200 {
+		t.Fatalf("preview expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var previewBody map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &previewBody); err != nil {
+		t.Fatalf("preview json: %v", err)
+	}
+	data, _ := previewBody["data"].(map[string]any)
+	revision, _ := data["source_revision"].(string)
+	if revision == "" {
+		t.Fatalf("expected source_revision, got %s", w.Body.String())
+	}
+	c, w = newSmartScheduleJSONContext(http.MethodPost, `{"source_user_id":16,"source_revision":"`+revision+`","slices":{"pool":true,"concurrency":true,"sort_order":true}}`, []gin.Param{
+		{Key: "id", Value: "99"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.CopyFromUserSmartSchedule(c)
+	if w.Code != 200 {
+		t.Fatalf("copy expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"account_id":11`) {
+		t.Fatalf("expected copied account, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"paused":true`) {
+		t.Fatalf("expected source pause, got %s", w.Body.String())
+	}
+}
+
+type handlerSmartAccountStub struct {
+	accounts []*service.Account
+}
+
+func (s *handlerSmartAccountStub) GetByIDs(_ context.Context, ids []int64) ([]*service.Account, error) {
+	byID := map[int64]*service.Account{}
+	for _, acc := range s.accounts {
+		if acc != nil {
+			byID[acc.ID] = acc
+		}
+	}
+	out := make([]*service.Account, 0, len(ids))
+	for _, id := range ids {
+		if acc := byID[id]; acc != nil {
+			out = append(out, acc)
+		}
+	}
+	return out, nil
+}
+
 func TestGetBatchSmartScheduleSummaries_EmptyIDs(t *testing.T) {
 	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
 	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"user_ids":[]}`, nil)
@@ -266,10 +369,20 @@ func TestResumeSmartSchedule_InvalidState(t *testing.T) {
 
 type serviceSmartRepoStub struct {
 	bundle *service.UserSmartScheduleBundle
+	byUser map[int64]*service.UserSmartScheduleBundle
 }
 
-func (s *serviceSmartRepoStub) ListByUser(_ context.Context, _ int64) (*service.UserSmartScheduleBundle, error) {
-	if s == nil || s.bundle == nil {
+func (s *serviceSmartRepoStub) ListByUser(_ context.Context, userID int64) (*service.UserSmartScheduleBundle, error) {
+	if s == nil {
+		return &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}, nil
+	}
+	if s.byUser != nil {
+		if bundle := s.byUser[userID]; bundle != nil {
+			return bundle, nil
+		}
+		return &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}, nil
+	}
+	if s.bundle == nil {
 		return &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}, nil
 	}
 	return s.bundle, nil
@@ -285,6 +398,48 @@ func (s *serviceSmartRepoStub) ListByUsers(_ context.Context, userIDs []int64) (
 }
 
 func (s *serviceSmartRepoStub) ReplacePlatform(_ context.Context, _ int64, _ string, _ service.SmartSchedulePlatformWrite) error {
+	return nil
+}
+
+func (s *serviceSmartRepoStub) ReplacePlatformWithMemberPaused(_ context.Context, userID int64, platform string, policy service.SmartSchedulePlatformWrite) error {
+	if s == nil {
+		return nil
+	}
+	target := s.bundle
+	if s.byUser != nil {
+		if s.byUser[userID] == nil {
+			s.byUser[userID] = &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}
+		}
+		target = s.byUser[userID]
+	}
+	if target == nil {
+		target = &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}
+		s.bundle = target
+	}
+	if target.Policies == nil {
+		target.Policies = map[string]*service.SmartSchedulePlatformPolicy{}
+	}
+	next := &service.SmartSchedulePlatformPolicy{
+		Enabled:         policy.Enabled,
+		CooldownMinutes: policy.CooldownMinutes,
+		AccountIDs:      map[int64]struct{}{},
+		Caps:            map[int64]int{},
+		SortOrders:      map[int64]int{},
+		Paused:          map[int64]struct{}{},
+	}
+	for _, member := range policy.Accounts {
+		next.AccountIDs[member.AccountID] = struct{}{}
+		if member.MaxConcurrency != nil && *member.MaxConcurrency >= 1 {
+			next.Caps[member.AccountID] = *member.MaxConcurrency
+		}
+		if member.SortOrder != nil {
+			next.SortOrders[member.AccountID] = *member.SortOrder
+		}
+		if member.Paused {
+			next.Paused[member.AccountID] = struct{}{}
+		}
+	}
+	target.Policies[platform] = next
 	return nil
 }
 

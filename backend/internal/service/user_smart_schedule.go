@@ -252,6 +252,9 @@ type UserSmartScheduleRepository interface {
 	ListByUser(ctx context.Context, userID int64) (*UserSmartScheduleBundle, error)
 	ListByUsers(ctx context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error)
 	ReplacePlatform(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
+	// ReplacePlatformWithMemberPaused writes member.Paused from the payload and
+	// does not restore the target user's leftover pause on overlapping IDs.
+	ReplacePlatformWithMemberPaused(ctx context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error
 	UpdateSortOrders(ctx context.Context, userID int64, platform string, orders []SmartScheduleSortAssignment) error
 	SetMemberPaused(ctx context.Context, userID, accountID int64, platform string, paused bool) error
 	ListMembershipsByAccount(ctx context.Context, accountID int64, platform string) ([]SmartScheduleAccountMembership, error)
@@ -279,6 +282,35 @@ type SmartScheduleAccountMembership struct {
 type UserSmartScheduleSummary struct {
 	EnabledPlatforms []string       `json:"enabled_platforms"`
 	PoolCounts       map[string]int `json:"pool_counts"`
+}
+
+// SmartScheduleCopySlices selects which (user, platform) fields CopyFromUser writes.
+type SmartScheduleCopySlices struct {
+	Pool        bool `json:"pool"`
+	Concurrency bool `json:"concurrency"`
+	SortOrder   bool `json:"sort_order"`
+	Thresholds  bool `json:"thresholds"`
+	Enabled     bool `json:"enabled"`
+}
+
+const (
+	SmartScheduleCopyEnabledEnable    = "enable"
+	SmartScheduleCopyEnabledDisable   = "disable"
+	SmartScheduleCopyEnabledUnchanged = "unchanged"
+)
+
+// SmartScheduleCopyFromPreview is GET /admin/users/:id/smart-schedule/:platform/copy-from-preview.
+type SmartScheduleCopyFromPreview struct {
+	SourceRevision         string                       `json:"source_revision"`
+	SkippedUnavailable     int                          `json:"skipped_unavailable"`
+	Add                    []int64                      `json:"add"`
+	Remove                 []int64                      `json:"remove"`
+	Overlap                []int64                      `json:"overlap"`
+	SourcePausedAccountIDs []int64                      `json:"source_paused_account_ids"`
+	EnabledDelta           string                       `json:"enabled_delta"`
+	SourceEmpty            bool                         `json:"source_empty"`
+	SourceMembers          []SmartScheduleAccountMember `json:"source_members"`
+	TargetMembers          []SmartScheduleAccountMember `json:"target_members"`
 }
 
 // SmartSchedulePlatformWrite is the replace-all payload for one platform.

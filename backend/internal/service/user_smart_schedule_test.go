@@ -355,14 +355,18 @@ func TestAdmitsScheduleUser_SmartScheduleSynthesis(t *testing.T) {
 }
 
 type stubSmartRepo struct {
-	mu     sync.Mutex
-	bundle *UserSmartScheduleBundle
+	mu                         sync.Mutex
+	bundle                     *UserSmartScheduleBundle
+	byUser                     map[int64]*UserSmartScheduleBundle
+	lastReplaceUser            int64
+	lastWritePausedFromMembers bool
+	lastWrite                  SmartSchedulePlatformWrite
 }
 
-func (s *stubSmartRepo) ListByUser(_ context.Context, _ int64) (*UserSmartScheduleBundle, error) {
+func (s *stubSmartRepo) ListByUser(_ context.Context, userID int64) (*UserSmartScheduleBundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return cloneSmartBundle(s.bundle), nil
+	return cloneSmartBundle(s.bundleForLocked(userID)), nil
 }
 
 func (s *stubSmartRepo) ListByUsers(_ context.Context, userIDs []int64) (map[int64]*UserSmartScheduleBundle, error) {
@@ -370,20 +374,37 @@ func (s *stubSmartRepo) ListByUsers(_ context.Context, userIDs []int64) (map[int
 	defer s.mu.Unlock()
 	out := make(map[int64]*UserSmartScheduleBundle, len(userIDs))
 	for _, userID := range userIDs {
-		out[userID] = cloneSmartBundle(s.bundle)
+		out[userID] = cloneSmartBundle(s.bundleForLocked(userID))
 	}
 	return out, nil
 }
 
-func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform string, policy SmartSchedulePlatformWrite) error {
+func (s *stubSmartRepo) bundleForLocked(userID int64) *UserSmartScheduleBundle {
+	if s.byUser != nil {
+		return s.byUser[userID]
+	}
+	return s.bundle
+}
+
+func (s *stubSmartRepo) ReplacePlatform(_ context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.bundle == nil {
-		s.bundle = &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{}}
-	}
-	if s.bundle.Policies == nil {
-		s.bundle.Policies = map[string]*SmartSchedulePlatformPolicy{}
-	}
+	s.applyWriteLocked(userID, platform, policy, false)
+	return nil
+}
+
+func (s *stubSmartRepo) ReplacePlatformWithMemberPaused(_ context.Context, userID int64, platform string, policy SmartSchedulePlatformWrite) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applyWriteLocked(userID, platform, policy, true)
+	return nil
+}
+
+func (s *stubSmartRepo) applyWriteLocked(userID int64, platform string, policy SmartSchedulePlatformWrite, writePausedFromMembers bool) {
+	s.lastReplaceUser = userID
+	s.lastWritePausedFromMembers = writePausedFromMembers
+	s.lastWrite = policy
+	target := s.ensureBundleLocked(userID)
 	next := &SmartSchedulePlatformPolicy{
 		Enabled:                  policy.Enabled,
 		QualityMaxP50TTFTMs:      policy.QualityMaxP50TTFTMs,
@@ -400,6 +421,7 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		AccountIDs:               map[int64]struct{}{},
 		Caps:                     map[int64]int{},
 		SortOrders:               map[int64]int{},
+		Paused:                   map[int64]struct{}{},
 	}
 	for _, member := range policy.Accounts {
 		next.AccountIDs[member.AccountID] = struct{}{}
@@ -409,18 +431,40 @@ func (s *stubSmartRepo) ReplacePlatform(_ context.Context, _ int64, platform str
 		if member.SortOrder != nil {
 			next.SortOrders[member.AccountID] = *member.SortOrder
 		}
+		if writePausedFromMembers && member.Paused {
+			next.Paused[member.AccountID] = struct{}{}
+		}
 	}
-	prev := s.bundle.Policies[platform]
-	if prev != nil {
-		next.Paused = map[int64]struct{}{}
-		for accountID := range next.AccountIDs {
-			if prev.IsPaused(accountID) {
-				next.Paused[accountID] = struct{}{}
+	if !writePausedFromMembers {
+		prev := target.Policies[platform]
+		if prev != nil {
+			for accountID := range next.AccountIDs {
+				if prev.IsPaused(accountID) {
+					next.Paused[accountID] = struct{}{}
+				}
 			}
 		}
 	}
-	s.bundle.Policies[platform] = next
-	return nil
+	target.Policies[platform] = next
+}
+
+func (s *stubSmartRepo) ensureBundleLocked(userID int64) *UserSmartScheduleBundle {
+	if s.byUser != nil {
+		if s.byUser[userID] == nil {
+			s.byUser[userID] = &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{}}
+		}
+		if s.byUser[userID].Policies == nil {
+			s.byUser[userID].Policies = map[string]*SmartSchedulePlatformPolicy{}
+		}
+		return s.byUser[userID]
+	}
+	if s.bundle == nil {
+		s.bundle = &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{}}
+	}
+	if s.bundle.Policies == nil {
+		s.bundle.Policies = map[string]*SmartSchedulePlatformPolicy{}
+	}
+	return s.bundle
 }
 
 func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID int64, platform string, paused bool) error {

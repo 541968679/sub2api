@@ -12,6 +12,8 @@ const apiMocks = vi.hoisted(() => ({
   updateSmartSchedule: vi.fn(),
   updateSmartScheduleSortOrder: vi.fn(),
   copySmartSchedule: vi.fn(),
+  previewSmartScheduleCopyFromUser: vi.fn(),
+  copySmartScheduleFromUser: vi.fn(),
   listAccounts: vi.fn(),
   getAccountById: vi.fn(),
   getBatchQualityStats: vi.fn(),
@@ -58,6 +60,8 @@ vi.mock('@/api/admin', () => ({
       updateSmartSchedule: apiMocks.updateSmartSchedule,
       updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
       copySmartSchedule: apiMocks.copySmartSchedule,
+      previewSmartScheduleCopyFromUser: apiMocks.previewSmartScheduleCopyFromUser,
+      copySmartScheduleFromUser: apiMocks.copySmartScheduleFromUser,
       getSmartSchedulePnlPairs: apiMocks.getSmartSchedulePnlPairs,
       getBatchSmartSchedulePnlSummaries: apiMocks.getBatchSmartSchedulePnlSummaries,
       getSmartSchedulePnlTrend: apiMocks.getSmartSchedulePnlTrend,
@@ -300,6 +304,24 @@ vi.mock('@/components/admin/smart-schedule/SmartSchedulePairQualityDialog.vue', 
     template: '<div v-if="show" data-testid="smart-schedule-pair-quality-dialog" />'
   }
 }))
+vi.mock('@/components/admin/smart-schedule/SmartScheduleCopyFromUserDialog.vue', () => ({
+  default: {
+    props: ['show', 'targetUserId', 'platform'],
+    emits: ['close', 'confirm'],
+    template: `
+      <div v-if="show" data-testid="smart-schedule-copy-from-user-dialog">
+        <button
+          data-testid="smart-schedule-copy-from-user-confirm"
+          @click="$emit('confirm', {
+            source_user_id: 16,
+            source_revision: 'rev-1',
+            slices: { pool: true, concurrency: true, sort_order: true, thresholds: false, enabled: false }
+          })"
+        />
+      </div>
+    `
+  }
+}))
 vi.mock('@/components/account', () => ({
   EditAccountModal: {
     props: ['show', 'account'],
@@ -446,6 +468,19 @@ beforeEach(() => {
   )
   apiMocks.updateSmartScheduleSortOrder.mockResolvedValue(makeView())
   apiMocks.copySmartSchedule.mockResolvedValue(makeView())
+  apiMocks.previewSmartScheduleCopyFromUser.mockResolvedValue({
+    source_revision: 'rev-1',
+    skipped_unavailable: 0,
+    add: [12],
+    remove: [13],
+    overlap: [11],
+    source_paused_account_ids: [11],
+    enabled_delta: 'enable',
+    source_empty: false,
+    source_members: [],
+    target_members: []
+  })
+  apiMocks.copySmartScheduleFromUser.mockResolvedValue(makeView())
   apiMocks.listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
   apiMocks.getAccountById.mockReset()
   apiMocks.getAccountById.mockResolvedValue({
@@ -681,6 +716,74 @@ describe('UserSmartScheduleView', () => {
     expect(apiMocks.copySmartSchedule).toHaveBeenCalledWith(99, 'anthropic', 'openai')
     const switcher = w.get('[data-testid="smart-schedule-soft-cooldown"]')
     expect(switcher.findAll('button')[1].attributes('aria-pressed')).toBe('true')
+    expect(apiMocks.copySmartScheduleFromUser).not.toHaveBeenCalled()
+  })
+
+  it('copies the current platform pool from another user', async () => {
+    apiMocks.listUsers.mockResolvedValue({
+      items: [{ id: 16, email: 'src@example.com', username: 'src', role: 'user', status: 'active' }],
+      total: 1,
+      page: 1,
+      page_size: 10,
+      pages: 1
+    })
+    apiMocks.copySmartScheduleFromUser.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: false,
+          accounts: [
+            { account_id: 11, platform: 'anthropic', paused: true, max_concurrency: 3 },
+            { account_id: 12, platform: 'anthropic', paused: false, max_concurrency: 4 }
+          ]
+        }
+      }
+    })
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-copy-from-user"]').trigger('click')
+    await w.get('[data-testid="smart-schedule-copy-from-user-confirm"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.copySmartScheduleFromUser).toHaveBeenCalledWith(99, 'anthropic', {
+      source_user_id: 16,
+      source_revision: 'rev-1',
+      slices: {
+        pool: true,
+        concurrency: true,
+        sort_order: true,
+        thresholds: false,
+        enabled: false
+      }
+    })
+    expect(apiMocks.copySmartSchedule).not.toHaveBeenCalled()
+  })
+
+  it('asks before discarding a dirty draft when copying from another user', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-p50"]').setValue(120)
+    await flushPromises()
+    await w.get('[data-testid="smart-schedule-copy-from-user"]').trigger('click')
+    await w.get('[data-testid="smart-schedule-copy-from-user-confirm"]').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalled()
+    expect(apiMocks.copySmartScheduleFromUser).not.toHaveBeenCalled()
+    confirm.mockReturnValue(true)
+    await w.get('[data-testid="smart-schedule-copy-from-user-confirm"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.copySmartScheduleFromUser).toHaveBeenCalledWith(99, 'anthropic', {
+      source_user_id: 16,
+      source_revision: 'rev-1',
+      slices: {
+        pool: true,
+        concurrency: true,
+        sort_order: true,
+        thresholds: false,
+        enabled: false
+      }
+    })
+    confirm.mockRestore()
   })
 
   it('disables the platform when the last pool member is removed', async () => {

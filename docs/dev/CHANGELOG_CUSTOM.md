@@ -1,3 +1,33 @@
+## 2026-08-30 - feat: copy smart-schedule pool from another user
+
+### What
+- Admin user smart-schedule detail page can copy the current-platform pool (members + source pause), pair concurrency, and sort order from another user after preview. Thresholds/cooldown and platform `enabled` stay optional and off by default.
+- Same-user `POST .../:platform/copy` still copies enable/thresholds/cooldown only and never copies the pool.
+
+### Why
+Ops needed to apply one user's current-platform account pool to another user without adding members by hand. Existing platform copy explicitly does not copy the pool.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "CopyFromUser|CopyPlatform"`
+- `go test -tags=unit ./internal/handler/admin -run "CopyFromUser|PreviewCopyFromUser"`
+- `pnpm --dir frontend exec vitest run src/components/admin/smart-schedule/__tests__/SmartScheduleCopyFromUserDialog.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule.go`
+`backend/internal/service/user_smart_schedule_copy_from.go`
+`backend/internal/service/user_smart_schedule_copy_from_test.go`
+`backend/internal/repository/user_smart_schedule_repo.go`
+`backend/internal/handler/admin/user_smart_schedule.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/api/admin/users.ts`
+`frontend/src/composables/useUserSmartScheduleEditor.ts`
+`frontend/src/components/admin/smart-schedule/SmartScheduleCopyFromUserDialog.vue`
+`frontend/src/views/admin/UserSmartScheduleView.vue`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+`.trellis/spec/backend/account-user-schedule.md`
+
 ## 2026-08-30 - release: 0.1.273 account upstream-rate sort and bulk select
 
 ### What

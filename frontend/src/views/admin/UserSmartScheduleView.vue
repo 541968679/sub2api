@@ -452,6 +452,15 @@
               </button>
               <button
                 type="button"
+                class="btn btn-secondary btn-sm"
+                :disabled="copying || copyingFromUser"
+                data-testid="smart-schedule-copy-from-user"
+                @click="openCopyFromUser"
+              >
+                {{ t('admin.users.smartSchedule.copyFromUser') }}
+              </button>
+              <button
+                type="button"
                 class="btn btn-primary btn-sm"
                 :class="isDirty ? 'ring-2 ring-amber-400' : ''"
                 :disabled="submitting || loading"
@@ -1123,6 +1132,14 @@
       @close="showAddDialog = false"
       @add="onFilteredAdd"
     />
+    <SmartScheduleCopyFromUserDialog
+      :show="showCopyFromUser"
+      :target-user-id="userId ?? 0"
+      :platform="activePlatform"
+      :copying="copyingFromUser"
+      @close="showCopyFromUser = false"
+      @confirm="confirmCopyFromUser"
+    />
   </AppLayout>
 </template>
 
@@ -1196,6 +1213,7 @@ import SmartSchedulePoolFilters from '@/components/admin/smart-schedule/SmartSch
 import SmartSchedulePoolBulkBar from '@/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue'
 import SmartSchedulePoolAddBar from '@/components/admin/smart-schedule/SmartSchedulePoolAddBar.vue'
 import SmartScheduleAddAccountDialog from '@/components/admin/smart-schedule/SmartScheduleAddAccountDialog.vue'
+import SmartScheduleCopyFromUserDialog from '@/components/admin/smart-schedule/SmartScheduleCopyFromUserDialog.vue'
 import AdminUserListRowTable from '@/components/admin/user/AdminUserListRowTable.vue'
 import Toggle from '@/components/common/Toggle.vue'
 
@@ -1221,6 +1239,7 @@ const pairQualityAcc = ref<Account | null>(null)
 const accountSearchQuery = ref('')
 const accountSearchOpen = ref(false)
 const showAddDialog = ref(false)
+const showCopyFromUser = ref(false)
 const poolFilters = ref<PoolFilterState>({ ...EMPTY_SMART_SCHEDULE_POOL_FILTERS })
 try {
   const raw = localStorage.getItem('smart-schedule-pool-sort')
@@ -1319,6 +1338,9 @@ const {
   onToggleEnabled,
   onSave,
   onCopy,
+  onCopyFromUser,
+  discardCurrentDraft,
+  copyingFromUser,
   setPairAdmission,
   refreshAll,
   ensureCandidates,
@@ -1680,6 +1702,29 @@ function chooseAddableAccount(accountId: number) {
 async function openFilteredAdd() {
   await ensureCandidates()
   showAddDialog.value = true
+}
+
+function openCopyFromUser() {
+  showCopyFromUser.value = true
+}
+
+async function confirmCopyFromUser(payload: {
+  source_user_id: number
+  source_revision: string
+  slices: {
+    pool: boolean
+    concurrency: boolean
+    sort_order: boolean
+    thresholds: boolean
+    enabled: boolean
+  }
+}) {
+  if (isDirty.value && !window.confirm(t('admin.users.smartSchedule.copyFromUserDiscardDirty'))) {
+    return
+  }
+  if (isDirty.value) discardCurrentDraft()
+  const ok = await onCopyFromUser(payload)
+  if (ok) showCopyFromUser.value = false
 }
 
 watch(accountSearchOpen, (open) => {

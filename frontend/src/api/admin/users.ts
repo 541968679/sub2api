@@ -615,6 +615,55 @@ export async function copySmartSchedule(
   return data
 }
 
+export type SmartScheduleCopySlices = {
+  pool: boolean
+  concurrency: boolean
+  sort_order: boolean
+  thresholds: boolean
+  enabled: boolean
+}
+
+export type SmartScheduleCopyFromPreview = {
+  source_revision: string
+  skipped_unavailable: number
+  add: number[]
+  remove: number[]
+  overlap: number[]
+  source_paused_account_ids: number[]
+  enabled_delta: 'enable' | 'disable' | 'unchanged' | string
+  source_empty: boolean
+  source_members: SmartScheduleAccountMember[]
+  target_members: SmartScheduleAccountMember[]
+}
+
+export async function previewSmartScheduleCopyFromUser(
+  id: number,
+  platform: SmartSchedulePlatform,
+  sourceUserId: number
+): Promise<SmartScheduleCopyFromPreview> {
+  const { data } = await apiClient.get<SmartScheduleCopyFromPreview>(
+    `/admin/users/${id}/smart-schedule/${platform}/copy-from-preview`,
+    { params: { source_user_id: sourceUserId } }
+  )
+  return data
+}
+
+export async function copySmartScheduleFromUser(
+  id: number,
+  platform: SmartSchedulePlatform,
+  payload: {
+    source_user_id: number
+    source_revision: string
+    slices: SmartScheduleCopySlices
+  }
+): Promise<UserSmartScheduleView> {
+  const { data } = await apiClient.post<UserSmartScheduleView>(
+    `/admin/users/${id}/smart-schedule/${platform}/copy-from`,
+    payload
+  )
+  return data
+}
+
 export async function getBatchSmartScheduleSummaries(
   userIds: number[]
 ): Promise<BatchSmartScheduleSummariesResponse> {
@@ -815,6 +864,8 @@ export const usersAPI = {
   updateSmartSchedule,
   updateSmartScheduleSortOrder,
   copySmartSchedule,
+  previewSmartScheduleCopyFromUser,
+  copySmartScheduleFromUser,
   getBatchSmartScheduleSummaries,
   getBatchSmartSchedulePnlSummaries,
   getSmartSchedulePnlPairs,
