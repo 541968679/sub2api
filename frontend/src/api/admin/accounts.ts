@@ -381,6 +381,14 @@ export async function reorderAccounts(ids: number[]): Promise<void> {
 }
 
 /**
+ * Rule-sort admin list order into the reserved band (N…1).
+ * Payload is ids only; backend skips list_pinned and never writes priority.
+ */
+export async function reorderAccountsAutoSort(ids: number[]): Promise<void> {
+  await apiClient.put('/admin/accounts/reorder-auto-sort', { ids })
+}
+
+/**
  * Get temporary unschedulable status
  * @param id - Account ID
  * @returns Status with detail state if active
@@ -1474,6 +1482,7 @@ export const accountsAPI = {
   resetAccountQuota,
   moveAccountToTop,
   reorderAccounts,
+  reorderAccountsAutoSort,
   getTempUnschedulableStatus,
   resetTempUnschedulable,
   setSchedulable,

@@ -2494,6 +2494,21 @@ func (h *AccountHandler) Reorder(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Reorder successful"})
 }
 
+// ReorderAutoSort writes reserved-band list_order for rule-sorted admin list order.
+// PUT /api/v1/admin/accounts/reorder-auto-sort
+func (h *AccountHandler) ReorderAutoSort(c *gin.Context) {
+	var req ReorderAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.adminService.ReorderAccountsAutoSort(c.Request.Context(), req.IDs); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Reorder successful"})
+}
+
 // GetTempUnschedulable handles getting temporary unschedulable status
 // GET /api/v1/admin/accounts/:id/temp-unschedulable
 func (h *AccountHandler) GetTempUnschedulable(c *gin.Context) {

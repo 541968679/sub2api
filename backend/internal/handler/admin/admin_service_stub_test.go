@@ -758,6 +758,10 @@ func (s *stubAdminService) ReorderAccounts(ctx context.Context, ids []int64) err
 	return nil
 }
 
+func (s *stubAdminService) ReorderAccountsAutoSort(ctx context.Context, ids []int64) error {
+	return nil
+}
+
 func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

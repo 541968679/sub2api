@@ -137,6 +137,10 @@ type AdminService interface {
 	// ReorderAccounts applies page-local admin list order via extra.list_order.
 	// ids is top-to-bottom display order for the current page (length >= 2).
 	ReorderAccounts(ctx context.Context, ids []int64) error
+	// ReorderAccountsAutoSort writes reserved-band extra.list_order (N…1) for
+	// rule-sorted admin list order. Skips extra.list_pinned; does not rewrite
+	// ids outside the payload; never uses now-ms respread; does not write priority.
+	ReorderAccountsAutoSort(ctx context.Context, ids []int64) error
 	// UpdateAccountExtra merges keys into accounts.extra without replacing the map.
 	UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error
 	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
@@ -4474,8 +4478,15 @@ func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) erro
 // Higher values appear first; move-to-top writes Unix milliseconds.
 const AccountListOrderExtraKey = "list_order"
 
+// AccountListPinnedExtraKey marks a manual pin (move-to-top or drag).
+// Rule sort skips these rows and never writes this key to true.
+const AccountListPinnedExtraKey = "list_pinned"
+
 // maxAccountReorderIDs caps a single page-local reorder payload.
 const maxAccountReorderIDs = 500
+
+// maxAccountAutoSortIDs caps a rule-sort payload (select-all-filtered scale).
+const maxAccountAutoSortIDs = 2000
 
 // MoveAccountToTop sets extra.list_order so the account floats to the top of
 // the admin accounts list (all sorts prepend list_order DESC).
@@ -4487,7 +4498,8 @@ func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Acc
 	// Unix ms is monotonic enough for admin pin rank without a max() race.
 	order := time.Now().UnixMilli()
 	if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
-		AccountListOrderExtraKey: order,
+		AccountListOrderExtraKey:  order,
+		AccountListPinnedExtraKey: true,
 	}); err != nil {
 		return nil, err
 	}
@@ -4495,6 +4507,7 @@ func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Acc
 		account.Extra = map[string]any{}
 	}
 	account.Extra[AccountListOrderExtraKey] = order
+	account.Extra[AccountListPinnedExtraKey] = true
 	// Reload for consistent DTO (updated_at etc.).
 	return s.accountRepo.GetByID(ctx, id)
 }
@@ -4558,7 +4571,68 @@ func (s *adminServiceImpl) ReorderAccounts(ctx context.Context, ids []int64) err
 
 	for i, id := range ids {
 		if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
-			AccountListOrderExtraKey: slots[i],
+			AccountListOrderExtraKey:  slots[i],
+			AccountListPinnedExtraKey: true,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReorderAccountsAutoSort assigns reserved-band list_order N…1 (larger = higher)
+// to the given ids in payload order. Pinned rows are skipped even if present.
+func (s *adminServiceImpl) ReorderAccountsAutoSort(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if len(ids) > maxAccountAutoSortIDs {
+		return infraerrors.BadRequest("INVALID_REORDER_AUTO_SORT", fmt.Sprintf("at most %d account ids allowed; narrow the current filter", maxAccountAutoSortIDs))
+	}
+
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return infraerrors.BadRequest("INVALID_REORDER_AUTO_SORT", "account ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			return infraerrors.BadRequest("INVALID_REORDER_AUTO_SORT", "duplicate account ids are not allowed")
+		}
+		seen[id] = struct{}{}
+	}
+
+	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	if len(accounts) != len(ids) {
+		return ErrAccountNotFound
+	}
+
+	byID := make(map[int64]*Account, len(accounts))
+	for _, acc := range accounts {
+		if acc == nil {
+			return ErrAccountNotFound
+		}
+		byID[acc.ID] = acc
+	}
+	writable := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		acc, ok := byID[id]
+		if !ok {
+			return ErrAccountNotFound
+		}
+		if accountListPinnedFromExtra(acc.Extra) {
+			continue
+		}
+		writable = append(writable, id)
+	}
+
+	n := int64(len(writable))
+	for i, id := range writable {
+		order := n - int64(i)
+		if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
+			AccountListOrderExtraKey: order,
 		}); err != nil {
 			return err
 		}
@@ -4600,6 +4674,24 @@ func computeAccountListOrderSlots(current []int64, baseNowMs int64) []int64 {
 		}
 	}
 	return slots
+}
+
+func accountListPinnedFromExtra(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	raw, ok := extra[AccountListPinnedExtraKey]
+	if !ok || raw == nil {
+		return false
+	}
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(strings.TrimSpace(v), "true")
+	default:
+		return false
+	}
 }
 
 func accountListOrderFromExtra(extra map[string]any) int64 {

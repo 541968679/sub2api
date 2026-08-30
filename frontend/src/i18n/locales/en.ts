@@ -4964,6 +4964,20 @@ const enBase = {
       dragReorder: 'Drag to reorder on this page',
       reorderSuccess: 'Account order updated',
       reorderFailed: 'Failed to reorder accounts',
+      manualSort: 'Sort (manual)',
+      manualSortHint:
+        'Immediately reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → upstream rate (lower first) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first.',
+      autoSort: 'Auto-sort (interval)',
+      autoSortCountdown: 'Auto-sort: {seconds}s',
+      autoSortIntervalHint:
+        'Auto-sort (every few seconds). Follows the auto-refresh interval: after each auto-refresh finishes, silently writes account management list order with the same ranking as manual sort. Enabling this alone does not start a second timer. Changes account management list order only. Does not change scheduling priority. Does not change hot-path selection.',
+      autoSortHint:
+        'Reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → upstream rate (lower first) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Manual sort writes once; interval auto-sort follows auto-refresh and writes once after each refresh. Changes account management list order only. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first and are not rewritten by rule sort.',
+      autoSortProgress: 'Writing list order…',
+      autoSortSuccess: 'Wrote auto-sort list order for {count} accounts',
+      autoSortUnchanged: 'List order already matches auto-sort; nothing to write',
+      autoSortFailed: 'Failed to write auto-sort list order',
+      autoSortTooMany: 'More than {max} accounts match the current filters. Narrow the filters before sorting.',
       reAuthorize: 'Re-Authorize',
       refreshToken: 'Refresh Token',
       updateRefreshToken: 'Update Refresh Token',

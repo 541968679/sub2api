@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -65,6 +66,8 @@ func TestMoveAccountToTop_SetsListOrder(t *testing.T) {
 
 	require.NotNil(t, got.Extra)
 	require.Equal(t, order, got.Extra[AccountListOrderExtraKey])
+	require.Equal(t, true, repo.updates[AccountListPinnedExtraKey])
+	require.Equal(t, true, got.Extra[AccountListPinnedExtraKey])
 }
 
 type createAccountPinRepo struct {
@@ -125,6 +128,8 @@ func TestCreateAccount_PinsNewAccountToListTop(t *testing.T) {
 	order, ok := raw.(int64)
 	require.True(t, ok)
 	require.GreaterOrEqual(t, order, before)
+	_, pinned := repo.created.Extra[AccountListPinnedExtraKey]
+	require.False(t, pinned, "unix-ms create list_order is not a manual pin")
 }
 
 type reorderAccountRepo struct {
@@ -187,6 +192,9 @@ func TestReorderAccounts_PreservesRankMultiset(t *testing.T) {
 	require.Equal(t, int64(100), repo.updates[2][AccountListOrderExtraKey])
 	require.Equal(t, int64(90), repo.updates[1][AccountListOrderExtraKey])
 	require.Equal(t, int64(80), repo.updates[3][AccountListOrderExtraKey])
+	require.Equal(t, true, repo.updates[2][AccountListPinnedExtraKey])
+	require.Equal(t, true, repo.updates[1][AccountListPinnedExtraKey])
+	require.Equal(t, true, repo.updates[3][AccountListPinnedExtraKey])
 }
 
 func TestReorderAccounts_AllZeroUsesTimestampBase(t *testing.T) {
@@ -208,6 +216,8 @@ func TestReorderAccounts_AllZeroUsesTimestampBase(t *testing.T) {
 	require.True(t, ok)
 	require.GreaterOrEqual(t, top, before)
 	require.Equal(t, top-1, second)
+	require.Equal(t, true, repo.updates[2][AccountListPinnedExtraKey])
+	require.Equal(t, true, repo.updates[1][AccountListPinnedExtraKey])
 }
 
 func TestComputeAccountListOrderSlots(t *testing.T) {
@@ -223,4 +233,125 @@ func TestComputeAccountListOrderSlots(t *testing.T) {
 	// All zero → base down.
 	got = computeAccountListOrderSlots([]int64{0, 0}, 5000)
 	require.Equal(t, []int64{5000, 4999}, got)
+}
+
+func extraUpdateKeys(updates map[string]any) []string {
+	keys := make([]string, 0, len(updates))
+	for k := range updates {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func TestReorderAccountsAutoSort_ReservedBand(t *testing.T) {
+	t.Parallel()
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountListOrderExtraKey: time.Now().UnixMilli()}},
+			2: {ID: 2, Extra: map[string]any{AccountListOrderExtraKey: int64(90)}},
+			3: {ID: 3, Extra: map[string]any{AccountListOrderExtraKey: int64(80)}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	err := svc.ReorderAccountsAutoSort(context.Background(), []int64{3, 1, 2})
+	require.NoError(t, err)
+	require.Equal(t, int64(3), repo.updates[3][AccountListOrderExtraKey])
+	require.Equal(t, int64(2), repo.updates[1][AccountListOrderExtraKey])
+	require.Equal(t, int64(1), repo.updates[2][AccountListOrderExtraKey])
+	require.Equal(t, []string{AccountListOrderExtraKey}, extraUpdateKeys(repo.updates[3]))
+	require.Equal(t, []string{AccountListOrderExtraKey}, extraUpdateKeys(repo.updates[1]))
+	require.Equal(t, []string{AccountListOrderExtraKey}, extraUpdateKeys(repo.updates[2]))
+	require.NotContains(t, repo.updates[3], AccountListPinnedExtraKey)
+	require.NotContains(t, repo.updates[1], AccountListPinnedExtraKey)
+	require.NotContains(t, repo.updates[2], AccountListPinnedExtraKey)
+	require.NotContains(t, repo.updates[3], "priority")
+	require.NotContains(t, repo.updates[1], "priority")
+	require.NotContains(t, repo.updates[2], "priority")
+	require.Less(t, repo.updates[3][AccountListOrderExtraKey].(int64), int64(10_000))
+	require.Less(t, repo.updates[1][AccountListOrderExtraKey].(int64), int64(10_000))
+	require.Less(t, repo.updates[2][AccountListOrderExtraKey].(int64), int64(10_000))
+}
+
+func TestReorderAccountsAutoSort_SkipsPinned(t *testing.T) {
+	t.Parallel()
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountListOrderExtraKey: int64(10)}},
+			2: {ID: 2, Extra: map[string]any{
+				AccountListOrderExtraKey:  int64(9_000_000_000_000),
+				AccountListPinnedExtraKey: true,
+			}},
+			3: {ID: 3, Extra: map[string]any{AccountListOrderExtraKey: int64(8)}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	err := svc.ReorderAccountsAutoSort(context.Background(), []int64{1, 2, 3})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), repo.updates[1][AccountListOrderExtraKey])
+	require.Equal(t, int64(1), repo.updates[3][AccountListOrderExtraKey])
+	_, pinnedWritten := repo.updates[2]
+	require.False(t, pinnedWritten, "pinned account list_order must stay untouched")
+	require.Equal(t, int64(9_000_000_000_000), repo.byID[2].Extra[AccountListOrderExtraKey])
+}
+
+func TestReorderAccountsAutoSort_SkipsPinnedStringTrue(t *testing.T) {
+	t.Parallel()
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountListOrderExtraKey: int64(10)}},
+			2: {ID: 2, Extra: map[string]any{
+				AccountListOrderExtraKey:  int64(9_000_000_000_000),
+				AccountListPinnedExtraKey: "true",
+			}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	err := svc.ReorderAccountsAutoSort(context.Background(), []int64{1, 2})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), repo.updates[1][AccountListOrderExtraKey])
+	_, pinnedWritten := repo.updates[2]
+	require.False(t, pinnedWritten)
+	require.Equal(t, int64(9_000_000_000_000), repo.byID[2].Extra[AccountListOrderExtraKey])
+}
+
+func TestReorderAccountsAutoSort_LeavesOtherAccountsUntouched(t *testing.T) {
+	t.Parallel()
+	outsideOrder := int64(1_700_000_000_000)
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountListOrderExtraKey: int64(10)}},
+			2: {ID: 2, Extra: map[string]any{AccountListOrderExtraKey: int64(9)}},
+			9: {ID: 9, Extra: map[string]any{AccountListOrderExtraKey: outsideOrder}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	err := svc.ReorderAccountsAutoSort(context.Background(), []int64{2, 1})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), repo.updates[2][AccountListOrderExtraKey])
+	require.Equal(t, int64(1), repo.updates[1][AccountListOrderExtraKey])
+	_, outsideWritten := repo.updates[9]
+	require.False(t, outsideWritten)
+	require.Equal(t, outsideOrder, repo.byID[9].Extra[AccountListOrderExtraKey])
+}
+
+func TestReorderAccountsAutoSort_RejectsOverCap(t *testing.T) {
+	t.Parallel()
+	ids := make([]int64, maxAccountAutoSortIDs+1)
+	byID := make(map[int64]*Account, len(ids))
+	for i := range ids {
+		id := int64(i + 1)
+		ids[i] = id
+		byID[id] = &Account{ID: id, Extra: map[string]any{}}
+	}
+	repo := &reorderAccountRepo{byID: byID}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	err := svc.ReorderAccountsAutoSort(context.Background(), ids)
+	require.Error(t, err)
+	require.Empty(t, repo.updates)
 }

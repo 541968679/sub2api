@@ -71,6 +71,44 @@
                     </div>
                   </div>
 
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="autoSorting"
+                    :title="t('admin.accounts.manualSortHint')"
+                    data-testid="accounts-manual-sort"
+                    @click="handlePublicPoolAutoSort()"
+                  >
+                    {{
+                      autoSorting
+                        ? t('admin.accounts.autoSortProgress')
+                        : t('admin.accounts.manualSort')
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary px-2 md:px-3"
+                    :title="t('admin.accounts.autoSortIntervalHint')"
+                    data-testid="accounts-interval-auto-sort"
+                    @click="setAutoSortEnabled(!autoSortEnabled)"
+                  >
+                    <span
+                      class="inline-flex"
+                      :class="autoSortEnabled ? 'animate-spin' : ''"
+                      data-testid="accounts-interval-auto-sort-icon"
+                    >
+                      <Icon name="sort" size="sm" />
+                    </span>
+                    <span class="hidden md:inline">
+                      {{
+                        autoSortEnabled && autoRefreshEnabled
+                          ? t('admin.accounts.autoSortCountdown', { seconds: autoRefreshCountdown })
+                          : t('admin.accounts.autoSort')
+                      }}
+                    </span>
+                  </button>
+                  <HelpTooltip :content="t('admin.accounts.autoSortHint')" width-class="w-80" />
+
                   <!-- Error Passthrough Rules -->
                   <button
                     @click="showErrorPassthrough = true"
@@ -840,6 +878,16 @@ import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
 import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { accountMatchesListFilters } from '@/utils/accountListFilters'
 import {
+  PUBLIC_POOL_AUTO_SORT_MAX_IDS,
+  accountListOrderFromExtra,
+  assignPublicPoolReservedBand,
+  isAccountListPinned,
+  mapPublicPoolAccountToAutoSortItem,
+  publicPoolReservedBandUnchanged,
+  sortPublicPoolAutoSortItems,
+  writablePublicPoolAutoSortIds
+} from '@/composables/publicPoolAutoSort'
+import {
   accountMatchesUpstreamRateSelection,
   type UpstreamRateComparison
 } from '@/utils/accountUpstreamRate'
@@ -1154,6 +1202,9 @@ const autoRefreshETag = ref<string | null>(null)
 const autoRefreshFetching = ref(false)
 const AUTO_REFRESH_SILENT_WINDOW_MS = 15000
 const autoRefreshSilentUntil = ref(0)
+const AUTO_SORT_STORAGE_KEY = 'account-auto-sort'
+const autoSortEnabled = ref(false)
+const autoSorting = ref(false)
 const hasPendingListSync = ref(false)
 const todayStatsByAccountId = ref<Record<string, WindowStats>>({})
 const todayStatsLoading = ref(false)
@@ -1631,9 +1682,29 @@ const saveAutoRefreshToStorage = () => {
   }
 }
 
+const loadSavedAutoSort = () => {
+  try {
+    const saved = localStorage.getItem(AUTO_SORT_STORAGE_KEY)
+    if (!saved) return
+    const parsed = JSON.parse(saved) as { enabled?: boolean }
+    autoSortEnabled.value = parsed.enabled === true
+  } catch (e) {
+    console.error('Failed to load saved auto-sort settings:', e)
+  }
+}
+
+const saveAutoSortToStorage = () => {
+  try {
+    localStorage.setItem(AUTO_SORT_STORAGE_KEY, JSON.stringify({ enabled: autoSortEnabled.value }))
+  } catch (e) {
+    console.error('Failed to save auto-sort settings:', e)
+  }
+}
+
 if (typeof window !== 'undefined') {
   loadSavedColumns()
   loadSavedAutoRefresh()
+  loadSavedAutoSort()
 }
 
 const setAutoRefreshEnabled = (enabled: boolean) => {
@@ -1654,6 +1725,11 @@ const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) 
   if (autoRefreshEnabled.value) {
     autoRefreshCountdown.value = seconds
   }
+}
+
+const setAutoSortEnabled = (enabled: boolean) => {
+  autoSortEnabled.value = enabled
+  saveAutoSortToStorage()
 }
 
 const toggleColumn = (key: string) => {
@@ -2014,6 +2090,7 @@ const refreshAccountsIncrementally = async () => {
   const epoch = listMergeEpoch.value
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true
+  let refreshSucceeded = false
   try {
     const result = await adminAPI.accounts.listWithEtag(
       pagination.page,
@@ -2049,10 +2126,14 @@ const refreshAccountsIncrementally = async () => {
       refreshPublicQualityBatch(),
       refreshOpenAIOauthFleetUsage()
     ])
+    refreshSucceeded = true
   } catch (error) {
     console.error('Auto refresh failed:', error)
   } finally {
     autoRefreshFetching.value = false
+  }
+  if (refreshSucceeded && autoSortEnabled.value) {
+    await handlePublicPoolAutoSort({ silent: true })
   }
 }
 
@@ -2072,7 +2153,7 @@ const syncPendingListChanges = async () => {
 const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
   async () => {
     if (!autoRefreshEnabled.value) return
-    if (loading.value || autoRefreshFetching.value) return
+    if (loading.value || autoRefreshFetching.value || autoSorting.value) return
     if (isAnyModalOpen.value) return
     if (menu.show) return
     if (inAutoRefreshSilentWindow()) {
@@ -2508,8 +2589,11 @@ const buildBulkEditFilterSnapshot = () => {
   }
 }
 
-const collectFilteredAccounts = async () => {
-  const filters = buildBulkEditFilterSnapshot()
+const collectFilteredAccounts = async (options?: { lite?: boolean }) => {
+  const filters = {
+    ...buildBulkEditFilterSnapshot(),
+    ...(options?.lite ? { lite: '1' } : {})
+  }
   const accounts: Account[] = []
   const ids = new Set<number>()
   let page = 1
@@ -2528,6 +2612,68 @@ const collectFilteredAccounts = async () => {
   } while (page <= pages)
 
   return accounts
+}
+
+async function handlePublicPoolAutoSort(options?: { silent?: boolean }) {
+  if (autoSorting.value || reorderingList.value || loading.value) return
+  if (options?.silent && (!autoRefreshEnabled.value || autoRefreshFetching.value)) return
+
+  autoSorting.value = true
+  try {
+    const filtered = await collectFilteredAccounts({ lite: true })
+    if (filtered.length > PUBLIC_POOL_AUTO_SORT_MAX_IDS) {
+      if (!options?.silent) {
+        appStore.showError(
+          t('admin.accounts.autoSortTooMany', { max: PUBLIC_POOL_AUTO_SORT_MAX_IDS })
+        )
+      }
+      return
+    }
+    if (filtered.length === 0) {
+      if (!options?.silent) {
+        appStore.showInfo(t('admin.accounts.autoSortUnchanged'))
+      }
+      return
+    }
+
+    const qualityIDs = filtered.map((account) => account.id)
+    const quality = await adminAPI.accounts.getPublicScheduleQualityBatch(qualityIDs)
+    const views = quality.views ?? {}
+
+    const sorted = sortPublicPoolAutoSortItems(
+      filtered.map((account) =>
+        mapPublicPoolAccountToAutoSortItem(account, views[String(account.id)])
+      )
+    )
+    const pinnedIds = filtered.filter((account) => isAccountListPinned(account.extra)).map((account) => account.id)
+    const writableIds = writablePublicPoolAutoSortIds(sorted, pinnedIds)
+    const assigned = assignPublicPoolReservedBand(writableIds)
+    const current = writableIds.map((id) => {
+      const account = filtered.find((row) => row.id === id)
+      return { id, listOrder: accountListOrderFromExtra(account?.extra) }
+    })
+
+    if (writableIds.length === 0 || publicPoolReservedBandUnchanged(current, assigned)) {
+      if (!options?.silent) {
+        appStore.showInfo(t('admin.accounts.autoSortUnchanged'))
+      }
+      return
+    }
+
+    await adminAPI.accounts.reorderAccountsAutoSort(writableIds)
+    enterAutoRefreshSilentWindow()
+    if (!options?.silent) {
+      appStore.showSuccess(t('admin.accounts.autoSortSuccess', { count: writableIds.length }))
+    }
+    await reload()
+  } catch (error: any) {
+    console.error('Failed to auto-sort account list:', error)
+    if (!options?.silent) {
+      appStore.showError(error?.message || t('admin.accounts.autoSortFailed'))
+    }
+  } finally {
+    autoSorting.value = false
+  }
 }
 
 const selectAllFilteredAccounts = async () => {
@@ -2945,7 +3091,7 @@ const dragOverId = ref<number | null>(null)
 const reorderingList = ref(false)
 
 const onAccountDragStart = (row: Account, event: DragEvent) => {
-  if (reorderingList.value || accounts.value.length < 2) {
+  if (reorderingList.value || autoSorting.value || accounts.value.length < 2) {
     event.preventDefault()
     return
   }
@@ -2980,7 +3126,7 @@ const onAccountDrop = async (target: Account, _event: DragEvent) => {
   const fromId = dragFromId.value
   dragFromId.value = null
   dragOverId.value = null
-  if (fromId == null || fromId === target.id || reorderingList.value) {
+  if (fromId == null || fromId === target.id || reorderingList.value || autoSorting.value) {
     return
   }
 

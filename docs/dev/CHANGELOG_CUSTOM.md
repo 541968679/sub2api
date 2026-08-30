@@ -1,3 +1,32 @@
+## 2026-08-30 - feat: public-pool account list auto-sort and manual sort
+
+### What
+- Admin accounts page can one-click reorder all accounts matching the current filters (cross-page) using the same comparator shape as the smart-schedule pool (public six-state / availability, fallback_only, producing, cheaper upstream rate, headroom, concurrency, read-only priority, id).
+- Interval auto-sort follows the existing auto-refresh timer and silently writes after a successful refresh. It does not start its own timer.
+- Writes reserved-band `extra.list_order` (`N…1`) via `PUT /admin/accounts/reorder-auto-sort`. Skips `extra.list_pinned` (set by move-to-top and drag). Does not write `accounts.priority` or change public-schedule selection.
+
+### Why
+Public auto-schedule already shows six-state quality on the account list, but list order still depended on drag / move-to-top. Ops needed the same “higher scheduling preference nearer the top” refresh as the smart-schedule pool.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestMoveAccountToTop|TestReorderAccounts|TestReorderAccountsAutoSort" -count=1`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/publicPoolAutoSort.spec.ts src/composables/__tests__/smartSchedulePoolAutoSort.spec.ts src/views/admin/__tests__/AccountsView.publicPoolAutoSort.spec.ts src/views/admin/__tests__/AccountsView.publicQuality.spec.ts src/views/admin/__tests__/AccountsView.stability.spec.ts`
+
+### Affected files
+`backend/internal/service/admin_service.go`
+`backend/internal/service/admin_service_move_to_top_test.go`
+`backend/internal/handler/admin/account_handler.go`
+`backend/internal/handler/admin/admin_service_stub_test.go`
+`backend/internal/server/routes/admin.go`
+`frontend/src/api/admin/accounts.ts`
+`frontend/src/composables/publicPoolAutoSort.ts`
+`frontend/src/composables/__tests__/publicPoolAutoSort.spec.ts`
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/views/admin/__tests__/AccountsView.publicPoolAutoSort.spec.ts`
+`frontend/src/i18n/locales/zh.ts`
+`frontend/src/i18n/locales/en.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-30 - docs: record production deploy of v0.1.274
 
 ### What

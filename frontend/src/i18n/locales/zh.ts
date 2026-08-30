@@ -4507,6 +4507,20 @@ const zhBase = {
       dragReorder: '拖拽调整当前页顺序',
       reorderSuccess: '账号顺序已更新',
       reorderFailed: '调整顺序失败',
+      manualSort: '排序（手动）',
+      manualSortHint:
+        '立即按入池状态 → fallback_only（同档非 fallback 靠前） → 是否出量（当前并发>0） → 上游倍率（低优先） → 并发剩余 → 账号并发 → 原账号优先级（只读平局） → id 重排当前筛选下的全部账号，并写入账号管理列表顺序。不改调度优先级。不改热路径选号。不删账号。手置顶行保持最前。',
+      autoSort: '自动排序（隔几秒自动）',
+      autoSortCountdown: '自动排序：{seconds}s',
+      autoSortIntervalHint:
+        '自动排序（隔几秒自动）。跟随自动刷新的间隔：每次自动刷新完成后，按与手动排序相同的规则静默写入账号管理列表顺序。单独开启不会另起计时。改的是账号管理列表顺序，不改调度优先级，不改热路径选号。',
+      autoSortHint:
+        '按入池状态 → fallback_only（同档非 fallback 靠前） → 是否出量（当前并发>0） → 上游倍率（低优先） → 并发剩余 → 账号并发 → 原账号优先级（只读平局） → id 重排当前筛选下的全部账号，并写入账号管理列表顺序。手动排序立即写一次；自动排序跟随自动刷新，刷新后再按同一规则写一次。改的是账号管理列表顺序，不改调度优先级，不改热路径选号。不删账号。手置顶行保持最前且不被规则排序改写。',
+      autoSortProgress: '正在写入列表顺序…',
+      autoSortSuccess: '已按自动排序写入 {count} 个账号的列表顺序',
+      autoSortUnchanged: '当前列表顺序已符合自动排序，无需写入',
+      autoSortFailed: '自动排序写入列表顺序失败',
+      autoSortTooMany: '当前筛选账号超过 {max} 个，请缩小筛选后再排序',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',
       updateRefreshToken: '更新 Refresh Token',
