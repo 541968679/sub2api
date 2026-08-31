@@ -1,3 +1,11 @@
+## 2026-08-31 - release: 0.1.275 public-pool account list auto-sort
+
+### What
+- Ship admin account-list manual sort plus interval auto-sort (reserved-band `list_order`, `list_pinned` skip) as `v0.1.275`.
+
+### Why
+Production is on `v0.1.274`. Publish one GHCR tag so ops can pull the public-pool list-order refresh without changing scheduling priority.
+
 ## 2026-08-30 - feat: public-pool account list auto-sort and manual sort
 
 ### What
