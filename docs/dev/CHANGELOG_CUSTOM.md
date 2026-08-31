@@ -1,3 +1,11 @@
+## 2026-08-31 - docs: record production deploy of v0.1.275
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.275` (`814e6430b`, digest `sha256:8536d43eae140a81a47ea6243179102a1d0b8953d1cd59b71770096203be2731`). Preflight passed, `/health` ok, healthy.
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-08-31 - release: 0.1.275 public-pool account list auto-sort
 
 ### What
