@@ -1298,6 +1298,12 @@ func (h *OpenAIGatewayHandler) mapAnthropicFailoverBodyError(failoverErr *servic
 	if errType == "" || errMsg == "" {
 		return 0, "", "", false
 	}
+	if service.IsOpenAIWaitTimeoutOpsError(errType, errMsg, string(failoverErr.ResponseBody)) {
+		if service.IsOpenAIWaitTimeoutOpsError(errType, "", "") {
+			errType = "upstream_error"
+		}
+		errMsg = service.OpenAIWaitTimeoutClientMessage()
+	}
 	status := failoverErr.StatusCode
 	if status < 400 || status >= 500 {
 		status = http.StatusBadGateway

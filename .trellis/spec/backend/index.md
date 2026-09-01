@@ -22,6 +22,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Display Token Pricing](./display-token-pricing.md) | L1/L2 usage display transform + B1 cache amplify (M) | Active |
 | [OpenAI API-Key Upstream Routing](./openai-apikey-upstream-routing.md) | `(inbound, extra)` → Responses vs CC; passthrough; dual probe | Active |
 | [Anthropic Messages SSE](./anthropic-messages-sse.md) | Responses→Anthropic SSE: `message_start` before `content_block_*`; empty compact 502 / `event: error` | Active |
+| [OpenAI Wait-Timeout Client](./openai-wait-timeout-client.md) | Header-wait / first-useful-frame markers stay in Ops; client always gets mapped 502 | Active |
 | [Scheduler Handbook](./scheduler-handbook.md) | Pointer to `docs/dev/codebase/scheduler.md` (selection / sticky / snapshot / admission) | Active |
 | [Account User Schedule](./account-user-schedule.md) | Independent allow/deny/pair-cap/quality-gate plus user×platform smart-schedule; AG pool may hold OpenAI accounts with isolated Redis | Active |
 | [Ops Schedule Error Caliber](./ops-schedule-error-caliber.md) | Pair/account schedule exclude vs `needs_ops_attention` + `ops_attention_count` | Active |

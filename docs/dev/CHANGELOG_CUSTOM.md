@@ -1,3 +1,25 @@
+## 2026-09-01 - fix: hide OpenAI wait-timeout markers from downstream clients
+
+### What
+- Header-wait and first-useful-frame timeouts still record `openai_header_wait_timeout` / `openai_first_useful_frame_timeout` for Ops and schedule caliber.
+- Downstream JSON and SSE now use the existing 502 sentence `Upstream service temporarily unavailable`. Claude-GPT bridge / Anthropic failover replay no longer forwards the internal marker.
+
+### Why
+Bridge `/v1/messages` exhausted failover replayed `UpstreamFailoverError.ResponseBody.error.message` verbatim. Clients saw `openai_header_wait_timeout waited_ms=90001`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "OpenAIWaitTimeout|DoOpenAIUpstreamWithHeaderWait|FirstUsefulFrameTimeout|ClassifyOpsErrorRateCalibers_OpenAIWaitTimeout|NewOpenAIStreamFailoverError_WaitTimeout" -count=1`
+- `go test -tags=unit ./internal/handler -run "OpenAIHandleAnthropicFailoverExhausted|OpenAIAnthropic" -count=1`
+
+### Affected files
+`backend/internal/service/openai_wait_timeout.go`
+`backend/internal/service/openai_wait_timeout_test.go`
+`backend/internal/service/openai_gateway_service.go`
+`backend/internal/handler/openai_gateway_handler.go`
+`backend/internal/handler/openai_gateway_handler_test.go`
+`docs/dev/codebase/gateway.md`
+`docs/dev/codebase/README.md`
+
 ## 2026-08-31 - docs: record production deploy of v0.1.275
 
 ### What

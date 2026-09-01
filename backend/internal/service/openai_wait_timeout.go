@@ -115,12 +115,28 @@ func openAIWaitTimeoutMessage(marker string, waited time.Duration) string {
 	return marker
 }
 
+// OpenAIWaitTimeoutClientMessage is the downstream-facing 502 text for header-wait
+// and first-useful-frame timeouts. It matches mapUpstreamError(502) so exhausted
+// failover does not leak the internal marker.
+func OpenAIWaitTimeoutClientMessage() string {
+	return "Upstream service temporarily unavailable"
+}
+
+func rewriteOpenAIWaitTimeoutClientText(s string) string {
+	if IsOpenAIWaitTimeoutOpsError(s, "", "") {
+		return OpenAIWaitTimeoutClientMessage()
+	}
+	return s
+}
+
 func openAIResponsesStreamErrorEventPayload(reason string) string {
+	reason = rewriteOpenAIWaitTimeoutClientText(reason)
 	return `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
 }
 
 func writeOpenAIResponsesSSEErrorEvent(c *gin.Context, reason string) {
-	if c == nil || c.Writer == nil || strings.TrimSpace(reason) == "" {
+	reason = rewriteOpenAIWaitTimeoutClientText(strings.TrimSpace(reason))
+	if c == nil || c.Writer == nil || reason == "" {
 		return
 	}
 	_, _ = c.Writer.WriteString("data: " + openAIResponsesStreamErrorEventPayload(reason) + "\n\n")
@@ -131,8 +147,9 @@ func writeOpenAIChatStreamErrorEvent(c *gin.Context, message string) {
 	if c == nil || c.Writer == nil {
 		return
 	}
+	message = rewriteOpenAIWaitTimeoutClientText(message)
 	if message == "" {
-		message = OpenAIFirstUsefulFrameTimeoutMarker
+		message = OpenAIWaitTimeoutClientMessage()
 	}
 	if !c.Writer.Written() {
 		writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", message)

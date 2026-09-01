@@ -176,7 +176,11 @@ func TestDoOpenAIUpstreamWithHeaderWait_Timeout(t *testing.T) {
 	var failover *UpstreamFailoverError
 	require.True(t, errors.As(doErr, &failover))
 	require.Equal(t, http.StatusBadGateway, failover.StatusCode)
-	require.Contains(t, string(failover.ResponseBody), OpenAIHeaderWaitTimeoutMarker)
+	requireClientHidesWaitTimeout(t, string(failover.ResponseBody))
+	require.Contains(t, string(failover.ResponseBody), OpenAIWaitTimeoutClientMessage())
+	require.Contains(t, string(failover.RawUpstreamBody), OpenAIHeaderWaitTimeoutMarker)
+	require.True(t, IsOpenAIWaitTimeoutOpsError("", "", string(failover.RawUpstreamBody)))
+	require.Contains(t, opsContextString(c, OpsUpstreamErrorMessageKey), OpenAIHeaderWaitTimeoutMarker)
 	require.Equal(t, 0, rec.Body.Len())
 	require.GreaterOrEqual(t, time.Since(started), time.Second)
 	require.Less(t, time.Since(started), 4*time.Second)
@@ -228,7 +232,10 @@ func TestHandleStreamingResponse_FirstUsefulFrameTimeout(t *testing.T) {
 	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 2, Platform: PlatformOpenAI}, time.Now(), "gpt-5.4", "gpt-5.4")
 	var failover *UpstreamFailoverError
 	require.True(t, errors.As(err, &failover), "got %v", err)
-	require.Contains(t, string(failover.ResponseBody), OpenAIFirstUsefulFrameTimeoutMarker)
+	requireClientHidesWaitTimeout(t, string(failover.ResponseBody))
+	require.Contains(t, string(failover.ResponseBody), OpenAIWaitTimeoutClientMessage())
+	require.Contains(t, string(failover.RawUpstreamBody), OpenAIFirstUsefulFrameTimeoutMarker)
+	require.True(t, IsOpenAIWaitTimeoutOpsError("", "", string(failover.RawUpstreamBody)))
 	require.NotContains(t, err.Error(), "stream data interval timeout")
 	require.False(t, rec.Body.Len() > 0 && strings.Contains(rec.Body.String(), "output_item.added"))
 }
@@ -271,6 +278,37 @@ func fmtErr(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func requireClientHidesWaitTimeout(t *testing.T, clientVisible string) {
+	t.Helper()
+	require.NotContains(t, clientVisible, OpenAIHeaderWaitTimeoutMarker)
+	require.NotContains(t, clientVisible, OpenAIFirstUsefulFrameTimeoutMarker)
+	require.NotContains(t, clientVisible, "waited_ms=")
+}
+
+func TestRewriteOpenAIWaitTimeoutClientText(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, OpenAIWaitTimeoutClientMessage(), rewriteOpenAIWaitTimeoutClientText(OpenAIHeaderWaitTimeoutMarker+" waited_ms=90001"))
+	require.Equal(t, OpenAIWaitTimeoutClientMessage(), rewriteOpenAIWaitTimeoutClientText(OpenAIFirstUsefulFrameTimeoutMarker))
+	require.Equal(t, "context window exceeded", rewriteOpenAIWaitTimeoutClientText("context window exceeded"))
+}
+
+func TestNewOpenAIStreamFailoverError_WaitTimeoutSplitsClientAndOps(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	svc := &OpenAIGatewayService{}
+	opsMessage := openAIWaitTimeoutMessage(OpenAIHeaderWaitTimeoutMarker, 90*time.Second)
+	failover := svc.newOpenAIStreamFailoverError(c, &Account{ID: 9, Platform: PlatformOpenAI}, false, "", nil, opsMessage)
+	require.Equal(t, http.StatusBadGateway, failover.StatusCode)
+	requireClientHidesWaitTimeout(t, string(failover.ResponseBody))
+	require.Contains(t, string(failover.ResponseBody), OpenAIWaitTimeoutClientMessage())
+	require.Contains(t, string(failover.RawUpstreamBody), OpenAIHeaderWaitTimeoutMarker)
+	require.Contains(t, string(failover.RawUpstreamBody), "waited_ms=")
+	require.Contains(t, opsContextString(c, OpsUpstreamErrorMessageKey), OpenAIHeaderWaitTimeoutMarker)
 }
 
 func TestOpenAIWaitTimeoutCanSilentFailover(t *testing.T) {
@@ -352,7 +390,8 @@ func TestHandleStreamingResponse_FirstUsefulFrameTimeoutAfterFlushPreamble(t *te
 	body := rec.Body.String()
 	require.Contains(t, body, `"type":"response.created"`)
 	require.Contains(t, body, `"type":"error"`)
-	require.Contains(t, body, OpenAIFirstUsefulFrameTimeoutMarker)
+	requireClientHidesWaitTimeout(t, body)
+	require.Contains(t, body, OpenAIWaitTimeoutClientMessage())
 	require.GreaterOrEqual(t, time.Since(started), time.Second)
 	require.Less(t, time.Since(started), 4*time.Second)
 }

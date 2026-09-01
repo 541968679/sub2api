@@ -238,6 +238,52 @@ func (s *openAIImagesHandlerSchedulerStub) SnapshotMetrics() service.OpenAIAccou
 	return service.OpenAIAccountSchedulerMetricsSnapshot{}
 }
 
+func TestOpenAIHandleAnthropicFailoverExhaustedHidesWaitTimeoutMarker(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleAnthropicFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode: http.StatusBadGateway,
+		ResponseBody: []byte(`{"error":{"type":"upstream_error","message":"` +
+			service.OpenAIHeaderWaitTimeoutMarker + ` waited_ms=90001"}}`),
+		RawUpstreamBody: []byte(`{"error":{"type":"upstream_error","message":"` +
+			service.OpenAIHeaderWaitTimeoutMarker + ` waited_ms=90001"}}`),
+	}, false)
+
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	require.Equal(t, "upstream_error", gjson.GetBytes(w.Body.Bytes(), "error.type").String())
+	require.Equal(t, service.OpenAIWaitTimeoutClientMessage(), gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	require.NotContains(t, w.Body.String(), service.OpenAIHeaderWaitTimeoutMarker)
+	require.NotContains(t, w.Body.String(), "waited_ms=")
+}
+
+func TestOpenAIHandleAnthropicFailoverExhaustedHidesWaitTimeoutMarkerAfterSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Header("Content-Type", "text/event-stream")
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString("event: ping\ndata: {\"type\":\"ping\"}\n\n")
+	service.MarkOpenAIAnthropicTransportStreamStarted(c)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleAnthropicFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode: http.StatusBadGateway,
+		ResponseBody: []byte(`{"error":{"type":"upstream_error","message":"` +
+			service.OpenAIFirstUsefulFrameTimeoutMarker + ` waited_ms=31000"}}`),
+	}, true)
+
+	require.Contains(t, w.Body.String(), "event: ping")
+	require.Contains(t, w.Body.String(), "event: error")
+	require.Contains(t, w.Body.String(), service.OpenAIWaitTimeoutClientMessage())
+	require.NotContains(t, w.Body.String(), service.OpenAIFirstUsefulFrameTimeoutMarker)
+	require.NotContains(t, w.Body.String(), "waited_ms=")
+}
+
 func TestOpenAIHandleAnthropicFailoverExhaustedPreservesClientError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

@@ -4252,8 +4252,21 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	payload []byte,
 	message string,
 ) *UpstreamFailoverError {
-	rawPayload := append([]byte(nil), payload...)
-	clientMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	incomingPayload := append([]byte(nil), payload...)
+	opsMessage := strings.TrimSpace(message)
+	clientMessage := sanitizeUpstreamErrorMessage(opsMessage)
+	rawPayload := incomingPayload
+	if IsOpenAIWaitTimeoutOpsError(opsMessage, "", "") {
+		clientMessage = OpenAIWaitTimeoutClientMessage()
+		if len(rawPayload) == 0 {
+			rawPayload, _ = json.Marshal(gin.H{
+				"error": gin.H{
+					"type":    "upstream_error",
+					"message": opsMessage,
+				},
+			})
+		}
+	}
 	clientMessage = scrubBridgeClientText(c, clientMessage)
 	if clientMessage == "" {
 		clientMessage = "Upstream stream disconnected before completion"
@@ -4266,7 +4279,9 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 			Passthrough:        passthrough,
 			Kind:               "failover",
 		}
-		if len(rawPayload) == 0 && !isGenericOpsUpstreamMessage(clientMessage) {
+		if IsOpenAIWaitTimeoutOpsError(opsMessage, "", "") {
+			event.Message = opsMessage
+		} else if len(incomingPayload) == 0 && !isGenericOpsUpstreamMessage(clientMessage) {
 			event.Message = clientMessage
 		}
 		if account != nil {
