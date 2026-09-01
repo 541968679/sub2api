@@ -1,3 +1,11 @@
+## 2026-09-01 - release: 0.1.277 public-pool auto-sort UX
+
+### What
+- Ship the account-list auto-sort current-page silent merge and interval-stable countdown as `v0.1.277`.
+
+### Why
+Production is on `v0.1.276`. Publish one GHCR tag so the 275 sort no longer flashes the table or jumps the 5s countdown to 15s.
+
 ## 2026-09-01 - docs: record production deploy of v0.1.276
 
 ### What
