@@ -1,3 +1,11 @@
+## 2026-09-01 - docs: record production deploy of v0.1.276
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.276` (`61da3e567`, digest `sha256:7d2ccf51563c4d881c69523166b87060b51073f1889713058fda8a70eb28fe2f`). Preflight passed, `/health` ok, healthy.
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-09-01 - release: 0.1.276 hide wait-timeout markers from clients
 
 ### What
