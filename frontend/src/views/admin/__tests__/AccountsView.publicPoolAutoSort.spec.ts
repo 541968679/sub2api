@@ -82,12 +82,16 @@ vi.mock('vue-i18n', async () => {
 })
 
 const DataTableStub = {
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'loading'],
   template: `
-    <div data-test="data-table">
+    <div data-test="data-table" :data-loading="loading ? 'true' : 'false'">
       <div v-for="row in data" :key="row.id" :data-test="'account-row-' + row.id"></div>
     </div>
   `
+}
+
+function tableListCalls() {
+  return listAccounts.mock.calls.filter((call) => Number(call[1] ?? 20) < 1000)
 }
 
 function mountView() {
@@ -315,8 +319,37 @@ describe('admin AccountsView public pool auto-sort', () => {
     await flushPromises()
 
     expect(listWithEtag).toHaveBeenCalled()
-    expect(reorderAccountsAutoSort).toHaveBeenCalled()
+    expect(reorderAccountsAutoSort).toHaveBeenCalledTimes(1)
     expect(showSuccess).not.toHaveBeenCalled()
+    expect(tableListCalls()).toHaveLength(1)
+    expect(wrapper.get('[data-test="data-table"]').attributes('data-loading')).toBe('false')
+    expect(wrapper.find('[data-test="account-row-1"]').exists()).toBe(true)
+
+    const countdownBeforeTick = wrapper.get('[data-testid="accounts-interval-auto-sort"]').text()
+    expect(countdownBeforeTick).toContain('"seconds":5')
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+    const countdownAfterTick = wrapper.get('[data-testid="accounts-interval-auto-sort"]').text()
+    expect(countdownAfterTick).toContain('"seconds":')
+    expect(countdownAfterTick).not.toMatch(/"seconds":1[45]/)
+    expect(reorderAccountsAutoSort).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('keeps the current page after manual sort instead of reload()', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    listAccounts.mockClear()
+    listWithEtag.mockClear()
+
+    await wrapper.get('[data-testid="accounts-manual-sort"]').trigger('click')
+    await flushPromises()
+
+    expect(reorderAccountsAutoSort).toHaveBeenCalledTimes(1)
+    expect(tableListCalls()).toHaveLength(0)
+    expect(listWithEtag).toHaveBeenCalled()
+    expect(wrapper.get('[data-test="data-table"]').attributes('data-loading')).toBe('false')
+    expect(wrapper.find('[data-test="account-row-1"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

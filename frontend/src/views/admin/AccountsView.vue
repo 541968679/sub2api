@@ -2085,7 +2085,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
   }
 }
 
-const refreshAccountsIncrementally = async () => {
+const refreshAccountsIncrementally = async (options?: { skipAutoSort?: boolean }) => {
   if (autoRefreshFetching.value) return
   const epoch = listMergeEpoch.value
   syncAccountListDerivedParams()
@@ -2132,7 +2132,7 @@ const refreshAccountsIncrementally = async () => {
   } finally {
     autoRefreshFetching.value = false
   }
-  if (refreshSucceeded && autoSortEnabled.value) {
+  if (refreshSucceeded && autoSortEnabled.value && !options?.skipAutoSort) {
     await handlePublicPoolAutoSort({ silent: true })
   }
 }
@@ -2661,11 +2661,11 @@ async function handlePublicPoolAutoSort(options?: { silent?: boolean }) {
     }
 
     await adminAPI.accounts.reorderAccountsAutoSort(writableIds)
-    enterAutoRefreshSilentWindow()
     if (!options?.silent) {
       appStore.showSuccess(t('admin.accounts.autoSortSuccess', { count: writableIds.length }))
     }
-    await reload()
+    resetAutoRefreshCache()
+    await refreshAccountsIncrementally({ skipAutoSort: true })
   } catch (error: any) {
     console.error('Failed to auto-sort account list:', error)
     if (!options?.silent) {

@@ -36,6 +36,20 @@ Bridge `/v1/messages` exhausted failover replayed `UpstreamFailoverError.Respons
 `docs/dev/codebase/gateway.md`
 `docs/dev/codebase/README.md`
 
+## 2026-09-01 - fix: public-pool auto-sort keeps current page and refresh interval
+
+### What
+- Account-list auto/manual sort no longer calls `reload()` after writing reserved-band `list_order`. It clears the list ETag and silently merges the current page, and that follow-up refresh cannot start another auto-sort.
+- Sort writes no longer enter the 15s mutation silent window, so the toolbar countdown stays on the chosen auto-refresh interval instead of jumping to 15s.
+
+### Why
+`v0.1.275` flashed a skeleton table (DataTable hides rows while `loading`) and reset to page 1 after every sort. The silent window then overwrote the 5s countdown with remaining mute time. Smart-schedule pool sort already updates in place.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`
+`frontend/src/views/admin/__tests__/AccountsView.publicPoolAutoSort.spec.ts`
+`docs/dev/codebase/account.md`
+
 ## 2026-08-31 - docs: record production deploy of v0.1.275
 
 ### What
