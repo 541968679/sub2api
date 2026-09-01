@@ -1,3 +1,11 @@
+## 2026-09-01 - release: 0.1.276 hide wait-timeout markers from clients
+
+### What
+- Ship the wait-timeout client/Ops split as `v0.1.276`.
+
+### Why
+Production is on `v0.1.275`. Publish one GHCR tag so the bridge no longer sees `openai_header_wait_timeout waited_ms=...`.
+
 ## 2026-09-01 - fix: hide OpenAI wait-timeout markers from downstream clients
 
 ### What
