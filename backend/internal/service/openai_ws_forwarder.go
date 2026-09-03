@@ -2059,6 +2059,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	var hopFirstTokenMs *int
 	responseID := ""
 	var finalResponse []byte
 	wroteDownstream := false
@@ -2209,8 +2210,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			terminalEventCount++
 		}
 		if firstTokenMs == nil && isTokenEvent {
-			ms := int(time.Since(startTime).Milliseconds())
-			firstTokenMs = &ms
+			stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+			stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
 		}
 		if debugEnabled && shouldLogOpenAIWSEvent(eventCount, eventType) {
 			logOpenAIWSModeDebug(
@@ -2438,6 +2439,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		ResponseHeaders: lease.HandshakeHeaders(),
 		Duration:        time.Since(startTime),
 		FirstTokenMs:    firstTokenMs,
+		HopFirstTokenMs: hopFirstTokenMs,
 	}, nil
 }
 
@@ -3114,6 +3116,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		responseID := ""
 		usage := OpenAIUsage{}
 		var firstTokenMs *int
+	var hopFirstTokenMs *int
 		reqStream := openAIWSPayloadBoolFromRaw(payload, "stream", true)
 		turnPreviousResponseID := openAIWSPayloadStringFromRaw(payload, "previous_response_id")
 		turnPreviousResponseIDKind := ClassifyOpenAIPreviousResponseIDKind(turnPreviousResponseID)
@@ -3320,6 +3323,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					ResponseHeaders: lease.HandshakeHeaders(),
 					Duration:        time.Since(turnStart),
 					FirstTokenMs:    firstTokenMs,
+		HopFirstTokenMs: hopFirstTokenMs,
 				}
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput

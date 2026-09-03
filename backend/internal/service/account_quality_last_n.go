@@ -10,6 +10,12 @@ const (
 	DefaultAccountQualityWindowN = 20
 	MinAccountQualityWindowN     = 1
 	MaxAccountQualityWindowN     = 100
+
+	// Last-N outcome kinds. Stored in Redis as uint8; 0 is treated as terminal
+	// fail for safety. Recovered is compare-only and is omitted from OK / ErrorCount.
+	LastNOutcomeSuccess   uint8 = 1
+	LastNOutcomeTerminal  uint8 = 2
+	LastNOutcomeRecovered uint8 = 3
 )
 
 // AccountQualityLastN is the account-global last-N windows Q_a (all users).
@@ -20,6 +26,7 @@ type AccountQualityLastN struct {
 	TTFTMs        []int     `json:"ttft_ms,omitempty"`
 	DurationMs    []int     `json:"duration_ms,omitempty"`
 	OK            []bool    `json:"ok,omitempty"`
+	Outcomes      []uint8   `json:"outcomes,omitempty"`
 	P50TTFTMs     *int      `json:"p50_ttft_ms,omitempty"`
 	P50DurationMs *int      `json:"p50_duration_ms,omitempty"`
 	SuccessRate   *float64  `json:"success_rate,omitempty"`
@@ -33,12 +40,21 @@ type AccountQualityLastN struct {
 
 // AccountQualityObservation is one completed request for the account window.
 // UserID, when set, also appends the same sample to the user-global window Q_u.
+// Recovered is an account-compare failure (upstream hop failed, client 200).
+// It must not enter Q_u. ScheduleSide feeds precheck / public-schedule only
+// when the row is also counted in the schedule caliber (e.g. wait-timeout).
 type AccountQualityObservation struct {
 	AccountID    int64
 	UserID       int64
 	Success      bool
+	Recovered    bool
+	ScheduleSide bool
 	FirstTokenMs *int
 	DurationMs   *int
+	// UserFirstTokenMs / UserDurationMs are request-clock samples for Q_u.
+	// Empty falls back to FirstTokenMs / DurationMs (hop clock).
+	UserFirstTokenMs *int
+	UserDurationMs   *int
 }
 
 // AccountQualityObserver is the completion-path hook for Q_a (all users).
@@ -50,7 +66,7 @@ type AccountQualityObserver interface {
 type AccountQualityLastNCache interface {
 	GetLastN(ctx context.Context, accountID int64) *AccountQualityLastN
 	GetLastNBatch(ctx context.Context, accountIDs []int64) map[int64]*AccountQualityLastN
-	IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *AccountQualityLastN
+	IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool, recovered bool) *AccountQualityLastN
 	IngestPrecheckSample(ctx context.Context, accountID, userID int64, success bool, firstTokenMs, durationMs *int)
 	ListLastNAccountIDs(ctx context.Context) []int64
 }
@@ -120,7 +136,9 @@ func ProjectAccountQualityLastN(live *AccountQualityLastN, n int) *AccountQualit
 	}
 	projected := *live
 	projected.TTFTMs = append([]int(nil), live.TTFTMs...)
+	projected.DurationMs = append([]int(nil), live.DurationMs...)
 	projected.OK = append([]bool(nil), live.OK...)
+	projected.Outcomes = append([]uint8(nil), live.Outcomes...)
 	projected.N = ClampAccountQualityWindowN(n)
 	projected.OverrideN = CopyIntPtr(live.OverrideN)
 	RecomputeAccountQualityLastN(&projected)
@@ -210,19 +228,82 @@ func StampAccountQualityLatencyKC(stats *AccountQualityStats, ttft []int, knobs 
 }
 
 func ApplyAccountQualityLastNIngest(live *AccountQualityLastN, n int, success bool, firstTokenMs, durationMs *int) *AccountQualityLastN {
+	kind := LastNOutcomeTerminal
+	if success {
+		kind = LastNOutcomeSuccess
+	}
+	return applyAccountQualityLastNIngest(live, n, kind, firstTokenMs, durationMs)
+}
+
+func ApplyAccountQualityLastNRecovered(live *AccountQualityLastN, n int) *AccountQualityLastN {
+	return applyAccountQualityLastNIngest(live, n, LastNOutcomeRecovered, nil, nil)
+}
+
+func applyAccountQualityLastNIngest(live *AccountQualityLastN, n int, kind uint8, firstTokenMs, durationMs *int) *AccountQualityLastN {
 	if live == nil {
 		live = &AccountQualityLastN{}
 	}
 	n = ClampAccountQualityWindowN(n)
 	live.N = n
-	if success && firstTokenMs != nil && *firstTokenMs >= 0 {
-		live.TTFTMs = appendFIFOInt(live.TTFTMs, *firstTokenMs, n)
-	} else if success && durationMs != nil && *durationMs >= 0 {
-		live.DurationMs = appendFIFOInt(live.DurationMs, *durationMs, n)
+	live.ensureOutcomes()
+	if kind != LastNOutcomeSuccess && kind != LastNOutcomeRecovered {
+		kind = LastNOutcomeTerminal
 	}
-	live.OK = appendFIFOBool(live.OK, success, n)
+	live.Outcomes = appendFIFOUint8(live.Outcomes, kind, n)
+	if kind == LastNOutcomeSuccess {
+		if firstTokenMs != nil && *firstTokenMs >= 0 {
+			live.TTFTMs = appendFIFOInt(live.TTFTMs, *firstTokenMs, n)
+		} else if durationMs != nil && *durationMs >= 0 {
+			live.DurationMs = appendFIFOInt(live.DurationMs, *durationMs, n)
+		}
+	}
 	RecomputeAccountQualityLastN(live)
 	return live
+}
+
+func (l *AccountQualityLastN) ensureOutcomes() {
+	if l == nil || len(l.Outcomes) > 0 {
+		return
+	}
+	if len(l.OK) == 0 {
+		return
+	}
+	l.Outcomes = make([]uint8, len(l.OK))
+	for i, ok := range l.OK {
+		if ok {
+			l.Outcomes[i] = LastNOutcomeSuccess
+		} else {
+			l.Outcomes[i] = LastNOutcomeTerminal
+		}
+	}
+}
+
+func okFromLastNOutcomes(outcomes []uint8) []bool {
+	ok := make([]bool, 0, len(outcomes))
+	for _, kind := range outcomes {
+		switch kind {
+		case LastNOutcomeSuccess:
+			ok = append(ok, true)
+		case LastNOutcomeTerminal:
+			ok = append(ok, false)
+		}
+	}
+	return ok
+}
+
+func countLastNOutcomes(outcomes []uint8) (success, terminal, failover int64) {
+	for _, kind := range outcomes {
+		switch kind {
+		case LastNOutcomeSuccess:
+			success++
+		case LastNOutcomeRecovered:
+			failover++
+		default:
+			terminal++
+			failover++
+		}
+	}
+	return success, terminal, failover
 }
 
 func RecomputeAccountQualityLastN(live *AccountQualityLastN) {
@@ -232,9 +313,11 @@ func RecomputeAccountQualityLastN(live *AccountQualityLastN) {
 	if live.N < MinAccountQualityWindowN {
 		live.N = DefaultAccountQualityWindowN
 	}
+	live.ensureOutcomes()
+	live.Outcomes = trimFIFOUint8(live.Outcomes, live.N)
+	live.OK = okFromLastNOutcomes(live.Outcomes)
 	live.TTFTMs = trimFIFOInt(live.TTFTMs, live.N)
 	live.DurationMs = trimFIFOInt(live.DurationMs, live.N)
-	live.OK = trimFIFOBool(live.OK, live.N)
 	live.TTFTCount = len(live.TTFTMs)
 	live.DurationCount = len(live.DurationMs)
 	live.OKCount = len(live.OK)
@@ -251,25 +334,17 @@ func (l *AccountQualityLastN) ToAccountQualityStats() *AccountQualityStats {
 		StampAccountQualityWindowN(stats, DefaultAccountQualityWindowN)
 		return stats
 	}
-	success := 0
-	for _, ok := range l.OK {
-		if ok {
-			success++
-		}
-	}
-	errorCount := int64(l.OKCount - success)
-	stats := BuildAccountQualityStats(int64(success), errorCount, lastNTTFTAggregate(l.TTFTMs))
+	l.ensureOutcomes()
+	success, terminal, failover := countLastNOutcomes(l.Outcomes)
+	stats := BuildAccountQualityStats(success, terminal, lastNTTFTAggregate(l.TTFTMs))
 	stats.P50TTFTMs = l.P50TTFTMs
 	if l.SuccessRate != nil {
 		rate := *l.SuccessRate
 		stats.SuccessRate = &rate
 	}
 	stats.ScheduleUseFailoverErrorRate = l.UseFailover
-	// last-N stores one W_ok caliber (the ingest-time switch). Keep both
-	// display counts equal so ApplyAccountQualityScheduleCaliber cannot
-	// zero ErrorCount when the site toggle later flips.
-	stats.TerminalErrorCount = errorCount
-	stats.FailoverErrorCount = errorCount
+	stats.TerminalErrorCount = terminal
+	stats.FailoverErrorCount = failover
 	stats.TerminalErrorRate = nil
 	stats.FailoverErrorRate = nil
 	NormalizeAccountQualityRates(stats)
@@ -318,18 +393,32 @@ func p95Index(n int) int {
 }
 
 func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Context, accountID, userID int64, trueMs, firstMs, durationMs *int) {
+	observeAccountQualitySuccessClocks(obs, ctx, accountID, userID, trueMs, firstMs, durationMs, nil, nil)
+}
+
+func observeAccountQualitySuccessClocks(obs AccountQualityObserver, ctx context.Context, accountID, userID int64, hopTrueMs, hopFirstMs, hopDurationMs, userFirstMs, userDurationMs *int) {
 	if obs == nil || (accountID <= 0 && userID <= 0) {
 		return
 	}
-	ttft := pairQualityTTFTMs(trueMs, firstMs)
-	observation := AccountQualityObservation{
-		AccountID:    accountID,
-		UserID:       userID,
-		Success:      true,
-		FirstTokenMs: ttft,
+	hopTTFT := pairQualityTTFTMs(hopTrueMs, hopFirstMs)
+	userTTFT := userFirstMs
+	if userTTFT == nil {
+		userTTFT = hopTTFT
 	}
-	if ttft == nil && durationMs != nil && *durationMs >= 0 {
-		observation.DurationMs = durationMs
+	observation := AccountQualityObservation{
+		AccountID:        accountID,
+		UserID:           userID,
+		Success:          true,
+		FirstTokenMs:     hopTTFT,
+		UserFirstTokenMs: userTTFT,
+	}
+	if hopTTFT == nil && hopDurationMs != nil && *hopDurationMs >= 0 {
+		observation.DurationMs = hopDurationMs
+	}
+	if userTTFT == nil && userDurationMs != nil && *userDurationMs >= 0 {
+		observation.UserDurationMs = userDurationMs
+	} else if userTTFT == nil {
+		observation.UserDurationMs = observation.DurationMs
 	}
 	obs.ObserveAccountCompletion(ctx, observation)
 }

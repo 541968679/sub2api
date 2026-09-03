@@ -464,6 +464,7 @@ func TestOpenAIForwardResult_ScheduleFirstTokenMs(t *testing.T) {
 	display := 80
 	trueMs := 2400
 	require.Nil(t, (*OpenAIForwardResult)(nil).ScheduleFirstTokenMs())
-	require.Equal(t, 80, *(&OpenAIForwardResult{FirstTokenMs: &display}).ScheduleFirstTokenMs())
+	require.Nil(t, (&OpenAIForwardResult{FirstTokenMs: &display}).ScheduleFirstTokenMs())
+	require.Equal(t, 80, *(&OpenAIForwardResult{HopFirstTokenMs: &display}).ScheduleFirstTokenMs())
 	require.Equal(t, 2400, *(&OpenAIForwardResult{FirstTokenMs: &display, TrueFirstTokenMs: &trueMs}).ScheduleFirstTokenMs())
 }

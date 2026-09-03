@@ -25,6 +25,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	defer h.recoverResponsesPanic(c, &streamStarted)
 
 	requestStart := time.Now()
+	service.StampGatewayRequestStartAt(c, requestStart)
 
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {

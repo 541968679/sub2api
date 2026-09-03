@@ -286,6 +286,14 @@ func (s *OpsService) observeAccountQualityErrors(ctx context.Context, entries []
 			UseFailover:          useFailover,
 			Whitelist:            &wl,
 		})
+		if cals.IsRecovered && cals.CountedInAccountCompareRate && accountID > 0 {
+			s.accountQuality.ObserveAccountCompletion(ctx, AccountQualityObservation{
+				AccountID:    accountID,
+				Recovered:    true,
+				ScheduleSide: cals.CountedInAccountScheduleRate,
+			})
+			continue
+		}
 		if !cals.CountedInAccountScheduleRate {
 			continue
 		}

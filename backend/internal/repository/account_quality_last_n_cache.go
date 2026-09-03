@@ -22,6 +22,7 @@ type accountQualityLastNState struct {
 	TTFT        []int    `json:"ttft"`
 	Duration    []int    `json:"duration_ms,omitempty"`
 	OK          []uint8  `json:"ok"`
+	Outcomes    []uint8  `json:"outcomes,omitempty"`
 	P50         *int     `json:"p50_ttft_ms,omitempty"`
 	P50Dur      *int     `json:"p50_duration_ms,omitempty"`
 	Rate        *float64 `json:"success_rate,omitempty"`
@@ -76,11 +77,16 @@ func (c *accountQualityLiveCache) GetLastNBatch(ctx context.Context, accountIDs 
 	return out
 }
 
-func (c *accountQualityLiveCache) IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *service.AccountQualityLastN {
+func (c *accountQualityLiveCache) IngestLastN(ctx context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool, recovered bool) *service.AccountQualityLastN {
 	if c == nil || accountID <= 0 {
 		return nil
 	}
-	live := service.ApplyAccountQualityLastNIngest(c.GetLastN(ctx, accountID), n, success, firstTokenMs, durationMs)
+	var live *service.AccountQualityLastN
+	if recovered {
+		live = service.ApplyAccountQualityLastNRecovered(c.GetLastN(ctx, accountID), n)
+	} else {
+		live = service.ApplyAccountQualityLastNIngest(c.GetLastN(ctx, accountID), n, success, firstTokenMs, durationMs)
+	}
 	live.UseFailover = useFailover
 	c.storeLastN(ctx, accountID, live)
 	c.writeLiveFromLastN(ctx, accountID, live)
@@ -156,6 +162,7 @@ func encodeAccountQualityLastN(live *service.AccountQualityLastN) accountQuality
 		TTFT:        append([]int(nil), live.TTFTMs...),
 		Duration:    append([]int(nil), live.DurationMs...),
 		OK:          ok,
+		Outcomes:    append([]uint8(nil), live.Outcomes...),
 		P50:         live.P50TTFTMs,
 		P50Dur:      live.P50DurationMs,
 		Rate:        live.SuccessRate,
@@ -174,15 +181,16 @@ func decodeAccountQualityLastN(raw []byte) *service.AccountQualityLastN {
 		ok[i] = v != 0
 	}
 	live := &service.AccountQualityLastN{
-		N:           stored.N,
-		UseFailover: stored.UseFailover,
-		TTFTMs:      append([]int(nil), stored.TTFT...),
-		DurationMs:  append([]int(nil), stored.Duration...),
-		OK:          ok,
-		P50TTFTMs:   stored.P50,
+		N:             stored.N,
+		UseFailover:   stored.UseFailover,
+		TTFTMs:        append([]int(nil), stored.TTFT...),
+		DurationMs:    append([]int(nil), stored.Duration...),
+		OK:            ok,
+		Outcomes:      append([]uint8(nil), stored.Outcomes...),
+		P50TTFTMs:     stored.P50,
 		P50DurationMs: stored.P50Dur,
-		SuccessRate: stored.Rate,
-		OverrideN:   stored.OverrideN,
+		SuccessRate:   stored.Rate,
+		OverrideN:     stored.OverrideN,
 	}
 	if stored.UpdatedAt > 0 {
 		live.UpdatedAt = time.Unix(stored.UpdatedAt, 0).UTC()

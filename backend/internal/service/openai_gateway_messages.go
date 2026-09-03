@@ -1456,6 +1456,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	var usage OpenAIUsage
 	responseID := ""
 	var firstTokenMs *int
+	var hopFirstTokenMs *int
 	firstChunk := true
 	clientDisconnected := false
 	clientOutputStarted := false
@@ -1504,6 +1505,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			Stream:              true,
 			Duration:            time.Since(startTime),
 			FirstTokenMs:        firstTokenMs,
+			HopFirstTokenMs:     hopFirstTokenMs,
 			ClientDisconnect:    clientDisconnected,
 			ClientOutputStarted: clientOutputStarted,
 		}
@@ -1535,8 +1537,8 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	processDataLine := func(payload string) bool {
 		if firstChunk {
 			firstChunk = false
-			ms := int(time.Since(startTime).Milliseconds())
-			firstTokenMs = &ms
+			stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+			stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
 		}
 
 		var event apicompat.ResponsesStreamEvent

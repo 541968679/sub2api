@@ -92,11 +92,16 @@ func (s *lastNCacheStub) GetLastNBatch(_ context.Context, accountIDs []int64) ma
 	return out
 }
 
-func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool) *AccountQualityLastN {
+func (s *lastNCacheStub) IngestLastN(_ context.Context, accountID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool, recovered bool) *AccountQualityLastN {
 	if s.byID == nil {
 		s.byID = map[int64]*AccountQualityLastN{}
 	}
-	live := ApplyAccountQualityLastNIngest(s.byID[accountID], n, success, firstTokenMs, durationMs)
+	var live *AccountQualityLastN
+	if recovered {
+		live = ApplyAccountQualityLastNRecovered(s.byID[accountID], n)
+	} else {
+		live = ApplyAccountQualityLastNIngest(s.byID[accountID], n, success, firstTokenMs, durationMs)
+	}
 	live.UseFailover = useFailover
 	s.byID[accountID] = live
 	return live
@@ -111,7 +116,7 @@ func (s *lastNCacheStub) GetUserLastNBatch(ctx context.Context, userIDs []int64)
 }
 
 func (s *lastNCacheStub) IngestUserLastN(ctx context.Context, userID int64, n int, success bool, firstTokenMs, durationMs *int, useFailover bool, override *int) *AccountQualityLastN {
-	live := s.IngestLastN(ctx, userID, n, success, firstTokenMs, durationMs, useFailover)
+	live := s.IngestLastN(ctx, userID, n, success, firstTokenMs, durationMs, useFailover, false)
 	if live != nil {
 		live.OverrideN = CopyIntPtr(override)
 	}
@@ -481,6 +486,29 @@ func TestAccountQualityMaintenance_ObserveUserCompletion_IsolatesUsers(t *testin
 	require.Equal(t, 1, userLastN.byID[17].OKCount)
 	require.Equal(t, 1, userLastN.byID[17].TTFTCount)
 	require.Nil(t, userLastN.byID[7])
+}
+
+func TestAccountQualityMaintenance_ObserveRecovered_SkipsUserWindow(t *testing.T) {
+	lastN := &lastNCacheStub{}
+	userLastN := &lastNCacheStub{}
+	svc := NewAccountQualityMaintenanceService(&qualitySnapshotRepoStub{}, nil, nil)
+	svc.lastN = lastN
+	svc.SetUserLastNCache(userLastN)
+
+	ttft := 40
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{
+		AccountID: 7, UserID: 16, Success: true, FirstTokenMs: &ttft,
+	})
+	svc.ObserveAccountCompletion(context.Background(), AccountQualityObservation{
+		AccountID: 7, UserID: 16, Recovered: true,
+	})
+
+	stats := lastN.byID[7].ToAccountQualityStats()
+	require.Equal(t, int64(1), stats.SuccessCount)
+	require.Equal(t, int64(0), stats.TerminalErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+	require.Equal(t, 1, userLastN.byID[16].OKCount)
+	require.True(t, userLastN.byID[16].OK[0])
 }
 
 func TestAccountQualityMaintenance_GetUserLastNStatsBatch_StampsGlobalNAndFailover(t *testing.T) {

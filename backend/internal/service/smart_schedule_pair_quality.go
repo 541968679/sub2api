@@ -542,6 +542,18 @@ func trimFIFOBool(in []bool, n int) []bool {
 	return append([]bool(nil), in[len(in)-n:]...)
 }
 
+func appendFIFOUint8(in []uint8, v uint8, n int) []uint8 {
+	out := append(in, v)
+	return trimFIFOUint8(out, n)
+}
+
+func trimFIFOUint8(in []uint8, n int) []uint8 {
+	if n < 1 || len(in) <= n {
+		return in
+	}
+	return append([]uint8(nil), in[len(in)-n:]...)
+}
+
 func (l *PairQualityLive) View() SmartSchedulePairQualityView {
 	if l == nil {
 		return aliasPairQualityView(SmartSchedulePairQualityView{

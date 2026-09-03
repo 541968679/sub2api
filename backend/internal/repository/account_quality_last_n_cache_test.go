@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -24,15 +25,15 @@ func TestAccountQualityLastN_IngestRulesAndGetPrefersLastN(t *testing.T) {
 	ctx := context.Background()
 	ttft := 40
 
-	fail := cache.IngestLastN(ctx, 7, 3, false, &ttft, nil, false)
+	fail := cache.IngestLastN(ctx, 7, 3, false, &ttft, nil, false, false)
 	require.Equal(t, 0, fail.TTFTCount)
 	require.Equal(t, 1, fail.OKCount)
 
-	syncOK := cache.IngestLastN(ctx, 7, 3, true, nil, nil, false)
+	syncOK := cache.IngestLastN(ctx, 7, 3, true, nil, nil, false, false)
 	require.Equal(t, 0, syncOK.TTFTCount)
 	require.Equal(t, 2, syncOK.OKCount)
 
-	streamOK := cache.IngestLastN(ctx, 7, 3, true, &ttft, nil, false)
+	streamOK := cache.IngestLastN(ctx, 7, 3, true, &ttft, nil, false, false)
 	require.Equal(t, 1, streamOK.TTFTCount)
 	require.Equal(t, 3, streamOK.OKCount)
 
@@ -46,12 +47,27 @@ func TestAccountQualityLastN_IngestRulesAndGetPrefersLastN(t *testing.T) {
 	require.Equal(t, []int64{7}, cache.ListLastNAccountIDs(ctx))
 }
 
+func TestAccountQualityLastN_IngestRecovered_CompareNotSchedule(t *testing.T) {
+	cache := newLastNCache(t)
+	ctx := context.Background()
+	ttft := 40
+	cache.IngestLastN(ctx, 7, 4, true, &ttft, nil, false, false)
+	live := cache.IngestLastN(ctx, 7, 4, false, nil, nil, false, true)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(1), stats.SuccessCount)
+	require.Equal(t, int64(0), stats.TerminalErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+	require.Equal(t, int64(0), stats.ErrorCount)
+	got := cache.GetLastN(ctx, 7)
+	require.Equal(t, []uint8{service.LastNOutcomeSuccess, service.LastNOutcomeRecovered}, got.Outcomes)
+}
+
 func TestAccountQualityLastN_BatchAndAllUsersShareWindow(t *testing.T) {
 	cache := newLastNCache(t)
 	ctx := context.Background()
-	cache.IngestLastN(ctx, 7, 4, true, intPtrRepo(40), nil, false)
-	cache.IngestLastN(ctx, 7, 4, false, nil, nil, false)
-	cache.IngestLastN(ctx, 8, 4, true, intPtrRepo(80), nil, false)
+	cache.IngestLastN(ctx, 7, 4, true, intPtrRepo(40), nil, false, false)
+	cache.IngestLastN(ctx, 7, 4, false, nil, nil, false, false)
+	cache.IngestLastN(ctx, 8, 4, true, intPtrRepo(80), nil, false, false)
 
 	batch := cache.GetLastNBatch(ctx, []int64{7, 8, 9})
 	require.Equal(t, 2, batch[7].OKCount)

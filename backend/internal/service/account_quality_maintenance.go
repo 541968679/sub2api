@@ -134,14 +134,46 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 	}
 	n := s.windowN(ctx)
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
+	if obs.Recovered {
+		if s.lastN != nil && obs.AccountID > 0 {
+			live := s.lastN.IngestLastN(ctx, obs.AccountID, n, false, nil, nil, useFailover, true)
+			if live != nil {
+				stats := live.ToAccountQualityStats()
+				if s.liveCache != nil {
+					if merged, err := s.liveCache.Get(ctx, obs.AccountID); err == nil && merged != nil {
+						stats = merged
+					}
+				}
+				s.EvaluateHardClose(ctx, map[int64]*AccountQualityStats{obs.AccountID: stats})
+			}
+			if obs.ScheduleSide {
+				s.lastN.IngestPrecheckSample(ctx, obs.AccountID, obs.UserID, false, nil, nil)
+			}
+		}
+		if obs.ScheduleSide && s.publicSchedule != nil && obs.AccountID > 0 {
+			s.publicSchedule.ObserveCompletion(ctx, AccountQualityObservation{
+				AccountID: obs.AccountID,
+				Success:   false,
+			})
+		}
+		return
+	}
 	if s.userLastN != nil && obs.UserID > 0 {
 		userN, override := s.userWindowN(ctx, obs.UserID, n)
-		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover, override)
+		userTTFT := obs.UserFirstTokenMs
+		if userTTFT == nil {
+			userTTFT = obs.FirstTokenMs
+		}
+		userDur := obs.UserDurationMs
+		if userDur == nil {
+			userDur = obs.DurationMs
+		}
+		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, userTTFT, userDur, useFailover, override)
 	}
 	if s.lastN == nil || obs.AccountID <= 0 {
 		return
 	}
-	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover)
+	live := s.lastN.IngestLastN(ctx, obs.AccountID, n, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover, false)
 	s.lastN.IngestPrecheckSample(ctx, obs.AccountID, obs.UserID, obs.Success, obs.FirstTokenMs, obs.DurationMs)
 	if live == nil {
 		return

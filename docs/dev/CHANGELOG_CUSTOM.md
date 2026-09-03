@@ -1,3 +1,21 @@
+## 2026-09-03 - fix: last-N Recovered error rate and recovered TTFT clocks
+
+### What
+- Account last-N \(Q_a\) now stores one outcome FIFO (success / terminal fail / Recovered fail). The quality cell’s failover line uses Recovered-inclusive counts; schedule `ErrorCount` stays terminal unless the existing toggle is on.
+- Recovered ops rows ingest as compare-only last-N samples and do not write user last-N.
+- `usage_logs.first_token_ms` and `duration_ms` use the inbound request clock (includes failed hops before recovery). `true_first_token_ms` and account/pair schedule TTFT stay on the hop clock.
+
+### Why
+After last-N replaced the 15-minute SQL as the list truth, both error-rate fields were copies of the schedule window, so Recovered 429/503 never showed on the contrast line. Forward() reset the TTFT clock per hop, so recovered successes looked faster than downstream clients.
+
+### Files
+- `backend/internal/service/account_quality_last_n.go`
+- `backend/internal/service/account_quality_maintenance.go`
+- `backend/internal/service/ops_service.go`
+- `backend/internal/service/gateway_request_clock.go`
+- `backend/internal/repository/account_quality_last_n_cache.go`
+- Gateway Forward/stream first-token stamps and handler `StampGatewayRequestStartAt`
+
 ## 2026-09-01 - docs: record production deploy of v0.1.277
 
 ### What

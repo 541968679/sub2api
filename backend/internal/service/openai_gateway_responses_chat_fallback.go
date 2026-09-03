@@ -313,6 +313,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	state.NamespaceTools = namespaceTools
 	var usage OpenAIUsage
 	var firstTokenMs *int
+	var hopFirstTokenMs *int
 	clientDisconnected := false
 	sawDone := false
 	stageClk := getOpenAIStreamStageClock(c)
@@ -384,8 +385,8 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			stageClk.MarkFirstUsefulUpstream()
 		}
 		if firstTokenMs == nil && useful {
-			ms := int(time.Since(startTime).Milliseconds())
-			firstTokenMs = &ms
+			stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+			stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
 		}
 		if writeEvents(apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state)) && useful {
 			stageClk.MarkFirstClientFlush()
@@ -410,6 +411,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			Stream:          true,
 			Duration:        time.Since(startTime),
 			FirstTokenMs:    firstTokenMs,
+			HopFirstTokenMs: hopFirstTokenMs,
 		}, fmt.Errorf("stream usage incomplete: %w", err)
 	}
 

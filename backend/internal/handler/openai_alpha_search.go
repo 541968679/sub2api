@@ -24,6 +24,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) {
 	defer h.recoverResponsesPanic(c, &streamStarted)
 	setOpenAIClientTransportHTTP(c)
 	requestStart := time.Now()
+	service.StampGatewayRequestStartAt(c, requestStart)
 
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey.Group == nil {

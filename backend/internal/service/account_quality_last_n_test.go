@@ -96,6 +96,53 @@ func TestAccountQualityLastN_ToAccountQualityStats_StampsN(t *testing.T) {
 	require.Equal(t, 100, *stats.P50TTFTMs)
 }
 
+func TestApplyAccountQualityLastNRecovered_CompareNotTerminal(t *testing.T) {
+	t.Parallel()
+	live := ApplyAccountQualityLastNIngest(nil, 20, true, intPtr(40), nil)
+	live = ApplyAccountQualityLastNRecovered(live, 20)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(1), stats.SuccessCount)
+	require.Equal(t, int64(0), stats.TerminalErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+	require.Equal(t, int64(0), stats.ErrorCount)
+	require.Equal(t, 1, live.OKCount)
+	require.True(t, live.OK[0])
+	require.NotNil(t, stats.FailoverErrorRate)
+	require.InDelta(t, 0.5, *stats.FailoverErrorRate, 1e-9)
+	require.NotNil(t, stats.TerminalErrorRate)
+	require.InDelta(t, 0, *stats.TerminalErrorRate, 1e-9)
+
+	ApplyAccountQualityScheduleCaliber(stats, false)
+	require.Equal(t, int64(0), stats.ErrorCount)
+	ApplyAccountQualityScheduleCaliber(stats, true)
+	require.Equal(t, int64(1), stats.ErrorCount)
+}
+
+func TestApplyAccountQualityLastNRecovered_OnlyRecovered(t *testing.T) {
+	t.Parallel()
+	live := ApplyAccountQualityLastNRecovered(nil, 20)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(0), stats.SuccessCount)
+	require.Equal(t, int64(0), stats.TerminalErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+	require.Equal(t, 0, live.OKCount)
+	require.NotNil(t, stats.FailoverErrorRate)
+	require.InDelta(t, 1.0, *stats.FailoverErrorRate, 1e-9)
+}
+
+func TestAccountQualityLastN_DecodeLegacyOKWithoutOutcomes(t *testing.T) {
+	t.Parallel()
+	live := &AccountQualityLastN{
+		N:  20,
+		OK: []bool{true, false, true},
+	}
+	RecomputeAccountQualityLastN(live)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(2), stats.SuccessCount)
+	require.Equal(t, int64(1), stats.TerminalErrorCount)
+	require.Equal(t, int64(1), stats.FailoverErrorCount)
+}
+
 func TestEvaluateAccountQualityHardClose_UnfilledLastNDoesNotJudge(t *testing.T) {
 	t.Parallel()
 	cfg := qualityHardCloseCfg(func(cfg *QualityHardCloseSettings) {

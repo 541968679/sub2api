@@ -235,6 +235,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	setOpenAIClientTransportHTTP(c)
 
 	requestStart := time.Now()
+	service.StampGatewayRequestStartAt(c, requestStart)
 
 	// Get apiKey and user from context (set by ApiKeyAuth middleware)
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
@@ -772,6 +773,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	defer h.recoverAnthropicMessagesPanic(c, &streamStarted)
 
 	requestStart := time.Now()
+	service.StampGatewayRequestStartAt(c, requestStart)
 
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {

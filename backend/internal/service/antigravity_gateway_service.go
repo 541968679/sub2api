@@ -3166,6 +3166,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 	scanner.Buffer(scanBuf[:0], maxLineSize)
 	usage := &ClaudeUsage{}
 	var firstTokenMs *int
+	var hopFirstTokenMs *int
 
 	type scanEvent struct {
 		line string
@@ -3301,8 +3302,8 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 				}
 
 				if firstTokenMs == nil {
-					ms := int(time.Since(startTime).Milliseconds())
-					firstTokenMs = &ms
+					stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+					stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
 				}
 
 				cw.Fprintf("data: %s\n\n", payload)
@@ -3446,8 +3447,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamToNonStreaming(c *gin.Cont
 
 			// 记录首 token 时间
 			if firstTokenMs == nil {
-				ms := int(time.Since(startTime).Milliseconds())
-				firstTokenMs = &ms
+				stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
 			}
 
 			last = parsed
@@ -3909,8 +3909,7 @@ func (s *AntigravityGatewayService) handleClaudeStreamToNonStreaming(c *gin.Cont
 
 			// 记录首 token 时间
 			if firstTokenMs == nil {
-				ms := int(time.Since(startTime).Milliseconds())
-				firstTokenMs = &ms
+				stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
 			}
 
 			last = parsed
@@ -3998,6 +3997,7 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 		})
 	}
 	var firstTokenMs *int
+	var hopFirstTokenMs *int
 	// 使用 Scanner 并限制单行大小，避免 ReadString 无上限导致 OOM
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
@@ -4140,8 +4140,8 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 			claudeEvents := processor.ProcessLine(strings.TrimRight(ev.line, "\r\n"))
 			if len(claudeEvents) > 0 {
 				if firstTokenMs == nil {
-					ms := int(time.Since(startTime).Milliseconds())
-					firstTokenMs = &ms
+					stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+					stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
 				}
 				cw.Write(claudeEvents)
 			}
@@ -4545,8 +4545,7 @@ func (s *AntigravityGatewayService) streamUpstreamResponse(c *gin.Context, resp 
 
 			// 记录首 token 时间
 			if firstTokenMs == nil && len(line) > 0 {
-				ms := int(time.Since(startTime).Milliseconds())
-				firstTokenMs = &ms
+				stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
 			}
 
 			// 尝试从 message_delta 或 message_stop 事件提取 usage
