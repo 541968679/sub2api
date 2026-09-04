@@ -92,6 +92,18 @@
                 t('admin.accounts.oauth.openai.codexPatAuth')
               }}</span>
             </label>
+            <label v-if="showCodexSessionImportOption" class="flex cursor-pointer items-center gap-2">
+              <input
+                v-model="inputMethod"
+                type="radio"
+                value="codex_session"
+                data-testid="oauth-method-codex-session"
+                class="text-blue-600 focus:ring-blue-500"
+              />
+              <span class="text-sm text-blue-900 dark:text-blue-200">{{
+                t('admin.accounts.oauth.openai.codexSessionAuth')
+              }}</span>
+            </label>
           </div>
         </div>
 
@@ -207,6 +219,42 @@
               @click="handleImportCodexPAT"
             >
               {{ loading ? t('admin.accounts.oauth.openai.validating') : t('admin.accounts.oauth.openai.codexPatImportAndCreate') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="inputMethod === 'codex_session'" class="space-y-4">
+          <div class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80">
+            <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
+              {{ t('admin.accounts.oauth.openai.codexSessionDesc') }}
+            </p>
+            <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <Icon name="key" size="sm" class="text-blue-500" />
+              {{ t('admin.accounts.oauth.openai.codexSessionInputLabel') }}
+            </label>
+            <textarea
+              v-model="codexSessionInput"
+              data-testid="codex-session-input"
+              rows="6"
+              class="input w-full resize-y font-mono text-sm"
+              :placeholder="t('admin.accounts.oauth.openai.codexSessionPlaceholder')"
+              spellcheck="false"
+            ></textarea>
+            <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              {{ t('admin.accounts.oauth.openai.codexSessionHint') }}
+            </p>
+            <button
+              type="button"
+              data-testid="codex-session-submit"
+              class="btn btn-primary mt-4 w-full"
+              :disabled="loading || !codexSessionInput.trim()"
+              @click="handleImportCodexSession"
+            >
+              {{
+                loading
+                  ? t('admin.accounts.oauth.openai.validating')
+                  : t('admin.accounts.oauth.openai.codexSessionImportAndCreate')
+              }}
             </button>
           </div>
         </div>
@@ -605,6 +653,7 @@ interface Props {
   showSessionTokenOption?: boolean
   showAccessTokenOption?: boolean
   showCodexPatOption?: boolean
+  showCodexSessionImportOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
 }
@@ -624,6 +673,7 @@ const props = withDefaults(defineProps<Props>(), {
   showSessionTokenOption: false,
   showAccessTokenOption: false,
   showCodexPatOption: false,
+  showCodexSessionImportOption: false,
   platform: 'anthropic',
   showProjectId: true
 })
@@ -637,6 +687,7 @@ const emit = defineEmits<{
   'validate-session-token': [sessionToken: string]
   'import-access-token': [accessToken: string]
   'import-codex-pat': [accessToken: string]
+  'import-codex-session': [content: string]
   'update:inputMethod': [method: AuthInputMethod]
 }>()
 
@@ -678,13 +729,14 @@ const authCodeInput = ref('')
 const sessionKeyInput = ref('')
 const refreshTokenInput = ref('')
 const sessionTokenInput = ref('')
+const codexSessionInput = ref('')
 const codexPATInput = ref('')
 const showHelpDialog = ref(false)
 const oauthState = ref('')
 const projectId = ref('')
 
 // Computed: show method selection when either cookie or refresh token option is enabled
-const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexPatOption)
+const showMethodSelection = computed(() => props.showCookieOption || props.showRefreshTokenOption || props.showMobileRefreshTokenOption || props.showSessionTokenOption || props.showAccessTokenOption || props.showCodexPatOption || props.showCodexSessionImportOption)
 
 // Clipboard
 const { copied, copyToClipboard } = useClipboard()
@@ -782,6 +834,12 @@ const handleImportCodexPAT = () => {
   }
 }
 
+const handleImportCodexSession = () => {
+  if (codexSessionInput.value.trim()) {
+    emit('import-codex-session', codexSessionInput.value.trim())
+  }
+}
+
 // Expose methods and state
 defineExpose({
   authCode: authCodeInput,
@@ -790,6 +848,7 @@ defineExpose({
   sessionKey: sessionKeyInput,
   refreshToken: refreshTokenInput,
   sessionToken: sessionTokenInput,
+  codexSession: codexSessionInput,
   codexPAT: codexPATInput,
   inputMethod,
   reset: () => {
@@ -799,6 +858,7 @@ defineExpose({
     sessionKeyInput.value = ''
     refreshTokenInput.value = ''
     sessionTokenInput.value = ''
+    codexSessionInput.value = ''
     codexPATInput.value = ''
     inputMethod.value = 'manual'
     showHelpDialog.value = false

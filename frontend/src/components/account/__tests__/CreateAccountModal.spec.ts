@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
-const { createAccountMock, checkMixedChannelRiskMock } = vi.hoisted(() => ({
+const { createAccountMock, checkMixedChannelRiskMock, importCodexSessionMock } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
-  checkMixedChannelRiskMock: vi.fn()
+  checkMixedChannelRiskMock: vi.fn(),
+  importCodexSessionMock: vi.fn()
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -26,7 +27,8 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       create: createAccountMock,
-      checkMixedChannelRisk: checkMixedChannelRiskMock
+      checkMixedChannelRisk: checkMixedChannelRiskMock,
+      importCodexSession: importCodexSessionMock
     },
     settings: {
       getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
@@ -123,6 +125,26 @@ const SelectStub = defineComponent({
   `
 })
 
+const OAuthAuthorizationFlowStub = defineComponent({
+  name: 'OAuthAuthorizationFlow',
+  props: {
+    showCodexSessionImportOption: { type: Boolean, default: false },
+    showSessionTokenOption: { type: Boolean, default: false }
+  },
+  emits: ['import-codex-session'],
+  setup(_props, { emit }) {
+    const importSession = () => emit('import-codex-session', ' {"accessToken":"at"} ')
+    return { importSession }
+  },
+  template: `
+    <div>
+      <span data-testid="oauth-show-codex-session">{{ String(showCodexSessionImportOption) }}</span>
+      <span data-testid="oauth-show-session-token">{{ String(showSessionTokenOption) }}</span>
+      <button type="button" data-testid="oauth-import-codex-session" @click="importSession" />
+    </div>
+  `
+})
+
 function mockOAuthComposable() {
   return {
     authUrl: { value: '' },
@@ -192,6 +214,46 @@ async function mountGrokAPIKeyModal() {
   await wrapper.findAll('button').find((button) => button.text().includes('Grok'))!.trigger('click')
   await wrapper.findAll('button').find((button) => button.text().includes('API Key'))!.trigger('click')
   await wrapper.get('input[type="password"]').setValue('xai-test')
+  return wrapper
+}
+
+async function mountOpenAIOAuthModal() {
+  importCodexSessionMock.mockReset()
+  checkMixedChannelRiskMock.mockReset()
+  checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+  importCodexSessionMock.mockResolvedValue({
+    total: 1,
+    created: 1,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    items: []
+  })
+
+  const wrapper = mount(CreateAccountModal, {
+    props: {
+      show: true,
+      proxies: [],
+      groups: []
+    },
+    global: {
+      stubs: {
+        BaseDialog: BaseDialogStub,
+        ConfirmDialog: BaseDialogStub,
+        Icon: true,
+        ProxySelector: true,
+        GroupSelector: true,
+        ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
+        Select: SelectStub
+      }
+    }
+  })
+
+  await wrapper.findAll('button').find((button) => button.text().includes('OpenAI'))!.trigger('click')
+  await wrapper.get('[data-tour="account-form-name"]').setValue('session-acct')
+  await wrapper.get('form#create-account-form').trigger('submit.prevent')
+  await flushPromises()
   return wrapper
 }
 
@@ -395,5 +457,45 @@ describe('CreateAccountModal', () => {
 
     await wrapper.findAll('button').find((button) => button.text().includes('Antigravity'))!.trigger('click')
     expect(wrapper.find('[data-testid="model-mapping-strict-scheduling"]').exists()).toBe(false)
+  })
+
+  it('imports ChatGPT session JSON from OpenAI OAuth step 2 with step-1 fields', async () => {
+    const wrapper = await mountOpenAIOAuthModal()
+
+    expect(wrapper.get('[data-testid="oauth-show-codex-session"]').text()).toBe('true')
+    expect(wrapper.get('[data-testid="oauth-show-session-token"]').text()).toBe('false')
+
+    await wrapper.get('[data-testid="oauth-import-codex-session"]').trigger('click')
+    await flushPromises()
+
+    expect(importCodexSessionMock).toHaveBeenCalledTimes(1)
+    expect(importCodexSessionMock.mock.calls[0]?.[0]).toMatchObject({
+      content: '{"accessToken":"at"}',
+      name: 'session-acct',
+      update_existing: true,
+      concurrency: 10,
+      priority: 1,
+      rate_multiplier: 1
+    })
+    expect(wrapper.emitted('created')).toHaveLength(1)
+  })
+
+  it('keeps the wizard open when session import only returns failures', async () => {
+    const wrapper = await mountOpenAIOAuthModal()
+    importCodexSessionMock.mockResolvedValue({
+      total: 1,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 1,
+      items: [{ index: 1, action: 'failed', message: 'expired token' }]
+    })
+
+    await wrapper.get('[data-testid="oauth-import-codex-session"]').trigger('click')
+    await flushPromises()
+
+    expect(importCodexSessionMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('created')).toBeUndefined()
+    expect(wrapper.get('[data-testid="oauth-import-codex-session"]').exists()).toBe(true)
   })
 })

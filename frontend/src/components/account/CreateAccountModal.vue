@@ -3419,6 +3419,7 @@
         :show-session-token-option="false"
         :show-access-token-option="false"
         :show-codex-pat-option="form.platform === 'openai'"
+        :show-codex-session-import-option="form.platform === 'openai'"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"
@@ -3427,6 +3428,7 @@
         @validate-mobile-refresh-token="handleOpenAIValidateMobileRT"
         @validate-session-token="handleValidateSessionToken"
         @import-codex-pat="handleOpenAIImportCodexPAT"
+        @import-codex-session="handleOpenAIImportCodexSession"
       />
 
     </div>
@@ -3830,6 +3832,7 @@ interface OAuthFlowExposed {
   sessionKey: string
   refreshToken: string
   sessionToken: string
+  codexSession: string
   codexPAT: string
   inputMethod: AuthInputMethod
   reset: () => void
@@ -6027,6 +6030,79 @@ const handleOpenAIImportCodexPAT = async (accessToken: string) => {
     handleClose()
   } catch (error: any) {
     openaiOAuth.error.value = error.response?.data?.message || error.response?.data?.detail || error.message || t('admin.accounts.oauth.openai.codexPatImportFailed')
+    appStore.showError(openaiOAuth.error.value)
+  } finally {
+    openaiOAuth.loading.value = false
+  }
+}
+
+const handleOpenAIImportCodexSession = async (content: string) => {
+  const payload = content.trim()
+  if (!payload) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.codexSessionEmpty')
+    return
+  }
+
+  openaiOAuth.loading.value = true
+  openaiOAuth.error.value = ''
+  try {
+    const credentialExtras: Record<string, unknown> = {}
+    if (!isOpenAIModelRestrictionDisabled.value) {
+      const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+      if (modelMapping) credentialExtras.model_mapping = modelMapping
+    }
+    const compactModelMapping = buildOpenAICompactModelMapping()
+    if (compactModelMapping) credentialExtras.compact_model_mapping = compactModelMapping
+    if (!applyTempUnschedConfig(credentialExtras)) return
+
+    const result = await adminAPI.accounts.importCodexSession({
+      content: payload,
+      name: form.name,
+      notes: (form.notes ?? '').trim() || null,
+      group_ids: form.group_ids,
+      proxy_id: form.proxy_id,
+      concurrency: form.concurrency,
+      load_factor: form.load_factor ?? undefined,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      upstream_rate_multiplier: form.upstream_rate_multiplier,
+      expires_at: form.expires_at,
+      auto_pause_on_expired: autoPauseOnExpired.value,
+      credential_extras: Object.keys(credentialExtras).length ? credentialExtras : undefined,
+      extra: buildOpenAIExtra(),
+      update_existing: true
+    })
+
+    const message = t('admin.accounts.codexSessionImport.summary', {
+      total: result.total,
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      failed: result.failed
+    })
+    const failedMessages = (result.items || [])
+      .filter((item) => item.action === 'failed' && item.message)
+      .map((item) => item.message as string)
+    if (result.failed > 0 && result.created === 0 && result.updated === 0) {
+      openaiOAuth.error.value = failedMessages.join('\n') || message
+      appStore.showError(message)
+      return
+    }
+    if (result.failed > 0) {
+      openaiOAuth.error.value = failedMessages.join('\n') || message
+      appStore.showWarning(message)
+      emit('created')
+      return
+    }
+    appStore.showSuccess(message)
+    emit('created')
+    handleClose()
+  } catch (error: any) {
+    openaiOAuth.error.value =
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
+      error.message ||
+      t('admin.accounts.oauth.openai.codexSessionImportFailed')
     appStore.showError(openaiOAuth.error.value)
   } finally {
     openaiOAuth.loading.value = false

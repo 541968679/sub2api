@@ -214,9 +214,6 @@
                   </div>
                 </template>
                 <template #beforeCreate>
-                  <button @click="showCodexSessionImport = true" class="btn btn-secondary">
-                    {{ t('admin.accounts.codexSessionImport.action') }}
-                  </button>
                   <button @click="showImportData = true" class="btn btn-secondary">
                     {{ t('admin.accounts.dataImport') }}
                   </button>
@@ -765,13 +762,6 @@
     <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" @clear-stuck-runtime="handleClearStuckRuntime" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
-    <CodexSessionImportModal
-      :show="showCodexSessionImport"
-      :proxies="proxies"
-      :groups="groups"
-      @close="showCodexSessionImport = false"
-      @imported="handleCodexSessionImported"
-    />
     <BulkEditAccountModal
       :show="showBulkEdit"
       :account-ids="selIds"
@@ -914,7 +904,6 @@ import AccountTableFilters from '@/components/admin/account/AccountTableFilters.
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
-import CodexSessionImportModal from '@/components/admin/account/CodexSessionImportModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import UpdateRefreshTokenModal from '@/components/admin/account/UpdateRefreshTokenModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
@@ -1014,7 +1003,6 @@ const showCreate = ref(false)
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
-const showCodexSessionImport = ref(false)
 const showExportDataDialog = ref(false)
 type AccountExportDataFormat = 'sub2api' | 'codex'
 const exportDataFormat = ref<AccountExportDataFormat>('sub2api')
@@ -2826,7 +2814,6 @@ const handleUnbindSubscriptionApplied = () => {
   reload()
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
-const handleCodexSessionImported = () => { reload() }
 const buildAccountQueryFilters = () => ({
   platform: params.platform || '',
   type: params.type || '',

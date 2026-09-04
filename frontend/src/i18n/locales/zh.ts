@@ -4523,8 +4523,8 @@ const zhBase = {
       autoSortTooMany: '当前筛选账号超过 {max} 个，请缩小筛选后再排序',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',
-      updateRefreshToken: '更新 Refresh Token',
-      updateRefreshTokenTitle: '更新 Refresh Token',
+      updateRefreshToken: '更新凭证',
+      updateRefreshTokenTitle: '更新凭证',
       updateRefreshTokenDesc: '粘贴新的 refresh token 以替换已过期的旧凭证。默认会先向上游校验（换取新的 access token）再保存，校验成功后自动恢复账号。',
       updateRefreshTokenDescOpenAI:
         '可贴 OpenAI Refresh Token，或 ChatGPT /api/auth/session / Codex 会话 JSON。JSON 会用 accessToken，并把 sessionToken 存下来刷新 AT；sessionToken 不会当成 OAuth refresh_token。',
@@ -4534,8 +4534,8 @@ const zhBase = {
       validateBeforeSaveHint: '向上游换取 access token 以验证该 token 是否可用；取消勾选则直接保存不校验（如上游临时不可达时）。',
       validateBeforeSaveHintOpenAI:
         'Refresh Token 会向上游换票；会话 JSON 则校验 JWT 是否过期，不会把 JSON 当 refresh token 换票。取消勾选则直接保存。',
-      updateRefreshTokenSuccess: 'Refresh token 更新成功',
-      updateRefreshTokenFailed: 'Refresh token 更新失败',
+      updateRefreshTokenSuccess: '凭证更新成功',
+      updateRefreshTokenFailed: '凭证更新失败',
       clientIdOptional: 'Client ID（可选）',
       clientIdPlaceholder: 'OpenAI client ID（留空保持当前值）',
       noAccountsYet: '暂无账号',
@@ -5341,7 +5341,17 @@ const zhBase = {
           validating: '验证中...',
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
-          pleaseEnterSessionToken: '请输入 Session Token'
+          pleaseEnterSessionToken: '请输入 Session Token',
+          codexSessionAuth: '粘贴 ChatGPT session / Codex auth.json',
+          codexSessionDesc:
+            '粘贴 ChatGPT /api/auth/session JSON、Codex auth.json 或 access token。sessionToken 会保存并用来刷新 AT，不会当成 OAuth refresh_token。会沿用上一步的分组、代理、并发等设置。',
+          codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
+          codexSessionPlaceholder: '粘贴 session JSON、Codex auth.json 或 access token',
+          codexSessionHint:
+            '支持 JSON、JSON 数组或逐行多个条目。匹配到同一用户且已有 refresh_token 的账号时会更新该号，不新建短命账号。',
+          codexSessionImportAndCreate: '导入并创建账号',
+          codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
         },
         // Gemini specific
         gemini: {
@@ -9709,7 +9719,17 @@ const v117ZhPatch = {
           codexPatHint: '创建账号前会先向 OpenAI 验证该令牌。',
           codexPatImportAndCreate: '验证并创建账号',
           codexPatEmpty: '请输入 Codex Personal Access Token',
-          codexPatImportFailed: '导入 Codex Personal Access Token 失败'
+          codexPatImportFailed: '导入 Codex Personal Access Token 失败',
+          codexSessionAuth: '粘贴 ChatGPT session / Codex auth.json',
+          codexSessionDesc:
+            '粘贴 ChatGPT /api/auth/session JSON、Codex auth.json 或 access token。sessionToken 会保存并用来刷新 AT，不会当成 OAuth refresh_token。会沿用上一步的分组、代理、并发等设置。',
+          codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
+          codexSessionPlaceholder: '粘贴 session JSON、Codex auth.json 或 access token',
+          codexSessionHint:
+            '支持 JSON、JSON 数组或逐行多个条目。匹配到同一用户且已有 refresh_token 的账号时会更新该号，不新建短命账号。',
+          codexSessionImportAndCreate: '导入并创建账号',
+          codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
         },
         gemini: {
           refreshTokenAuth: 'Refresh Token 认证',

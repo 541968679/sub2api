@@ -239,6 +239,25 @@ func TestUpdateRefreshToken_SessionJSONIdentityMismatchRejected(t *testing.T) {
 	require.False(t, stub.updateCalled)
 }
 
+func TestUpdateRefreshToken_SessionJSONUserIdentityMismatchRejected(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), nil)
+	stub := newOpenAIRefreshTokenStub(map[string]any{
+		"access_token":       "old-at",
+		"chatgpt_account_id": "acct-from-json",
+		"chatgpt_user_id":    "other-user",
+	})
+	router := setupRefreshTokenHandler(stub)
+
+	w := doUpdateRefreshToken(router, "7", map[string]any{
+		"refresh_token": sessionJSONForTest(t, accessToken, "acct-from-json", "st"),
+		"validate":      true,
+	})
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), `"reason":"OPENAI_SESSION_IDENTITY_MISMATCH"`)
+	require.False(t, stub.updateCalled)
+}
+
 func TestUpdateRefreshToken_SessionJSONBackfillsMissingAccountID(t *testing.T) {
 	accessToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), nil)
 	stub := newOpenAIRefreshTokenStub(map[string]any{

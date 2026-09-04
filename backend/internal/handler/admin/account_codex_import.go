@@ -185,6 +185,7 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 	skipMixedChannelCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
 	seenIdentity := map[string]codexSeenIdentity{}
+	updatedWithRefresh := map[int64]struct{}{}
 	for _, entry := range entries {
 		item, err := normalizeCodexImportEntry(entry)
 		if err != nil {
@@ -263,6 +264,13 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index, item.UserID)
 
 		existing, matchedKey := index.Find(item.IdentityKeys, item.UserID)
+		if existing == nil && item.RefreshToken == "" {
+			if candidate, key := index.findRefreshTokenRowByUser(item.UserID); candidate != nil {
+				if _, already := updatedWithRefresh[candidate.ID]; !already {
+					existing, matchedKey = candidate, key
+				}
+			}
+		}
 		if existing != nil && updateExisting {
 			if strings.HasPrefix(matchedKey, "account:") && item.UserID != "" &&
 				codexCredentialString(existing.Credentials, "chatgpt_user_id") == "" {
@@ -328,6 +336,10 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 			if updated != nil {
 				accountID = updated.ID
 				index.Add(*updated)
+			}
+			if strings.TrimSpace(item.RefreshToken) != "" ||
+				codexCredentialString(mergedCredentials, "refresh_token") != "" {
+				updatedWithRefresh[accountID] = struct{}{}
 			}
 			result.Items = append(result.Items, CodexSessionImportItem{
 				Index:     entry.Index,
@@ -891,6 +903,9 @@ func (i *codexAccountIndex) Add(account service.Account) {
 	if i == nil {
 		return
 	}
+	if account.IsOpenAIPersonalAccessToken() {
+		return
+	}
 	if i.accountsByKey == nil {
 		i.accountsByKey = map[string][]service.Account{}
 	}
@@ -946,6 +961,27 @@ func (i *codexAccountIndex) Find(keys []string, userID string) (*service.Account
 			}
 			return &account, key
 		}
+	}
+	return nil, ""
+}
+
+// findRefreshTokenRowByUser 让无 RT 的 session/AT 更新同一 chatgpt_user_id 的完整 OAuth 号，
+// 而不是再造一条短命 access-only 账号。不含 RT 的存量行不会被这条路径合并。
+func (i *codexAccountIndex) findRefreshTokenRowByUser(userID string) (*service.Account, string) {
+	userID = strings.TrimSpace(userID)
+	if i == nil || userID == "" {
+		return nil, ""
+	}
+	key := "user:" + userID
+	for _, account := range i.accountsByKey[key] {
+		if account.IsOpenAIPersonalAccessToken() {
+			continue
+		}
+		if strings.TrimSpace(codexCredentialString(account.Credentials, "refresh_token")) == "" {
+			continue
+		}
+		copied := account
+		return &copied, key
 	}
 	return nil, ""
 }
@@ -1015,8 +1051,10 @@ func mergeCodexImportCredentials(existing, incoming map[string]any, item *codexI
 			}
 		}
 	}
-	if strings.TrimSpace(item.IDToken) == "" {
-		delete(out, "id_token")
+	if strings.TrimSpace(item.IDToken) != "" {
+		out["id_token"] = item.IDToken
+	} else if existingToken, ok := existing["id_token"]; ok {
+		out["id_token"] = existingToken
 	}
 	if strings.TrimSpace(item.SessionToken) == "" {
 		if existingToken := codexCredentialString(existing, "chatgpt_session_token"); existingToken != "" {

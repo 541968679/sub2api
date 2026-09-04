@@ -4980,8 +4980,8 @@ const enBase = {
       autoSortTooMany: 'More than {max} accounts match the current filters. Narrow the filters before sorting.',
       reAuthorize: 'Re-Authorize',
       refreshToken: 'Refresh Token',
-      updateRefreshToken: 'Update Refresh Token',
-      updateRefreshTokenTitle: 'Update Refresh Token',
+      updateRefreshToken: 'Update credentials',
+      updateRefreshTokenTitle: 'Update credentials',
       updateRefreshTokenDesc: 'Paste a new refresh token to replace the expired one. By default it is validated against the provider (exchanged for a fresh access token) before saving, and the account is re-enabled on success.',
       updateRefreshTokenDescOpenAI:
         'Paste an OpenAI refresh token, or a ChatGPT /api/auth/session / Codex session JSON. accessToken is used immediately; sessionToken is stored to refresh AT and is never saved as an OAuth refresh_token.',
@@ -4991,8 +4991,8 @@ const enBase = {
       validateBeforeSaveHint: 'Exchange the token with the provider to verify it works. Uncheck to save without validating (e.g. when the upstream is temporarily unreachable).',
       validateBeforeSaveHintOpenAI:
         'Refresh tokens are exchanged upstream. Session JSON is checked for JWT expiry and is never treated as a refresh token. Uncheck to save without validating.',
-      updateRefreshTokenSuccess: 'Refresh token updated successfully',
-      updateRefreshTokenFailed: 'Failed to update refresh token',
+      updateRefreshTokenSuccess: 'Credentials updated successfully',
+      updateRefreshTokenFailed: 'Failed to update credentials',
       clientIdOptional: 'Client ID (optional)',
       clientIdPlaceholder: 'OpenAI client ID (leave blank to keep current)',
       noAccountsYet: 'No accounts yet',
@@ -5610,7 +5610,17 @@ const enBase = {
           validating: 'Validating...',
           validateAndCreate: 'Validate & Create Account',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
-          pleaseEnterSessionToken: 'Please enter Session Token'
+          pleaseEnterSessionToken: 'Please enter Session Token',
+          codexSessionAuth: 'Paste ChatGPT session / Codex auth.json',
+          codexSessionDesc:
+            'Paste a ChatGPT /api/auth/session JSON, Codex auth.json, or access token. sessionToken is stored to refresh AT and is never saved as an OAuth refresh_token. Step 1 groups, proxy, concurrency, and rates are reused.',
+          codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
+          codexSessionPlaceholder: 'Paste session JSON, Codex auth.json, or an access token',
+          codexSessionHint:
+            'JSON, JSON arrays, and mixed line input are supported. A matching user that already has a refresh_token is updated in place instead of creating a short-lived sibling account.',
+          codexSessionImportAndCreate: 'Import and create account',
+          codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
         },
         // Gemini specific
 	        gemini: {
@@ -9653,7 +9663,17 @@ const phase0LocalePatch = {
           codexPatHint: 'The token is validated with OpenAI before the account is created.',
           codexPatImportAndCreate: 'Validate and create account',
           codexPatEmpty: 'Please enter a Codex Personal Access Token',
-          codexPatImportFailed: 'Failed to import Codex Personal Access Token'
+          codexPatImportFailed: 'Failed to import Codex Personal Access Token',
+          codexSessionAuth: 'Paste ChatGPT session / Codex auth.json',
+          codexSessionDesc:
+            'Paste a ChatGPT /api/auth/session JSON, Codex auth.json, or access token. sessionToken is stored to refresh AT and is never saved as an OAuth refresh_token. Step 1 groups, proxy, concurrency, and rates are reused.',
+          codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
+          codexSessionPlaceholder: 'Paste session JSON, Codex auth.json, or an access token',
+          codexSessionHint:
+            'JSON, JSON arrays, and mixed line input are supported. A matching user that already has a refresh_token is updated in place instead of creating a short-lived sibling account.',
+          codexSessionImportAndCreate: 'Import and create account',
+          codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
         },
         grok: {
           failedToGenerateUrl: 'Failed to generate Grok auth URL',

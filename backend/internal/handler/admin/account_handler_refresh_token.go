@@ -65,13 +65,18 @@ type openAISessionJSONPlan struct {
 	ErrorMessage string
 }
 
-func openAISessionIdentityMismatch(account *service.Account, incomingAccountID string) bool {
+func openAISessionIdentityMismatch(account *service.Account, incomingAccountID, incomingUserID string) bool {
 	if account == nil {
 		return false
 	}
-	existing := strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
-	incoming := strings.TrimSpace(incomingAccountID)
-	return existing != "" && incoming != "" && existing != incoming
+	existingAccountID := strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
+	incomingAccountID = strings.TrimSpace(incomingAccountID)
+	if existingAccountID != "" && incomingAccountID != "" && existingAccountID != incomingAccountID {
+		return true
+	}
+	existingUserID := strings.TrimSpace(account.GetCredential("chatgpt_user_id"))
+	incomingUserID = strings.TrimSpace(incomingUserID)
+	return existingUserID != "" && incomingUserID != "" && existingUserID != incomingUserID
 }
 
 func sessionJSONAccessTokenExpired(item *codexImportAccount, now time.Time) bool {
@@ -96,10 +101,10 @@ func planOpenAISessionJSONUpdate(account *service.Account, obj map[string]any, v
 	if err != nil {
 		return openAISessionJSONPlan{ErrorCode: "OPENAI_SESSION_JSON_INVALID", ErrorMessage: err.Error()}
 	}
-	if openAISessionIdentityMismatch(account, item.AccountID) {
+	if openAISessionIdentityMismatch(account, item.AccountID, item.UserID) {
 		return openAISessionJSONPlan{
 			ErrorCode:    "OPENAI_SESSION_IDENTITY_MISMATCH",
-			ErrorMessage: "session JSON chatgpt_account_id does not match this account",
+			ErrorMessage: "session JSON chatgpt_account_id or chatgpt_user_id does not match this account",
 		}
 	}
 	if refreshToken := strings.TrimSpace(item.RefreshToken); refreshToken != "" {

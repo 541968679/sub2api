@@ -202,8 +202,8 @@ func TestMergeCodexImportCredentialsPreservesExistingRefreshFieldsWhenIncomingHa
 	if merged["client_id"] != "old-client-id" {
 		t.Fatalf("client_id = %v, want old-client-id", merged["client_id"])
 	}
-	if _, ok := merged["id_token"]; ok {
-		t.Fatalf("id_token should be cleared")
+	if merged["id_token"] != "old-id-token" {
+		t.Fatalf("id_token = %v, want old-id-token", merged["id_token"])
 	}
 	if merged["unrelated_existing"] != "keep" {
 		t.Fatalf("unrelated_existing = %v, want keep", merged["unrelated_existing"])
@@ -448,6 +448,55 @@ func TestCodexAccountIndexAccessTokenOnlyUsesTokenFingerprint(t *testing.T) {
 	}
 }
 
+func TestCodexAccountIndexSkipsPersonalAccessToken(t *testing.T) {
+	pat := service.Account{
+		ID:       50,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          service.OpenAIAuthModePersonalAccessToken,
+			"chatgpt_account_id": "team-1",
+			"chatgpt_user_id":    "user-1",
+			"access_token":       "pat-token",
+		},
+	}
+	index := buildCodexAccountIndex([]service.Account{pat})
+	keys := buildCodexImportIdentityKeys("team-1", "user-1", "", "oauth-token", "refresh-1")
+	if got, matchedKey := index.Find(keys, "user-1"); got != nil {
+		t.Fatalf("PAT indexed and matched by %q: account ID %d", matchedKey, got.ID)
+	}
+	if got, _ := index.findRefreshTokenRowByUser("user-1"); got != nil {
+		t.Fatalf("PAT matched as refresh-token row: account ID %d", got.ID)
+	}
+}
+
+func TestCodexAccountIndexAccessOnlyFindsExistingRefreshTokenUser(t *testing.T) {
+	existing := service.Account{
+		ID:       60,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "team-1",
+			"chatgpt_user_id":    "user-1",
+			"access_token":       "old-at",
+			"refresh_token":      "keep-rt",
+			"id_token":           "keep-id",
+		},
+	}
+	index := buildCodexAccountIndex([]service.Account{existing})
+	keys := buildCodexImportIdentityKeys("team-1", "user-1", "", "new-at", "")
+	if got, matchedKey := index.Find(keys, "user-1"); got != nil {
+		t.Fatalf("accessToken-only Find matched by %q before user+RT fallback", matchedKey)
+	}
+	got, matchedKey := index.findRefreshTokenRowByUser("user-1")
+	if got == nil || got.ID != existing.ID {
+		t.Fatalf("findRefreshTokenRowByUser = %v, want account ID %d", got, existing.ID)
+	}
+	if matchedKey != "user:user-1" {
+		t.Fatalf("matched key = %q, want user:user-1", matchedKey)
+	}
+}
+
 func TestCodexAccountIndexKeepsAllCandidatesForSharedAccountKey(t *testing.T) {
 	legacy := service.Account{
 		ID: 30,
@@ -578,6 +627,49 @@ func TestNormalizeCodexImportUsesJWTSubForAccessTokenOnlyIdentity(t *testing.T) 
 	}
 	if got := item.Credentials["chatgpt_user_id"]; got != "user-from-access-token" {
 		t.Fatalf("credential chatgpt_user_id = %v, want JWT sub", got)
+	}
+}
+
+func TestImportCodexSessionsAccessOnlyUpdatesExistingRefreshTokenAccount(t *testing.T) {
+	existing := service.Account{
+		ID:       70,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "workspace-1",
+			"chatgpt_user_id":    "user-1",
+			"access_token":       "old-at",
+			"refresh_token":      "keep-rt",
+			"id_token":           "keep-id",
+			"client_id":          "keep-client",
+		},
+	}
+	svc := newCodexImportMemoryAdminService([]service.Account{existing})
+	handler := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	req := CodexSessionImportRequest{SkipDefaultGroupBind: boolPtr(true)}
+	entries := []codexImportEntry{
+		{Index: 1, Value: buildCodexAccessOnlyImportValue(t, "workspace-1", "user-1")},
+	}
+
+	result, err := handler.importCodexSessions(context.Background(), req, entries)
+	if err != nil {
+		t.Fatalf("importCodexSessions error = %v", err)
+	}
+	if result.Created != 0 || result.Updated != 1 || result.Failed != 0 {
+		t.Fatalf("result = %+v, want one update", result)
+	}
+	if len(svc.updatedAccounts) != 1 || svc.updatedAccounts[0].id != existing.ID {
+		t.Fatalf("updatedAccounts = %+v, want id %d", svc.updatedAccounts, existing.ID)
+	}
+	creds := svc.updatedAccounts[0].input.Credentials
+	if creds["refresh_token"] != "keep-rt" {
+		t.Fatalf("refresh_token = %v, want keep-rt", creds["refresh_token"])
+	}
+	if creds["id_token"] != "keep-id" {
+		t.Fatalf("id_token = %v, want keep-id", creds["id_token"])
+	}
+	if creds["client_id"] != "keep-client" {
+		t.Fatalf("client_id = %v, want keep-client", creds["client_id"])
 	}
 }
 

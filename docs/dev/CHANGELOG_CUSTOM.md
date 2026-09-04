@@ -1,3 +1,36 @@
+## 2026-09-04 - feat: fold Codex session paste into Add Account
+
+### What
+- OpenAI Add Account OAuth step 2 accepts ChatGPT session / Codex `auth.json` / AT and calls `POST /admin/accounts/import/codex-session` with step-1 groups, proxy, concurrency, priority, and rates (`update_existing=true`).
+- Accounts toolbar no longer has「导入 Codex 会话」. Import API is unchanged.
+- OAuth menu/modal copy is 更新凭证 / Update credentials. Identity mismatch also checks `chatgpt_user_id`. Import index skips PAT. Access-only session updates an existing same-user RT row instead of creating a sibling. Incoming empty `id_token` keeps the stored value.
+- OpenAI account tests take AT from `OpenAITokenProvider` (session/RT refresh) instead of only the stored access token.
+
+### Why
+Session JSON is the richest credential payload, but Add Account did not parse it and the toolbar importer was a thin second create path. Folding paste into the full wizard keeps one entry while preserving v0.1.279 ST refresh.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/handler/admin -run "Codex|UpdateRefreshToken|ImportCodex|NormalizeCodex" -count=1`
+- `go -C backend test -tags=unit ./internal/service -run "ResolveOpenAITestAccessToken" -count=1`
+- `pnpm --dir frontend exec vitest run src/__tests__/integration/codex-session-import.spec.ts src/components/admin/account/__tests__/UpdateRefreshTokenModal.spec.ts src/components/account/__tests__/CreateAccountModal.spec.ts src/components/account/__tests__/OAuthAuthorizationFlow.session.spec.ts src/views/admin/__tests__/AccountsView.codexSessionImport.spec.ts`
+
+### Affected files
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/handler/admin/account_codex_import_test.go`,
+`backend/internal/handler/admin/account_handler_refresh_token.go`,
+`backend/internal/handler/admin/account_handler_refresh_token_test.go`,
+`backend/internal/service/account_test_service.go`,
+`backend/internal/service/account_test_openai_token_test.go`,
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/composables/useAccountOAuth.ts`,
+`frontend/src/components/account/OAuthAuthorizationFlow.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-04 - docs: claim session-import UI fold as fork-owned vs standing sync
 
 ### What
