@@ -1,3 +1,11 @@
+## 2026-09-04 - docs: record production deploy of v0.1.279
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.279` (`006a34822`, digest `sha256:c1d3838b3f72d588a9f4eeff5c78bbc3e9d1b2d92e58fbc9a7cac00ac1810b7c`). Preflight passed, `/health` ok, healthy.
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-09-04 - release: 0.1.279 ChatGPT sessionToken refresh for session import
 
 ### What
