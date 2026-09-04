@@ -4422,7 +4422,7 @@ const enBase = {
       codexSessionImport: {
         action: 'Import Codex Session',
         title: 'Import Codex Session Accounts',
-        hint: 'Accepts access tokens, Codex auth JSON, JSON arrays, or mixed line input. sessionToken is never stored as refresh_token.',
+        hint: 'Accepts access tokens, Codex auth JSON, ChatGPT /api/auth/session JSON, JSON arrays, or mixed line input. sessionToken is stored to refresh accessToken and is never saved as an OAuth refresh_token.',
         content: 'Codex session content',
         placeholder: 'Paste an access token or Codex JSON; multiple line entries are supported',
         name: 'Account name (optional)',
@@ -4984,7 +4984,7 @@ const enBase = {
       updateRefreshTokenTitle: 'Update Refresh Token',
       updateRefreshTokenDesc: 'Paste a new refresh token to replace the expired one. By default it is validated against the provider (exchanged for a fresh access token) before saving, and the account is re-enabled on success.',
       updateRefreshTokenDescOpenAI:
-        'Paste an OpenAI refresh token, or a ChatGPT /api/auth/session / Codex session JSON. Only accessToken is stored; sessionToken is never saved as refresh_token.',
+        'Paste an OpenAI refresh token, or a ChatGPT /api/auth/session / Codex session JSON. accessToken is used immediately; sessionToken is stored to refresh AT and is never saved as an OAuth refresh_token.',
       updateRefreshTokenPlaceholder: 'Paste the new refresh token',
       updateRefreshTokenPlaceholderOpenAI: 'Paste a refresh token, or a full ChatGPT session / Codex JSON',
       validateBeforeSave: 'Validate before saving',

@@ -150,7 +150,13 @@ func TestNormalizeCodexSessionJSONExtractsCredentialsAndIgnoresSessionToken(t *t
 		t.Fatalf("plan_type = %v, want free", item.Credentials["plan_type"])
 	}
 	if _, ok := item.Credentials["session_token"]; ok {
-		t.Fatalf("session_token should not be written to credentials")
+		t.Fatalf("session_token should not be written as a generic credentials key")
+	}
+	if item.Credentials["chatgpt_session_token"] != "secret-session-token" {
+		t.Fatalf("chatgpt_session_token = %v, want secret-session-token", item.Credentials["chatgpt_session_token"])
+	}
+	if _, ok := item.Credentials["refresh_token"]; ok {
+		t.Fatalf("sessionToken must not be stored as refresh_token")
 	}
 	if item.Extra["session_token_present"] != true {
 		t.Fatalf("session_token_present = %v, want true", item.Extra["session_token_present"])

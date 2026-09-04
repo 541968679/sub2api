@@ -154,6 +154,7 @@ func TestUpdateRefreshToken_SessionJSONUpdatesAccessTokenAndIgnoresSessionToken(
 	require.Equal(t, accessToken, stub.lastUpdateCreds["access_token"])
 	_, hasSession := stub.lastUpdateCreds["session_token"]
 	require.False(t, hasSession)
+	require.Equal(t, "secret-session-token", stub.lastUpdateCreds["chatgpt_session_token"])
 	require.NotEqual(t, "secret-session-token", stub.lastUpdateCreds["refresh_token"])
 	require.Nil(t, stub.lastUpdateCreds["refresh_token"])
 	require.Equal(t, true, stub.lastUpdateInput.Extra["session_token_present"])

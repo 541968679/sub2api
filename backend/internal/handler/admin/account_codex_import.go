@@ -77,6 +77,7 @@ type codexImportAccount struct {
 	AccessToken    string
 	RefreshToken   string
 	IDToken        string
+	SessionToken   string
 	Email          string
 	AccountID      string
 	UserID         string
@@ -196,6 +197,19 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 			result.Errors = append(result.Errors, CodexSessionImportMessage{
 				Index:   entry.Index,
 				Message: err.Error(),
+			})
+			continue
+		}
+		if hydrateErr := h.hydrateCodexImportCredentials(ctx, item, req.ProxyID); hydrateErr != nil {
+			result.Failed++
+			result.Items = append(result.Items, CodexSessionImportItem{
+				Index:   entry.Index,
+				Action:  "failed",
+				Message: hydrateErr.Error(),
+			})
+			result.Errors = append(result.Errors, CodexSessionImportMessage{
+				Index:   entry.Index,
+				Message: hydrateErr.Error(),
 			})
 			continue
 		}
@@ -545,8 +559,10 @@ func normalizeCodexImportEntryAt(entry codexImportEntry, now time.Time, validate
 			item.Extra["auth_provider"] = authProvider
 		}
 		if sessionToken := firstCodexString(raw, []string{"session_token"}, []string{"sessionToken"}); sessionToken != "" {
+			item.SessionToken = sessionToken
+			item.Credentials["chatgpt_session_token"] = sessionToken
 			item.Extra["session_token_present"] = true
-			item.WarningTexts = append(item.WarningTexts, "sessionToken 已忽略，不会作为 OAuth refresh_token 存储")
+			item.WarningTexts = append(item.WarningTexts, "已保存 sessionToken 用于刷新 accessToken，不会当作 OAuth refresh_token")
 		}
 		if sessionExpiresAt, ok := codexTimeAt(raw, []string{"expires"}); ok {
 			item.Extra["session_expires_at"] = sessionExpiresAt.Format(time.RFC3339)
@@ -807,6 +823,8 @@ func sanitizeCodexImportCredentialExtras(input map[string]any) map[string]any {
 		"openai_auth_mode":           {},
 		"token_type":                 {},
 		"chatgpt_account_is_fedramp": {},
+		"chatgpt_session_token":      {},
+		"session_refreshed_at":       {},
 	}
 	out := make(map[string]any, len(input))
 	for key, value := range input {
@@ -1000,6 +1018,14 @@ func mergeCodexImportCredentials(existing, incoming map[string]any, item *codexI
 	if strings.TrimSpace(item.IDToken) == "" {
 		delete(out, "id_token")
 	}
+	if strings.TrimSpace(item.SessionToken) == "" {
+		if existingToken := codexCredentialString(existing, "chatgpt_session_token"); existingToken != "" {
+			out["chatgpt_session_token"] = existing["chatgpt_session_token"]
+			if refreshedAt, ok := existing["session_refreshed_at"]; ok {
+				out["session_refreshed_at"] = refreshedAt
+			}
+		}
+	}
 	return out
 }
 
@@ -1030,6 +1056,63 @@ var (
 		{"refreshToken"},
 	}
 )
+
+func (h *AccountHandler) hydrateCodexImportCredentials(ctx context.Context, item *codexImportAccount, proxyID *int64) error {
+	if h == nil || h.openaiOAuthService == nil || item == nil {
+		return nil
+	}
+	if item.SessionToken != "" {
+		info, err := h.openaiOAuthService.RefreshChatGPTSessionWithProxyID(ctx, item.SessionToken, proxyID)
+		if err != nil {
+			return err
+		}
+		applyCodexSessionRefresh(item, info, item.SessionToken, time.Now().UTC())
+		return nil
+	}
+	if item.RefreshToken != "" {
+		return nil
+	}
+	return h.openaiOAuthService.CheckChatGPTAccessTokenWithProxyID(ctx, item.AccessToken, proxyID)
+}
+
+func applyCodexSessionRefresh(item *codexImportAccount, info *service.OpenAITokenInfo, sessionToken string, now time.Time) {
+	if item == nil || info == nil {
+		return
+	}
+	if item.Credentials == nil {
+		item.Credentials = map[string]any{}
+	}
+	item.AccessToken = info.AccessToken
+	item.Credentials["access_token"] = info.AccessToken
+	item.Credentials["chatgpt_session_token"] = sessionToken
+	item.Credentials["session_refreshed_at"] = now.UTC().Format(time.RFC3339)
+	if info.ExpiresAt > 0 {
+		expiresAt := time.Unix(info.ExpiresAt, 0).UTC()
+		item.TokenExpiresAt = &expiresAt
+		item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
+	}
+	if info.Email != "" {
+		item.Email = info.Email
+		item.Credentials["email"] = info.Email
+	}
+	if info.ChatGPTAccountID != "" {
+		item.AccountID = info.ChatGPTAccountID
+		item.Credentials["chatgpt_account_id"] = info.ChatGPTAccountID
+	}
+	if info.ChatGPTUserID != "" {
+		item.UserID = info.ChatGPTUserID
+		item.Credentials["chatgpt_user_id"] = info.ChatGPTUserID
+	}
+	if info.PlanType != "" {
+		item.PlanType = info.PlanType
+		item.Credentials["plan_type"] = info.PlanType
+	}
+	if info.OrganizationID != "" {
+		item.Organization = info.OrganizationID
+		item.Credentials["organization_id"] = info.OrganizationID
+	}
+	item.IdentityKeys = buildCodexImportIdentityKeys(item.AccountID, item.UserID, item.Email, item.AccessToken, item.RefreshToken)
+}
 
 func looksLikeJSON(content string) bool {
 	if content == "" {

@@ -1,3 +1,32 @@
+## 2026-09-04 - fix: Codex session import keeps ChatGPT sessionToken to refresh AT
+
+### What
+- ChatGPT `/api/auth/session` JSON now stores `sessionToken` as `credentials.chatgpt_session_token` (never as `refresh_token`) and exchanges it at import / 更新 RT for a fresh AT via `GET https://chatgpt.com/api/auth/session`.
+- OpenAI token refresher refreshes session-token accounts about every 25 minutes. JWT `exp` is not treated as proof the ChatGPT session is still live.
+- Access-token-only imports with no ST/RT are probed against ChatGPT `accounts/check`; a 401 `token_expired` rejects the import instead of creating a dead OAuth row.
+
+### Why
+Production account 1741 (`zm860729@gmail.com`) was imported from session JSON with a 2-day-old JWT. ChatGPT already returned `token_expired` on privacy, Codex test hung/canceled, and quota timed out. The importer had discarded sessionToken, so there was no way to mint a new AT. Existing RT OAuth accounts were unaffected.
+
+### Verification
+- `go test -tags=unit ./backend/internal/service -run "ChatGPTSession|RefreshChatGPTSession|CheckChatGPTAccessToken|OpenAITokenRefresherNeedsRefreshForSessionToken" -count=1`
+- `go test -tags=unit ./backend/internal/handler/admin -run "NormalizeCodexSessionJSON|UpdateRefreshToken_SessionJSON" -count=1`
+
+### Affected files
+`backend/internal/service/openai_session_refresh.go`,
+`backend/internal/service/openai_session_refresh_test.go`,
+`backend/internal/service/openai_oauth_service.go`,
+`backend/internal/service/openai_token_provider.go`,
+`backend/internal/service/token_refresher.go`,
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/handler/admin/account_codex_import_test.go`,
+`backend/internal/handler/admin/account_handler_refresh_token.go`,
+`backend/internal/handler/admin/account_handler_refresh_token_test.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-04 - docs: record production deploy of v0.1.278
 
 ### What

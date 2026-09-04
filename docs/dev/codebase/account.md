@@ -234,12 +234,13 @@ admin paths that must not be mixed:
 | Input | Entry | Stored |
 |-------|--------|--------|
 | OAuth refresh token | 手动输入 RT / **更新 RT** 纯字符串 | `credentials.refresh_token`；校验时向上游换 AT |
-| ChatGPT `/api/auth/session` or Codex session JSON | **导入 Codex 会话**；**更新 RT** 也可贴同一 JSON | JWT `accessToken` → `access_token`；`sessionToken` 只记 `extra.session_token_present`，**永不**写成 `refresh_token` |
+| ChatGPT `/api/auth/session` or Codex session JSON | **导入 Codex 会话**；**更新 RT** 也可贴同一 JSON | JWT `accessToken` → `access_token`；`sessionToken` 写入 `credentials.chatgpt_session_token` 并用 `GET /api/auth/session` 换新 AT；**永不**写成 `refresh_token` |
 | Codex PAT `at-*` | 添加账号 → Codex PAT | `auth_mode=personalAccessToken`；不走 OAuth refresh |
 
 `POST /admin/accounts/:id/refresh-token` classifies `{...}` JSON with the same
 `normalizeCodexImportEntry` field paths as Codex import. Session JSON updates
-that account’s AT (and metadata). If the row already has a real RT, the RT is
+that account’s AT (and metadata) and keeps `chatgpt_session_token` for later
+ChatGPT `/api/auth/session` refresh. If the row already has a real RT, the RT is
 kept. Both sides having a different `chatgpt_account_id` is rejected; a missing
 id on the row is backfilled. PAT rows reject session JSON
 (`OPENAI_SESSION_AUTH_MODE_MISMATCH`). Default validate checks JWT expiry and
@@ -870,7 +871,7 @@ AccountsView.vue: “导入 Codex 会话”
         -> parseCodexSessionImportEntries()
         -> normalizeCodexImportEntry()
            - JWT exp/email/chatgpt_account_id/chatgpt_user_id/plan/organization
-           - sessionToken 只记录存在性并告警，不写 refresh_token
+           - sessionToken 写入 chatgpt_session_token，导入时向 ChatGPT /api/auth/session 换新 AT；永不写 refresh_token
            - credential_extras 不能覆盖 OAuth token/identity 保护字段
         -> buildCodexAccountIndex(existing OpenAI OAuth accounts)
         -> full session: user id -> token fingerprint -> account id fallback
@@ -883,9 +884,9 @@ AccountsView.vue: “导入 Codex 会话”
 
 - **完整会话身份优先级**：携带 `refresh_token` 时，`chatgpt_user_id` 是第一身份；共享 `chatgpt_account_id` 只在双方 user id 不冲突时作为兼容回退，支持存量缺失 user id 的账号回填。
 - **access-only 隔离**：不携带 `refresh_token` 时只按 access-token 指纹判断同一项。相同 workspace、user 或 email 不能导致两个短期凭据合并；完全相同 token 的重复导入仍可幂等更新。
-- **凭据保护**：access-only 更新已有完整 OAuth 账号时保留 `refresh_token`、`client_id`、`id_token` 和账号到期/自动暂停设置，避免用短期会话降级可自动续期账号。
+- **凭据保护**：access-only 更新已有完整 OAuth 账号时保留 `refresh_token`、`client_id`、`id_token` 和账号到期/自动暂停设置，避免用短期会话降级可自动续期账号。ChatGPT `sessionToken` 单独存在 `chatgpt_session_token`，由 token refresher 按约 25 分钟换新 AT；JWT `exp` 不能当作 ChatGPT 会话仍有效。无 ST/RT 的 AT 在导入时会打 `accounts/check`，ChatGPT 401 则拒绝入库。
 - **到期处理**：新建 access-only 账号必须能从 JWT/JSON 解析 token 到期时间，或由请求显式给出更早的账号到期时间；账号强制开启到期自动暂停。过期 token 被拒绝。
-- **PAT 边界**：Codex PAT 仍由 `/admin/openai/create-from-codex-pat` 与 `IsOpenAIPersonalAccessToken()` 管理。会话导入不会重写 PAT 凭据或刷新策略；普通 access-only OAuth 同样不尝试 refresh，过期后返回明确错误。
+- **PAT 边界**：Codex PAT 仍由 `/admin/openai/create-from-codex-pat` 与 `IsOpenAIPersonalAccessToken()` 管理。会话导入不会重写 PAT 凭据或刷新策略。无 ST、无 RT 的 access-only OAuth 过期后仍报缺少 refresh token。
 - **无迁移**：身份、导入来源与 token 指纹均写入现有 `credentials`/`extra` JSON；不新增表或列。
 
 ### AI Credits 获取链路

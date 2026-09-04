@@ -138,6 +138,11 @@ func (h *AccountHandler) tryOpenAISessionJSONUpdate(
 }
 
 func (h *AccountHandler) persistOpenAISessionJSONUpdate(c *gin.Context, account *service.Account, item *codexImportAccount, validated bool) {
+	ctx := c.Request.Context()
+	if err := h.hydrateCodexImportCredentials(ctx, item, account.ProxyID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	mergedCredentials := mergeCodexImportCredentials(account.Credentials, item.Credentials, item)
 	mergedExtra := mergeCodexImportMap(account.Extra, item.Extra)
 	preserveRefresh := strings.TrimSpace(codexCredentialString(mergedCredentials, "refresh_token")) != ""
@@ -153,7 +158,6 @@ func (h *AccountHandler) persistOpenAISessionJSONUpdate(c *gin.Context, account 
 		input.AutoPauseOnExpired = &autoPause
 	}
 
-	ctx := c.Request.Context()
 	if _, err := h.adminService.UpdateAccount(ctx, account.ID, input); err != nil {
 		response.ErrorFrom(c, err)
 		return

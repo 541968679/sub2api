@@ -4050,7 +4050,7 @@ const zhBase = {
       codexSessionImport: {
         action: '导入 Codex 会话',
         title: '导入 Codex 会话账号',
-        hint: '支持 access token、Codex auth JSON、JSON 数组或逐行混合输入。sessionToken 不会保存为 refresh_token。',
+        hint: '支持 access token、Codex auth JSON、ChatGPT /api/auth/session JSON、JSON 数组或逐行混合输入。sessionToken 会保存并用来刷新 accessToken，不会当成 OAuth refresh_token。',
         content: 'Codex 会话内容',
         placeholder: '粘贴 access token 或 Codex JSON；可逐行输入多个条目',
         name: '账号名称（可选）',
@@ -4527,7 +4527,7 @@ const zhBase = {
       updateRefreshTokenTitle: '更新 Refresh Token',
       updateRefreshTokenDesc: '粘贴新的 refresh token 以替换已过期的旧凭证。默认会先向上游校验（换取新的 access token）再保存，校验成功后自动恢复账号。',
       updateRefreshTokenDescOpenAI:
-        '可贴 OpenAI Refresh Token，或 ChatGPT /api/auth/session / Codex 会话 JSON。JSON 只使用其中的 accessToken；sessionToken 不会保存为 refresh_token。',
+        '可贴 OpenAI Refresh Token，或 ChatGPT /api/auth/session / Codex 会话 JSON。JSON 会用 accessToken，并把 sessionToken 存下来刷新 AT；sessionToken 不会当成 OAuth refresh_token。',
       updateRefreshTokenPlaceholder: '粘贴新的 refresh token',
       updateRefreshTokenPlaceholderOpenAI: '粘贴 Refresh Token，或整段 ChatGPT session / Codex 会话 JSON',
       validateBeforeSave: '保存前校验',

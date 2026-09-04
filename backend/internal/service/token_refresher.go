@@ -97,7 +97,13 @@ func (r *OpenAITokenRefresher) CanRefresh(account *Account) bool {
 // NeedsRefresh 检查token是否需要刷新
 // expires_at 缺失且处于限流状态时需要刷新，防止限流期间 token 静默过期
 func (r *OpenAITokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
-	if account.IsOpenAIPersonalAccessToken() || strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" {
+	if account.IsOpenAIPersonalAccessToken() {
+		return false
+	}
+	if openaiChatGPTSessionNeedsRefresh(account, refreshWindow) {
+		return true
+	}
+	if strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" {
 		return false
 	}
 	expiresAt := account.GetCredentialAsTime("expires_at")
@@ -120,6 +126,7 @@ func (r *OpenAITokenRefresher) Refresh(ctx context.Context, account *Account) (m
 	newCredentials := r.openaiOAuthService.BuildAccountCredentials(tokenInfo)
 	newCredentials = MergeCredentials(account.Credentials, newCredentials)
 	newCredentials = NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
+	stampChatGPTSessionRefresh(newCredentials, account.GetChatGPTSessionToken(), time.Now())
 
 	return newCredentials, nil
 }

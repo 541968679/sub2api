@@ -333,6 +333,9 @@ func (s *OpenAIOAuthService) RefreshAccountToken(ctx context.Context, account *A
 
 	refreshToken := account.GetCredential("refresh_token")
 	if refreshToken == "" {
+		if sessionToken := account.GetChatGPTSessionToken(); sessionToken != "" {
+			return s.RefreshChatGPTSession(ctx, sessionToken, proxyURL)
+		}
 		if accessToken != "" {
 			tokenInfo := &OpenAITokenInfo{
 				AccessToken:           accessToken,
