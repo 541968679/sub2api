@@ -1,3 +1,11 @@
+## 2026-09-04 - release: 0.1.278 last-N Recovered error rate
+
+### What
+- Ship last-N Recovered/failover contrast counts with a single hop TTFT clock as `v0.1.278`.
+
+### Why
+Production is on `v0.1.277`. Publish one GHCR tag so the account quality contrast line counts Recovered hops, without splitting usage and schedule onto two clocks.
+
 ## 2026-09-04 - revert: single hop clock for usage and schedule TTFT
 
 ### What
