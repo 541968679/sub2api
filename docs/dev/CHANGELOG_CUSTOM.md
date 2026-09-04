@@ -1,3 +1,11 @@
+## 2026-09-04 - release: 0.1.279 ChatGPT sessionToken refresh for session import
+
+### What
+- Ship the ChatGPT `sessionToken` refresh path for Codex session import as `v0.1.279`.
+
+### Why
+Production is on `v0.1.278`. Session JSON imports discarded `sessionToken`, so stale ChatGPT JWTs could not mint a new AT. Publish one GHCR tag for that importer/refresher fix.
+
 ## 2026-09-04 - fix: Codex session import keeps ChatGPT sessionToken to refresh AT
 
 ### What
