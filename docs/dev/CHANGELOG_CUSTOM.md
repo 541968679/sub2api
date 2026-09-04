@@ -1,3 +1,11 @@
+## 2026-09-04 - docs: record production deploy of v0.1.278
+
+### What
+- Production is on `ghcr.io/541968679/sub2api:0.1.278` (`3bd7ca6e2`, digest `sha256:c155a8a51b9fb47282396d36a6c7845af84eb77ae7a70929cdbd5f0f1add9eac`). Preflight passed, `/health` ok, healthy.
+
+### Why
+Record the verified cutover after GHCR pull + preflight + recreate.
+
 ## 2026-09-04 - release: 0.1.278 last-N Recovered error rate
 
 ### What
