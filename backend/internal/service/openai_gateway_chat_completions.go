@@ -883,7 +883,6 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 	var usage OpenAIUsage
 	var firstTokenMs *int
-	var hopFirstTokenMs *int
 	firstChunk := true
 	responseID := ""
 	var terminalErr error
@@ -919,15 +918,14 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			Stream:        true,
 			Duration:      time.Since(startTime),
 			FirstTokenMs:  firstTokenMs,
-			HopFirstTokenMs: hopFirstTokenMs,
 		}
 	}
 
 	processDataLine := func(payload string) bool {
 		if firstChunk {
 			firstChunk = false
-			stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
-			stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
+			ms := int(time.Since(startTime).Milliseconds())
+			firstTokenMs = &ms
 		}
 
 		var event apicompat.ResponsesStreamEvent

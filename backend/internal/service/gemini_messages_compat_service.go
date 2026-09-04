@@ -1967,7 +1967,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	flusher.Flush()
 
 	var firstTokenMs *int
-	var hopFirstTokenMs *int
+
 	var usage ClaudeUsage
 	finishReason := ""
 	sawToolUse := false
@@ -2046,8 +2046,8 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				}
 
 				if firstTokenMs == nil {
-					stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
-					stampHopFirstTokenMs(&hopFirstTokenMs, startTime)
+					ms := int(time.Since(startTime).Milliseconds())
+					firstTokenMs = &ms
 				}
 				writeSSE(c.Writer, "content_block_delta", map[string]any{
 					"type":  "content_block_delta",
@@ -2554,7 +2554,8 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 					}
 
 					if firstTokenMs == nil {
-						stampRequestFirstTokenMs(&firstTokenMs, c, startTime)
+						ms := int(time.Since(startTime).Milliseconds())
+						firstTokenMs = &ms
 					}
 
 					if isOAuth {

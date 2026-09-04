@@ -51,10 +51,6 @@ type AccountQualityObservation struct {
 	ScheduleSide bool
 	FirstTokenMs *int
 	DurationMs   *int
-	// UserFirstTokenMs / UserDurationMs are request-clock samples for Q_u.
-	// Empty falls back to FirstTokenMs / DurationMs (hop clock).
-	UserFirstTokenMs *int
-	UserDurationMs   *int
 }
 
 // AccountQualityObserver is the completion-path hook for Q_a (all users).
@@ -393,32 +389,18 @@ func p95Index(n int) int {
 }
 
 func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Context, accountID, userID int64, trueMs, firstMs, durationMs *int) {
-	observeAccountQualitySuccessClocks(obs, ctx, accountID, userID, trueMs, firstMs, durationMs, nil, nil)
-}
-
-func observeAccountQualitySuccessClocks(obs AccountQualityObserver, ctx context.Context, accountID, userID int64, hopTrueMs, hopFirstMs, hopDurationMs, userFirstMs, userDurationMs *int) {
 	if obs == nil || (accountID <= 0 && userID <= 0) {
 		return
 	}
-	hopTTFT := pairQualityTTFTMs(hopTrueMs, hopFirstMs)
-	userTTFT := userFirstMs
-	if userTTFT == nil {
-		userTTFT = hopTTFT
-	}
+	ttft := pairQualityTTFTMs(trueMs, firstMs)
 	observation := AccountQualityObservation{
-		AccountID:        accountID,
-		UserID:           userID,
-		Success:          true,
-		FirstTokenMs:     hopTTFT,
-		UserFirstTokenMs: userTTFT,
+		AccountID:    accountID,
+		UserID:       userID,
+		Success:      true,
+		FirstTokenMs: ttft,
 	}
-	if hopTTFT == nil && hopDurationMs != nil && *hopDurationMs >= 0 {
-		observation.DurationMs = hopDurationMs
-	}
-	if userTTFT == nil && userDurationMs != nil && *userDurationMs >= 0 {
-		observation.UserDurationMs = userDurationMs
-	} else if userTTFT == nil {
-		observation.UserDurationMs = observation.DurationMs
+	if ttft == nil && durationMs != nil && *durationMs >= 0 {
+		observation.DurationMs = durationMs
 	}
 	obs.ObserveAccountCompletion(ctx, observation)
 }

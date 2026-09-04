@@ -23,7 +23,6 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	streamStarted := false
 
 	requestStart := time.Now()
-	service.StampGatewayRequestStartAt(c, requestStart)
 
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {

@@ -77,7 +77,6 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 	}
 
 	requestStart := time.Now()
-	service.StampGatewayRequestStartAt(c, requestStart)
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
 	currentRoutingModel := routingModel
 	if preferredMappedModel != "" {

@@ -1,3 +1,12 @@
+## 2026-09-04 - revert: single hop clock for usage and schedule TTFT
+
+### What
+- Dropped the request-vs-hop dual clock. `usage_logs.first_token_ms` / `duration_ms`, `true_first_token_ms`, account last-N TTFT, pair/schedule TTFT all use the same hop `Forward()` start again.
+- Recovered last-N failover contrast counts are unchanged.
+
+### Why
+Two clocks made usage and scheduling first-token numbers diverge on the same request. Brandon asked to revert to one clock first.
+
 ## 2026-09-03 - fix: last-N Recovered error rate and recovered TTFT clocks
 
 ### What

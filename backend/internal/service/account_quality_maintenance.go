@@ -160,15 +160,7 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 	}
 	if s.userLastN != nil && obs.UserID > 0 {
 		userN, override := s.userWindowN(ctx, obs.UserID, n)
-		userTTFT := obs.UserFirstTokenMs
-		if userTTFT == nil {
-			userTTFT = obs.FirstTokenMs
-		}
-		userDur := obs.UserDurationMs
-		if userDur == nil {
-			userDur = obs.DurationMs
-		}
-		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, userTTFT, userDur, useFailover, override)
+		s.userLastN.IngestUserLastN(ctx, obs.UserID, userN, obs.Success, obs.FirstTokenMs, obs.DurationMs, useFailover, override)
 	}
 	if s.lastN == nil || obs.AccountID <= 0 {
 		return
