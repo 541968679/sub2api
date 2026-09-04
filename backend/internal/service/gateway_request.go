@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -116,6 +118,7 @@ func clearGatewayRequestDerivedState(parsed *ParsedRequest) {
 	parsed.HasSystem = false
 	parsed.ThinkingEnabled = false
 	parsed.OutputEffort = ""
+	parsed.Speed = ""
 	parsed.MaxTokens = 0
 	parsed.systemRange = missingJSONRange()
 	parsed.messagesRange = missingJSONRange()
@@ -160,6 +163,18 @@ func setGatewayRequestRanges(parsed *ParsedRequest, protocol string, jsonStr str
 	}
 }
 
+const claudeCodeLongContextModelSuffix = "[1m]"
+
+// Claude Code treats [1m] as a client-side context selector and normally removes it
+// before provider requests. Normalize leaked suffixes, including its duplicated form.
+func normalizeClaudeCodeLongContextModel(model string) string {
+	for len(model) > len(claudeCodeLongContextModelSuffix) &&
+		strings.EqualFold(model[len(model)-len(claudeCodeLongContextModelSuffix):], claudeCodeLongContextModelSuffix) {
+		model = model[:len(model)-len(claudeCodeLongContextModelSuffix)]
+	}
+	return model
+}
+
 // parseGatewayRequestCurrentBody 只做标量和 raw range 轻量解析，不恢复 system/messages 对象图。
 func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) error {
 	if parsed == nil || parsed.Body == nil {
@@ -168,7 +183,7 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 
 	bodyBytes := parsed.Body.Bytes()
 	if !gjson.ValidBytes(bodyBytes) {
-		return fmt.Errorf("invalid json")
+		return DescribeInvalidJSON(bodyBytes)
 	}
 
 	// 只在当前函数内零拷贝读取 JSON 字段；ReplaceBody 后必须重新进入本函数刷新派生状态。
@@ -182,6 +197,19 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 			return fmt.Errorf("invalid model field type")
 		}
 		parsed.Model = modelResult.String()
+		if protocol == domain.PlatformAnthropic {
+			normalizedModel := normalizeClaudeCodeLongContextModel(parsed.Model)
+			if normalizedModel != parsed.Model {
+				normalizedBody, err := sjson.SetBytes(bodyBytes, "model", normalizedModel)
+				if err != nil {
+					return fmt.Errorf("normalize model field: %w", err)
+				}
+				parsed.Body.Replace(normalizedBody)
+				bodyBytes = normalizedBody
+				jsonStr = *(*string)(unsafe.Pointer(&bodyBytes))
+				parsed.Model = normalizedModel
+			}
+		}
 	}
 
 	streamResult := gjson.Get(jsonStr, "stream")
@@ -198,6 +226,9 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 	parsed.ThinkingEnabled = thinkingType == "enabled" || thinkingType == "adaptive"
 
 	parsed.OutputEffort = strings.TrimSpace(gjson.Get(jsonStr, "output_config.effort").String())
+	if protocol == domain.PlatformAnthropic {
+		parsed.Speed = strings.ToLower(strings.TrimSpace(gjson.Get(jsonStr, "speed").String()))
+	}
 
 	maxTokensResult := gjson.Get(jsonStr, "max_tokens")
 	if maxTokensResult.Exists() && maxTokensResult.Type == gjson.Number {
@@ -214,6 +245,26 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 
 func refreshGatewayRequestRanges(parsed *ParsedRequest, protocol string) error {
 	return parseGatewayRequestCurrentBody(parsed, protocol)
+}
+
+// DescribeInvalidJSON returns a diagnostic error for a request body that
+// failed JSON validation. It re-parses with encoding/json (failure path only)
+// to pinpoint the first offending byte, so operators can distinguish genuinely
+// invalid JSON from a truncated / partially consumed body. The error carries
+// only length/offset/character information — never body content — so callers
+// may safely wrap or log it.
+func DescribeInvalidJSON(body []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return fmt.Errorf("invalid json (len=%d, offset=%d): %s", len(body), syntaxErr.Offset, syntaxErr.Error())
+		}
+		return fmt.Errorf("invalid json (len=%d): %w", len(body), err)
+	}
+	// gjson rejected the body but encoding/json accepted it (divergent edge
+	// cases, e.g. certain malformed UTF-8 sequences); report the basics.
+	return fmt.Errorf("invalid json (len=%d)", len(body))
 }
 
 // ParsedRequest 保存网关请求的预解析结果
@@ -236,6 +287,7 @@ type ParsedRequest struct {
 	HasSystem       bool            // 是否包含 system 字段（包含 null 也视为显式传入）
 	ThinkingEnabled bool            // 是否开启 thinking（部分平台会影响最终模型名）
 	OutputEffort    string          // output_config.effort（Claude API 的推理强度控制）
+	Speed           string          // Anthropic speed（当前可计费值为 "fast"）
 	MaxTokens       int             // max_tokens 值（用于探测请求拦截）
 	SessionContext  *SessionContext // 可选：请求上下文区分因子（nil 时行为不变）
 
@@ -847,9 +899,22 @@ const anthropicBetaContextManagementToken = "context-management-2025-06-27"
 //   - 若两侧不一致上游 Pydantic schema 拒收：
 //     "context_management: Extra inputs are not permitted"
 //
-// 本函数按最终发送的 anthropic-beta header 决定是否保留 body 中的
-// context_management 字段：缺 beta token → strip。这将限制完全建立在
-// "能力维度" 上，与 model 名 / token type / mimicry 子路径无关。
+// fallbacks 场景（与 context_management 同构）：
+//   - `fallbacks` / `fallback_credit_token` 是 beta Messages API 的
+//     server-side refusal fallback 字段；标准 Messages schema 没有它们，
+//     客户端（Claude Code / SDK / OpenCode 等）最近开始默认透传
+//     `"fallbacks":"default"`（或模型列表）
+//   - 上游接受的前提是 anthropic-beta 含 `server-side-fallback-2026-07-01`
+//     （fallback_credit_token 额外接受 credit beta，见下）
+//   - 缺 token 时上游 Pydantic extra='forbid' 拒收：
+//     "fallbacks: Extra inputs are not permitted"
+//   - 本仓不写入该字段，全部来自客户端透传；OAuth mimic 用
+//     FullClaudeCodeMimicryBetas 覆盖客户端 beta（该列表不含 fallback beta），
+//     若不 strip，body 字段与 header 不对称 → 所有模型 400
+//
+// 本函数按最终发送的 anthropic-beta header 决定是否保留 body 中的上述字段：
+// 缺对应 beta token → strip；客户端 header 已带对应 beta → 保留（不过度删除）。
+// 这将限制完全建立在 "能力维度" 上，与 model 名 / token type / mimicry 子路径无关。
 //
 // 调用约束：必须在 CCH 签名之前调用，否则签名 hash 与最终 body
 // 不一致，上游会以 third-party 拒收。
@@ -860,23 +925,58 @@ func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string)
 	if len(body) == 0 {
 		return body, false
 	}
-	if !gjson.GetBytes(body, "context_management").Exists() {
+
+	changed := false
+
+	// context_management：需要 context-management beta。
+	if b, deleted := stripAnthropicBodyFieldUnlessBeta(
+		body, "context_management", anthropicBetaHeader, anthropicBetaContextManagementToken,
+	); deleted {
+		body, changed = b, true
+	}
+
+	// fallbacks：server-side refusal fallback，仅接受 server-side-fallback beta。
+	if b, deleted := stripAnthropicBodyFieldUnlessBeta(
+		body, "fallbacks", anthropicBetaHeader, claude.BetaServerSideFallback,
+	); deleted {
+		body, changed = b, true
+	}
+
+	// fallback_credit_token：server-side-fallback 或（新旧任一）fallback-credit beta
+	// 任意一个即可保留。
+	if b, deleted := stripAnthropicBodyFieldUnlessBeta(
+		body, "fallback_credit_token", anthropicBetaHeader,
+		claude.BetaServerSideFallback, claude.BetaFallbackCredit, claude.BetaFallbackCreditLegacy,
+	); deleted {
+		body, changed = b, true
+	}
+
+	return body, changed
+}
+
+// stripAnthropicBodyFieldUnlessBeta 当 field 存在且 anthropic-beta header 不含
+// requiredTokens 中**任何一个** token 时删除该字段（保留条件：含任一 required token）。
+// 单 token 调用即「缺该 beta 则 strip」。返回 (newBody, deleted)。
+func stripAnthropicBodyFieldUnlessBeta(body []byte, field, anthropicBetaHeader string, requiredTokens ...string) ([]byte, bool) {
+	if !gjson.GetBytes(body, field).Exists() {
 		return body, false
 	}
-	if anthropicBetaTokensContains(anthropicBetaHeader, anthropicBetaContextManagementToken) {
-		return body, false
+	for _, token := range requiredTokens {
+		if anthropicBetaTokensContains(anthropicBetaHeader, token) {
+			return body, false
+		}
 	}
-	if b, err := sjson.DeleteBytes(body, "context_management"); err == nil {
-		return b, true
-	} else {
+	b, err := sjson.DeleteBytes(body, field)
+	if err != nil {
 		// 不应发生：gjson 刚验证过字段存在 + body 是合法 JSON。如果 sjson 仍报错，
-		// 调用方会拿到 (body, false)，但此前 computeFinalAnthropicBeta 已按“strip 后”
-		// 计算了 finalBeta——两侧会不一致。记录 warning 最小限度提醒运维。
+		// 调用方会拿到原 body（视为未删除），但此前 computeFinalAnthropicBeta 可能已按
+		// "strip 后" 计算了 finalBeta——两侧会不一致。记录 warning 最小限度提醒运维。
 		logger.LegacyPrintf("service.gateway",
-			"[CtxMgmtSanitize] sjson.DeleteBytes failed unexpectedly: %v (body len=%d). "+
-				"body and final anthropic-beta header may be out of sync.", err, len(body))
+			"[BetaFieldSanitize] sjson.DeleteBytes(%s) failed unexpectedly: %v (body len=%d). "+
+				"body and final anthropic-beta header may be out of sync.", field, err, len(body))
+		return body, false
 	}
-	return body, false
+	return b, true
 }
 
 // anthropicBetaTokensContains 检测逗号分隔的 anthropic-beta header 是否含指定 token。

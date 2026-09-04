@@ -32,7 +32,11 @@ git fetch upstream
 git merge upstream/main
 ```
 
+The current synced upstream release is `v0.2.0` (`weishaw/sub2api:0.2.0`). Source tree tracks `upstream/main`.
+
 The server should run a published Docker image. For planned upgrades, prefer pinning `SUB2API_IMAGE` to a concrete upstream version tag in `/opt/sub2api/.env`. Use `weishaw/sub2api:latest` only when intentionally tracking the moving latest image.
+
+This repository started as a snapshot of upstream `54ef446c1` (VERSION `0.1.138`) with unrelated git history. After the first sync merge, later `git merge upstream/main` uses a normal merge-base. Keep the Zhouyu overlay under `deploy/production/`, `docs/ops/`, and `ops/servers/`.
 
 ## First Deploy
 
@@ -69,7 +73,13 @@ ssh -i .\sshkey.pem root@47.100.224.163 "systemctl restart docker"
 
 ## Routine Update
 
-After choosing the image tag and editing `/opt/sub2api/.env` if needed:
+Before a large version jump, copy the updated compose file and set `SETUP_MIGRATION_TIMEOUT_SECONDS` high enough for database migrations:
+
+```powershell
+scp -i .\sshkey.pem .\deploy\production\docker-compose.yml root@47.100.224.163:/opt/sub2api/docker-compose.yml
+```
+
+Pin `SUB2API_IMAGE` in `/opt/sub2api/.env` if needed, then deploy:
 
 ```bash
 ssh -i .\sshkey.pem root@47.100.224.163 "bash /opt/sub2api/update.sh deploy"
