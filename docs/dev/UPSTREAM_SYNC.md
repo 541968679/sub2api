@@ -2,6 +2,30 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 主题目录（main 已定归属）
+
+同步代理扫本文件时先读本表。表内主题 **不是** 待开的新同步窗：main 上的产品任务已经定了所有权。常驻副本 `E:\cursor project\api2sub-upstream-standing-20260821`（`sync/upstream-standing-20260821`）只许 **main → 副本 fold** 后再三维叠，禁止在落后的底上先搬上游同名实现。
+
+| 主题 | 处理 | 必须保留（fork） | 可借鉴（上游形态） | 禁止 | 下一窗前置 |
+|------|------|------------------|--------------------|------|------------|
+| ChatGPT session / Codex auth.json 导入与添加账号收口 | **已有（fork 产品）**。P0 在占用 checkout `main` 做普通产品任务，不进 standing 战役 | `credentials.chatgpt_session_token`（永不写成 `refresh_token`）；导入/更新凭证时 `GET https://chatgpt.com/api/auth/session` 换新 AT；token refresher 约 25 分钟刷新；无 ST/RT 的 AT 导入打 `accounts/check`，ChatGPT 401 拒绝。已随 `v0.1.279` 上生产（`829a606da` / `006a34822`） | 上游把粘贴放进添加账号第二步（`codex_session`），并去掉独立 `CodexSessionImportModal` | 整文件换成上游 `CreateAccountModal.vue` / `OAuthAuthorizationFlow.vue` / `account_codex_import.go`（上游 `main` 仍丢 `sessionToken`）；删 `openai_session_refresh.go`；把 ST 当 OAuth RT | standing 若要动下表文件：先 T0 fold **当时的** `main`（含 279 + 之后的 P0），再叠。窗 2 冻结 `d45135d87` / 0.1.179 **不含** 此主题 |
+| OpenAI Agent Identity（ed25519 每请求签名，不存 OAuth AT/RT） | **C 延后**。单独评估窗，不搭 session 收口便车 | 现有 OAuth RT / session ST / PAT 三族与调度、Claude-GPT、计费 overlay | 上游 `openai_agent_identity.go` 及 WS/quota/测试链（仅作补丁源） | 整包 `v0.2.0`；整文件覆盖 gateway / WS / quota；未评估就进 main 或 standing | 新冻结 tip + 评估表确认之后。必须叠在「已 fold 的 session 收口」之上，不以上游添加账号页为底 |
+| 账号页大改版 | **C 延后**（历来） | 本仓账号列、智能调度、质量格、批量编辑 | — | 用上游账号页整页替换 | 不随 session 收口开启 |
+
+P0 会动、也是后窗会动的共享文件（standing 未 fold 当前 main 前不要改这些）：
+
+- `frontend/src/components/account/CreateAccountModal.vue`
+- `frontend/src/components/account/OAuthAuthorizationFlow.vue`
+- `frontend/src/components/admin/account/CodexSessionImportModal.vue`（目标：主路径拿掉）
+- `backend/internal/handler/admin/account_codex_import.go` 及测试
+- `backend/internal/handler/admin/account_handler_refresh_token.go` 及测试
+- `backend/internal/service/openai_session_refresh.go`（fork 独有，上游没有，同步不得删）
+- `backend/internal/service/openai_oauth_service.go`
+- `backend/internal/service/openai_token_provider.go`
+- `backend/internal/service/token_refresher.go`
+
+顺序：`main` 上做 P0 → 发版（另授权）→ standing 下一次动作 = fold 该 `main` → 未来窗才评估 Agent Identity。禁止副本先叠上游账号导入再 fold。
+
 ## 2026-07-27 - Selective sync of Responses item-ID sanitization
 
 - **Local baseline**: `b39f5fe01`.
@@ -1199,8 +1223,11 @@ This entry supersedes the next entry's statement that sticky-weighted and subscr
 - channel monitor OpenAI API mode.
 - account quota auto-pause/window tooltip changes.
 - payment/Airwallex/multi-currency, DingTalk/email/legal/marketing changes.
-- account page large re-layout, Codex session import, and upstream model sync
-  preview.
+- account page large re-layout and upstream model sync preview.
+- Codex session import is **no longer deferred-to-import**: fork-owned on
+  `main` (ST refresh shipped in `v0.1.279`; P0 folds paste into Add Account).
+  See **主题目录** at the top of this file. Do not re-port upstream's
+  still-discard-sessionToken importer.
 - broader pricing or image-output-token channel override changes not covered by
   the long-context regression tests.
 

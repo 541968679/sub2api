@@ -1,3 +1,19 @@
+## 2026-09-04 - docs: claim session-import UI fold as fork-owned vs standing sync
+
+### What
+- `docs/dev/UPSTREAM_SYNC.md` 顶部增加主题目录：ChatGPT session / Codex auth.json 收口归占用 checkout `main` 的普通产品任务；Agent Identity 与账号页大改版仍 C 延后。
+- 写明必须保留 `v0.1.279` 的 ST 刷新；standing 副本未 fold 当前 `main` 前不得改共享导入文件；禁止整文件换成仍丢 `sessionToken` 的上游实现。
+
+### Why
+常驻同步分支落后 `main` 约 84 提交，窗 2 冻结也不含上游后来的添加账号 session 入口。避免下一窗把 fork 已定主题当新同步再搬一次、盖掉生产 ST 刷新。
+
+### Verification
+- 只改文档。目录列与 standing worktree `sync/upstream-standing-20260821` @ `7bf4155ee`、占用 `main` @ `cb54fe385` 核对过。
+
+### Affected files
+`docs/dev/UPSTREAM_SYNC.md`,
+this changelog.
+
 ## 2026-09-04 - docs: record production deploy of v0.1.279
 
 ### What
