@@ -195,12 +195,30 @@ func TestUpdateRefreshToken_ExpiredSessionJSONRejectedWhenValidating(t *testing.
 	router := setupRefreshTokenHandler(stub)
 
 	w := doUpdateRefreshToken(router, "7", map[string]any{
-		"refresh_token": sessionJSONForTest(t, accessToken, "acct-1", "st"),
+		"refresh_token": sessionJSONForTest(t, accessToken, "acct-1", ""),
 	})
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Contains(t, w.Body.String(), `"reason":"OPENAI_SESSION_ACCESS_TOKEN_EXPIRED"`)
 	require.False(t, stub.updateCalled)
+}
+
+func TestUpdateRefreshToken_ExpiredSessionJSONWithSessionTokenSavedWhenValidating(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(-time.Hour), nil)
+	stub := newOpenAIRefreshTokenStub(map[string]any{
+		"access_token":       "old-at",
+		"chatgpt_account_id": "acct-1",
+	})
+	router := setupRefreshTokenHandler(stub)
+
+	w := doUpdateRefreshToken(router, "7", map[string]any{
+		"refresh_token": sessionJSONForTest(t, accessToken, "acct-1", "fresh-st"),
+	})
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.True(t, stub.updateCalled)
+	require.Equal(t, "fresh-st", stub.lastUpdateCreds["chatgpt_session_token"])
+	require.NotEqual(t, "fresh-st", stub.lastUpdateCreds["refresh_token"])
 }
 
 func TestUpdateRefreshToken_ExpiredSessionJSONSavedWhenValidationSkipped(t *testing.T) {

@@ -256,6 +256,87 @@ func TestNormalizeCodexImportRejectsExpiredAccessToken(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexSessionJSONExpiredAccessTokenKeptWhenSessionTokenPresent(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(-time.Hour), map[string]any{
+		"email": "claim@example.com",
+	})
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{
+		"accessToken":  accessToken,
+		"sessionToken": "secret-session-token",
+		"user":         map[string]any{"id": "user-1", "email": "json@example.com"},
+	}})
+	if err != nil {
+		t.Fatalf("normalizeCodexImportEntry error = %v", err)
+	}
+	if item.SessionToken != "secret-session-token" {
+		t.Fatalf("SessionToken = %q, want secret-session-token", item.SessionToken)
+	}
+	if item.Credentials["chatgpt_session_token"] != "secret-session-token" {
+		t.Fatalf("chatgpt_session_token = %v", item.Credentials["chatgpt_session_token"])
+	}
+	if _, ok := item.Credentials["refresh_token"]; ok {
+		t.Fatalf("sessionToken must not be stored as refresh_token")
+	}
+}
+
+func TestNormalizeCodexAuthJSONExpiredAccessTokenKeptWhenRefreshTokenPresent(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(-time.Hour), map[string]any{})
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{
+		"tokens": map[string]any{
+			"access_token":  accessToken,
+			"refresh_token": "rt-keep",
+			"expires_at":    time.Now().Add(-time.Hour).UTC().Format(time.RFC3339),
+		},
+	}})
+	if err != nil {
+		t.Fatalf("normalizeCodexImportEntry error = %v", err)
+	}
+	if item.RefreshToken != "rt-keep" {
+		t.Fatalf("RefreshToken = %q, want rt-keep", item.RefreshToken)
+	}
+}
+
+func TestImportCodexSessionsExpiredSessionJSONWithSessionTokenUpdatesExistingAccount(t *testing.T) {
+	existing := service.Account{
+		ID:       71,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "workspace-1",
+			"chatgpt_user_id":    "user-1",
+			"access_token":       "old-at",
+			"refresh_token":      "keep-rt",
+		},
+	}
+	svc := newCodexImportMemoryAdminService([]service.Account{existing})
+	handler := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	req := CodexSessionImportRequest{SkipDefaultGroupBind: boolPtr(true)}
+	expired := buildCodexAccessToken(t, "workspace-1", "user-1", time.Now().Add(-time.Hour))
+	entries := []codexImportEntry{
+		{Index: 1, Value: map[string]any{
+			"accessToken":  expired,
+			"sessionToken": "fresh-st",
+			"account":      map[string]any{"id": "workspace-1"},
+			"user":         map[string]any{"id": "user-1"},
+		}},
+	}
+
+	result, err := handler.importCodexSessions(context.Background(), req, entries)
+	if err != nil {
+		t.Fatalf("importCodexSessions error = %v", err)
+	}
+	if result.Created != 0 || result.Updated != 1 || result.Failed != 0 {
+		t.Fatalf("result = %+v, want one update; errors=%v", result, result.Errors)
+	}
+	creds := svc.updatedAccounts[0].input.Credentials
+	if creds["refresh_token"] != "keep-rt" {
+		t.Fatalf("refresh_token = %v, want keep-rt", creds["refresh_token"])
+	}
+	if creds["chatgpt_session_token"] != "fresh-st" {
+		t.Fatalf("chatgpt_session_token = %v, want fresh-st", creds["chatgpt_session_token"])
+	}
+}
+
 func TestResolveCodexImportExpiryForNoRefreshTokenUsesTokenExpiry(t *testing.T) {
 	tokenExpiresAt := time.Now().Add(time.Hour).UTC()
 	item := &codexImportAccount{

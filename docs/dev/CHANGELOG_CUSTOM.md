@@ -1,3 +1,23 @@
+## 2026-09-05 - fix: session import no longer rejects expired JWT when sessionToken is present
+
+### What
+- Codex session / ChatGPT session JSON with `sessionToken` (or Codex `auth.json` with `refresh_token`) is no longer rejected in normalize because the JWT `exp` is already past.
+- Import hydrates ST first (`GET https://chatgpt.com/api/auth/session`) and 更新凭证 does the same. Access-token-only expired JWT still fails.
+
+### Why
+Local import of session JSON hit `POST /import/codex-session` five times in 18–26ms (HTTP 200 with failed items). That is JWT expiry in `normalizeCodexImportEntry`, before ST exchange. v0.1.279 stored ST for later refresh but still blocked import of a stale JWT.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/handler/admin -run "NormalizeCodex|ImportCodex|UpdateRefreshToken_ExpiredSession|UpdateRefreshToken_SessionJSON" -count=1`
+
+### Affected files
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/handler/admin/account_codex_import_test.go`,
+`backend/internal/handler/admin/account_handler_refresh_token.go`,
+`backend/internal/handler/admin/account_handler_refresh_token_test.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-04 - feat: fold Codex session paste into Add Account
 
 ### What

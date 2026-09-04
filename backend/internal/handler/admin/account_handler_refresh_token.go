@@ -110,7 +110,7 @@ func planOpenAISessionJSONUpdate(account *service.Account, obj map[string]any, v
 	if refreshToken := strings.TrimSpace(item.RefreshToken); refreshToken != "" {
 		return openAISessionJSONPlan{Item: item, RefreshToken: refreshToken}
 	}
-	if validate && sessionJSONAccessTokenExpired(item, now) {
+	if validate && sessionJSONAccessTokenExpired(item, now) && strings.TrimSpace(item.SessionToken) == "" {
 		return openAISessionJSONPlan{
 			ErrorCode:    "OPENAI_SESSION_ACCESS_TOKEN_EXPIRED",
 			ErrorMessage: fmt.Sprintf("access_token 已过期: %s", item.TokenExpiresAt.Format(time.RFC3339)),
