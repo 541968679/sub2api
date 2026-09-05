@@ -79,17 +79,24 @@ func (s *OpenAIOAuthService) RefreshChatGPTSession(ctx context.Context, sessionT
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_CLIENT_FAILED", "create HTTP client: %v", err)
 	}
 
+	cookie := (&http.Cookie{Name: chatgptSessionCookieName, Value: sessionToken}).String()
 	resp, err := client.R().
 		SetContext(ctx).
 		SetHeader("Accept", "application/json").
 		SetHeader("Origin", "https://chatgpt.com").
 		SetHeader("Referer", "https://chatgpt.com/").
-		SetHeader("Cookie", chatgptSessionCookieName+"="+sessionToken).
+		SetHeader("sec-fetch-mode", "cors").
+		SetHeader("sec-fetch-site", "same-origin").
+		SetHeader("sec-fetch-dest", "empty").
+		SetHeader("Cookie", cookie).
 		Get(chatGPTAuthSessionURL)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REQUEST_FAILED", "session refresh request failed: %v", err)
 	}
 	if !resp.IsSuccessState() {
+		if chatGPTResponseLooksLikeChallenge(resp.StatusCode, resp.String()) {
+			return nil, infraerrors.New(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_CF_BLOCKED", "ChatGPT/Cloudflare 拦截了 session 刷新。请在第一步选择能打开 chatgpt.com 的代理后重试")
+		}
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REJECTED", "ChatGPT rejected sessionToken: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))
 	}
 
@@ -138,6 +145,18 @@ func (s *OpenAIOAuthService) RefreshChatGPTSession(ctx context.Context, sessionT
 
 func (s *OpenAIOAuthService) RefreshChatGPTSessionWithProxyID(ctx context.Context, sessionToken string, proxyID *int64) (*OpenAITokenInfo, error) {
 	return s.RefreshChatGPTSession(ctx, sessionToken, s.proxyURLForID(ctx, proxyID))
+}
+
+func chatGPTResponseLooksLikeChallenge(status int, body string) bool {
+	if status != http.StatusForbidden && status != http.StatusServiceUnavailable {
+		return false
+	}
+	lower := strings.ToLower(body)
+	return strings.Contains(lower, "<html") ||
+		strings.Contains(lower, "cloudflare") ||
+		strings.Contains(lower, "just a moment") ||
+		strings.Contains(lower, "cf-ray") ||
+		strings.Contains(lower, "attention required")
 }
 
 func (s *OpenAIOAuthService) CheckChatGPTAccessToken(ctx context.Context, accessToken, proxyURL string) error {

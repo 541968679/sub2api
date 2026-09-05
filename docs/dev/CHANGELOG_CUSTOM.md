@@ -1,3 +1,27 @@
+## 2026-09-05 - fix: persist ChatGPT session JSON without a live ChatGPT roundtrip
+
+### What
+- Session import now stores `accessToken` + `sessionToken` from the pasted JSON, same as other credential paths. It only calls ChatGPT `/api/auth/session` when the pasted JWT is already expired.
+- Cloudflare 403 HTML is classified as `OPENAI_SESSION_REFRESH_CF_BLOCKED` without dumping the challenge page.
+
+### Why
+The pasted session JSON already has AT, ST, and identity. Import was failing because it always tried to live-refresh against chatgpt.com, which Cloudflare blocked (403 HTML) on the local machine.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/handler/admin -run "HydrateCodexImport|NormalizeCodex|ImportCodex" -count=1`
+- `go -C backend test -tags=unit ./internal/service -run "RefreshChatGPTSession" -count=1`
+
+### Affected files
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/handler/admin/account_codex_import_test.go`,
+`backend/internal/service/openai_session_refresh.go`,
+`backend/internal/service/openai_session_refresh_test.go`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-05 - fix: wire ChatGPT session refresh HTTP client on OpenAIOAuthService
 
 ### What

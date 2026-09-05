@@ -6094,7 +6094,14 @@ const handleOpenAIImportCodexSession = async (content: string) => {
       emit('created')
       return
     }
-    appStore.showSuccess(message)
+    const warningMessages = (result.warnings || [])
+      .map((item) => item.message)
+      .filter((text): text is string => Boolean(text))
+    if (warningMessages.length > 0) {
+      appStore.showWarning([message, ...warningMessages].join('\n'))
+    } else {
+      appStore.showSuccess(message)
+    }
     emit('created')
     handleClose()
   } catch (error: any) {

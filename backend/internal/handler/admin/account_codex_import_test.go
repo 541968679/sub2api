@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/imroc/req/v3"
 )
 
 func TestImportCodexSessionHandlerRejectsInvalidConcurrency(t *testing.T) {
@@ -340,6 +342,61 @@ func TestNormalizeCodexAuthJSONExpiredAccessTokenKeptWhenRefreshTokenPresent(t *
 	}
 	if item.RefreshToken != "rt-keep" {
 		t.Fatalf("RefreshToken = %q, want rt-keep", item.RefreshToken)
+	}
+}
+
+func TestHydrateCodexImportSkipsLiveChatGPTWhenAccessTokenStillValid(t *testing.T) {
+	called := false
+	svc := service.NewOpenAIOAuthService(nil, nil)
+	svc.SetPrivacyClientFactory(func(string) (*req.Client, error) {
+		called = true
+		return nil, errors.New("chatgpt must not be called for a still-valid session JSON")
+	})
+	h := &AccountHandler{openaiOAuthService: svc}
+	expiresAt := time.Now().Add(24 * time.Hour)
+	item := &codexImportAccount{
+		AccessToken:    "at-from-json",
+		SessionToken:   "st-from-json",
+		TokenExpiresAt: &expiresAt,
+		Credentials: map[string]any{
+			"access_token":          "at-from-json",
+			"chatgpt_session_token": "st-from-json",
+		},
+	}
+
+	if err := h.hydrateCodexImportCredentials(context.Background(), item, nil); err != nil {
+		t.Fatalf("hydrateCodexImportCredentials error = %v", err)
+	}
+	if called {
+		t.Fatal("live ChatGPT session refresh must not run when pasted accessToken is still valid")
+	}
+	if item.AccessToken != "at-from-json" || item.SessionToken != "st-from-json" {
+		t.Fatalf("credentials changed: at=%q st=%q", item.AccessToken, item.SessionToken)
+	}
+}
+
+func TestHydrateCodexImportExpiredAccessTokenStillRefreshesSession(t *testing.T) {
+	called := false
+	svc := service.NewOpenAIOAuthService(nil, nil)
+	svc.SetPrivacyClientFactory(func(string) (*req.Client, error) {
+		called = true
+		return nil, errors.New("factory-hit")
+	})
+	h := &AccountHandler{openaiOAuthService: svc}
+	expiresAt := time.Now().Add(-time.Hour)
+	item := &codexImportAccount{
+		AccessToken:    "expired-at",
+		SessionToken:   "st-from-json",
+		TokenExpiresAt: &expiresAt,
+		Credentials:    map[string]any{"access_token": "expired-at", "chatgpt_session_token": "st-from-json"},
+	}
+
+	err := h.hydrateCodexImportCredentials(context.Background(), item, nil)
+	if err == nil {
+		t.Fatal("hydrateCodexImportCredentials error = nil, want live refresh after expired accessToken")
+	}
+	if !called {
+		t.Fatal("expired accessToken must attempt session refresh")
 	}
 }
 

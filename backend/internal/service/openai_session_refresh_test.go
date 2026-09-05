@@ -96,6 +96,28 @@ func TestRefreshChatGPTSessionStoresFreshAccessToken(t *testing.T) {
 	require.Equal(t, "acct-1", info.ChatGPTAccountID)
 }
 
+func TestRefreshChatGPTSessionCloudflareHTMLReturnsBlocked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html><body>Just a moment... cloudflare cf-ray</body></html>`))
+	}))
+	t.Cleanup(srv.Close)
+
+	prev := chatGPTAuthSessionURL
+	chatGPTAuthSessionURL = srv.URL
+	t.Cleanup(func() { chatGPTAuthSessionURL = prev })
+
+	svc := NewOpenAIOAuthService(nil, nil)
+	svc.SetPrivacyClientFactory(func(string) (*req.Client, error) {
+		return req.C().SetTimeout(5 * time.Second), nil
+	})
+
+	_, err := svc.RefreshChatGPTSession(context.Background(), "st-live", "")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "OPENAI_SESSION_REFRESH_CF_BLOCKED")
+	require.NotContains(t, err.Error(), "<html")
+}
+
 func TestCheckChatGPTAccessTokenRejectsUnauthorized(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

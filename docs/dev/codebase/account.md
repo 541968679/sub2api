@@ -876,8 +876,9 @@ CreateAccountModal.vue OpenAI OAuth step 2: paste ChatGPT session / Codex auth.j
         -> parseCodexSessionImportEntries()
         -> normalizeCodexImportEntry()
            - JWT exp/email/chatgpt_account_id/chatgpt_user_id/plan/organization
-           - 有 sessionToken 或 refresh_token 时不因过期 JWT 拒绝；先 hydrate 再用 ST 换新 AT
-           - sessionToken 写入 chatgpt_session_token，导入时向 ChatGPT /api/auth/session 换新 AT；永不写 refresh_token
+           - session JSON 已含 AT/ST/身份时按粘贴内容落库，不要求导入当场连上 ChatGPT
+           - 仅当 JWT 已过期才用 sessionToken 向 ChatGPT /api/auth/session 换新 AT
+           - sessionToken 写入 chatgpt_session_token，永不写 refresh_token
            - credential_extras 不能覆盖 OAuth token/identity 保护字段
         -> buildCodexAccountIndex(existing OpenAI OAuth accounts; skip PAT)
         -> full session: user id -> token fingerprint -> account id fallback

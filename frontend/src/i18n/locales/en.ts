@@ -5624,7 +5624,7 @@ const enBase = {
           codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
           codexSessionPlaceholder: 'Paste session JSON, Codex auth.json, or an access token',
           codexSessionHint:
-            'JSON, JSON arrays, and mixed line input are supported. A matching user that already has a refresh_token is updated in place instead of creating a short-lived sibling account.',
+            'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
           codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
@@ -9677,7 +9677,7 @@ const phase0LocalePatch = {
           codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
           codexSessionPlaceholder: 'Paste session JSON, Codex auth.json, or an access token',
           codexSessionHint:
-            'JSON, JSON arrays, and mixed line input are supported. A matching user that already has a refresh_token is updated in place instead of creating a short-lived sibling account.',
+            'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
           codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'

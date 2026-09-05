@@ -5355,7 +5355,7 @@ const zhBase = {
           codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
           codexSessionPlaceholder: '粘贴 session JSON、Codex auth.json 或 access token',
           codexSessionHint:
-            '支持 JSON、JSON 数组或逐行多个条目。匹配到同一用户且已有 refresh_token 的账号时会更新该号，不新建短命账号。',
+            '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
           codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
@@ -9733,7 +9733,7 @@ const v117ZhPatch = {
           codexSessionInputLabel: 'ChatGPT session / Codex auth.json',
           codexSessionPlaceholder: '粘贴 session JSON、Codex auth.json 或 access token',
           codexSessionHint:
-            '支持 JSON、JSON 数组或逐行多个条目。匹配到同一用户且已有 refresh_token 的账号时会更新该号，不新建短命账号。',
+            '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
           codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'

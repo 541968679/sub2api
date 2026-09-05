@@ -1130,6 +1130,9 @@ func (h *AccountHandler) hydrateCodexImportCredentials(ctx context.Context, item
 		return nil
 	}
 	if item.SessionToken != "" {
+		if !codexImportAccessTokenExpired(item) {
+			return nil
+		}
 		info, err := h.openaiOAuthService.RefreshChatGPTSessionWithProxyID(ctx, item.SessionToken, proxyID)
 		if err != nil {
 			return err
@@ -1141,6 +1144,13 @@ func (h *AccountHandler) hydrateCodexImportCredentials(ctx context.Context, item
 		return nil
 	}
 	return h.openaiOAuthService.CheckChatGPTAccessTokenWithProxyID(ctx, item.AccessToken, proxyID)
+}
+
+func codexImportAccessTokenExpired(item *codexImportAccount) bool {
+	if item == nil || item.TokenExpiresAt == nil {
+		return false
+	}
+	return time.Now().UTC().Unix() > item.TokenExpiresAt.Unix()+codexImportClockSkewSeconds
 }
 
 func applyCodexSessionRefresh(item *codexImportAccount, info *service.OpenAITokenInfo, sessionToken string, now time.Time) {
