@@ -1,3 +1,12 @@
+## 2026-09-05 - deploy: production v0.1.281
+
+### What
+- Released and deployed `v0.1.281` (`498f6c5c8`) to production as `ghcr.io/541968679/sub2api:0.1.281`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:19e7fdbe2e93ab60c9a84978e75324b5dbe0184cbf2f6a17b3a3fc68885920dd`. Rollback is `v0.1.280` digest `sha256:33f84ad65cd145fc8255b7588df4ab7fc740ecdd4d6ebd190bd294302f8bc3c7`.
+
+### Why
+Ship empty-shell pre-output failover so new-api/Codex overloaded/capacity no longer lands as prompt-only failures.
+
 ## 2026-09-05 - release: 0.1.281 OpenAI capacity-shed failover
 
 ### What
