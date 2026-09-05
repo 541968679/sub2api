@@ -1,3 +1,11 @@
+## 2026-09-05 - release: 0.1.280 editable OpenAI model catalog
+
+### What
+- Ship the OpenAI Model Catalog admin tab and `gpt-6-astra` seed as `v0.1.280`.
+
+### Why
+Production is on `v0.1.279`. Operators need to add GPT-6 without a code change, including strict-mapping accounts after one catalog save.
+
 ## 2026-09-05 - feat: editable OpenAI /v1/models catalog and default whitelist
 
 ### What
