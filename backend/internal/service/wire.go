@@ -675,6 +675,10 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	domain.GetModelPricingHiddenModelsOverride = func() map[string]bool {
 		return svc.GetModelPricingHiddenModelSet(context.Background())
 	}
+	SetOpenAIModelCatalogResolver(func() *OpenAIModelCatalog {
+		cat := svc.GetOpenAIModelCatalog(context.Background())
+		return &cat
+	})
 	return svc
 }
 

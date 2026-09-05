@@ -26,6 +26,8 @@
       <!-- Tab Content: Pricing（映射 CRUD 和模型测试已合并到此 tab 内） -->
       <ModelPricingTab v-if="activeTab === 'pricing'" />
 
+      <OpenAIModelCatalogPanel v-if="activeTab === 'catalog'" />
+
       <!-- Tab Content: Rate Multipliers -->
       <RateMultiplierOverview v-if="activeTab === 'rate'" />
     </div>
@@ -38,6 +40,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { AppLayout } from '@/components/layout'
 import ModelPricingTab from '@/components/admin/model-pricing/ModelPricingTab.vue'
+import OpenAIModelCatalogPanel from '@/components/admin/model-pricing/OpenAIModelCatalogPanel.vue'
 import RateMultiplierOverview from '@/components/admin/model-pricing/RateMultiplierOverview.vue'
 
 const { t } = useI18n()
@@ -45,6 +48,7 @@ const route = useRoute()
 
 const tabs = computed(() => [
   { key: 'pricing', label: t('admin.modelConfig.tabs.pricing', 'Model Pricing') },
+  { key: 'catalog', label: t('admin.modelConfig.tabs.catalog', 'Model Catalog') },
   { key: 'rate', label: t('admin.modelConfig.tabs.rate', 'Rate Multipliers') },
 ])
 

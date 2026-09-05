@@ -16,7 +16,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
@@ -981,7 +980,7 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 		}
 	}
 	if a.Platform == PlatformOpenAI {
-		return openai.IsDefaultModel(requestedModel)
+		return isOpenAIDefaultWhitelistModel(requestedModel)
 	}
 	return false
 }

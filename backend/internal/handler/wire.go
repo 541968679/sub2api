@@ -99,6 +99,19 @@ func ProvideAdminHandlers(
 	}
 }
 
+func ProvideModelPricingHandler(
+	svc *service.GlobalModelPricingService,
+	settingService *service.SettingService,
+	accountRepo service.AccountRepository,
+) *admin.ModelPricingHandler {
+	if settingService != nil {
+		if merger, ok := accountRepo.(service.IdentityModelMappingMerger); ok {
+			settingService.SetIdentityMappingMerger(merger)
+		}
+	}
+	return admin.NewModelPricingHandler(svc, settingService)
+}
+
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
 }
@@ -208,7 +221,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAdminAPIKeyHandler,
 	admin.NewScheduledTestHandler,
 	admin.NewChannelHandler,
-	admin.NewModelPricingHandler,
+	ProvideModelPricingHandler,
 	admin.NewUserModelPricingHandler,
 	admin.NewPricingPageAdminHandler,
 	admin.NewLoginPageAdminHandler,

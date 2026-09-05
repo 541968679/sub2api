@@ -6,24 +6,15 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
-// OpenAIDiscoveryCanonicalGrokModels are always presented on OpenAI-group
-// /v1/models-style discovery (including custom lists and Codex manifests).
-// Presentation only — scheduling still requires Grok OpenAI-group access + bind.
+// OpenAIDiscoveryCanonicalGrokModels is the Grok surface injected into Codex
+// model manifests. Ordinary OpenAI /v1/models uses the editable catalog and
+// does not force-append these IDs.
 var OpenAIDiscoveryCanonicalGrokModels = []string{
 	"grok-4.5",
 }
 
 var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
-	PlatformOpenAI: {
-		"gpt-5.6-sol",
-		"gpt-5.6-terra",
-		"gpt-5.6-luna",
-		"gpt-5.5",
-		"gpt-5.4",
-		"gpt-5.4-mini",
-		// Canonical Grok surface for all OpenAI groups (no per-group config).
-		"grok-4.5",
-	},
+	PlatformOpenAI: OpenAIDisplaySeed(),
 	PlatformAntigravity: {
 		"claude-opus-5",
 		"claude-opus-4-8",
@@ -53,6 +44,12 @@ var gatewayModelDiscoveryLegacyFullCustomListsByPlatform = map[string][]string{
 // by /v1/models-style model discovery. It is presentation-only and must not be
 // used for scheduling, model access checks, mapping, billing, or usage.
 func GatewayModelDiscoveryIDsForPlatform(platform string) ([]string, bool) {
+	if platform == PlatformOpenAI {
+		ids := effectiveOpenAIDisplayModels()
+		out := make([]string, len(ids))
+		copy(out, ids)
+		return out, true
+	}
 	ids, ok := gatewayModelDiscoveryIDsByPlatform[platform]
 	if !ok {
 		return nil, false

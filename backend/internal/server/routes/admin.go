@@ -93,6 +93,7 @@ func RegisterAdminRoutes(
 
 		// 模型定价管理
 		registerModelPricingRoutes(admin, h)
+		registerModelCatalogRoutes(admin, h)
 
 		// 用户「模型计价」页文案管理
 		registerPricingPageRoutes(admin, h)
@@ -737,6 +738,15 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		channels.POST("", h.Admin.Channel.Create)
 		channels.PUT("/:id", h.Admin.Channel.Update)
 		channels.DELETE("/:id", h.Admin.Channel.Delete)
+	}
+}
+
+func registerModelCatalogRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	catalog := admin.Group("/model-catalog")
+	{
+		catalog.GET("/openai", h.Admin.ModelPricing.GetOpenAIModelCatalog)
+		catalog.PUT("/openai", h.Admin.ModelPricing.UpdateOpenAIModelCatalog)
+		catalog.POST("/openai/preview-merge", h.Admin.ModelPricing.PreviewOpenAIModelCatalogMerge)
 	}
 }
 

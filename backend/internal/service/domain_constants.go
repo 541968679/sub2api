@@ -308,6 +308,9 @@ const (
 	// 仅影响模型配置列表展示，不影响计费与请求转发。
 	SettingKeyModelPricingHiddenModels = "model_pricing_hidden_models"
 
+	// OpenAI editable /v1/models display list + default scheduling whitelist.
+	SettingKeyOpenAIModelCatalog = "openai_model_catalog"
+
 	// Request identity patch (Claude -> Gemini systemInstruction injection)
 	SettingKeyEnableIdentityPatch = "enable_identity_patch"
 	SettingKeyIdentityPatchPrompt = "identity_patch_prompt"

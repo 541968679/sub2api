@@ -1010,13 +1010,6 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
 			selectedModels := service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
 			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, selectedModels)
-		} else if platform == service.PlatformOpenAI && h.gatewayService != nil {
-			// Extra Grok text models from bound opt-in accounts (beyond canonical grok-4.5).
-			discoveryModelIDs = h.gatewayService.MergeOpenAIDiscoveryWithGrokAccess(c.Request.Context(), groupID, discoveryModelIDs)
-		}
-		// Always surface canonical grok-4.5 on OpenAI groups (custom list included).
-		if platform == service.PlatformOpenAI {
-			discoveryModelIDs = service.EnsureOpenAICanonicalGrokModels(discoveryModelIDs)
 		}
 		writeModelsListForPlatform(c, platform, discoveryModelIDs)
 		return
@@ -1026,16 +1019,8 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
 		availableModels = filterModelsByCustomList(availableModels, defaultModelIDsForPlatform(platform), apiKey.Group.ModelsListConfig.Models)
-		if platform == service.PlatformOpenAI {
-			availableModels = service.EnsureOpenAICanonicalGrokModels(availableModels)
-		}
 		writeModelsListForPlatform(c, platform, availableModels)
 		return
-	}
-
-	if platform == service.PlatformOpenAI && h.gatewayService != nil {
-		availableModels = h.gatewayService.MergeOpenAIDiscoveryWithGrokAccess(c.Request.Context(), groupID, availableModels)
-		availableModels = service.EnsureOpenAICanonicalGrokModels(availableModels)
 	}
 
 	if len(availableModels) > 0 {
@@ -1045,11 +1030,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	// Fallback to default models
 	if platform == service.PlatformOpenAI {
-		fallback := openai.DefaultModelIDs()
-		if h.gatewayService != nil {
-			fallback = h.gatewayService.MergeOpenAIDiscoveryWithGrokAccess(c.Request.Context(), groupID, fallback)
-		}
-		fallback = service.EnsureOpenAICanonicalGrokModels(fallback)
+		fallback := service.OpenAIDisplaySeed()
 		if len(fallback) > 0 {
 			writeOpenAIModelsList(c, fallback)
 			return

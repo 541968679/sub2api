@@ -287,7 +287,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	scheduledTestService := service.ProvideScheduledTestService(scheduledTestPlanRepository, scheduledTestResultRepository)
 	scheduledTestHandler := admin.NewScheduledTestHandler(scheduledTestService)
 	channelHandler := admin.NewChannelHandler(channelService, billingService)
-	modelPricingHandler := admin.NewModelPricingHandler(globalModelPricingService, settingService)
+	modelPricingHandler := handler.ProvideModelPricingHandler(globalModelPricingService, settingService, accountRepository)
 	userModelPricingHandler := admin.NewUserModelPricingHandler(userModelPricingService)
 	pricingPageHandler := admin.NewPricingPageAdminHandler(settingRepository)
 	loginPageHandler := admin.NewLoginPageAdminHandler(settingRepository)

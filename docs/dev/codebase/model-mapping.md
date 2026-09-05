@@ -162,6 +162,7 @@ are editable mapping rows rather than plain pricing rows.
 |-----------|------|------|
 | model_mapping (JSONB) | `account.credentials["model_mapping"]` | `{ "请求模型": "上游模型" }` 键值对 |
 | *_default_model_mapping | Settings KV | 平台级默认映射，当前支持 anthropic/openai/gemini/antigravity |
+| openai_model_catalog | Settings KV | OpenAI 精选 `/v1/models` 展示列表 + 默认调度白名单（模型配置 → 模型目录） |
 | DefaultAntigravityModelMapping | `backend/internal/domain/constants.go:72-115` | Antigravity 平台内置默认映射 |
 | DefaultBedrockModelMapping | `backend/internal/domain/constants.go:121-139` | Bedrock 平台内置默认映射 |
 
@@ -240,6 +241,17 @@ ModelPricingTab.vue
 - Antigravity 仍保留内置严格白名单，运行时会合并管理员覆盖映射。
 - OpenAI/Anthropic/Gemini 的平台默认映射只负责把已配置请求模型改写到上游模型；未配置模型继续按兼容平台透传，不会因为存在默认映射而变成全局白名单。
 - 当账号自身 `credentials.model_mapping` 没命中时，非 Antigravity 账号会继续尝试平台级默认映射，确保在模型配置页新增的供应商映射能参与账号调度和请求改写。
+
+### OpenAI 模型目录（2026-09-05）
+
+Admin **模型配置 → 模型目录** edits Settings KV `openai_model_catalog`:
+
+- `display_models`: ordinary OpenAI-group `GET /v1/models` (non-Codex). Seed is `gpt-6-astra` plus the previous curated GPT-5.6/5.5/5.4 list and `grok-4.5`. `grok-4.5` is **not** force-appended; Codex Grok inject is unchanged.
+- `whitelist_models`: non-strict `IsModelSupported` fallback (replaces hardcoded `openai.IsDefaultModel`). Seed is `openai.DefaultModels` plus `gpt-6-astra`. Grok IDs are not auto-added.
+- Adding a non-Grok display ID auto-adds it to the whitelist. Saving merges **newly added** whitelist identity keys (`model -> model`) into OpenAI accounts that already have a non-empty `model_mapping`. Passthrough and empty-mapping accounts are skipped. First save diffs against historical `DefaultModels`, so only `gpt-6-astra` is merged.
+- Strict mapping still uses only the account JSON; after that save, `gpt-6-astra` is on those accounts so they become schedulable.
+
+APIs: `GET/PUT /api/v1/admin/model-catalog/openai`, `POST /api/v1/admin/model-catalog/openai/preview-merge`.
 
 ### 默认映射回退链
 

@@ -45,6 +45,63 @@ func (h *ModelPricingHandler) UpdateHiddenModels(c *gin.Context) {
 	response.Success(c, h.settingService.GetModelPricingHiddenModels(c.Request.Context()))
 }
 
+type openAIModelCatalogRequest struct {
+	DisplayModels   []string `json:"display_models"`
+	WhitelistModels []string `json:"whitelist_models"`
+}
+
+// GetOpenAIModelCatalog GET /api/v1/admin/model-catalog/openai
+func (h *ModelPricingHandler) GetOpenAIModelCatalog(c *gin.Context) {
+	if h.settingService == nil {
+		response.InternalError(c, "Setting service is not configured")
+		return
+	}
+	response.Success(c, h.settingService.GetOpenAIModelCatalog(c.Request.Context()))
+}
+
+// PreviewOpenAIModelCatalogMerge POST /api/v1/admin/model-catalog/openai/preview-merge
+func (h *ModelPricingHandler) PreviewOpenAIModelCatalogMerge(c *gin.Context) {
+	if h.settingService == nil {
+		response.InternalError(c, "Setting service is not configured")
+		return
+	}
+	var req openAIModelCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	catalog, keys, count, err := h.settingService.PreviewOpenAIModelCatalogMerge(c.Request.Context(), req.DisplayModels, req.WhitelistModels)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"display_models":       catalog.DisplayModels,
+		"whitelist_models":     catalog.WhitelistModels,
+		"merge_keys":           keys,
+		"merged_account_count": count,
+	})
+}
+
+// UpdateOpenAIModelCatalog PUT /api/v1/admin/model-catalog/openai
+func (h *ModelPricingHandler) UpdateOpenAIModelCatalog(c *gin.Context) {
+	if h.settingService == nil {
+		response.InternalError(c, "Setting service is not configured")
+		return
+	}
+	var req openAIModelCatalogRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	catalog, _, err := h.settingService.SaveOpenAIModelCatalog(c.Request.Context(), req.DisplayModels, req.WhitelistModels)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, catalog)
+}
+
 // --- Request types ---
 
 type createGlobalOverrideRequest struct {

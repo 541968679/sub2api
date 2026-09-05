@@ -177,6 +177,7 @@ type SettingService struct {
 	cyberSessionBlockRuntimeSF        singleflight.Group
 	openAIQuotaAutoPauseSettingsCache atomic.Value
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
+	identityMappingMerger             IdentityModelMappingMerger
 }
 
 func (s *SettingService) GetOpenAIQuotaAutoPauseSettings(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings {
@@ -578,6 +579,13 @@ func (s *SettingService) SetDefaultSubscriptionGroupReader(reader DefaultSubscri
 // SetProxyRepository injects a proxy repo for resolving websearch provider proxy URLs.
 func (s *SettingService) SetProxyRepository(repo ProxyRepository) {
 	s.proxyRepo = repo
+}
+
+func (s *SettingService) SetIdentityMappingMerger(merger IdentityModelMappingMerger) {
+	if s == nil {
+		return
+	}
+	s.identityMappingMerger = merger
 }
 
 // GetAllSettings 获取所有系统设置
@@ -2461,6 +2469,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAnthropicDefaultModelMappingBillingObject:   "",
 		SettingKeyOpenAIDefaultModelMappingBillingObject:      "",
 		SettingKeyGeminiDefaultModelMappingBillingObject:      "",
+		SettingKeyOpenAIModelCatalog:                          "",
 		// Identity patch defaults
 		SettingKeyEnableIdentityPatch: "true",
 		SettingKeyIdentityPatchPrompt: "",

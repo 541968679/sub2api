@@ -24,7 +24,7 @@ func TestGatewayHandlerModels_OpenAICuratedDiscoveryList(t *testing.T) {
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "grok-4.5"}, ids)
+	require.Equal(t, service.OpenAIDisplaySeed(), ids)
 }
 
 func TestGatewayHandlerModels_OpenAICuratedDiscoveryListIncludesCodexMetadata(t *testing.T) {
@@ -41,11 +41,11 @@ func TestGatewayHandlerModels_OpenAICuratedDiscoveryListIncludesCodexMetadata(t 
 	require.NotEmpty(t, entries)
 
 	first := entries[0]
-	require.Equal(t, "gpt-5.6-sol", first.ID)
+	require.Equal(t, "gpt-6-astra", first.ID)
 	require.ElementsMatch(t, []string{"openai-response", "openai", "openai-response-compact"}, first.SupportedEndpointTypes)
 	require.ElementsMatch(t, []string{"chat_completions", "responses"}, first.SupportedSessionModes)
-	require.Equal(t, "gpt-5.6-sol", first.ActualModelReturned["chat_completions"])
-	require.Equal(t, "gpt-5.6-sol", first.ActualModelReturned["responses"])
+	require.Equal(t, "gpt-6-astra", first.ActualModelReturned["chat_completions"])
+	require.Equal(t, "gpt-6-astra", first.ActualModelReturned["responses"])
 	require.ElementsMatch(t, []string{"text", "image"}, first.InputModalities)
 	require.ElementsMatch(t, []string{"text"}, first.OutputModalities)
 	require.ElementsMatch(t, []string{"text", "image"}, first.SupportedModalities)
@@ -66,8 +66,7 @@ func TestGatewayHandlerModels_OpenAICuratedListCanBeNarrowedByCustomList(t *test
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	// Custom subset is preserved, but canonical grok-4.5 is always appended for OpenAI groups.
-	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5", "grok-4.5"}, ids)
+	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5"}, ids)
 }
 
 func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels(t *testing.T) {
@@ -85,7 +84,7 @@ func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "grok-4.5"}, ids)
+	require.Equal(t, service.OpenAIDisplaySeed(), ids)
 }
 
 func TestGatewayHandlerModels_AntigravityCuratedDiscoveryList(t *testing.T) {

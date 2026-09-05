@@ -3206,10 +3206,12 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 		platformMapping := domain.ResolvePlatformDefaultModelMapping(domain.PlatformOpenAI)
 		mapping := account.GetModelMapping()
+		catalog := service.NormalizeOpenAIModelCatalog(service.OpenAIDisplaySeed(), service.OpenAIWhitelistSeed())
+		if h.settingService != nil {
+			catalog = h.settingService.GetOpenAIModelCatalog(c.Request.Context())
+		}
 
-		// Return mapped models + platform mapping keys + DefaultModels
-		// (ensure new default models are always visible)
-		seen := make(map[string]bool, len(mapping)+len(platformMapping)+len(openai.DefaultModels))
+		seen := make(map[string]bool)
 		var models []openai.Model
 		appendKey := func(requestedModel string) {
 			if seen[requestedModel] {
@@ -3233,6 +3235,12 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			appendKey(requestedModel)
 		}
 		for _, requestedModel := range sortedMappingKeys(platformMapping) {
+			appendKey(requestedModel)
+		}
+		for _, requestedModel := range catalog.DisplayModels {
+			appendKey(requestedModel)
+		}
+		for _, requestedModel := range catalog.WhitelistModels {
 			appendKey(requestedModel)
 		}
 		for _, dm := range openai.DefaultModels {

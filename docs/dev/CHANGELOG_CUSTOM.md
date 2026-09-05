@@ -1,3 +1,44 @@
+## 2026-09-05 - feat: editable OpenAI /v1/models catalog and default whitelist
+
+### What
+- Admin **模型配置 → 模型目录** can edit the OpenAI curated `/v1/models` list and the default scheduling whitelist.
+- Unconfigured seed includes `gpt-6-astra`. Grok IDs stay on the display seed but are not auto-added to the whitelist or to account mappings.
+- Saving merges newly added whitelist identity keys into OpenAI accounts that already have a non-empty `model_mapping` (skips passthrough and empty mapping). First save only adds `gpt-6-astra`.
+- Ordinary `/v1/models` no longer force-appends `grok-4.5`. Codex Grok inject is unchanged.
+
+### Why
+Operators need to add models such as GPT-6 without a code change, including accounts that use strict mapping.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAICatalog|TestNormalizeOpenAIModelCatalog|TestDiffNewWhitelistKeys|TestGatewayModelDiscovery|TestAccountIsModelSupported_OpenAIWhitelist|TestSettingServiceOpenAIModelCatalog"`
+- `go test ./internal/handler ./internal/handler/admin -count=1 -run "TestGatewayHandlerModels_OpenAI|TestModelPricingHandlerOpenAIModelCatalog"`
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useModelWhitelist.spec.ts src/views/admin/__tests__/openaiModelCatalog.spec.ts`
+
+### Affected files
+`backend/internal/service/openai_model_catalog.go`,
+`backend/internal/service/openai_model_catalog_test.go`,
+`backend/internal/service/setting_service_openai_catalog.go`,
+`backend/internal/service/models_list_policy.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/wire.go`,
+`backend/internal/repository/account_repo_identity_mapping.go`,
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/admin/model_pricing_handler.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/wire.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/views/admin/ModelConfigView.vue`,
+`frontend/src/components/admin/model-pricing/OpenAIModelCatalogPanel.vue`,
+`frontend/src/views/admin/openaiModelCatalog.ts`,
+`frontend/src/api/admin/modelCatalog.ts`,
+`frontend/src/composables/useModelWhitelist.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-05 - fix: prime ChatGPT session refresh before sending sessionToken
 
 ### What
