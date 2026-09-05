@@ -15,6 +15,7 @@ import (
 const (
 	chatgptSessionTokenCredentialKey       = "chatgpt_session_token"
 	chatgptSessionRefreshedAtCredentialKey = "session_refreshed_at"
+	chatgptSessionVerifiedCredentialKey    = "chatgpt_session_verified"
 	chatgptSessionCookieName               = "__Secure-next-auth.session-token"
 	chatgptSessionRefreshInterval          = 25 * time.Minute
 )
@@ -38,9 +39,32 @@ func isOpenAIChatGPTSessionOnly(account *Account) bool {
 	return account.GetChatGPTSessionToken() != ""
 }
 
+func openaiChatGPTSessionVerified(account *Account) bool {
+	if account == nil || account.Credentials == nil {
+		return false
+	}
+	v, ok := account.Credentials[chatgptSessionVerifiedCredentialKey]
+	if !ok || v == nil {
+		return false
+	}
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "true", "1", "yes":
+			return true
+		}
+	}
+	return false
+}
+
 func openaiChatGPTSessionNeedsRefresh(account *Account, refreshWindow time.Duration) bool {
 	if !isOpenAIChatGPTSessionOnly(account) {
 		return false
+	}
+	if !openaiChatGPTSessionVerified(account) {
+		return true
 	}
 	last := account.GetCredentialAsTime(chatgptSessionRefreshedAtCredentialKey)
 	if last == nil || time.Since(*last) >= chatgptSessionRefreshInterval {
@@ -53,7 +77,7 @@ func openaiChatGPTSessionNeedsRefresh(account *Account, refreshWindow time.Durat
 	return time.Until(*expiresAt) < refreshWindow
 }
 
-func stampChatGPTSessionRefresh(credentials map[string]any, sessionToken string, now time.Time) {
+func stampChatGPTSessionRefresh(credentials map[string]any, sessionToken string, now time.Time, verified bool) {
 	if credentials == nil {
 		return
 	}
@@ -63,6 +87,11 @@ func stampChatGPTSessionRefresh(credentials map[string]any, sessionToken string,
 	}
 	credentials[chatgptSessionTokenCredentialKey] = sessionToken
 	credentials[chatgptSessionRefreshedAtCredentialKey] = now.UTC().Format(time.RFC3339)
+	if verified {
+		credentials[chatgptSessionVerifiedCredentialKey] = true
+	} else {
+		delete(credentials, chatgptSessionVerifiedCredentialKey)
+	}
 }
 
 // RefreshChatGPTSession exchanges a ChatGPT NextAuth session cookie for a fresh access token.
@@ -137,6 +166,20 @@ func (s *OpenAIOAuthService) RefreshChatGPTSession(ctx context.Context, sessionT
 			}
 		}
 	}
+	if err := s.CheckChatGPTAccessToken(ctx, accessToken, proxyURL); err != nil {
+		if chatGPTErrorLooksExpired(err) {
+			return nil, infraerrors.New(http.StatusUnauthorized, "OPENAI_SESSION_ACCESS_TOKEN_EXPIRED",
+				"ChatGPT 判定 accessToken 已失效。请在浏览器重新打开 chatgpt.com，复制最新的 /api/auth/session JSON 后重新导入")
+		}
+		if chatGPTErrorLooksLikeChallenge(err) {
+			// accounts/check is Cloudflare-gated more often than Codex; do not
+			// mark the session verified so the next request retries.
+		} else {
+			return nil, err
+		}
+	} else {
+		tokenInfo.SessionVerified = true
+	}
 	s.enrichTokenInfo(ctx, tokenInfo, proxyURL)
 	return tokenInfo, nil
 }
@@ -181,6 +224,31 @@ func chatgptSessionResponseError(resp *req.Response) error {
 	return infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REJECTED", "ChatGPT rejected sessionToken: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))
 }
 
+func chatGPTBodyLooksExpired(body string) bool {
+	lower := strings.ToLower(body)
+	return strings.Contains(lower, "token_expired") || strings.Contains(lower, "provided authentication token is expired")
+}
+
+func chatGPTErrorLooksExpired(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "token_expired") ||
+		strings.Contains(lower, "openai_access_token_expired") ||
+		strings.Contains(lower, "openai_session_access_token_expired")
+}
+
+func chatGPTErrorLooksLikeChallenge(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "OPENAI_SESSION_REFRESH_CF_BLOCKED") ||
+		strings.Contains(s, "OPENAI_ACCESS_TOKEN_CHECK_CF") ||
+		chatGPTResponseLooksLikeChallenge(http.StatusForbidden, s)
+}
+
 func chatGPTResponseLooksLikeChallenge(status int, body string) bool {
 	if status != http.StatusForbidden && status != http.StatusServiceUnavailable {
 		return false
@@ -220,8 +288,15 @@ func (s *OpenAIOAuthService) CheckChatGPTAccessToken(ctx context.Context, access
 	if err != nil {
 		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_ACCESS_TOKEN_CHECK_FAILED", "ChatGPT account check failed: %v", err)
 	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return infraerrors.Newf(http.StatusBadRequest, "OPENAI_ACCESS_TOKEN_REJECTED", "ChatGPT rejected accessToken: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))
+	body := resp.String()
+	if resp.StatusCode == http.StatusUnauthorized || (resp.StatusCode == http.StatusForbidden && !chatGPTResponseLooksLikeChallenge(resp.StatusCode, body)) {
+		if chatGPTBodyLooksExpired(body) {
+			return infraerrors.New(http.StatusUnauthorized, "OPENAI_ACCESS_TOKEN_EXPIRED", "ChatGPT rejected accessToken: token_expired")
+		}
+		return infraerrors.Newf(http.StatusBadRequest, "OPENAI_ACCESS_TOKEN_REJECTED", "ChatGPT rejected accessToken: status %d, body: %s", resp.StatusCode, truncate(body, 200))
+	}
+	if chatGPTResponseLooksLikeChallenge(resp.StatusCode, body) {
+		return infraerrors.New(http.StatusBadGateway, "OPENAI_ACCESS_TOKEN_CHECK_CF", "ChatGPT/Cloudflare blocked accessToken check")
 	}
 	if !resp.IsSuccessState() {
 		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_ACCESS_TOKEN_CHECK_FAILED", "ChatGPT account check failed: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))

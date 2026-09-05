@@ -126,7 +126,7 @@ func (r *OpenAITokenRefresher) Refresh(ctx context.Context, account *Account) (m
 	newCredentials := r.openaiOAuthService.BuildAccountCredentials(tokenInfo)
 	newCredentials = MergeCredentials(account.Credentials, newCredentials)
 	newCredentials = NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
-	stampChatGPTSessionRefresh(newCredentials, account.GetChatGPTSessionToken(), time.Now())
+	stampChatGPTSessionRefresh(newCredentials, account.GetChatGPTSessionToken(), time.Now(), tokenInfo.SessionVerified)
 
 	return newCredentials, nil
 }

@@ -32,7 +32,10 @@ func TestOpenAIChatGPTSessionNeedsRefresh(t *testing.T) {
 	require.True(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "stale session_refreshed_at should refresh")
 
 	account.Credentials["session_refreshed_at"] = now.Add(-5 * time.Minute).Format(time.RFC3339)
-	require.False(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "fresh session refresh should wait")
+	require.True(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "unverified stamp must still refresh")
+
+	account.Credentials["chatgpt_session_verified"] = true
+	require.False(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "verified fresh session should wait")
 
 	account.Credentials["refresh_token"] = "rt-1"
 	require.False(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "OAuth RT accounts do not use session refresh")
@@ -154,6 +157,47 @@ func TestRefreshChatGPTSessionPrimesBeforeSessionCookie(t *testing.T) {
 	require.GreaterOrEqual(t, hits.Load(), int32(2))
 }
 
+func TestRefreshChatGPTSessionRejectsExpiredAccessTokenFromSessionJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "accounts/check") {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":{"code":"token_expired","message":"Provided authentication token is expired."}}`))
+			return
+		}
+		if !strings.Contains(r.Header.Get("Cookie"), "st-live") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"WARNING_BANNER": "do not share"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"accessToken": "expired-looking-jwt",
+			"user":        map[string]any{"email": "user@example.com"},
+			"account":     map[string]any{"id": "acct-1"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	prevSession := chatGPTAuthSessionURL
+	prevCheck := chatGPTAccountsCheckURL
+	prevSub := chatGPTSubscriptionsURL
+	chatGPTAuthSessionURL = srv.URL
+	chatGPTAccountsCheckURL = srv.URL + "/backend-api/accounts/check"
+	chatGPTSubscriptionsURL = srv.URL + "/backend-api/subscriptions"
+	t.Cleanup(func() {
+		chatGPTAuthSessionURL = prevSession
+		chatGPTAccountsCheckURL = prevCheck
+		chatGPTSubscriptionsURL = prevSub
+	})
+
+	svc := NewOpenAIOAuthService(nil, nil)
+	svc.SetPrivacyClientFactory(func(string) (*req.Client, error) {
+		return req.C().SetTimeout(5 * time.Second), nil
+	})
+
+	_, err := svc.RefreshChatGPTSession(context.Background(), "st-live", "")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "OPENAI_SESSION_ACCESS_TOKEN_EXPIRED")
+}
+
 func TestRefreshChatGPTSessionCloudflareHTMLReturnsBlocked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -194,7 +238,7 @@ func TestCheckChatGPTAccessTokenRejectsUnauthorized(t *testing.T) {
 
 	err := svc.CheckChatGPTAccessToken(context.Background(), "dead-at", "")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "OPENAI_ACCESS_TOKEN_REJECTED")
+	require.Contains(t, err.Error(), "OPENAI_ACCESS_TOKEN_EXPIRED")
 }
 
 func TestOpenAITokenRefresherNeedsRefreshForSessionToken(t *testing.T) {
@@ -211,5 +255,8 @@ func TestOpenAITokenRefresherNeedsRefreshForSessionToken(t *testing.T) {
 	require.True(t, refresher.NeedsRefresh(account, 3*time.Minute))
 
 	account.Credentials["session_refreshed_at"] = time.Now().Add(-time.Minute).Format(time.RFC3339)
+	require.True(t, refresher.NeedsRefresh(account, 3*time.Minute), "unverified session must keep refreshing")
+
+	account.Credentials["chatgpt_session_verified"] = true
 	require.False(t, refresher.NeedsRefresh(account, 3*time.Minute))
 }

@@ -1,3 +1,38 @@
+## 2026-09-05 - feat: editable Anthropic/Gemini/Antigravity model catalogs
+
+### What
+- **模型配置 → 模型目录** now has OpenAI / Anthropic / Gemini / Antigravity tabs with the same two lists (curated `/v1/models` + default scheduling whitelist).
+- Ordinary `/v1/models` for Anthropic and Gemini uses the curated display list (no longer unions account mapping keys). Antigravity keeps its 6-ID display seed; whitelist seed is `DefaultAntigravityModelMapping` keys. Gemini native `/v1beta/models` still proxies upstream.
+- Display additions auto-join the whitelist (OpenAI Grok IDs remain the only exception). Saving merges newly added whitelist identity keys into that platform's accounts that already have a mapping. First save of Anthropic/Gemini/Antigravity seeds merges nothing.
+- Non-strict `IsModelSupported` falls back to each platform's catalog whitelist. Test-connection dropdowns union catalog display ∪ whitelist.
+
+### Why
+Operators asked to add models on the other platforms the same way as OpenAI, without a code change or per-account mapping edits.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAICatalog|TestPlatformCatalog|TestNormalizePlatform|TestGatewayModelDiscovery|TestAccountIsModelSupported_Catalog|TestSettingServiceCatalog"`
+- `go test ./internal/handler ./internal/handler/admin -count=1 -run "TestGatewayHandlerModels_|TestModelPricingHandler|TestAccountHandlerGetAvailableModels_"`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/openaiModelCatalog.spec.ts`
+
+### Affected files
+`backend/internal/service/openai_model_catalog.go`,
+`backend/internal/service/openai_model_catalog_test.go`,
+`backend/internal/service/setting_service_openai_catalog.go`,
+`backend/internal/service/models_list_policy.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/repository/account_repo_identity_mapping.go`,
+`backend/internal/handler/admin/model_pricing_handler.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/components/admin/model-pricing/OpenAIModelCatalogPanel.vue`,
+`frontend/src/api/admin/modelCatalog.ts`,
+`frontend/src/views/admin/openaiModelCatalog.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-05 - release: 0.1.280 editable OpenAI model catalog
 
 ### What
@@ -45,6 +80,26 @@ Operators need to add models such as GPT-6 without a code change, including acco
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
 `docs/dev/codebase/model-mapping.md`,
+this changelog.
+
+## 2026-09-05 - fix: reject ChatGPT session AT that accounts/check says is expired
+
+### What
+- After `/api/auth/session` returns an accessToken, session refresh now calls ChatGPT `accounts/check`. `token_expired` fails the refresh instead of stamping `session_refreshed_at` and sending that JWT to Codex.
+- `chatgpt_session_verified` is required before the 25-minute skip. Old rows that only have `session_refreshed_at` keep refreshing.
+
+### Why
+ChatGPT `/api/auth/session` can return a JWT whose `exp` is still in the future while `accounts/check` and Codex already 401 `token_expired`. We treated that as a successful refresh, then reused the dead AT.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/service -run "RefreshChatGPTSession|OpenAIChatGPTSessionNeedsRefresh|OpenAITokenRefresherNeedsRefreshForSessionToken|CheckChatGPTAccessToken" -count=1`
+
+### Affected files
+`backend/internal/service/openai_session_refresh.go`,
+`backend/internal/service/openai_session_refresh_test.go`,
+`backend/internal/service/openai_oauth_service.go`,
+`backend/internal/service/token_refresher.go`,
+`docs/dev/codebase/account.md`,
 this changelog.
 
 ## 2026-09-05 - fix: prime ChatGPT session refresh before sending sessionToken

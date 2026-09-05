@@ -127,6 +127,7 @@ type OpenAITokenInfo struct {
 	PlanType              string `json:"plan_type,omitempty"`
 	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
 	PrivacyMode           string `json:"privacy_mode,omitempty"`
+	SessionVerified       bool   `json:"-"`
 }
 
 // ExchangeCode exchanges authorization code for tokens
