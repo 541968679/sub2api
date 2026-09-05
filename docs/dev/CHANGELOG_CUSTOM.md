@@ -1,3 +1,11 @@
+## 2026-09-05 - release: 0.1.281 OpenAI capacity-shed failover
+
+### What
+- Ship the Responses capacity-shed overlay as `v0.1.281`.
+
+### Why
+Production `v0.1.280` still commits empty `output_item.added` shells, so overloaded/capacity is forwarded to new-api/Codex as prompt-only failures.
+
 ## 2026-09-05 - fix(openai): overlay upstream capacity-shed pre-output failover
 
 ### What
