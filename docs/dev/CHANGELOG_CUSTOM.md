@@ -1,3 +1,26 @@
+## 2026-09-05 - fix(openai): overlay upstream capacity-shed pre-output failover
+
+### What
+- Native and passthrough `/v1/responses` SSE no longer treat empty `output_item.added` / `content_part.added` / `reasoning_summary_part.added` shells or retryable `type=error` frames as client output.
+- Those frames stay buffered so `server_is_overloaded` / `Our servers are currently overloaded` / selected-model-at-capacity can still fail over before any bytes are written.
+- If visible output already committed, the same load-shed codes are rewritten to `server_error` (message unchanged) so Codex retries instead of showing "Selected model is at capacity". Ops still records the original hop.
+- WS client writes get the same code rewrite. The admin "立即下发 Responses 开场事件" switch is unchanged.
+
+### Why
+User 220 (new-api → Codex) was seeing prompt-only new-api rows and Codex capacity banners. Upstream `main` already fixed this in August (`c33c3208e`, `c3063e01a`); this is a B-lane overlay onto the fork file layout, not a wholesale replace.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAIStreamErrorFrameDoesNotStartClientOutput|TestSanitizeOpenAICapacityShedErrorCodeForClient|TestOpenAIStreamFailedEventShouldFailoverOverloadedMessage|TestOpenAIStreamEmptyAddedThenOverloadedFailsOver|TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient|TestOpenAIStreamingPassthroughResponseFailed|TestOpenAIStreamingResponseFailedBeforeOutput|TestOpenAIStreamShouldCommitDownstream_PreambleToggle"`
+
+### Affected files
+`backend/internal/service/openai_capacity_shed.go`,
+`backend/internal/service/openai_capacity_shed_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_ws_forwarder.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-05 - feat: editable Anthropic/Gemini/Antigravity model catalogs
 
 ### What

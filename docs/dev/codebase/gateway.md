@@ -110,7 +110,7 @@ Native `/v1/responses` stores two TTFTs:
 | Field | Meaning | Used by |
 |-------|---------|---------|
 | `usage_logs.first_token_ms` | Display first-token: Forward start until the first non-empty SSE `data:` frame (typically `response.created`), matching Claude-GPT bridge `firstChunk`. `[DONE]` does not count. | User usage records; admin usage existing 首字 column |
-| `usage_logs.true_first_token_ms` | True first-token: first useful/non-preamble event (`openAIStreamDataStartsClientOutput`, typically `output_item.added`). This is the pre-0.1.217 native Responses stamp. | Account scheduler `ReportResult`, account-list quality TTFT, ops TTFT aggregations. `COALESCE(true_first_token_ms, first_token_ms)` for historical rows. |
+| `usage_logs.true_first_token_ms` | True first-token: first useful/non-preamble event (`openAIStreamDataStartsClientOutput`). Empty `output_item.added` shells and retryable `error` frames do not count; visible deltas / non-empty added items do. | Account scheduler `ReportResult`, account-list quality TTFT, ops TTFT aggregations. `COALESCE(true_first_token_ms, first_token_ms)` for historical rows. |
 
 Admin usage keeps display 首字 in the latency cell and shows 真首字 as its own table column. User usage shows only display `first_token_ms`.
 
@@ -118,11 +118,11 @@ Downstream flush is separate and gated by admin settings `openai_responses_flush
 
 | Switch | Downstream flush | Silent failover after first SSE |
 |--------|------------------|----------------------------------|
-| Off (default) and user not in allowlist | Buffer `response.created` / `response.in_progress` until a non-preamble event (`output_item.added`, etc.) | Still possible: HTTP 200 is not committed to the client yet, so JSON error rewrite / account failover can still run |
+| Off (default) and user not in allowlist | Buffer `response.created` / `response.in_progress`, empty `output_item.added` shells, and retryable `error` frames until visible output | Still possible: HTTP 200 is not committed to the client yet, so JSON error rewrite / account failover can still run |
 | Off, user in `openai_responses_flush_preamble_user_ids` | Same as On, but only for that user | Closed for that user only |
 | On | Flush preamble immediately so downstream (e.g. new-api `frt`) can stamp first-token on the first `data:` line | Closed: first SSE commits the response |
 
-`response.failed` is never treated as a preamble commit. Claude-GPT visible-output buffering is unchanged.
+`response.failed` is never treated as a preamble commit. Empty `output_item.added` / `content_part.added` / `reasoning_summary_part.added` shells and retryable `type=error` frames also stay buffered so pre-output account failover can still run. If the stream already committed visible output, capacity-shed codes `server_is_overloaded` / `slow_down` are rewritten to `server_error` before the client sees them (message text is unchanged) so Codex retries instead of showing "Selected model is at capacity". Claude-GPT visible-output buffering is unchanged.
 
 Native Responses HTTP SSE (`handleStreamingResponsePassthrough` and `handleStreamingResponse` → `processSSELine`) can optionally slim `response.completed` for NewAPI: downstream data is only `{type, response.id, response.usage}` with integer `input_tokens` / `output_tokens` / `total_tokens` and optional numeric `cached_tokens`. Gated by `openai_newapi_slim_completed` (default **false**, not public) plus `openai_newapi_slim_completed_user_ids` (default `[]`). Global true enables everyone; otherwise only the allowlist via `ctxkey.UserID`. Slim runs after `parseSSEUsageBytes` and display rewrite; billing-real `OpenAIUsage` stays the pre-rewrite integers. Do not slim `response.failed` or `output_tokens==0`. If the stream ends on `response.done` / `incomplete` / `cancelled` with no completed and billing `output_tokens != 0`, synthesize one slim completed before `[DONE]` (or at clean EOF). Compact v2 early-return, WebSocket, and `/v1/messages` are out of scope. After deploy, canary by setting user_ids to `[220]` without turning the global gate on.
 

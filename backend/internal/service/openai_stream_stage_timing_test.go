@@ -291,11 +291,13 @@ func TestOpenAIStreamDataMarksFirstToken_MatchesBridgeFirstFrame(t *testing.T) {
 func TestOpenAIStreamShouldCommitDownstream_PreambleToggle(t *testing.T) {
 	t.Parallel()
 	created := `{"type":"response.created","response":{"id":"r1"}}`
-	useful := `{"type":"response.output_item.added","item":{"type":"message"}}`
+	emptyItem := `{"type":"response.output_item.added","item":{"type":"message"}}`
+	useful := `{"type":"response.output_item.added","item":{"type":"message","content":[{"type":"output_text","text":"hi"}]}}`
 	failed := `{"type":"response.failed"}`
 
 	require.False(t, openAIStreamShouldCommitDownstream(created, "response.created", false))
 	require.True(t, openAIStreamShouldCommitDownstream(created, "response.created", true))
+	require.False(t, openAIStreamShouldCommitDownstream(emptyItem, "response.output_item.added", false), "empty message shells must not commit the stream")
 	require.True(t, openAIStreamShouldCommitDownstream(useful, "response.output_item.added", false))
 	require.True(t, openAIStreamShouldCommitDownstream(useful, "response.output_item.added", true))
 	require.False(t, openAIStreamShouldCommitDownstream(failed, "response.failed", false))

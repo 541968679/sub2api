@@ -1473,8 +1473,9 @@ func TestOpenAIStreamingMissingTerminalEventReturnsIncompleteError(t *testing.T)
 
 	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "model", "model")
 	_ = pr.Close()
-	if err == nil || !strings.Contains(err.Error(), "missing terminal event") {
-		t.Fatalf("expected missing terminal event error, got %v", err)
+	var failoverErr *UpstreamFailoverError
+	if err == nil || !errors.As(err, &failoverErr) {
+		t.Fatalf("expected pre-output failover for empty added shell, got %v", err)
 	}
 }
 
@@ -1505,8 +1506,9 @@ func TestOpenAIStreamingPassthroughMissingTerminalEventReturnsIncompleteError(t 
 
 	_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "", "")
 	_ = pr.Close()
-	if err == nil || !strings.Contains(err.Error(), "missing terminal event") {
-		t.Fatalf("expected missing terminal event error, got %v", err)
+	var failoverErr *UpstreamFailoverError
+	if err == nil || !errors.As(err, &failoverErr) {
+		t.Fatalf("expected pre-output failover for empty added shell, got %v", err)
 	}
 }
 
