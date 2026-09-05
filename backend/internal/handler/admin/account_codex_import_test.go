@@ -104,6 +104,50 @@ func TestParseCodexSessionImportEntriesFallsBackToLineModeForMixedJSONAndToken(t
 	}
 }
 
+func TestNormalizeCodexSessionJSONChatGPTWebShapeKeepsSessionToken(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(7*24*time.Hour), map[string]any{
+		"email": "web@example.com",
+		"https://api.openai.com/auth": map[string]any{
+			"chatgpt_account_id": "acct-web",
+			"chatgpt_user_id":    "user-web",
+			"chatgpt_plan_type":  "free",
+		},
+	})
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{
+		"WARNING_BANNER": "DO NOT SHARE",
+		"user": map[string]any{
+			"id":    "user-web",
+			"name":  "Web User",
+			"email": "web@example.com",
+			"idp":   "google-oauth2",
+		},
+		"expires": "2026-12-02T09:38:14.472Z",
+		"account": map[string]any{
+			"id":       "acct-web",
+			"planType": "free",
+		},
+		"accessToken":  accessToken,
+		"authProvider": "openai",
+		"sessionToken": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..fake-jwe",
+		"rumViewTags":  map[string]any{"light_account": map[string]any{"fetched": false}},
+	}})
+	if err != nil {
+		t.Fatalf("normalizeCodexImportEntry error = %v", err)
+	}
+	if item.SessionToken != "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..fake-jwe" {
+		t.Fatalf("SessionToken not extracted from ChatGPT web session JSON")
+	}
+	if item.Credentials["chatgpt_session_token"] != item.SessionToken {
+		t.Fatalf("chatgpt_session_token = %v", item.Credentials["chatgpt_session_token"])
+	}
+	if _, ok := item.Credentials["refresh_token"]; ok {
+		t.Fatalf("sessionToken must not be stored as refresh_token")
+	}
+	if item.UserID != "user-web" {
+		t.Fatalf("UserID = %q, want user-web", item.UserID)
+	}
+}
+
 func TestNormalizeCodexSessionJSONExtractsCredentialsAndIgnoresSessionToken(t *testing.T) {
 	accessToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
 		"email": "claim@example.com",
