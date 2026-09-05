@@ -75,6 +75,85 @@ func TestModelPricingHandlerOpenAIModelCatalogGetSeed(t *testing.T) {
 	require.NotContains(t, resp.Data.WhitelistModels, "grok-4.5")
 }
 
+func TestModelPricingHandlerAnthropicModelCatalogGetSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := service.NewSettingService(&catalogSettingRepoStub{values: map[string]string{}}, &config.Config{})
+	h := NewModelPricingHandler(nil, svc)
+	router := gin.New()
+	router.GET("/api/v1/admin/model-catalog/:platform", h.GetPlatformModelCatalog)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/model-catalog/anthropic", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data service.OpenAIModelCatalog `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, service.PlatformDisplaySeed(service.PlatformAnthropic), resp.Data.DisplayModels)
+}
+
+func TestModelPricingHandlerGeminiAndAntigravityModelCatalogGetSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := service.NewSettingService(&catalogSettingRepoStub{values: map[string]string{}}, &config.Config{})
+	h := NewModelPricingHandler(nil, svc)
+	router := gin.New()
+	router.GET("/api/v1/admin/model-catalog/:platform", h.GetPlatformModelCatalog)
+
+	for _, platform := range []string{service.PlatformGemini, service.PlatformAntigravity} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/model-catalog/"+platform, nil)
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, platform)
+
+		var resp struct {
+			Data service.OpenAIModelCatalog `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		require.Equal(t, service.PlatformDisplaySeed(platform), resp.Data.DisplayModels, platform)
+		require.Equal(t, service.PlatformWhitelistSeed(platform), resp.Data.WhitelistModels, platform)
+	}
+}
+
+func TestModelPricingHandlerUnsupportedCatalogPlatform(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := service.NewSettingService(&catalogSettingRepoStub{values: map[string]string{}}, &config.Config{})
+	h := NewModelPricingHandler(nil, svc)
+	router := gin.New()
+	router.GET("/api/v1/admin/model-catalog/:platform", h.GetPlatformModelCatalog)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/model-catalog/grok", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestModelPricingHandlerAnthropicModelCatalogPut(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &catalogSettingRepoStub{values: map[string]string{}}
+	svc := service.NewSettingService(repo, &config.Config{})
+	h := NewModelPricingHandler(nil, svc)
+	router := gin.New()
+	router.PUT("/api/v1/admin/model-catalog/:platform", h.UpdatePlatformModelCatalog)
+
+	body, _ := json.Marshal(map[string]any{
+		"display_models":   []string{"claude-opus-5", "claude-new"},
+		"whitelist_models": []string{"claude-opus-5"},
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/model-catalog/anthropic", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	got := svc.GetPlatformModelCatalog(context.Background(), service.PlatformAnthropic)
+	require.Equal(t, []string{"claude-opus-5", "claude-new"}, got.DisplayModels)
+	require.Equal(t, []string{"claude-opus-5", "claude-new"}, got.WhitelistModels)
+	require.Contains(t, repo.values, service.SettingKeyAnthropicModelCatalog)
+	require.NotContains(t, repo.values, service.SettingKeyOpenAIModelCatalog)
+}
+
 func TestModelPricingHandlerOpenAIModelCatalogPut(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &catalogSettingRepoStub{values: map[string]string{}}

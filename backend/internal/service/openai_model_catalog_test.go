@@ -46,6 +46,57 @@ func TestDiffNewWhitelistKeys_FirstSaveOnlyAddsGPT6(t *testing.T) {
 	require.Equal(t, []string{OpenAIModelGPT6Astra}, added)
 }
 
+func TestPlatformCatalogSeeds_AnthropicGeminiAntigravity(t *testing.T) {
+	anthropic := PlatformDisplaySeed(PlatformAnthropic)
+	require.Contains(t, anthropic, "claude-opus-5")
+	require.Equal(t, PlatformDisplaySeed(PlatformAnthropic), PlatformWhitelistSeed(PlatformAnthropic))
+	require.Empty(t, DiffNewWhitelistKeys(PlatformLegacyWhitelistBaseline(PlatformAnthropic), PlatformWhitelistSeed(PlatformAnthropic)))
+
+	gemini := PlatformDisplaySeed(PlatformGemini)
+	require.Contains(t, gemini, "gemini-2.5-pro")
+	require.Empty(t, DiffNewWhitelistKeys(PlatformLegacyWhitelistBaseline(PlatformGemini), PlatformWhitelistSeed(PlatformGemini)))
+
+	agDisplay := PlatformDisplaySeed(PlatformAntigravity)
+	require.Equal(t, AntigravityDisplaySeed(), agDisplay)
+	agWhitelist := PlatformWhitelistSeed(PlatformAntigravity)
+	require.Contains(t, agWhitelist, "claude-opus-5")
+	require.Contains(t, agWhitelist, "gemini-2.5-flash")
+	require.Empty(t, DiffNewWhitelistKeys(PlatformLegacyWhitelistBaseline(PlatformAntigravity), agWhitelist))
+}
+
+func TestNormalizePlatformModelCatalog_AnthropicAutoAddsDisplay(t *testing.T) {
+	cat := NormalizePlatformModelCatalog(PlatformAnthropic, []string{"claude-opus-5", "claude-new", "grok-4.5"}, []string{"claude-opus-5"})
+	require.Equal(t, []string{"claude-opus-5", "claude-new", "grok-4.5"}, cat.DisplayModels)
+	require.Equal(t, []string{"claude-opus-5", "claude-new", "grok-4.5"}, cat.WhitelistModels)
+}
+
+func TestAccountIsModelSupported_CatalogWhitelistSeed(t *testing.T) {
+	cases := []struct {
+		platform string
+		mapping  string
+		allowed  string
+	}{
+		{PlatformAnthropic, "claude-sonnet-4-6", "claude-opus-5"},
+		{PlatformGemini, "gemini-2.0-flash", "gemini-2.5-pro"},
+		{PlatformAntigravity, "claude-sonnet-4-6", "claude-opus-5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.platform, func(t *testing.T) {
+			account := &Account{
+				Platform: tc.platform,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						tc.mapping: tc.mapping,
+					},
+				},
+			}
+			require.True(t, account.IsModelSupported(tc.allowed))
+			account.Extra = map[string]any{AccountExtraModelMappingStrictScheduling: true}
+			require.False(t, account.IsModelSupported(tc.allowed))
+		})
+	}
+}
+
 func TestGatewayModelDiscoveryIDsForPlatform_IncludesGPT6Astra(t *testing.T) {
 	openAI, ok := GatewayModelDiscoveryIDsForPlatform(PlatformOpenAI)
 	require.True(t, ok)
@@ -53,8 +104,8 @@ func TestGatewayModelDiscoveryIDsForPlatform_IncludesGPT6Astra(t *testing.T) {
 }
 
 func TestGatewayModelDiscoveryIDsForPlatform_RespectsCatalogWithoutGrok(t *testing.T) {
-	prev := openAIModelCatalogResolver
-	t.Cleanup(func() { openAIModelCatalogResolver = prev })
+	prev := platformModelCatalogResolver
+	t.Cleanup(func() { platformModelCatalogResolver = prev })
 	SetOpenAIModelCatalogResolver(func() *OpenAIModelCatalog {
 		cat := NormalizeOpenAIModelCatalog([]string{"gpt-6-astra", "gpt-5.6-sol"}, []string{"gpt-6-astra", "gpt-5.6-sol"})
 		return &cat
@@ -63,6 +114,21 @@ func TestGatewayModelDiscoveryIDsForPlatform_RespectsCatalogWithoutGrok(t *testi
 	require.True(t, ok)
 	require.Equal(t, []string{"gpt-6-astra", "gpt-5.6-sol"}, openAI)
 	require.NotContains(t, openAI, "grok-4.5")
+}
+
+func TestGatewayModelDiscoveryIDsForPlatform_AnthropicCatalogOverride(t *testing.T) {
+	prev := platformModelCatalogResolver
+	t.Cleanup(func() { platformModelCatalogResolver = prev })
+	SetPlatformModelCatalogResolver(func(platform string) *OpenAIModelCatalog {
+		if platform != PlatformAnthropic {
+			return nil
+		}
+		cat := NormalizePlatformModelCatalog(PlatformAnthropic, []string{"claude-opus-5"}, []string{"claude-opus-5"})
+		return &cat
+	})
+	ids, ok := GatewayModelDiscoveryIDsForPlatform(PlatformAnthropic)
+	require.True(t, ok)
+	require.Equal(t, []string{"claude-opus-5"}, ids)
 }
 
 func TestAccountIsModelSupported_OpenAIWhitelistSeedIncludesGPT6NotGrok(t *testing.T) {
@@ -121,6 +187,38 @@ func TestSettingServiceOpenAIModelCatalogFirstSaveMergesGPT6Only(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), merged)
 	require.Nil(t, merger.mergedKeys)
+}
+
+func TestSettingServiceCatalogFirstSaveMergesOnlyNewKeys(t *testing.T) {
+	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformAntigravity}
+	for _, platform := range platforms {
+		t.Run(platform, func(t *testing.T) {
+			repo := &modelMappingSettingRepoStub{values: map[string]string{}}
+			svc := NewSettingService(repo, &config.Config{})
+			merger := &catalogMergerStub{mergeN: 9}
+			svc.SetIdentityMappingMerger(merger)
+
+			_, keys, count, err := svc.PreviewPlatformModelCatalogMerge(
+				context.Background(),
+				platform,
+				PlatformDisplaySeed(platform),
+				PlatformWhitelistSeed(platform),
+			)
+			require.NoError(t, err)
+			require.Empty(t, keys)
+			require.Equal(t, int64(0), count)
+
+			_, merged, err := svc.SavePlatformModelCatalog(
+				context.Background(),
+				platform,
+				PlatformDisplaySeed(platform),
+				append(append([]string{}, PlatformWhitelistSeed(platform)...), "new-model"),
+			)
+			require.NoError(t, err)
+			require.Equal(t, []string{"new-model"}, merger.mergedKeys)
+			require.Equal(t, int64(9), merged)
+		})
+	}
 }
 
 func TestSettingServiceOpenAIModelCatalogManualGrokWhitelistMerges(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -50,19 +51,58 @@ type openAIModelCatalogRequest struct {
 	WhitelistModels []string `json:"whitelist_models"`
 }
 
+func catalogPlatformParam(c *gin.Context) (string, bool) {
+	platform := strings.ToLower(strings.TrimSpace(c.Param("platform")))
+	if platform == "" {
+		platform = service.PlatformOpenAI
+	}
+	switch platform {
+	case service.PlatformOpenAI, service.PlatformAnthropic, service.PlatformGemini, service.PlatformAntigravity:
+		return platform, true
+	default:
+		return "", false
+	}
+}
+
 // GetOpenAIModelCatalog GET /api/v1/admin/model-catalog/openai
 func (h *ModelPricingHandler) GetOpenAIModelCatalog(c *gin.Context) {
+	if c.Param("platform") == "" {
+		c.Params = append(c.Params, gin.Param{Key: "platform", Value: service.PlatformOpenAI})
+	}
+	h.GetPlatformModelCatalog(c)
+}
+
+// GetPlatformModelCatalog GET /api/v1/admin/model-catalog/:platform
+func (h *ModelPricingHandler) GetPlatformModelCatalog(c *gin.Context) {
 	if h.settingService == nil {
 		response.InternalError(c, "Setting service is not configured")
 		return
 	}
-	response.Success(c, h.settingService.GetOpenAIModelCatalog(c.Request.Context()))
+	platform, ok := catalogPlatformParam(c)
+	if !ok {
+		response.BadRequest(c, "Unsupported catalog platform")
+		return
+	}
+	response.Success(c, h.settingService.GetPlatformModelCatalog(c.Request.Context(), platform))
 }
 
 // PreviewOpenAIModelCatalogMerge POST /api/v1/admin/model-catalog/openai/preview-merge
 func (h *ModelPricingHandler) PreviewOpenAIModelCatalogMerge(c *gin.Context) {
+	if c.Param("platform") == "" {
+		c.Params = append(c.Params, gin.Param{Key: "platform", Value: service.PlatformOpenAI})
+	}
+	h.PreviewPlatformModelCatalogMerge(c)
+}
+
+// PreviewPlatformModelCatalogMerge POST /api/v1/admin/model-catalog/:platform/preview-merge
+func (h *ModelPricingHandler) PreviewPlatformModelCatalogMerge(c *gin.Context) {
 	if h.settingService == nil {
 		response.InternalError(c, "Setting service is not configured")
+		return
+	}
+	platform, ok := catalogPlatformParam(c)
+	if !ok {
+		response.BadRequest(c, "Unsupported catalog platform")
 		return
 	}
 	var req openAIModelCatalogRequest
@@ -70,7 +110,7 @@ func (h *ModelPricingHandler) PreviewOpenAIModelCatalogMerge(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	catalog, keys, count, err := h.settingService.PreviewOpenAIModelCatalogMerge(c.Request.Context(), req.DisplayModels, req.WhitelistModels)
+	catalog, keys, count, err := h.settingService.PreviewPlatformModelCatalogMerge(c.Request.Context(), platform, req.DisplayModels, req.WhitelistModels)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -85,8 +125,21 @@ func (h *ModelPricingHandler) PreviewOpenAIModelCatalogMerge(c *gin.Context) {
 
 // UpdateOpenAIModelCatalog PUT /api/v1/admin/model-catalog/openai
 func (h *ModelPricingHandler) UpdateOpenAIModelCatalog(c *gin.Context) {
+	if c.Param("platform") == "" {
+		c.Params = append(c.Params, gin.Param{Key: "platform", Value: service.PlatformOpenAI})
+	}
+	h.UpdatePlatformModelCatalog(c)
+}
+
+// UpdatePlatformModelCatalog PUT /api/v1/admin/model-catalog/:platform
+func (h *ModelPricingHandler) UpdatePlatformModelCatalog(c *gin.Context) {
 	if h.settingService == nil {
 		response.InternalError(c, "Setting service is not configured")
+		return
+	}
+	platform, ok := catalogPlatformParam(c)
+	if !ok {
+		response.BadRequest(c, "Unsupported catalog platform")
 		return
 	}
 	var req openAIModelCatalogRequest
@@ -94,7 +147,7 @@ func (h *ModelPricingHandler) UpdateOpenAIModelCatalog(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	catalog, _, err := h.settingService.SaveOpenAIModelCatalog(c.Request.Context(), req.DisplayModels, req.WhitelistModels)
+	catalog, _, err := h.settingService.SavePlatformModelCatalog(c.Request.Context(), platform, req.DisplayModels, req.WhitelistModels)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -162,7 +162,7 @@ are editable mapping rows rather than plain pricing rows.
 |-----------|------|------|
 | model_mapping (JSONB) | `account.credentials["model_mapping"]` | `{ "请求模型": "上游模型" }` 键值对 |
 | *_default_model_mapping | Settings KV | 平台级默认映射，当前支持 anthropic/openai/gemini/antigravity |
-| openai_model_catalog | Settings KV | OpenAI 精选 `/v1/models` 展示列表 + 默认调度白名单（模型配置 → 模型目录） |
+| openai_model_catalog / anthropic_model_catalog / gemini_model_catalog / antigravity_model_catalog | Settings KV | 各平台精选 `/v1/models` 展示列表 + 默认调度白名单（模型配置 → 模型目录）。Grok 平台没有可编辑目录。 |
 | DefaultAntigravityModelMapping | `backend/internal/domain/constants.go:72-115` | Antigravity 平台内置默认映射 |
 | DefaultBedrockModelMapping | `backend/internal/domain/constants.go:121-139` | Bedrock 平台内置默认映射 |
 
@@ -242,16 +242,26 @@ ModelPricingTab.vue
 - OpenAI/Anthropic/Gemini 的平台默认映射只负责把已配置请求模型改写到上游模型；未配置模型继续按兼容平台透传，不会因为存在默认映射而变成全局白名单。
 - 当账号自身 `credentials.model_mapping` 没命中时，非 Antigravity 账号会继续尝试平台级默认映射，确保在模型配置页新增的供应商映射能参与账号调度和请求改写。
 
-### OpenAI 模型目录（2026-09-05）
+### 平台模型目录（2026-09-05）
 
-Admin **模型配置 → 模型目录** edits Settings KV `openai_model_catalog`:
+Admin **模型配置 → 模型目录** edits per-platform Settings KV:
 
-- `display_models`: ordinary OpenAI-group `GET /v1/models` (non-Codex). Seed is `gpt-6-astra` plus the previous curated GPT-5.6/5.5/5.4 list and `grok-4.5`. `grok-4.5` is **not** force-appended; Codex Grok inject is unchanged.
-- `whitelist_models`: non-strict `IsModelSupported` fallback (replaces hardcoded `openai.IsDefaultModel`). Seed is `openai.DefaultModels` plus `gpt-6-astra`. Grok IDs are not auto-added.
-- Adding a non-Grok display ID auto-adds it to the whitelist. Saving merges **newly added** whitelist identity keys (`model -> model`) into OpenAI accounts that already have a non-empty `model_mapping`. Passthrough and empty-mapping accounts are skipped. First save diffs against historical `DefaultModels`, so only `gpt-6-astra` is merged.
-- Strict mapping still uses only the account JSON; after that save, `gpt-6-astra` is on those accounts so they become schedulable.
+| 平台 | KV | 未配置 seed（展示 / 白名单） | 首次保存 merge diff 基线 |
+|------|----|------------------------------|--------------------------|
+| OpenAI | `openai_model_catalog` | 精选 GPT 列表 + `gpt-6-astra` + `grok-4.5` / `openai.DefaultModels` + `gpt-6-astra`（不含 Grok） | 历史 `DefaultModels`（所以第一次保存只合并 `gpt-6-astra`） |
+| Anthropic | `anthropic_model_catalog` | `claude.DefaultModelIDs()` / 同左 | 同 seed，首次保存不合并 |
+| Gemini | `gemini_model_catalog` | `geminicli.DefaultModels` IDs / 同左 | 同 seed，首次保存不合并 |
+| Antigravity | `antigravity_model_catalog` | 既有 6 个精选 ID / `DefaultAntigravityModelMapping` 键 | 同白名单 seed，首次保存不合并 |
 
-APIs: `GET/PUT /api/v1/admin/model-catalog/openai`, `POST /api/v1/admin/model-catalog/openai/preview-merge`.
+规则：
+
+- 普通分组 `GET /v1/models` 返回该平台 `display_models`（再套分组自定义列表过滤）。Anthropic/Gemini 不再并入账号 `model_mapping` 键。Gemini 原生 `GET /v1beta/models` 仍代理上游，不受目录影响。Grok 平台仍用硬编码列表。
+- OpenAI Codex 官方目录与 Codex Grok inject 不变。普通 OpenAI `/v1/models` **不**再强制追加 `grok-4.5`。
+- `whitelist_models` 是非严格 `IsModelSupported` 兜底。严格映射仍只看账号 JSON。
+- 展示列表新增的 ID 会自动进入白名单。OpenAI 的 Grok ID 例外：展示可有、白名单不自动加；管理员手动加入白名单后才会 merge。
+- 保存时把**本次新增**的白名单同名键（`model -> model`）写入该平台已有非空 `model_mapping` 的账号。空映射不写。OpenAI 还跳过透传号。不覆盖已有键。
+
+APIs: `GET/PUT /api/v1/admin/model-catalog/:platform`, `POST /api/v1/admin/model-catalog/:platform/preview-merge`（`platform` = `openai` \| `anthropic` \| `gemini` \| `antigravity`）。
 
 ### 默认映射回退链
 
@@ -287,14 +297,15 @@ account.ResolveMappedModel():
 的**请求模型名（键）**，保证模型配置页新增的映射能被选中测试。平台映射的**值**
 不进列表；价目表名字也不进列表。列表外名称用自定义输入。
 
-组成公式（不要改）：
+组成公式：
 
-- Claude API Key + 非空 mapping：账号映射键 ∪ 平台默认映射键（**不含** `DefaultModels`）
-- Claude OAuth / 无 mapping：`DefaultModels` ∪ 平台默认映射键
-- OpenAI 非透传：账号映射键 ∪ 平台键 ∪ `DefaultModels`
+- Claude API Key + 非空 mapping：账号映射键 ∪ 平台默认映射键 ∪ 目录展示 ∪ 目录白名单
+- Claude OAuth / 无 mapping：`DefaultModels` ∪ 平台默认映射键 ∪ 目录展示 ∪ 目录白名单
+- OpenAI 非透传：账号映射键 ∪ 平台键 ∪ 目录展示 ∪ 目录白名单 ∪ `DefaultModels`
 - OpenAI 透传：仅 `DefaultModels`
-- Gemini API Key + mapping：账号键 ∪ 平台键
-- Antigravity 非透传：生效映射表的请求模型名（+ 既有 1m/2m 变体）
+- Gemini API Key + mapping：账号键 ∪ 平台键 ∪ 目录展示 ∪ 目录白名单
+- Gemini OAuth / 无 mapping：`DefaultModels` ∪ 平台键 ∪ 目录展示 ∪ 目录白名单
+- Antigravity 非透传：生效映射表的请求模型名 ∪ 目录展示 ∪ 目录白名单（+ 既有 1m/2m 变体）
 
 测试请求按账号类型走与线上同类账号相同的解析函数，SSE `test_start` 带
 `selected_model` / `mapped_model` / `mapping_source`；`model` 仍是映射后的上游名。

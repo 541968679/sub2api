@@ -3182,7 +3182,8 @@ func (h *AccountHandler) clearAccountStuckRuntime(ctx context.Context, accountID
 // GET /api/v1/admin/accounts/:id/models
 //
 // 各分支在原有账号级 model_mapping / 默认模型集的基础上，统一并入平台级默认
-// 映射的请求模型名（模型配置页维护），保证新增映射后测试连接能选到这些模型。
+// 映射的请求模型名，以及该平台模型目录的展示列表 ∪ 默认白名单，保证模型配置页
+// 新增的映射和精选模型都能在测试连接里选到。
 func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -3206,10 +3207,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 		platformMapping := domain.ResolvePlatformDefaultModelMapping(domain.PlatformOpenAI)
 		mapping := account.GetModelMapping()
-		catalog := service.NormalizeOpenAIModelCatalog(service.OpenAIDisplaySeed(), service.OpenAIWhitelistSeed())
-		if h.settingService != nil {
-			catalog = h.settingService.GetOpenAIModelCatalog(c.Request.Context())
-		}
+		catalog := h.platformCatalog(c, service.PlatformOpenAI)
 
 		seen := make(map[string]bool)
 		var models []openai.Model
@@ -3258,22 +3256,25 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 		// For OAuth accounts: return default Gemini models + platform mapping keys
 		mapping := account.GetModelMapping()
+		catalogMapping := catalogIdentityMapping(h.platformCatalog(c, service.PlatformGemini))
 		if account.IsOAuth() || len(mapping) == 0 {
 			models := append([]geminicli.Model(nil), geminicli.DefaultModels...)
-			seen := make(map[string]bool, len(models)+len(platformMapping))
+			seen := make(map[string]bool, len(models)+len(platformMapping)+len(catalogMapping))
 			for _, dm := range models {
 				seen[dm.ID] = true
 			}
 			models = appendGeminiMappingKeys(models, seen, platformMapping)
+			models = appendGeminiMappingKeys(models, seen, catalogMapping)
 			response.Success(c, models)
 			return
 		}
 
 		// For API Key accounts: return models based on model_mapping + platform mapping keys
 		var models []geminicli.Model
-		seen := make(map[string]bool, len(mapping)+len(platformMapping))
+		seen := make(map[string]bool, len(mapping)+len(platformMapping)+len(catalogMapping))
 		models = appendGeminiMappingKeys(models, seen, mapping)
 		models = appendGeminiMappingKeys(models, seen, platformMapping)
+		models = appendGeminiMappingKeys(models, seen, catalogMapping)
 		response.Success(c, models)
 		return
 	}
@@ -3313,6 +3314,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		if len(mapping) == 0 {
 			mapping = domain.ResolveAntigravityDefaultMapping()
 		}
+		mapping = mergeIdentityCatalogKeys(mapping, h.platformCatalog(c, service.PlatformAntigravity))
 		response.Success(c, antigravity.ModelsForMappingKeys(sortedMappingKeys(mapping)))
 		return
 	}
@@ -3323,23 +3325,62 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	// For OAuth and Setup-Token accounts (or API Key without mapping):
 	// default models + platform mapping keys
 	mapping := account.GetModelMapping()
+	catalogMapping := catalogIdentityMapping(h.platformCatalog(c, service.PlatformAnthropic))
 	if account.IsOAuth() || len(mapping) == 0 {
 		models := append([]claude.Model(nil), claude.DefaultModels...)
-		seen := make(map[string]bool, len(models)+len(platformMapping))
+		seen := make(map[string]bool, len(models)+len(platformMapping)+len(catalogMapping))
 		for _, dm := range models {
 			seen[dm.ID] = true
 		}
 		models = appendClaudeMappingKeys(models, seen, platformMapping)
+		models = appendClaudeMappingKeys(models, seen, catalogMapping)
 		response.Success(c, models)
 		return
 	}
 
 	// For API Key accounts: models based on model_mapping + platform mapping keys
 	var models []claude.Model
-	seen := make(map[string]bool, len(mapping)+len(platformMapping))
+	seen := make(map[string]bool, len(mapping)+len(platformMapping)+len(catalogMapping))
 	models = appendClaudeMappingKeys(models, seen, mapping)
 	models = appendClaudeMappingKeys(models, seen, platformMapping)
+	models = appendClaudeMappingKeys(models, seen, catalogMapping)
 	response.Success(c, models)
+}
+
+func (h *AccountHandler) platformCatalog(c *gin.Context, platform string) service.OpenAIModelCatalog {
+	if h != nil && h.settingService != nil && c != nil {
+		return h.settingService.GetPlatformModelCatalog(c.Request.Context(), platform)
+	}
+	return service.NormalizePlatformModelCatalog(platform, service.PlatformDisplaySeed(platform), service.PlatformWhitelistSeed(platform))
+}
+
+func catalogIdentityMapping(catalog service.OpenAIModelCatalog) map[string]string {
+	out := make(map[string]string, len(catalog.DisplayModels)+len(catalog.WhitelistModels))
+	for _, id := range catalog.DisplayModels {
+		out[id] = id
+	}
+	for _, id := range catalog.WhitelistModels {
+		out[id] = id
+	}
+	return out
+}
+
+func mergeIdentityCatalogKeys(mapping map[string]string, catalog service.OpenAIModelCatalog) map[string]string {
+	merged := make(map[string]string, len(mapping)+len(catalog.DisplayModels)+len(catalog.WhitelistModels))
+	for key, value := range mapping {
+		merged[key] = value
+	}
+	for _, id := range catalog.DisplayModels {
+		if _, ok := merged[id]; !ok {
+			merged[id] = id
+		}
+	}
+	for _, id := range catalog.WhitelistModels {
+		if _, ok := merged[id]; !ok {
+			merged[id] = id
+		}
+	}
+	return merged
 }
 
 // sortedMappingKeys 返回映射表的请求模型名，字典序稳定，避免 map 遍历顺序抖动。

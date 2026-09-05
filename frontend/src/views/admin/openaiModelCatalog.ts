@@ -21,15 +21,17 @@ export function addDisplayModel(
   display: string[],
   whitelist: string[],
   modelID: string,
+  platform = "openai",
 ): { display: string[]; whitelist: string[] } {
   const id = modelID.trim();
   if (!id) {
     return { display: normalizeModelIDs(display), whitelist: normalizeModelIDs(whitelist) };
   }
   const nextDisplay = normalizeModelIDs([...display, id]);
-  const nextWhitelist = isGrokModelID(id)
-    ? normalizeModelIDs(whitelist)
-    : normalizeModelIDs([...whitelist, id]);
+  const nextWhitelist =
+    platform === "openai" && isGrokModelID(id)
+      ? normalizeModelIDs(whitelist)
+      : normalizeModelIDs([...whitelist, id]);
   return { display: nextDisplay, whitelist: nextWhitelist };
 }
 
@@ -37,12 +39,14 @@ export function removeWhitelistModel(
   display: string[],
   whitelist: string[],
   modelID: string,
+  platform = "openai",
 ): { display: string[]; whitelist: string[] } {
   const id = modelID.trim();
   const nextWhitelist = normalizeModelIDs(whitelist).filter((item) => item !== id);
-  const nextDisplay = isGrokModelID(id)
-    ? normalizeModelIDs(display)
-    : normalizeModelIDs(display).filter((item) => item !== id);
+  const nextDisplay =
+    platform === "openai" && isGrokModelID(id)
+      ? normalizeModelIDs(display)
+      : normalizeModelIDs(display).filter((item) => item !== id);
   return { display: nextDisplay, whitelist: nextWhitelist };
 }
 

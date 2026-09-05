@@ -4,6 +4,23 @@
       {{ t("admin.modelConfig.catalog.hint") }}
     </p>
 
+    <div class="flex flex-wrap items-end gap-x-5 border-b border-gray-200 dark:border-gray-700">
+      <button
+        v-for="item in platforms"
+        :key="item"
+        type="button"
+        class="whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors"
+        :class="
+          platform === item
+            ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400'
+        "
+        @click="platform = item"
+      >
+        {{ t(`admin.groups.platforms.${item}`) }}
+      </button>
+    </div>
+
     <div class="grid gap-6 lg:grid-cols-2">
       <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
         <h2 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -126,13 +143,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import {
-  getOpenAIModelCatalog,
-  previewOpenAIModelCatalogMerge,
-  updateOpenAIModelCatalog,
+  CATALOG_PLATFORMS,
+  getPlatformModelCatalog,
+  previewPlatformModelCatalogMerge,
+  updatePlatformModelCatalog,
+  type CatalogPlatform,
 } from "@/api/admin/modelCatalog";
 import {
   addDisplayModel,
@@ -144,15 +163,17 @@ import {
 const { t } = useI18n();
 const appStore = useAppStore();
 
+const platforms = CATALOG_PLATFORMS;
+const platform = ref<CatalogPlatform>("openai");
 const displayModels = ref<string[]>([]);
 const whitelistModels = ref<string[]>([]);
 const displayDraft = ref("");
 const whitelistDraft = ref("");
 const saving = ref(false);
 
-onMounted(async () => {
+async function loadCatalog() {
   try {
-    const catalog = await getOpenAIModelCatalog();
+    const catalog = await getPlatformModelCatalog(platform.value);
     displayModels.value = normalizeModelIDs(catalog.display_models ?? []);
     whitelistModels.value = normalizeModelIDs(catalog.whitelist_models ?? []);
   } catch (error) {
@@ -160,10 +181,22 @@ onMounted(async () => {
       error instanceof Error ? error.message : t("admin.modelConfig.catalog.loadFailed"),
     );
   }
+}
+
+onMounted(loadCatalog);
+watch(platform, () => {
+  displayDraft.value = "";
+  whitelistDraft.value = "";
+  loadCatalog();
 });
 
 function addDisplay() {
-  const next = addDisplayModel(displayModels.value, whitelistModels.value, displayDraft.value);
+  const next = addDisplayModel(
+    displayModels.value,
+    whitelistModels.value,
+    displayDraft.value,
+    platform.value,
+  );
   displayModels.value = next.display;
   whitelistModels.value = next.whitelist;
   displayDraft.value = "";
@@ -182,7 +215,12 @@ function removeDisplay(id: string) {
 }
 
 function removeWhitelist(id: string) {
-  const next = removeWhitelistModel(displayModels.value, whitelistModels.value, id);
+  const next = removeWhitelistModel(
+    displayModels.value,
+    whitelistModels.value,
+    id,
+    platform.value,
+  );
   displayModels.value = next.display;
   whitelistModels.value = next.whitelist;
 }
@@ -202,7 +240,7 @@ async function save() {
       display_models: displayModels.value,
       whitelist_models: whitelistModels.value,
     };
-    const preview = await previewOpenAIModelCatalogMerge(payload);
+    const preview = await previewPlatformModelCatalogMerge(platform.value, payload);
     const normalizedPayload = {
       display_models: normalizeModelIDs(preview.display_models ?? payload.display_models),
       whitelist_models: normalizeModelIDs(preview.whitelist_models ?? payload.whitelist_models),
@@ -216,7 +254,7 @@ async function save() {
     if (!confirmed) {
       return;
     }
-    const saved = await updateOpenAIModelCatalog(normalizedPayload);
+    const saved = await updatePlatformModelCatalog(platform.value, normalizedPayload);
     displayModels.value = normalizeModelIDs(saved.display_models ?? []);
     whitelistModels.value = normalizeModelIDs(saved.whitelist_models ?? []);
     appStore.showSuccess(

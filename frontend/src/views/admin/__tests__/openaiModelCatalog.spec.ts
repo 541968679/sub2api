@@ -25,6 +25,17 @@ describe("openaiModelCatalog helpers", () => {
     expect(next.whitelist).toEqual(["gpt-5.6-sol"]);
   });
 
+  it("auto-adds display models on Anthropic, including grok-like IDs", () => {
+    const next = addDisplayModel(
+      ["claude-opus-5"],
+      ["claude-opus-5"],
+      "grok-4.5",
+      "anthropic",
+    );
+    expect(next.display).toEqual(["claude-opus-5", "grok-4.5"]);
+    expect(next.whitelist).toEqual(["claude-opus-5", "grok-4.5"]);
+  });
+
   it("removing a non-Grok whitelist id also removes it from display", () => {
     const next = removeWhitelistModel(
       ["gpt-6-astra", "gpt-5.6-sol"],

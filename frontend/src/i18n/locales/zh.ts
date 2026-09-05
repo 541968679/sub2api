@@ -9555,16 +9555,16 @@ const v117ZhPatch = {
         rate: '倍率'
       },
       catalog: {
-        hint: 'OpenAI 精选列表用于普通 /v1/models 展示；默认白名单用于非严格调度兜底。保存时会把本次新增的白名单同名键补进已有映射的 OpenAI 账号（透传号和空映射除外）。Grok 模型不会自动进入白名单。',
+        hint: '按平台编辑精选 /v1/models 列表和默认调度白名单。保存时把本次新增的白名单同名键补进该平台已有映射的账号（空映射除外；OpenAI 还跳过透传号）。OpenAI 的 Grok 模型不会自动进入白名单。',
         displayTitle: '精选展示列表',
-        displayHint: '普通客户端 GET /v1/models 返回这些模型。Codex 官方目录不受此项影响。',
+        displayHint: '该平台分组的普通 GET /v1/models 返回这些模型。OpenAI 的 Codex 官方目录不受此项影响。',
         whitelistTitle: '默认白名单',
-        whitelistHint: '非严格账号在映射未列出时仍可调度这些模型。可包含不出现在展示列表中的模型（例如 gpt-image-2）。',
+        whitelistHint: '非严格账号在映射未列出时仍可调度这些模型。可包含不出现在展示列表中的模型。',
         add: '添加',
         addPlaceholder: '模型 ID，例如 gpt-6-astra',
         save: '保存',
         saving: '保存中...',
-        confirmSave: '将把新增白名单键写入 {count} 个已有映射的 OpenAI 账号。确定保存？',
+        confirmSave: '将把新增白名单键写入 {count} 个已有映射的账号。确定保存？',
         saveSuccess: '已保存。更新了 {count} 个账号的映射。',
         saveFailed: '保存模型目录失败',
         loadFailed: '加载模型目录失败'

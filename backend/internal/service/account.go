@@ -950,7 +950,8 @@ func (a *Account) IsModelMappingStrictScheduling() bool {
 //
 // 已配置非空 model_mapping 时：
 //   - 账号 extra.model_mapping_strict_scheduling=true：未命中即 false（严格白名单）
-//   - 默认 false：保留旧兜底——平台默认映射 / OpenAI DefaultModels 仍可调度
+//   - 默认 false：平台默认映射（非 Antigravity）以及 openai/anthropic/gemini/antigravity
+//     模型目录白名单仍可调度
 func (a *Account) IsModelSupported(requestedModel string) bool {
 	mapping := a.GetModelMapping()
 	if isCodexSparkModel(requestedModel) {
@@ -979,8 +980,8 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 			return true
 		}
 	}
-	if a.Platform == PlatformOpenAI {
-		return isOpenAIDefaultWhitelistModel(requestedModel)
+	if isCatalogPlatform(a.Platform) {
+		return isPlatformDefaultWhitelistModel(a.Platform, requestedModel)
 	}
 	return false
 }

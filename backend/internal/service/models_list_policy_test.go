@@ -28,8 +28,13 @@ func TestGatewayModelDiscoveryIDsForPlatform(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, OpenAIModelGPT6Astra, openAIAgain[0])
 
-	_, ok = GatewayModelDiscoveryIDsForPlatform(PlatformGemini)
-	require.False(t, ok)
+	gemini, ok := GatewayModelDiscoveryIDsForPlatform(PlatformGemini)
+	require.True(t, ok)
+	require.Contains(t, gemini, "gemini-2.5-pro")
+
+	anthropic, ok := GatewayModelDiscoveryIDsForPlatform(PlatformAnthropic)
+	require.True(t, ok)
+	require.Contains(t, anthropic, "claude-opus-5")
 }
 
 func TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy(t *testing.T) {
@@ -53,6 +58,14 @@ func TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy(t *testing.T) {
 		"claude-haiku-4-5",
 		"claude-sonnet-4-6",
 	}, antigravity)
+
+	anthropic, err := svc.GetGroupModelsListCandidates(context.Background(), 0, PlatformAnthropic)
+	require.NoError(t, err)
+	require.Contains(t, anthropic, "claude-opus-5")
+
+	gemini, err := svc.GetGroupModelsListCandidates(context.Background(), 0, PlatformGemini)
+	require.NoError(t, err)
+	require.Contains(t, gemini, "gemini-2.5-pro")
 }
 
 func TestExpandGatewayModelDiscoveryCustomList_UpgradesLegacyOpenAIFullList(t *testing.T) {

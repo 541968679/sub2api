@@ -121,9 +121,12 @@ func identityMappingTargetQuery(update bool, platform string, keys []string, mer
   AND deleted_at IS NULL
   AND jsonb_typeof(credentials->'model_mapping') = 'object'
   AND credentials->'model_mapping' <> '{}'::jsonb
-  AND COALESCE(extra->>'openai_passthrough', 'false') NOT IN ('true', '1')
-  AND COALESCE(extra->>'openai_oauth_passthrough', 'false') NOT IN ('true', '1')
   AND (` + strings.Join(missing, " OR ") + `)`
+	if platform == service.PlatformOpenAI {
+		where += `
+  AND COALESCE(extra->>'openai_passthrough', 'false') NOT IN ('true', '1')
+  AND COALESCE(extra->>'openai_oauth_passthrough', 'false') NOT IN ('true', '1')`
+	}
 
 	if update {
 		return `UPDATE accounts

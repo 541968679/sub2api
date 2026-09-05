@@ -990,8 +990,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 // Models handles listing available models
 // GET /v1/models
-// Returns models based on account configurations (model_mapping whitelist)
-// Falls back to default models if no whitelist is configured
+// Catalog platforms (openai/anthropic/gemini/antigravity) return the curated
+// display list, then the group custom-list filter. Other platforms still union
+// account mapping keys and fall back to hardcoded defaults.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 

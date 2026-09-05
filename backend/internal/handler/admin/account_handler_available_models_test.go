@@ -240,7 +240,7 @@ func TestAccountHandlerGetAvailableModels_AntigravityUsesEffectiveMappingKeys(t 
 	require.True(t, ids["zz-admin-added"], "admin-added mapping key should be listed")
 	require.True(t, ids["gemini-2.5-flash"])
 	require.True(t, ids["claude-fable-5[1m]"], "claude models keep context window variants")
-	require.False(t, ids["claude-opus-4-8"], "models absent from the effective mapping are not schedulable")
+	require.True(t, ids["claude-opus-4-8"], "catalog display seed is selectable for test-connection")
 }
 
 func TestAccountHandlerGetAvailableModels_ClaudeAPIKeyMappingIsKeyUnionOnly(t *testing.T) {
@@ -280,7 +280,35 @@ func TestAccountHandlerGetAvailableModels_ClaudeAPIKeyMappingIsKeyUnionOnly(t *t
 	require.True(t, ids["claude-haiku-4-5-20251001"], "account mapping key must be listed")
 	require.True(t, ids["claude-fable-5"])
 	require.False(t, ids["claude-haiku-4-5"], "platform mapping value / short name is not a list key")
-	require.False(t, ids["claude-sonnet-4-5-20250929"], "DefaultModels are excluded when API Key mapping is set")
+	require.True(t, ids["claude-sonnet-4-5-20250929"], "catalog seed IDs are selectable even when API Key mapping is set")
+}
+
+func TestAccountHandlerGetAvailableModels_GeminiAPIKeyIncludesCatalogSeed(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       51,
+			Name:     "gemini-apikey",
+			Platform: service.PlatformGemini,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"gemini-custom": "gemini-2.5-pro",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/51/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	ids := availableModelIDs(t, rec)
+	require.True(t, ids["gemini-custom"], "account mapping key must be listed")
+	require.True(t, ids["gemini-2.5-pro"], "catalog seed IDs are selectable")
 }
 
 func TestAccountHandlerGetAvailableModels_GrokReturnsGrokModels(t *testing.T) {

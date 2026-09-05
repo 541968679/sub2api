@@ -744,9 +744,9 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerModelCatalogRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	catalog := admin.Group("/model-catalog")
 	{
-		catalog.GET("/openai", h.Admin.ModelPricing.GetOpenAIModelCatalog)
-		catalog.PUT("/openai", h.Admin.ModelPricing.UpdateOpenAIModelCatalog)
-		catalog.POST("/openai/preview-merge", h.Admin.ModelPricing.PreviewOpenAIModelCatalogMerge)
+		catalog.GET("/:platform", h.Admin.ModelPricing.GetPlatformModelCatalog)
+		catalog.PUT("/:platform", h.Admin.ModelPricing.UpdatePlatformModelCatalog)
+		catalog.POST("/:platform/preview-merge", h.Admin.ModelPricing.PreviewPlatformModelCatalogMerge)
 	}
 }
 

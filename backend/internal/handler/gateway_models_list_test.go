@@ -87,6 +87,34 @@ func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels
 	require.Equal(t, service.OpenAIDisplaySeed(), ids)
 }
 
+func TestGatewayHandlerModels_AnthropicCuratedDiscoveryList(t *testing.T) {
+	groupID := int64(3)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformAnthropic,
+		},
+	}
+
+	ids := runGatewayModelsForTest(t, apiKey)
+	require.Equal(t, service.PlatformDisplaySeed(service.PlatformAnthropic), ids)
+}
+
+func TestGatewayHandlerModels_GeminiCuratedDiscoveryList(t *testing.T) {
+	groupID := int64(4)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformGemini,
+		},
+	}
+
+	ids := runGatewayModelsForTest(t, apiKey)
+	require.Equal(t, service.PlatformDisplaySeed(service.PlatformGemini), ids)
+}
+
 func TestGatewayHandlerModels_AntigravityCuratedDiscoveryList(t *testing.T) {
 	groupID := int64(2)
 	apiKey := &service.APIKey{

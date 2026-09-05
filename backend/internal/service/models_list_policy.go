@@ -14,15 +14,6 @@ var OpenAIDiscoveryCanonicalGrokModels = []string{
 }
 
 var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
-	PlatformOpenAI: OpenAIDisplaySeed(),
-	PlatformAntigravity: {
-		"claude-opus-5",
-		"claude-opus-4-8",
-		"claude-opus-4-7",
-		"claude-opus-4-6",
-		"claude-haiku-4-5",
-		"claude-sonnet-4-6",
-	},
 	PlatformGrok: xai.DefaultModelIDs(),
 }
 
@@ -44,8 +35,8 @@ var gatewayModelDiscoveryLegacyFullCustomListsByPlatform = map[string][]string{
 // by /v1/models-style model discovery. It is presentation-only and must not be
 // used for scheduling, model access checks, mapping, billing, or usage.
 func GatewayModelDiscoveryIDsForPlatform(platform string) ([]string, bool) {
-	if platform == PlatformOpenAI {
-		ids := effectiveOpenAIDisplayModels()
+	if isCatalogPlatform(platform) {
+		ids := effectivePlatformDisplayModels(platform)
 		out := make([]string, len(ids))
 		copy(out, ids)
 		return out, true

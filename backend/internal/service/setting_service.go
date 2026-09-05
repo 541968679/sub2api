@@ -2470,6 +2470,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIDefaultModelMappingBillingObject:      "",
 		SettingKeyGeminiDefaultModelMappingBillingObject:      "",
 		SettingKeyOpenAIModelCatalog:                          "",
+		SettingKeyAnthropicModelCatalog:                       "",
+		SettingKeyGeminiModelCatalog:                          "",
+		SettingKeyAntigravityModelCatalog:                     "",
 		// Identity patch defaults
 		SettingKeyEnableIdentityPatch: "true",
 		SettingKeyIdentityPatchPrompt: "",
