@@ -105,6 +105,18 @@ func ProvideClaudeTokenProvider(
 	return p
 }
 
+// ProvideOpenAIOAuthService creates OpenAIOAuthService with the ChatGPT
+// ImpersonateChrome client used for sessionToken refresh and account metadata.
+func ProvideOpenAIOAuthService(
+	proxyRepo ProxyRepository,
+	oauthClient OpenAIOAuthClient,
+	privacyClientFactory PrivacyClientFactory,
+) *OpenAIOAuthService {
+	svc := NewOpenAIOAuthService(proxyRepo, oauthClient)
+	svc.SetPrivacyClientFactory(privacyClientFactory)
+	return svc
+}
+
 // ProvideOpenAITokenProvider creates OpenAITokenProvider with OAuthRefreshAPI injection
 func ProvideOpenAITokenProvider(
 	accountRepo AccountRepository,
@@ -720,7 +732,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGatewayService,
 	ProvideOpenAIGatewayService,
 	NewOAuthService,
-	NewOpenAIOAuthService,
+	ProvideOpenAIOAuthService,
 	NewGrokOAuthService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,

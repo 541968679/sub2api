@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,6 +34,26 @@ func TestOpenAIChatGPTSessionNeedsRefresh(t *testing.T) {
 
 	account.Credentials["refresh_token"] = "rt-1"
 	require.False(t, openaiChatGPTSessionNeedsRefresh(account, 3*time.Minute), "OAuth RT accounts do not use session refresh")
+}
+
+func TestRefreshChatGPTSessionRequiresPrivacyClientFactory(t *testing.T) {
+	svc := NewOpenAIOAuthService(nil, nil)
+	_, err := svc.RefreshChatGPTSession(context.Background(), "st-live", "")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "OPENAI_SESSION_REFRESH_UNAVAILABLE")
+}
+
+func TestProvideOpenAIOAuthServiceInjectsPrivacyClientFactory(t *testing.T) {
+	called := false
+	svc := ProvideOpenAIOAuthService(nil, nil, func(string) (*req.Client, error) {
+		called = true
+		return nil, errors.New("factory-hit")
+	})
+	_, err := svc.RefreshChatGPTSession(context.Background(), "st-live", "")
+	require.Error(t, err)
+	require.True(t, called, "privacy client factory should be invoked")
+	require.NotContains(t, err.Error(), "OPENAI_SESSION_REFRESH_UNAVAILABLE")
+	require.Contains(t, err.Error(), "OPENAI_SESSION_REFRESH_CLIENT_FAILED")
 }
 
 func TestRefreshChatGPTSessionStoresFreshAccessToken(t *testing.T) {
