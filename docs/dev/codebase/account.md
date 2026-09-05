@@ -971,6 +971,7 @@ can be written by the request-path rate-limit/session-window logic.
 - **OAuth 软 429 不是不可调度**：软路径只写 Redis 短排除，不改 `IsSchedulable()`。空 Settings KV 是关，不要抄 529 的空 KV=开。账号覆盖必须写 `extra`，OAuth refresh 会整表替换 `credentials`。
 - **按计费倍率解除订阅分组不是批量改分组**：`POST /admin/accounts/unbind-subscription-groups-by-rate` 按账号减去 `subscription_type=subscription` 分组，比较的是 `BillingRateMultiplier()`（严格 `>`），写入走 `BindGroups`。不要复用 `BulkUpdateAccounts.GroupIDs`（那会把所有目标写成同一份列表）。不要把这条做成调度开关或 Settings KV。
 - **ChatGPT session JWT `exp` 不是 liveness**：粘贴的 `accessToken` 即使 `exp` 仍在未来，ChatGPT 也可 401 `token_expired`。有 `chatgpt_session_token`、无 RT 的号，请求前必须 `GET https://chatgpt.com/api/auth/session` 换新 AT。换票失败（含 Cloudflare 403 HTML → `OPENAI_SESSION_REFRESH_CF_BLOCKED`）必须把错误返回给调用方，禁止 `UseExistingToken` 把库存 JWT 发出去。
+- **Session 换票必须先匿名 GET 再带 cookie**：冷 TLS 会话只带 `__Secure-next-auth.session-token` 会被 Cloudflare 403，即使账号代理 curl 同一 URL 是 200。先匿名 GET `/api/auth/session`（收 Set-Cookie / 复用连接），再带 session cookie。必须用 ephemeral 客户端，禁止把 session cookie 写进共享 privacy client 的 cookie jar。
 - **账号列表 lite 不得写回 OAuth 机密**：`GET /admin/accounts?lite=1` 只留 `plan_type` / `email` / `subscription_expires_at`。编辑账号必须先 `GET /admin/accounts/:id`。`UpdateAccount` 对缺省的 `access_token` / `refresh_token` / `chatgpt_session_token` / `id_token` 要保留已有值，否则一次保存会把 session 号打成 `{email, plan_type}`。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。

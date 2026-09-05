@@ -62,6 +62,10 @@ func providePrivacyClientFactory() service.PrivacyClientFactory {
 	return repository.CreatePrivacyReqClient
 }
 
+func provideEphemeralPrivacyClientFactory() service.PrivacyClientFactory {
+	return repository.CreateEphemeralPrivacyReqClient
+}
+
 func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 	return service.BuildInfo{
 		Version:   buildInfo.Version,

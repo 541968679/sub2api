@@ -43,6 +43,19 @@ func getSharedReqClient(opts reqClientOptions) (*req.Client, error) {
 		}
 	}
 
+	client, err := newReqClient(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	actual, _ := sharedReqClients.LoadOrStore(key, client)
+	if c, ok := actual.(*req.Client); ok {
+		return c, nil
+	}
+	return client, nil
+}
+
+func newReqClient(opts reqClientOptions) (*req.Client, error) {
 	client := req.C().SetTimeout(opts.Timeout)
 	if opts.ForceHTTP2 {
 		client = client.EnableForceHTTP2()
@@ -56,11 +69,6 @@ func getSharedReqClient(opts reqClientOptions) (*req.Client, error) {
 	}
 	if trimmed != "" {
 		client.SetProxyURL(trimmed)
-	}
-
-	actual, _ := sharedReqClients.LoadOrStore(key, client)
-	if c, ok := actual.(*req.Client); ok {
-		return c, nil
 	}
 	return client, nil
 }
@@ -82,5 +90,16 @@ func CreatePrivacyReqClient(proxyURL string) (*req.Client, error) {
 		ProxyURL:    proxyURL,
 		Timeout:     30 * time.Second,
 		Impersonate: true, // Enable Chrome TLS fingerprint impersonation
+	})
+}
+
+// CreateEphemeralPrivacyReqClient is CreatePrivacyReqClient without the shared
+// cookie jar. ChatGPT session refresh must not reuse a client that previously
+// stored Cloudflare challenge cookies or another account's session.
+func CreateEphemeralPrivacyReqClient(proxyURL string) (*req.Client, error) {
+	return newReqClient(reqClientOptions{
+		ProxyURL:    proxyURL,
+		Timeout:     30 * time.Second,
+		Impersonate: true,
 	})
 }

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,18 +59,27 @@ func TestProvideOpenAIOAuthServiceInjectsPrivacyClientFactory(t *testing.T) {
 }
 
 func TestRefreshChatGPTSessionStoresFreshAccessToken(t *testing.T) {
+	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/auth/session" {
-			require.Contains(t, r.Header.Get("Cookie"), "st-live")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"accessToken": "fresh-access-token",
-				"user":        map[string]any{"email": "user@example.com", "id": "user-1"},
-				"account":     map[string]any{"id": "acct-1", "planType": "plus"},
-			})
+		if r.URL.Path != "/api/auth/session" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"accounts":{}}`))
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"accounts":{}}`))
+		n := hits.Add(1)
+		cookie := r.Header.Get("Cookie")
+		if n == 1 {
+			require.NotContains(t, cookie, "st-live", "prime request must not send sessionToken")
+			http.SetCookie(w, &http.Cookie{Name: "oai-did", Value: "did-1", Path: "/"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"WARNING_BANNER": "do not share"})
+			return
+		}
+		require.Contains(t, cookie, "st-live")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"accessToken": "fresh-access-token",
+			"user":        map[string]any{"email": "user@example.com", "id": "user-1"},
+			"account":     map[string]any{"id": "acct-1", "planType": "plus"},
+		})
 	}))
 	t.Cleanup(srv.Close)
 
@@ -94,6 +105,53 @@ func TestRefreshChatGPTSessionStoresFreshAccessToken(t *testing.T) {
 	require.Equal(t, "fresh-access-token", info.AccessToken)
 	require.Equal(t, "user@example.com", info.Email)
 	require.Equal(t, "acct-1", info.ChatGPTAccountID)
+	require.GreaterOrEqual(t, hits.Load(), int32(2))
+}
+
+func TestRefreshChatGPTSessionPrimesBeforeSessionCookie(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := hits.Add(1)
+		cookie := r.Header.Get("Cookie")
+		if strings.Contains(cookie, "st-live") && n == 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`<html>Just a moment... cloudflare</html>`))
+			return
+		}
+		if !strings.Contains(cookie, "st-live") {
+			http.SetCookie(w, &http.Cookie{Name: "oai-did", Value: "did-1", Path: "/"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"WARNING_BANNER": "do not share"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"accessToken": "primed-access-token",
+			"user":        map[string]any{"email": "user@example.com"},
+			"account":     map[string]any{"id": "acct-1", "planType": "plus"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	prevSession := chatGPTAuthSessionURL
+	prevCheck := chatGPTAccountsCheckURL
+	prevSub := chatGPTSubscriptionsURL
+	chatGPTAuthSessionURL = srv.URL
+	chatGPTAccountsCheckURL = srv.URL + "/backend-api/accounts/check"
+	chatGPTSubscriptionsURL = srv.URL + "/backend-api/subscriptions"
+	t.Cleanup(func() {
+		chatGPTAuthSessionURL = prevSession
+		chatGPTAccountsCheckURL = prevCheck
+		chatGPTSubscriptionsURL = prevSub
+	})
+
+	svc := NewOpenAIOAuthService(nil, nil)
+	svc.SetPrivacyClientFactory(func(string) (*req.Client, error) {
+		return req.C().SetTimeout(5 * time.Second), nil
+	})
+
+	info, err := svc.RefreshChatGPTSession(context.Background(), "st-live", "")
+	require.NoError(t, err)
+	require.Equal(t, "primed-access-token", info.AccessToken)
+	require.GreaterOrEqual(t, hits.Load(), int32(2))
 }
 
 func TestRefreshChatGPTSessionCloudflareHTMLReturnsBlocked(t *testing.T) {

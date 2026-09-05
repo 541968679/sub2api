@@ -9,6 +9,7 @@ import (
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/imroc/req/v3"
 )
 
 const (
@@ -83,25 +84,18 @@ func (s *OpenAIOAuthService) RefreshChatGPTSession(ctx context.Context, sessionT
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_CLIENT_FAILED", "create HTTP client: %v", err)
 	}
 
-	cookie := (&http.Cookie{Name: chatgptSessionCookieName, Value: sessionToken}).String()
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("Accept", "application/json").
-		SetHeader("Origin", "https://chatgpt.com").
-		SetHeader("Referer", "https://chatgpt.com/").
-		SetHeader("sec-fetch-mode", "cors").
-		SetHeader("sec-fetch-site", "same-origin").
-		SetHeader("sec-fetch-dest", "empty").
-		SetHeader("Cookie", cookie).
-		Get(chatGPTAuthSessionURL)
+	// Cloudflare 403s a cold client that sends only __Secure-next-auth.session-token.
+	// An anonymous GET /api/auth/session first (same TLS session + Set-Cookie jar)
+	// then the session cookie succeeds through the same proxy.
+	if primeErr := chatgptSessionExchange(ctx, client, ""); primeErr != nil {
+		return nil, primeErr
+	}
+	resp, err := chatgptSessionGET(ctx, client, sessionToken)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REQUEST_FAILED", "session refresh request failed: %v", err)
 	}
-	if !resp.IsSuccessState() {
-		if chatGPTResponseLooksLikeChallenge(resp.StatusCode, resp.String()) {
-			return nil, infraerrors.New(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_CF_BLOCKED", "ChatGPT/Cloudflare 拦截了 session 刷新。请在第一步选择能打开 chatgpt.com 的代理后重试")
-		}
-		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REJECTED", "ChatGPT rejected sessionToken: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))
+	if err := chatgptSessionResponseError(resp); err != nil {
+		return nil, err
 	}
 
 	var payload map[string]any
@@ -149,6 +143,42 @@ func (s *OpenAIOAuthService) RefreshChatGPTSession(ctx context.Context, sessionT
 
 func (s *OpenAIOAuthService) RefreshChatGPTSessionWithProxyID(ctx context.Context, sessionToken string, proxyID *int64) (*OpenAITokenInfo, error) {
 	return s.RefreshChatGPTSession(ctx, sessionToken, s.proxyURLForID(ctx, proxyID))
+}
+
+func chatgptSessionExchange(ctx context.Context, client *req.Client, sessionToken string) error {
+	resp, err := chatgptSessionGET(ctx, client, sessionToken)
+	if err != nil {
+		return infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REQUEST_FAILED", "session refresh request failed: %v", err)
+	}
+	return chatgptSessionResponseError(resp)
+}
+
+func chatgptSessionGET(ctx context.Context, client *req.Client, sessionToken string) (*req.Response, error) {
+	r := client.R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json").
+		SetHeader("Origin", "https://chatgpt.com").
+		SetHeader("Referer", "https://chatgpt.com/").
+		SetHeader("sec-fetch-mode", "cors").
+		SetHeader("sec-fetch-site", "same-origin").
+		SetHeader("sec-fetch-dest", "empty")
+	if strings.TrimSpace(sessionToken) != "" {
+		r.SetCookies(&http.Cookie{Name: chatgptSessionCookieName, Value: sessionToken, Secure: true})
+	}
+	return r.Get(chatGPTAuthSessionURL)
+}
+
+func chatgptSessionResponseError(resp *req.Response) error {
+	if resp == nil {
+		return infraerrors.New(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REQUEST_FAILED", "session refresh request failed: empty response")
+	}
+	if resp.IsSuccessState() {
+		return nil
+	}
+	if chatGPTResponseLooksLikeChallenge(resp.StatusCode, resp.String()) {
+		return infraerrors.New(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_CF_BLOCKED", "ChatGPT/Cloudflare 拦截了 session 刷新。请确认账号代理能打开 chatgpt.com 后重试")
+	}
+	return infraerrors.Newf(http.StatusBadGateway, "OPENAI_SESSION_REFRESH_REJECTED", "ChatGPT rejected sessionToken: status %d, body: %s", resp.StatusCode, truncate(resp.String(), 200))
 }
 
 func chatGPTResponseLooksLikeChallenge(status int, body string) bool {

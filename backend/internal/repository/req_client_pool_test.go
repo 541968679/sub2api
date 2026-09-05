@@ -38,6 +38,19 @@ func TestGetSharedReqClient_ForceHTTP2SeparatesCache(t *testing.T) {
 	require.NotEqual(t, buildReqClientKey(base), buildReqClientKey(force))
 }
 
+func TestCreateEphemeralPrivacyReqClientIsNotShared(t *testing.T) {
+	sharedReqClients = sync.Map{}
+	first, err := CreateEphemeralPrivacyReqClient("http://127.0.0.1:10809")
+	require.NoError(t, err)
+	second, err := CreateEphemeralPrivacyReqClient("http://127.0.0.1:10809")
+	require.NoError(t, err)
+	require.NotSame(t, first, second)
+
+	shared, err := CreatePrivacyReqClient("http://127.0.0.1:10809")
+	require.NoError(t, err)
+	require.NotSame(t, first, shared)
+}
+
 func TestGetSharedReqClient_ReuseCachedClient(t *testing.T) {
 	sharedReqClients = sync.Map{}
 	opts := reqClientOptions{

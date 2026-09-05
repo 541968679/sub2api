@@ -1,3 +1,25 @@
+## 2026-09-05 - fix: prime ChatGPT session refresh before sending sessionToken
+
+### What
+- Session refresh now uses an ephemeral ImpersonateChrome client (not the shared privacy client cookie jar).
+- It first GETs `/api/auth/session` anonymously, then sends `__Secure-next-auth.session-token`. A cold client that only sends the session cookie is Cloudflare 403 HTML even when the account proxy can open chatgpt.com.
+
+### Why
+Local v2ray HTTP/SOCKS proxies were bound and curl through them returned JSON. The 502 `OPENAI_SESSION_REFRESH_CF_BLOCKED` was the session cookie on a cold TLS session, not a missing proxy.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/service -run "RefreshChatGPTSession" -count=1`
+- Live probe: anonymous GET 200, session-cookie-only 403, primed then session-cookie 200 `accessToken`.
+
+### Affected files
+`backend/internal/service/openai_session_refresh.go`,
+`backend/internal/service/openai_session_refresh_test.go`,
+`backend/internal/repository/req_client_pool.go`,
+`backend/cmd/server/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-05 - fix: ChatGPT session request path must mint AT; lite edit must not wipe secrets
 
 ### What
