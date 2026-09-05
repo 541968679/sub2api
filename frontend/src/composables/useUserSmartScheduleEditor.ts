@@ -1275,6 +1275,66 @@ export function useUserSmartScheduleEditor(
     }
   }
 
+  function admissionStateLabel(state: PairAdmissionLiveState): string {
+    switch (state) {
+      case 'paused':
+        return t('admin.users.smartSchedule.admissionPaused')
+      case 'selectable':
+        return t('admin.users.smartSchedule.admissionSelectable')
+      case 'probing':
+        return t('admin.users.smartSchedule.admissionProbing')
+      case 'cooling':
+        return t('admin.users.smartSchedule.admissionCooling')
+      case 'pinned':
+        return t('admin.users.smartSchedule.admissionPinned')
+      default:
+        return t('admin.users.smartSchedule.admissionResumed')
+    }
+  }
+
+  async function setPairAdmissionBatch(accountIds: number[], state: PairAdmissionLiveState) {
+    if (!userId.value || accountIds.length === 0) return
+    const label = admissionStateLabel(state)
+    if (!window.confirm(t('admin.users.smartSchedule.batchAdmissionConfirm', {
+      count: String(accountIds.length),
+      state: label
+    }))) {
+      return
+    }
+    try {
+      const results = await adminAPI.users.setUserSmartScheduleAdmissionBatch(
+        userId.value,
+        activePlatform.value,
+        { account_ids: accountIds, state }
+      )
+      for (const result of results) {
+        const nextState =
+          result.pinned === true || result.state === 'pinned'
+            ? 'pinned'
+            : result.state === 'cooling'
+              || result.state === 'selectable'
+              || result.state === 'resumed'
+              || result.state === 'paused'
+              || result.state === 'probing'
+              ? result.state
+              : state
+        applyLocalAdmission(
+          result.account_id,
+          nextState,
+          result.cooldown_until,
+          readBackendProbeCap(result)
+        )
+      }
+      appStore.showSuccess(t('admin.users.smartSchedule.batchAdmissionSuccess', {
+        count: String(results.length),
+        state: label
+      }))
+    } catch (error: unknown) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.users.smartSchedule.switchFailed')))
+      await refreshAll()
+    }
+  }
+
   const isDirty = computed(() => isPlatformDirty(activePlatform.value))
 
   watch(
@@ -1380,6 +1440,7 @@ export function useUserSmartScheduleEditor(
     onCopyFromUser,
     discardCurrentDraft,
     setPairAdmission,
+    setPairAdmissionBatch,
     refreshAll,
     ensureCandidates,
     loadPoolDetails,

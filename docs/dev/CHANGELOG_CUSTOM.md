@@ -1,3 +1,34 @@
+## 2026-09-04 - feat: user smart-schedule pool bulk pause/selectable/probe
+
+### What
+- User smart-schedule pool bulk bar can select all OAuth or all API Key members, then batch-set those pairs to paused / selectable / probing.
+- New `POST /admin/users/:id/smart-schedule/:platform/admission-batch` loops existing `SetPairAdmission` (user-scoped, not account status).
+
+### Why
+Ops needed a one-user, type-then-selection way to keep self-owned OAuth off distillation traffic without globally pausing accounts or blocking that user's remaining apikey/Codex traffic.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestUserSmartScheduleService_SetUserPairAdmissionBatch -count=1`
+- `go test -tags=unit ./internal/handler/admin -run TestSetUserSmartScheduleAdmissionBatch -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/smart-schedule/__tests__/SmartSchedulePoolBulkBar.spec.ts src/views/admin/__tests__/UserSmartScheduleView.spec.ts`
+
+### Affected files
+`backend/internal/service/user_smart_schedule_account.go`,
+`backend/internal/service/user_smart_schedule_account_test.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`backend/internal/handler/admin/user_smart_schedule_handler_test.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue`,
+`frontend/src/components/admin/smart-schedule/__tests__/SmartSchedulePoolBulkBar.spec.ts`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/views/admin/__tests__/UserSmartScheduleView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
 ## 2026-09-05 - fix: show session import item errors and hint missing sessionToken
 
 ### What

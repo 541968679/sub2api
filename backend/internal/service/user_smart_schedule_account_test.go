@@ -78,3 +78,47 @@ func TestUserSmartScheduleService_SetAccountPairAdmissionBatchRequiresMember(t *
 	require.Equal(t, PairAdmissionPaused, results[0].State)
 	require.Equal(t, int64(16), results[0].UserID)
 }
+
+func TestUserSmartScheduleService_SetUserPairAdmissionBatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	policy := enabledSmartPolicy(7, 0, nil)
+	policy.AccountIDs[9] = struct{}{}
+	repo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, policy)}
+	svc := NewUserSmartScheduleService(repo, stubSmartCache{}, &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+		{ID: 9, Platform: PlatformAnthropic},
+	}}, nil, nil)
+
+	_, err := svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, nil, PairAdmissionPaused)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_RESUME_INVALID")
+
+	_, err = svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, []int64{99}, PairAdmissionPaused)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_UNKNOWN_ACCOUNT")
+
+	_, err = svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, []int64{7, 99}, PairAdmissionPaused)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SMART_SCHEDULE_UNKNOWN_ACCOUNT")
+	require.False(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7), "fail-fast must not pause before unknown id")
+
+	results, err := svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, []int64{7, 9, 7}, PairAdmissionPaused)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	require.Equal(t, PairAdmissionPaused, results[0].State)
+	require.Equal(t, PairAdmissionPaused, results[1].State)
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(9))
+
+	results, err = svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, []int64{7}, PairAdmissionSelectable)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionSelectable, results[0].State)
+	require.False(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(7))
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(9))
+
+	results, err = svc.SetUserPairAdmissionBatch(ctx, 16, PlatformAnthropic, []int64{9}, PairAdmissionProbing)
+	require.NoError(t, err)
+	require.Equal(t, PairAdmissionProbing, results[0].State)
+	require.False(t, repo.bundle.Policies[PlatformAnthropic].IsPaused(9))
+}

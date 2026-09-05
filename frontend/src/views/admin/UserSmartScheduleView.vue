@@ -538,12 +538,16 @@
               v-if="poolTableRows.length > 0"
               class="min-w-0 flex-1"
               :selected-ids="filteredSelectedIds"
+              :admission-ids="admissionSelectedIds"
               :filtered-count="filteredPoolRows.length"
               :bulk-cap="bulkCap"
               @update:bulk-cap="bulkCap = $event"
               @select-page="selectMatching(filteredPoolRows.map((row) => row.id))"
               @select-matching="selectMatching(filteredPoolRows.map((row) => row.id))"
+              @select-oauth="selectPoolAccountsByType('oauth')"
+              @select-apikey="selectPoolAccountsByType('apikey')"
               @clear="clearSelection"
+              @apply-admission="applySelectedAdmission"
               @apply-cap="applyCapToAccounts(filteredSelectedIds)"
               @apply-cap-all="applyCapToAll"
               @remove="removeAccounts(filteredSelectedIds)"
@@ -1342,6 +1346,7 @@ const {
   discardCurrentDraft,
   copyingFromUser,
   setPairAdmission,
+  setPairAdmissionBatch,
   refreshAll,
   ensureCandidates,
   refreshAccountBalance,
@@ -1517,6 +1522,24 @@ const filteredSelectedIds = computed(() => {
   const visible = new Set(filteredPoolRows.value.map((row) => row.id))
   return selectedAccountIds.value.filter((id) => visible.has(id))
 })
+
+const admissionSelectedIds = computed(() => {
+  const byId = new Map(poolTableRows.value.map((row) => [row.id, row]))
+  return selectedAccountIds.value.filter((id) => {
+    const row = byId.get(id)
+    return row != null && row.admission !== 'unsaved_preview'
+  })
+})
+
+function selectPoolAccountsByType(type: 'oauth' | 'apikey') {
+  selectMatching(
+    poolTableRows.value.filter((row) => row.type === type).map((row) => row.id)
+  )
+}
+
+function applySelectedAdmission(state: 'paused' | 'selectable' | 'probing') {
+  void setPairAdmissionBatch(admissionSelectedIds.value, state)
+}
 
 const userSmartScheduleSummary = computed(() =>
   smartScheduleSummaryFromDrafts(platforms, drafts)

@@ -7,7 +7,9 @@ import { apiClient } from '../client'
 import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, DownstreamUsageTokenMode, UserStatus } from '@/types'
 import type {
   AccountQualityHistoryResponse,
-  BatchQualityStatsResponse
+  BatchQualityStatsResponse,
+  SmartScheduleAdmissionResult,
+  SmartScheduleAdmissionState
 } from './accounts'
 import { normalizeSmartSchedulePairQuality } from '@/utils/smartScheduleWindowN'
 
@@ -574,6 +576,18 @@ export type SmartSchedulePairQualityDetail = {
   events: SmartSchedulePairQualityEvent[]
 }
 
+export async function setUserSmartScheduleAdmissionBatch(
+  id: number,
+  platform: SmartSchedulePlatform,
+  payload: { account_ids: number[]; state: SmartScheduleAdmissionState }
+): Promise<SmartScheduleAdmissionResult[]> {
+  const { data } = await apiClient.post<{ results: SmartScheduleAdmissionResult[] }>(
+    `/admin/users/${id}/smart-schedule/${platform}/admission-batch`,
+    payload
+  )
+  return data?.results ?? []
+}
+
 export async function getSmartSchedule(id: number): Promise<UserSmartScheduleView> {
   const { data } = await apiClient.get<UserSmartScheduleView>(`/admin/users/${id}/smart-schedule`)
   return data
@@ -861,6 +875,7 @@ export const usersAPI = {
   updatePlatformQuotas,
   resetPlatformQuotaWindow,
   getSmartSchedule,
+  setUserSmartScheduleAdmissionBatch,
   updateSmartSchedule,
   updateSmartScheduleSortOrder,
   copySmartSchedule,

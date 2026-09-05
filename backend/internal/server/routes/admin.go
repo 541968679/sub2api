@@ -305,6 +305,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.POST("/:id/smart-schedule/:platform/copy", h.Admin.User.CopyUserSmartSchedule)
 		users.GET("/:id/smart-schedule/:platform/copy-from-preview", h.Admin.User.PreviewCopyFromUserSmartSchedule)
 		users.POST("/:id/smart-schedule/:platform/copy-from", h.Admin.User.CopyFromUserSmartSchedule)
+		users.POST("/:id/smart-schedule/:platform/admission-batch", h.Admin.User.SetUserSmartScheduleAdmissionBatch)
 		users.GET("/:id/smart-schedule/:platform/accounts/:account_id/pair-quality", h.Admin.User.GetUserSmartSchedulePairQuality)
 
 		// User attribute values

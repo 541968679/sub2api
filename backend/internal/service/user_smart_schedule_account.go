@@ -131,6 +131,76 @@ func (s *UserSmartScheduleService) SetAccountPairAdmissionBatch(ctx context.Cont
 	return results, nil
 }
 
+func (s *UserSmartScheduleService) SetUserPairAdmissionBatch(ctx context.Context, userID int64, platform string, accountIDs []int64, state string) ([]PairAdmissionResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
+	}
+	if userID <= 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "user_id is required")
+	}
+	platform = normalizeSmartSchedulePlatform(platform)
+	if !IsAllowedSmartSchedulePlatform(platform) {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_PLATFORM", "platform is required")
+	}
+	if _, err := ParsePairAdmissionState(state); err != nil {
+		return nil, err
+	}
+	targets, err := s.normalizeUserPairAdmissionIDs(ctx, userID, platform, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]PairAdmissionResult, 0, len(targets))
+	for _, accountID := range targets {
+		result, err := s.SetPairAdmission(ctx, accountID, userID, state, platform)
+		if err != nil {
+			return results, err
+		}
+		if result != nil {
+			results = append(results, *result)
+		}
+	}
+	return results, nil
+}
+
+func (s *UserSmartScheduleService) normalizeUserPairAdmissionIDs(ctx context.Context, userID int64, platform string, accountIDs []int64) ([]int64, error) {
+	if len(accountIDs) == 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_ids is required")
+	}
+	bundle, err := s.repo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	var policy *SmartSchedulePlatformPolicy
+	if bundle != nil {
+		policy = bundle.Policies[platform]
+	}
+	memberSet := map[int64]struct{}{}
+	if policy != nil {
+		for accountID := range policy.AccountIDs {
+			memberSet[accountID] = struct{}{}
+		}
+	}
+	targets := make([]int64, 0, len(accountIDs))
+	seen := map[int64]struct{}{}
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, dup := seen[accountID]; dup {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		if _, ok := memberSet[accountID]; !ok {
+			return nil, infraerrors.BadRequest("SMART_SCHEDULE_UNKNOWN_ACCOUNT", "account is not in this platform pool")
+		}
+		targets = append(targets, accountID)
+	}
+	if len(targets) == 0 {
+		return nil, infraerrors.BadRequest("SMART_SCHEDULE_RESUME_INVALID", "account_ids is required")
+	}
+	return targets, nil
+}
+
 func (s *UserSmartScheduleService) ensureAccountMatchesTab(ctx context.Context, accountID int64, platform string) error {
 	if s == nil || s.accountRepo == nil {
 		return infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")

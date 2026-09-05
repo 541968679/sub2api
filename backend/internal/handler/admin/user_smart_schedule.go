@@ -63,6 +63,11 @@ type smartScheduleAdmissionBatchRequest struct {
 	State    string  `json:"state"`
 }
 
+type userSmartScheduleAdmissionBatchRequest struct {
+	AccountIDs []int64 `json:"account_ids"`
+	State      string  `json:"state"`
+}
+
 func (h *UserHandler) smartScheduleService() *service.UserSmartScheduleService {
 	if h == nil {
 		return nil
@@ -414,6 +419,40 @@ func (h *UserHandler) GetUserSmartSchedulePairQuality(c *gin.Context) {
 		return
 	}
 	response.Success(c, detail)
+}
+
+// SetUserSmartScheduleAdmissionBatch POST /admin/users/:id/smart-schedule/:platform/admission-batch
+func (h *UserHandler) SetUserSmartScheduleAdmissionBatch(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	var req userSmartScheduleAdmissionBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.State == "" {
+		response.BadRequest(c, "state and account_ids are required")
+		return
+	}
+	accountIDs := normalizeInt64IDList(req.AccountIDs)
+	if len(accountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if _, err := h.adminService.GetUser(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	svc := h.smartScheduleService()
+	if svc == nil {
+		response.ErrorFrom(c, infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable"))
+		return
+	}
+	results, err := svc.SetUserPairAdmissionBatch(c.Request.Context(), userID, c.Param("platform"), accountIDs, req.State)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"results": results})
 }
 
 // ResumeSmartSchedule POST /admin/accounts/:id/smart-schedule-resume

@@ -322,6 +322,63 @@ func TestAddSmartScheduleMember_RequiresUserID(t *testing.T) {
 	}
 }
 
+func TestSetUserSmartScheduleAdmissionBatch_RequiresAccountIDs(t *testing.T) {
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"state":"paused"}`, []gin.Param{
+		{Key: "id", Value: "16"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.SetUserSmartScheduleAdmissionBatch(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetUserSmartScheduleAdmissionBatch_InvalidState(t *testing.T) {
+	repo := &serviceSmartRepoStub{bundle: &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:    true,
+			AccountIDs: map[int64]struct{}{7: {}},
+		},
+	}}}
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(repo, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"account_ids":[7],"state":"nope"}`, []gin.Param{
+		{Key: "id", Value: "16"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.SetUserSmartScheduleAdmissionBatch(c)
+	if w.Code == http.StatusOK {
+		t.Fatalf("expected invalid state, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "SMART_SCHEDULE_ADMISSION_INVALID") {
+		t.Fatalf("expected admission invalid reason, got %s", w.Body.String())
+	}
+}
+
+func TestSetUserSmartScheduleAdmissionBatch_Paused(t *testing.T) {
+	repo := &serviceSmartRepoStub{bundle: &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{
+		service.PlatformAnthropic: {
+			Enabled:    true,
+			AccountIDs: map[int64]struct{}{7: {}, 9: {}},
+		},
+	}}}
+	h := &UserHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(repo, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"account_ids":[7,9],"state":"paused"}`, []gin.Param{
+		{Key: "id", Value: "16"},
+		{Key: "platform", Value: "anthropic"},
+	})
+	h.SetUserSmartScheduleAdmissionBatch(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("paused should be 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"state":"paused"`) {
+		t.Fatalf("expected paused results, got %s", w.Body.String())
+	}
+	if !repo.bundle.Policies[service.PlatformAnthropic].IsPaused(7) || !repo.bundle.Policies[service.PlatformAnthropic].IsPaused(9) {
+		t.Fatal("expected both members paused")
+	}
+}
+
 func TestSetSmartScheduleAdmissionBatch_InvalidState(t *testing.T) {
 	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
 	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"platform":"anthropic","state":"nope"}`, []gin.Param{{Key: "id", Value: "7"}})

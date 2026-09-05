@@ -30,6 +30,24 @@
           >
             {{ t('admin.accounts.bulkActions.selectFiltered', { count: filteredCount }) }}
           </button>
+          <span class="text-gray-300 dark:text-primary-800">/</span>
+          <button
+            type="button"
+            class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+            data-testid="smart-schedule-select-oauth"
+            @click="$emit('select-oauth')"
+          >
+            {{ t('admin.users.smartSchedule.selectAllOauth') }}
+          </button>
+          <span class="text-gray-300 dark:text-primary-800">/</span>
+          <button
+            type="button"
+            class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+            data-testid="smart-schedule-select-apikey"
+            @click="$emit('select-apikey')"
+          >
+            {{ t('admin.users.smartSchedule.selectAllApikey') }}
+          </button>
           <template v-if="selectedIds.length > 0">
             <span class="text-gray-300 dark:text-primary-800">/</span>
             <button
@@ -65,6 +83,33 @@
         <button
           type="button"
           class="btn btn-secondary btn-sm"
+          :disabled="admissionIds.length === 0"
+          data-testid="smart-schedule-batch-paused"
+          @click="$emit('apply-admission', 'paused')"
+        >
+          {{ t('admin.users.smartSchedule.batchPaused') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
+          :disabled="admissionIds.length === 0"
+          data-testid="smart-schedule-batch-selectable"
+          @click="$emit('apply-admission', 'selectable')"
+        >
+          {{ t('admin.users.smartSchedule.batchSelectable') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
+          :disabled="admissionIds.length === 0"
+          data-testid="smart-schedule-batch-probing"
+          @click="$emit('apply-admission', 'probing')"
+        >
+          {{ t('admin.users.smartSchedule.batchProbing') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
           :disabled="selectedIds.length === 0 || !bulkCap || bulkCap < 1"
           data-testid="smart-schedule-batch-apply-cap"
           @click="$emit('apply-cap')"
@@ -88,16 +133,22 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-defineProps<{
+withDefaults(defineProps<{
   selectedIds: number[]
+  admissionIds?: number[]
   filteredCount: number
   bulkCap: number | null
-}>()
+}>(), {
+  admissionIds: () => []
+})
 
 defineEmits<{
   'select-page': []
   'select-matching': []
+  'select-oauth': []
+  'select-apikey': []
   clear: []
+  'apply-admission': [state: 'paused' | 'selectable' | 'probing']
   'apply-cap': []
   'apply-cap-all': []
   remove: []

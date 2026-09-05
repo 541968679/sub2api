@@ -23,6 +23,7 @@ const apiMocks = vi.hoisted(() => ({
   updateAccount: vi.fn(),
   moveAccountToTop: vi.fn(),
   resumeSmartSchedule: vi.fn(),
+  setUserSmartScheduleAdmissionBatch: vi.fn(),
   getSmartSchedulePnlPairs: vi.fn(),
   getBatchSmartSchedulePnlSummaries: vi.fn(),
   getSmartSchedulePnlTrend: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@/api/admin', () => ({
       getBatchQualityStats: apiMocks.getUserBatchQualityStats,
       getQualityHistory: vi.fn().mockResolvedValue({ items: [], from: '', to: '' }),
       getSmartSchedule: apiMocks.getSmartSchedule,
+      setUserSmartScheduleAdmissionBatch: apiMocks.setUserSmartScheduleAdmissionBatch,
       updateSmartSchedule: apiMocks.updateSmartSchedule,
       updateSmartScheduleSortOrder: apiMocks.updateSmartScheduleSortOrder,
       copySmartSchedule: apiMocks.copySmartSchedule,
@@ -259,13 +261,29 @@ vi.mock('@/components/admin/smart-schedule/SmartSchedulePoolFilters.vue', () => 
 }))
 vi.mock('@/components/admin/smart-schedule/SmartSchedulePoolBulkBar.vue', () => ({
   default: {
-    props: ['selectedIds', 'filteredCount', 'bulkCap'],
-    emits: ['select-page', 'select-matching', 'clear', 'apply-cap', 'apply-cap-all', 'remove', 'update:bulkCap'],
+    props: ['selectedIds', 'admissionIds', 'filteredCount', 'bulkCap'],
+    emits: [
+      'select-page',
+      'select-matching',
+      'select-oauth',
+      'select-apikey',
+      'clear',
+      'apply-admission',
+      'apply-cap',
+      'apply-cap-all',
+      'remove',
+      'update:bulkCap'
+    ],
     template: `
       <div data-testid="smart-schedule-bulk-region">
         <div data-testid="smart-schedule-pool-bulk-bar">
           <button data-testid="smart-schedule-select-page" @click="$emit('select-page')" />
           <button data-testid="smart-schedule-select-matching" @click="$emit('select-matching')" />
+          <button data-testid="smart-schedule-select-oauth" @click="$emit('select-oauth')" />
+          <button data-testid="smart-schedule-select-apikey" @click="$emit('select-apikey')" />
+          <button data-testid="smart-schedule-batch-paused" @click="$emit('apply-admission', 'paused')" />
+          <button data-testid="smart-schedule-batch-selectable" @click="$emit('apply-admission', 'selectable')" />
+          <button data-testid="smart-schedule-batch-probing" @click="$emit('apply-admission', 'probing')" />
           <button data-testid="smart-schedule-batch-remove" @click="$emit('remove')" />
         </div>
       </div>
@@ -481,6 +499,7 @@ beforeEach(() => {
     target_members: []
   })
   apiMocks.copySmartScheduleFromUser.mockResolvedValue(makeView())
+  apiMocks.setUserSmartScheduleAdmissionBatch.mockResolvedValue([])
   apiMocks.listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100, pages: 0 })
   apiMocks.getAccountById.mockReset()
   apiMocks.getAccountById.mockResolvedValue({
@@ -1302,6 +1321,83 @@ describe('UserSmartScheduleView', () => {
         accounts: [expect.objectContaining({ account_id: 11 })]
       })
     )
+  })
+
+  it('selects all oauth members then batch-pauses the selection', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [
+            { account_id: 11, platform: 'anthropic', max_concurrency: null },
+            { account_id: 12, platform: 'anthropic', max_concurrency: null }
+          ]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [
+        { id: 11, name: 'api-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true },
+        { id: 12, name: 'oauth-acc', platform: 'anthropic', type: 'oauth', status: 'active', schedulable: true }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 2,
+      pages: 1
+    })
+    apiMocks.setUserSmartScheduleAdmissionBatch.mockResolvedValue([
+      { account_id: 12, user_id: 99, state: 'paused' }
+    ])
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-select-oauth"]').trigger('click')
+    await flushPromises()
+    expect((w.get('[data-testid="smart-schedule-select-12"]').element as HTMLInputElement).checked).toBe(true)
+    expect((w.get('[data-testid="smart-schedule-select-11"]').element as HTMLInputElement).checked).toBe(false)
+    await w.get('[data-testid="smart-schedule-batch-paused"]').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalled()
+    expect(apiMocks.setUserSmartScheduleAdmissionBatch).toHaveBeenCalledWith(99, 'anthropic', {
+      account_ids: [12],
+      state: 'paused'
+    })
+    const chips = w.findAll('[data-testid="smart-schedule-admission"]')
+    expect(chips).toHaveLength(2)
+    expect(chips[0].attributes('data-admission')).not.toBe('paused')
+    expect(chips[1].attributes('data-admission')).toBe('paused')
+    vi.unstubAllGlobals()
+  })
+
+  it('does not call admission batch when confirm is cancelled', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      platforms: {
+        ...makeView().platforms,
+        anthropic: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 11, platform: 'anthropic', max_concurrency: null }]
+        }
+      }
+    })
+    apiMocks.listAccounts.mockResolvedValue({
+      items: [{ id: 11, name: 'api-acc', platform: 'anthropic', type: 'apikey', status: 'active', schedulable: true }],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      pages: 1
+    })
+    vi.stubGlobal('confirm', vi.fn(() => false))
+    const w = await mountPage()
+    await w.get('[data-testid="smart-schedule-select-apikey"]').trigger('click')
+    await w.get('[data-testid="smart-schedule-batch-selectable"]').trigger('click')
+    await flushPromises()
+    expect(apiMocks.setUserSmartScheduleAdmissionBatch).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 
   it('renders refresh controls and an admission column', async () => {
