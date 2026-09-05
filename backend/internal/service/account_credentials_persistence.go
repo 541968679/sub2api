@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"strings"
 )
 
 type accountCredentialsUpdater interface {
@@ -57,6 +58,42 @@ func sanitizeSparkShadowCredentials(credentials map[string]any) map[string]any {
 	for key := range sparkShadowAllowedCredentialKeys {
 		if value, ok := credentials[key]; ok && value != nil {
 			out[key] = value
+		}
+	}
+	return out
+}
+
+var oauthSecretCredentialKeys = []string{
+	"access_token",
+	"refresh_token",
+	"id_token",
+	"client_id",
+	"chatgpt_session_token",
+	"session_refreshed_at",
+	"expires_at",
+	"auth_mode",
+	"openai_auth_mode",
+}
+
+func credentialMapString(creds map[string]any, key string) string {
+	if creds == nil {
+		return ""
+	}
+	value, _ := creds[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func preserveOAuthSecretCredentials(existing, incoming map[string]any) map[string]any {
+	out := shallowCopyMap(incoming)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for _, key := range oauthSecretCredentialKeys {
+		if credentialMapString(out, key) != "" {
+			continue
+		}
+		if value := credentialMapString(existing, key); value != "" {
+			out[key] = existing[key]
 		}
 	}
 	return out

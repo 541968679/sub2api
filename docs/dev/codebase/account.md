@@ -956,6 +956,7 @@ can be written by the request-path rate-limit/session-window logic.
 | OAuth 车队软 429 | 出厂关。空 KV=关。软 429 不写 `rate_limit_reset_at` / `temp_unschedulable_until`，只写 Redis `oauth-soft-429:{id}` 给调度过滤。覆盖只读 `extra.oauth_fleet_soft_429`。禁止把 `IsPoolMode()` 扩到 OAuth | `oauth_fleet_soft_429.go`, `ratelimit_service.go`, `oauth_fleet_soft_429_cache.go`, `SettingsView.vue`, `EditAccountModal.vue` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 | OpenAI OAuth 7d L$ | 仅 `platform=openai` + OAuth。7d 条旁 `L$` 是当前 LiteLLM 标价 × 真实 token，对齐该号 `codex_7d_reset_at`；不改 A$/U$/`actual_cost`/`true_cost`/展示变换。无 Codex 7d 快照不编造窗口。`reset_at` 前跳 ≥1h 时把上期 L$+used% 写入 `openai_oauth_7d_cycles`，列表只展示最近一期。点 L$/A$ 行打开各期曲线+表格（`GET /admin/accounts/:id/openai-7d-cycles`）；弹层 A$ 按周期窗口现算，不是滚动 7 日 | `openai_7d_litellm.go`, `openai_7d_cycle_repo.go`, `OpenAI7dCycleDialog.vue`, `UsageProgressBar.vue`, `migrations/220_openai_oauth_7d_cycles.sql` |
+| ChatGPT session import | 添加账号可贴 ChatGPT `/api/auth/session` JSON。ST 存 `credentials.chatgpt_session_token`，不得写成 `refresh_token`。导入在 JWT 未过期时可跳过 live ChatGPT；请求路径必须用 ST 换新 AT。JWT `exp` 不是 liveness。ST 换票失败不得回退库存 JWT（否则 ChatGPT 401 `token_expired`）。`UpdateAccount` 遇到 lite 投影 `{email,plan_type}` 必须保留 AT/ST/RT。账号列表 Edit 先 `GET /:id`，禁止把 `lite=1` 行写回 credentials | `account_codex_import.go`, `openai_session_refresh.go`, `openai_token_provider.go`, `account_credentials_persistence.go`, `AccountsView.vue` |
 
 ## 已知陷阱
 
@@ -969,6 +970,8 @@ can be written by the request-path rate-limit/session-window logic.
 - **池模式硬错误是 SetError，不是质量硬关闭**：`pool_mode_hard_eviction` 只在池模式开启时生效；命中余额/额度/租户死号时写 `status=error`，不要改成 `SetTempUnschedulable` 或折进 `quality_hard_close`。`extractUpstreamErrorCode` 读不到本仓库顶层 `{code,message}`，判定器必须自己读顶层 `code`。关掉池模式时同时 `delete` `pool_mode_hard_eviction`，不要回填 `false`。
 - **OAuth 软 429 不是不可调度**：软路径只写 Redis 短排除，不改 `IsSchedulable()`。空 Settings KV 是关，不要抄 529 的空 KV=开。账号覆盖必须写 `extra`，OAuth refresh 会整表替换 `credentials`。
 - **按计费倍率解除订阅分组不是批量改分组**：`POST /admin/accounts/unbind-subscription-groups-by-rate` 按账号减去 `subscription_type=subscription` 分组，比较的是 `BillingRateMultiplier()`（严格 `>`），写入走 `BindGroups`。不要复用 `BulkUpdateAccounts.GroupIDs`（那会把所有目标写成同一份列表）。不要把这条做成调度开关或 Settings KV。
+- **ChatGPT session JWT `exp` 不是 liveness**：粘贴的 `accessToken` 即使 `exp` 仍在未来，ChatGPT 也可 401 `token_expired`。有 `chatgpt_session_token`、无 RT 的号，请求前必须 `GET https://chatgpt.com/api/auth/session` 换新 AT。换票失败（含 Cloudflare 403 HTML → `OPENAI_SESSION_REFRESH_CF_BLOCKED`）必须把错误返回给调用方，禁止 `UseExistingToken` 把库存 JWT 发出去。
+- **账号列表 lite 不得写回 OAuth 机密**：`GET /admin/accounts?lite=1` 只留 `plan_type` / `email` / `subscription_expires_at`。编辑账号必须先 `GET /admin/accounts/:id`。`UpdateAccount` 对缺省的 `access_token` / `refresh_token` / `chatgpt_session_token` / `id_token` 要保留已有值，否则一次保存会把 session 号打成 `{email, plan_type}`。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。
 - **Antigravity usage 401 误判**：账号用量/AI Credits 探测必须和模型测试、真实网关请求一样走 `AntigravityTokenProvider`。如果直接读取 DB 中过期的 `credentials.access_token`，会在 refresh token 正常时偶发 401，并让前端误显示“需要重新授权”。

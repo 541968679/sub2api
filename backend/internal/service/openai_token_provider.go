@@ -141,9 +141,13 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 	}
 
 	cacheKey := OpenAITokenCacheKey(account)
+	sessionNeedsRefresh := openaiChatGPTSessionNeedsRefresh(account, openAITokenRefreshSkew)
+	storedAccessToken := strings.TrimSpace(account.GetCredential("access_token"))
 
-	// 1) Try cache first.
-	if p.tokenCache != nil {
+	// JWT exp is not ChatGPT liveness. Session-only accounts must exchange
+	// sessionToken before using a cached or stored access_token. Empty DB
+	// access_token also means the cache is stale (lite-list edit wipe).
+	if p.tokenCache != nil && !sessionNeedsRefresh && storedAccessToken != "" {
 		if token, err := p.tokenCache.GetAccessToken(ctx, cacheKey); err == nil && strings.TrimSpace(token) != "" {
 			slog.Debug("openai_token_cache_hit", "account_id", account.ID)
 			return token, nil
@@ -157,7 +161,7 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 	// 2) Refresh if needed (pre-expiry skew).
 	expiresAt := account.GetCredentialAsTime("expires_at")
 	needsRefresh := !account.IsOpenAIPersonalAccessToken() &&
-		(expiresAt == nil || time.Until(*expiresAt) <= openAITokenRefreshSkew || openaiChatGPTSessionNeedsRefresh(account, openAITokenRefreshSkew))
+		(expiresAt == nil || time.Until(*expiresAt) <= openAITokenRefreshSkew || sessionNeedsRefresh)
 	if needsRefresh && strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" && account.GetChatGPTSessionToken() == "" {
 		if expiresAt != nil && !time.Now().Before(*expiresAt) {
 			return "", errors.New("openai access_token expired and refresh_token is missing")
@@ -165,6 +169,8 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 		needsRefresh = false
 	}
 	refreshFailed := false
+	justRefreshed := false
+	var refreshErr error
 
 	if needsRefresh && p.refreshAPI != nil && p.executor != nil {
 		p.metrics.refreshRequests.Add(1)
@@ -172,7 +178,8 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 
 		result, err := p.refreshAPI.RefreshIfNeeded(ctx, account, p.executor, openAITokenRefreshSkew)
 		if err != nil {
-			if p.refreshPolicy.OnRefreshError == ProviderRefreshErrorReturn {
+			refreshErr = err
+			if sessionNeedsRefresh || p.refreshPolicy.OnRefreshError == ProviderRefreshErrorReturn {
 				return "", err
 			}
 			slog.Warn("openai_token_refresh_failed", "account_id", account.ID, "error", err)
@@ -192,6 +199,7 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 				}
 			}
 		} else if result.Refreshed {
+			justRefreshed = true
 			p.metrics.refreshSuccess.Add(1)
 			account = result.Account
 			expiresAt = account.GetCredentialAsTime("expires_at")
@@ -222,6 +230,13 @@ func (p *OpenAITokenProvider) GetAccessToken(ctx context.Context, account *Accou
 				return token, nil
 			}
 		}
+	}
+
+	if isOpenAIChatGPTSessionOnly(account) && openaiChatGPTSessionNeedsRefresh(account, openAITokenRefreshSkew) && !justRefreshed {
+		if refreshErr != nil {
+			return "", refreshErr
+		}
+		return "", errors.New("chatgpt session token must be refreshed before use")
 	}
 
 	accessToken := account.GetCredential("access_token")

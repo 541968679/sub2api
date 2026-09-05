@@ -27,14 +27,18 @@ func (a *Account) GetChatGPTSessionToken() string {
 	return strings.TrimSpace(a.GetCredential(chatgptSessionTokenCredentialKey))
 }
 
-func openaiChatGPTSessionNeedsRefresh(account *Account, refreshWindow time.Duration) bool {
+func isOpenAIChatGPTSessionOnly(account *Account) bool {
 	if account == nil || account.IsOpenAIPersonalAccessToken() {
 		return false
 	}
 	if strings.TrimSpace(account.GetOpenAIRefreshToken()) != "" {
 		return false
 	}
-	if account.GetChatGPTSessionToken() == "" {
+	return account.GetChatGPTSessionToken() != ""
+}
+
+func openaiChatGPTSessionNeedsRefresh(account *Account, refreshWindow time.Duration) bool {
+	if !isOpenAIChatGPTSessionOnly(account) {
 		return false
 	}
 	last := account.GetCredentialAsTime(chatgptSessionRefreshedAtCredentialKey)

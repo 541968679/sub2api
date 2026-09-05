@@ -1,3 +1,30 @@
+## 2026-09-05 - fix: ChatGPT session request path must mint AT; lite edit must not wipe secrets
+
+### What
+- Session-only OpenAI OAuth (`chatgpt_session_token`, no `refresh_token`) no longer sends a cached or stored JWT when the session has not been live-refreshed. JWT `exp` is not ChatGPT liveness. ST refresh failure returns the refresh error (`OPENAI_SESSION_REFRESH_CF_BLOCKED`, etc.) instead of ChatGPT `token_expired`.
+- Empty DB `access_token` no longer falls back to a Redis-cached JWT (lite-list edit wipe).
+- `UpdateAccount` preserves OAuth secret keys when the incoming credentials map is the lite list projection (`email` / `plan_type` / `subscription_expires_at`).
+- Accounts page Edit loads `GET /admin/accounts/:id` before opening the modal, same as the smart-schedule pool. Auto-refresh does not replace the editor's credentials with the lite list row.
+
+### Why
+Pasted ChatGPT `/api/auth/session` JSON imported, then requests failed with ChatGPT 401 `token_expired`. Import now persists the pasted AT+ST without a live ChatGPT roundtrip, so the request path must exchange `sessionToken` before using that JWT. A later account-list edit saved `{email, plan_type}` and replaced credentials, dropping `access_token` and `chatgpt_session_token`.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/service -run "TestOpenAITokenProvider_SessionAccountSkipsCacheUntilRefreshed|TestOpenAITokenProvider_SessionRefreshFailureDoesNotUseStoredAccessToken|TestOpenAITokenProvider_WipedSessionCredentialsDoNotUseCachedAccessToken|TestOpenAITokenProvider_RefreshTokenAccountStillFallsBackOnRefreshError|TestAdminService_UpdateAccount_PreservesOAuthSecretsWhenLiteCredentialsPosted|TestPreserveOAuthSecretCredentialsKeepsIncomingTokens" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/AccountsView.editFullAccount.spec.ts`
+
+### Affected files
+`backend/internal/service/openai_token_provider.go`,
+`backend/internal/service/openai_token_provider_test.go`,
+`backend/internal/service/openai_session_refresh.go`,
+`backend/internal/service/account_credentials_persistence.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/admin_service_oauth_credentials_test.go`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/__tests__/AccountsView.editFullAccount.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-09-05 - fix: persist ChatGPT session JSON without a live ChatGPT roundtrip
 
 ### What

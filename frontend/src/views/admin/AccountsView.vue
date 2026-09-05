@@ -858,6 +858,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import type {
   AccountQualityStats,
   OpenAIOauthFleetUsageSummary,
@@ -1001,6 +1002,7 @@ const selTypes = computed<AccountType[]>(() => {
 })
 const showCreate = ref(false)
 const showEdit = ref(false)
+const editingAccountId = ref<number | null>(null)
 const showSync = ref(false)
 const showImportData = ref(false)
 const showExportDataDialog = ref(false)
@@ -2036,7 +2038,12 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
 }
 
 const syncAccountRefs = (nextAccount: Account) => {
-  if (edAcc.value?.id === nextAccount.id) edAcc.value = nextAccount
+  if (edAcc.value?.id === nextAccount.id) {
+    edAcc.value = {
+      ...nextAccount,
+      credentials: edAcc.value.credentials
+    }
+  }
   if (reAuthAcc.value?.id === nextAccount.id) reAuthAcc.value = nextAccount
   if (tempUnschedAcc.value?.id === nextAccount.id) tempUnschedAcc.value = nextAccount
   if (deletingAcc.value?.id === nextAccount.id) deletingAcc.value = nextAccount
@@ -2314,7 +2321,20 @@ if (typeof window !== 'undefined') {
   loadSavedColumnLayout()
 }
 
-const handleEdit = (a: Account) => { edAcc.value = a; showEdit.value = true }
+const handleEdit = async (a: Account) => {
+  const requestId = a.id
+  editingAccountId.value = requestId
+  try {
+    const full = await adminAPI.accounts.getById(a.id)
+    if (editingAccountId.value !== requestId) return
+    edAcc.value = full
+    showEdit.value = true
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.failedToLoad')))
+  } finally {
+    if (editingAccountId.value === requestId) editingAccountId.value = null
+  }
+}
 
 const inspectOpen = ref(false)
 const inspectSubjectId = ref<number | null>(null)

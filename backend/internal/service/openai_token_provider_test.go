@@ -951,3 +951,108 @@ func TestOpenAITokenProvider_RuntimeMetrics_LockAcquireFailure(t *testing.T) {
 	require.GreaterOrEqual(t, metrics.LockAcquireFailure, int64(1))
 	require.GreaterOrEqual(t, metrics.RefreshRequests, int64(1))
 }
+
+func chatgptSessionOnlyTestAccount(id int64, accessToken, sessionToken string) *Account {
+	return &Account{
+		ID:       id,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token":          accessToken,
+			"chatgpt_session_token": sessionToken,
+			"email":                 "user@example.com",
+			"plan_type":             "free",
+			"expires_at":            time.Now().Add(10 * 24 * time.Hour).Format(time.RFC3339),
+		},
+	}
+}
+
+func TestOpenAITokenProvider_SessionAccountSkipsCacheUntilRefreshed(t *testing.T) {
+	account := chatgptSessionOnlyTestAccount(401, "pasted-dead-at", "st-live")
+	repo := &tokenRefreshAccountRepo{}
+	repo.accountsByID = map[int64]*Account{account.ID: account}
+	cache := newOpenAITokenCacheStub()
+	cache.tokens[OpenAITokenCacheKey(account)] = "cached-dead-at"
+
+	provider := NewOpenAITokenProvider(repo, cache, nil)
+	provider.SetRefreshAPI(NewOAuthRefreshAPI(repo, cache), &tokenRefresherStub{
+		credentials: map[string]any{
+			"access_token":          "fresh-session-at",
+			"chatgpt_session_token": "st-live",
+			"session_refreshed_at":  time.Now().UTC().Format(time.RFC3339),
+			"expires_at":            time.Now().Add(time.Hour).Format(time.RFC3339),
+		},
+	})
+
+	token, err := provider.GetAccessToken(context.Background(), account)
+	require.NoError(t, err)
+	require.Equal(t, "fresh-session-at", token)
+}
+
+func TestOpenAITokenProvider_SessionRefreshFailureDoesNotUseStoredAccessToken(t *testing.T) {
+	account := chatgptSessionOnlyTestAccount(402, "pasted-dead-at", "st-live")
+	repo := &tokenRefreshAccountRepo{}
+	repo.accountsByID = map[int64]*Account{account.ID: account}
+	cache := newOpenAITokenCacheStub()
+
+	provider := NewOpenAITokenProvider(repo, cache, nil)
+	provider.SetRefreshAPI(NewOAuthRefreshAPI(repo, cache), &tokenRefresherStub{
+		err: errors.New("OPENAI_SESSION_REFRESH_CF_BLOCKED"),
+	})
+
+	token, err := provider.GetAccessToken(context.Background(), account)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "OPENAI_SESSION_REFRESH_CF_BLOCKED")
+	require.Empty(t, token)
+}
+
+func TestOpenAITokenProvider_WipedSessionCredentialsDoNotUseCachedAccessToken(t *testing.T) {
+	account := &Account{
+		ID:       403,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"email":     "user@example.com",
+			"plan_type": "free",
+		},
+		Extra: map[string]any{
+			"import_source":         "codex_session",
+			"session_token_present": true,
+		},
+	}
+	repo := &tokenRefreshAccountRepo{}
+	repo.accountsByID = map[int64]*Account{account.ID: account}
+	cache := newOpenAITokenCacheStub()
+	cache.tokens[OpenAITokenCacheKey(account)] = "cached-dead-at"
+
+	provider := NewOpenAITokenProvider(repo, cache, nil)
+	token, err := provider.GetAccessToken(context.Background(), account)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "access_token not found")
+	require.Empty(t, token)
+}
+
+func TestOpenAITokenProvider_RefreshTokenAccountStillFallsBackOnRefreshError(t *testing.T) {
+	account := &Account{
+		ID:       404,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token":  "still-valid-at",
+			"refresh_token": "rt-1",
+			"expires_at":    time.Now().Add(time.Minute).Format(time.RFC3339),
+		},
+	}
+	repo := &tokenRefreshAccountRepo{}
+	repo.accountsByID = map[int64]*Account{account.ID: account}
+	cache := newOpenAITokenCacheStub()
+
+	provider := NewOpenAITokenProvider(repo, cache, nil)
+	provider.SetRefreshAPI(NewOAuthRefreshAPI(repo, cache), &tokenRefresherStub{
+		err: errors.New("invalid_grant"),
+	})
+
+	token, err := provider.GetAccessToken(context.Background(), account)
+	require.NoError(t, err)
+	require.Equal(t, "still-valid-at", token)
+}
