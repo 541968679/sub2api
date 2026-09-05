@@ -1,3 +1,25 @@
+## 2026-09-05 - fix: show session import item errors and hint missing sessionToken
+
+### What
+- Add Account session paste now shows the per-item backend error in the panel and toast, not only “失败 1”.
+- Access-token-only expired JWT error tells the user to paste raw ChatGPT `/api/auth/session` JSON with `sessionToken`, not an empty-`refresh_token` auth.json.
+- Also read `tokens.session_token` / cookie-style session token keys.
+
+### Why
+Local retries after the expiry+ST fix were still 16–25ms HTTP 200. That means no `sessionToken`/`refresh_token` was extracted, but the wizard hid the real `access_token 已过期` text.
+
+### Verification
+- `go -C backend test -tags=unit ./internal/handler/admin -run "NormalizeCodex|ImportCodex|UpdateRefreshToken_ExpiredSession" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/OAuthAuthorizationFlow.session.spec.ts src/components/account/__tests__/CreateAccountModal.spec.ts`
+
+### Affected files
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/handler/admin/account_codex_import_test.go`,
+`frontend/src/components/account/OAuthAuthorizationFlow.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/__tests__/OAuthAuthorizationFlow.session.spec.ts`,
+this changelog.
+
 ## 2026-09-05 - fix: session import no longer rejects expired JWT when sessionToken is present
 
 ### What

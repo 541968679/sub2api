@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -400,6 +401,12 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		})
 	}
 
+	for _, item := range result.Items {
+		if item.Action != "failed" {
+			continue
+		}
+		log.Printf("[WARN] import_codex_session failed index=%d name=%s message=%s", item.Index, item.Name, item.Message)
+	}
 	return result, nil
 }
 
@@ -570,7 +577,7 @@ func normalizeCodexImportEntryAt(entry codexImportEntry, now time.Time, validate
 		if authProvider != "" {
 			item.Extra["auth_provider"] = authProvider
 		}
-		if sessionToken := firstCodexString(raw, []string{"session_token"}, []string{"sessionToken"}); sessionToken != "" {
+		if sessionToken := firstCodexString(raw, codexSessionTokenPaths...); sessionToken != "" {
 			item.SessionToken = sessionToken
 			item.Credentials["chatgpt_session_token"] = sessionToken
 			item.Extra["session_token_present"] = true
@@ -587,7 +594,7 @@ func normalizeCodexImportEntryAt(entry codexImportEntry, now time.Time, validate
 			[]string{"expiresAt"},
 		); ok {
 			if rejectExpired && tokenExpiresAt.Unix() <= now.Unix()-codexImportClockSkewSeconds {
-				return nil, fmt.Errorf("access_token 已过期: %s", tokenExpiresAt.Format(time.RFC3339))
+				return nil, expiredCodexAccessTokenError(item, tokenExpiresAt)
 			}
 			item.TokenExpiresAt = &tokenExpiresAt
 			item.Credentials["expires_at"] = tokenExpiresAt.Format(time.RFC3339)
@@ -655,7 +662,7 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, app
 	if applyExpiry && claims.Exp > 0 {
 		expiresAt := time.Unix(claims.Exp, 0).UTC()
 		if rejectExpired && now.Unix() > claims.Exp+codexImportClockSkewSeconds {
-			return fmt.Errorf("access_token 已过期: %s", expiresAt.Format(time.RFC3339))
+			return expiredCodexAccessTokenError(item, expiresAt)
 		}
 		item.TokenExpiresAt = &expiresAt
 		item.Credentials["expires_at"] = expiresAt.Format(time.RFC3339)
@@ -1101,7 +1108,22 @@ var (
 		{"refresh_token"},
 		{"refreshToken"},
 	}
+	codexSessionTokenPaths = [][]string{
+		{"session_token"},
+		{"sessionToken"},
+		{"tokens", "session_token"},
+		{"tokens", "sessionToken"},
+		{"__Secure-next-auth.session-token"},
+	}
 )
+
+func expiredCodexAccessTokenError(item *codexImportAccount, expiresAt time.Time) error {
+	msg := fmt.Sprintf("access_token 已过期: %s", expiresAt.Format(time.RFC3339))
+	if item != nil && (strings.TrimSpace(item.SessionToken) != "" || strings.TrimSpace(item.RefreshToken) != "") {
+		return errors.New(msg)
+	}
+	return fmt.Errorf("%s。JSON 没有 sessionToken 或 refresh_token，无法换新 AT。请粘贴 ChatGPT /api/auth/session 原始 JSON（含 sessionToken），不要用空 refresh_token 的 auth.json", msg)
+}
 
 func (h *AccountHandler) hydrateCodexImportCredentials(ctx context.Context, item *codexImportAccount, proxyID *int64) error {
 	if h == nil || h.openaiOAuthService == nil || item == nil {

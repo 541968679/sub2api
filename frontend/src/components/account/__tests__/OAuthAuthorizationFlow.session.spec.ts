@@ -35,4 +35,21 @@ describe('OAuthAuthorizationFlow Codex session paste', () => {
 
     expect(wrapper.emitted('import-codex-session')).toEqual([['{"accessToken":"at"}']])
   })
+
+  it('shows import errors inside the session paste panel', async () => {
+    const wrapper = mount(OAuthAuthorizationFlow, {
+      props: {
+        addMethod: 'oauth',
+        platform: 'openai',
+        showCodexSessionImportOption: true,
+        error: 'access_token 已过期'
+      },
+      global: {
+        stubs: { Icon: true }
+      }
+    })
+
+    await wrapper.get('[data-testid="oauth-method-codex-session"]').setValue(true)
+    expect(wrapper.text()).toContain('access_token 已过期')
+  })
 })

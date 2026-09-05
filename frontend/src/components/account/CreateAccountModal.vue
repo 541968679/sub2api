@@ -6085,12 +6085,12 @@ const handleOpenAIImportCodexSession = async (content: string) => {
       .map((item) => item.message as string)
     if (result.failed > 0 && result.created === 0 && result.updated === 0) {
       openaiOAuth.error.value = failedMessages.join('\n') || message
-      appStore.showError(message)
+      appStore.showError(openaiOAuth.error.value)
       return
     }
     if (result.failed > 0) {
       openaiOAuth.error.value = failedMessages.join('\n') || message
-      appStore.showWarning(message)
+      appStore.showWarning([message, openaiOAuth.error.value].filter(Boolean).join('\n'))
       emit('created')
       return
     }

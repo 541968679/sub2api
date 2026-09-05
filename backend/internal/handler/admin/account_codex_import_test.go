@@ -254,6 +254,9 @@ func TestNormalizeCodexImportRejectsExpiredAccessToken(t *testing.T) {
 	if !strings.Contains(err.Error(), "已过期") {
 		t.Fatalf("error = %v, want expired token message", err)
 	}
+	if !strings.Contains(err.Error(), "sessionToken") {
+		t.Fatalf("error = %v, want sessionToken hint for access-token-only expiry", err)
+	}
 }
 
 func TestNormalizeCodexSessionJSONExpiredAccessTokenKeptWhenSessionTokenPresent(t *testing.T) {

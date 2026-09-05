@@ -243,6 +243,14 @@
             <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
               {{ t('admin.accounts.oauth.openai.codexSessionHint') }}
             </p>
+            <div
+              v-if="error"
+              class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+            >
+              <p class="whitespace-pre-line text-sm text-red-600 dark:text-red-400">
+                {{ error }}
+              </p>
+            </div>
             <button
               type="button"
               data-testid="codex-session-submit"
