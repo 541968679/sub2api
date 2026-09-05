@@ -38,17 +38,54 @@
       </div>
 
       <div v-else class="space-y-4">
-        <!-- 添加按钮 -->
-        <button
-          class="flex items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 transition hover:border-primary-400 hover:text-primary-600 dark:border-dark-500 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
-          @click="addOverride"
-        >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-          {{ t('admin.users.addModelOverride') }}
-        </button>
+        <div class="flex flex-wrap items-end gap-x-5 gap-y-0 border-b border-gray-200 dark:border-gray-700">
+          <span class="shrink-0 pb-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+            {{ t('admin.modelPricing.providerLabel') }}
+          </span>
+          <button
+            v-for="tab in platformTabs"
+            :key="'p-' + tab.value"
+            type="button"
+            class="-mb-px whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors"
+            :class="activeTab === tab.value
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            :data-test="'platform-tab-' + tab.value"
+            @click="activeTab = tab.value"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            class="flex items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 transition hover:border-primary-400 hover:text-primary-600 dark:border-dark-500 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+            data-test="add-model-override"
+            @click="addOverride"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            {{ t('admin.users.addModelOverride') }}
+          </button>
+          <button
+            v-if="activeTab !== 'other'"
+            type="button"
+            class="rounded-lg bg-primary-50 px-4 py-2 text-sm font-medium text-primary-700 transition hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/50"
+            data-test="bulk-apply-suggested"
+            :title="t('admin.users.applySuggestedToCuratedHint')"
+            @click="applySuggestedToCurrentPlatform"
+          >
+            {{ t('admin.users.applySuggestedToCurated') }}
+          </button>
+        </div>
 
         <!-- 覆盖列表 -->
-        <div v-for="(item, idx) in overrides" :key="idx" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
+        <div
+          v-for="item in visibleOverrides"
+          :key="item.localKey"
+          class="rounded-xl border border-gray-200 p-4 dark:border-dark-600"
+          data-test="override-row"
+          :data-model="item.model"
+        >
           <div class="flex items-center justify-between mb-3">
             <div class="w-64">
               <Select
@@ -63,14 +100,14 @@
                 <input v-model="item.enabled" type="checkbox" class="rounded text-primary-500" />
                 {{ t('common.enabled') }}
               </label>
-              <button class="text-red-500 hover:text-red-700 text-sm" @click="removeOverride(idx)">
+              <button class="text-red-500 hover:text-red-700 text-sm" @click="removeOverride(item)">
                 {{ t('common.delete') }}
               </button>
             </div>
           </div>
 
           <!-- LiteLLM 标准价格参考 -->
-          <div v-if="item.model && modelInfoMap.get(item.model)" class="mb-3 rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 text-xs">
+          <div v-if="item.model && lookupSuggestedSource(item.model)" class="mb-3 rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 text-xs">
             <div class="font-medium text-blue-700 dark:text-blue-300 mb-1">{{ t('admin.users.litellmReference') }}</div>
             <div class="flex flex-wrap gap-x-4 gap-y-1 text-blue-600 dark:text-blue-400">
               <span>{{ t('admin.modelPricing.inputPrice') }}: {{ getSuggestedMTok(item, 'input_price') ?? '-' }}</span>
@@ -88,10 +125,10 @@
               <div class="flex items-center justify-between">
                 <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.billingPriceOverride') }}</h5>
                 <button
-                  v-if="item.model && modelInfoMap.get(item.model)"
-                  @click="applySuggestedBilling(item)"
+                  v-if="item.model && lookupSuggestedSource(item.model)"
                   type="button"
-                  class="text-[10px] text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 underline"
+                  class="text-[10px] text-primary-600 hover:text-primary-800 underline dark:text-primary-400 dark:hover:text-primary-300"
+                  @click="applySuggestedBilling(item, (field) => getSuggestedMTok(item, field))"
                 >
                   {{ t('admin.users.applySuggested') }}
                 </button>
@@ -130,10 +167,10 @@
               <div class="flex items-center justify-between">
                 <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.displayPriceOverride') }}</h5>
                 <button
-                  v-if="item.model && modelInfoMap.get(item.model)"
-                  @click="applySuggestedDisplay(item)"
+                  v-if="item.model && lookupSuggestedSource(item.model)"
                   type="button"
-                  class="text-[10px] text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 underline"
+                  class="text-[10px] text-primary-600 hover:text-primary-800 underline dark:text-primary-400 dark:hover:text-primary-300"
+                  @click="applySuggestedDisplay(item, (field) => getSuggestedMTok(item, field))"
                 >
                   {{ t('admin.users.applySuggested') }}
                 </button>
@@ -175,8 +212,8 @@
           </div>
         </div>
 
-        <div v-if="overrides.length === 0" class="py-8 text-center text-sm text-gray-400">
-          {{ t('admin.users.noModelOverrides') }}
+        <div v-if="visibleOverrides.length === 0" class="py-8 text-center text-sm text-gray-400" data-test="empty-overrides">
+          {{ t('admin.users.noModelOverridesOnPlatform') }}
         </div>
       </div>
     </div>
@@ -191,6 +228,7 @@
         </button>
         <button
           class="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600 disabled:opacity-50"
+          data-test="save-model-pricing"
           :disabled="saving"
           @click="save"
         >
@@ -202,94 +240,100 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
-import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types'
+import { mTokToPerToken, perTokenToMTok } from '@/components/admin/channel/types'
 import { adminAPI } from '@/api/admin'
 import { update as updateUser } from '@/api/admin/users'
+import { getPlatformModelCatalog } from '@/api/admin/modelCatalog'
 import {
   getUserModelPricing,
   batchUpsertUserModelPricing,
   deleteUserModelPricing,
   type UserModelPricingOverride,
 } from '@/api/admin/userModelPricing'
+import { MODEL_PRICING_PROVIDER_OPTIONS } from '@/components/admin/model-pricing/modelPricingOptions'
+import {
+  applySuggestedBilling,
+  applySuggestedDisplay,
+  applySuggestedToCurated,
+  emptyCatalogMap,
+  emptyOverrideRow,
+  ensureCuratedOverrideRows,
+  litellmSuggestedMTok,
+  modelSelectOptions,
+  rowVisibleOnTab,
+  USER_PRICING_PLATFORM_TABS,
+  type BillingPriceField,
+  type CatalogMap,
+  type SuggestedPriceSource,
+  type UserModelPricingFormRow,
+  type UserPricingTab,
+} from '@/components/admin/user/userModelPricingPlatform'
 
 const { t } = useI18n()
 const cacheMaxMultInput = ref<string | number>('')
 
-interface OverrideRow {
-  id?: number
-  model: string
-  input_price: number | null
-  output_price: number | null
-  cache_write_price: number | null
-  cache_write_1h_price: number | null
-  cache_read_price: number | null
-  display_input_price: number | null
-  display_output_price: number | null
-  display_cache_read_price: number | null
-  display_cache_creation_price: number | null
-  display_cache_creation_1h_price: number | null
-  enabled: boolean
-  notes: string
-  _deleted?: boolean
-}
-
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
 
-interface ModelInfo {
+interface ModelInfo extends SuggestedPriceSource {
   model: string
   provider: string
-  input_price: number | null
-  output_price: number | null
-  cache_write_price: number | null
-  cache_write_1h_price: number | null
-  cache_read_price: number | null
 }
 
 const loading = ref(false)
 const saving = ref(false)
-const overrides = ref<OverrideRow[]>([])
+const overrides = ref<UserModelPricingFormRow[]>([])
 const originalIds = ref<Set<number>>(new Set())
 const availableModels = ref<ModelInfo[]>([])
-const modelInfoMap = computed(() => {
-  const m = new Map<string, ModelInfo>()
+const catalogs = ref<CatalogMap>(emptyCatalogMap())
+const activeTab = ref<UserPricingTab>('anthropic')
+
+const modelInfoByName = computed(() => {
+  const map = new Map<string, ModelInfo>()
   for (const info of availableModels.value) {
-    m.set(info.model, info)
+    map.set(info.model.trim().toLowerCase(), info)
   }
-  return m
+  return map
 })
 
-const modelOptions = computed(() => {
-  const seen = new Set<string>()
-  const opts: Array<{ value: string; label: string }> = []
-  for (const m of availableModels.value) {
-    if (seen.has(m.model)) continue
-    seen.add(m.model)
-    opts.push({
-      value: m.model,
-      label: m.provider ? `${m.model}  ·  ${m.provider}` : m.model,
-    })
-  }
-  // Include any already-saved models that aren't in the list (e.g. retired models)
-  for (const o of overrides.value) {
-    if (o.model && !seen.has(o.model)) {
-      seen.add(o.model)
-      opts.push({ value: o.model, label: o.model })
-    }
-  }
-  return opts
-})
+const platformTabs = computed(() => [
+  ...MODEL_PRICING_PROVIDER_OPTIONS,
+  { value: 'other' as const, label: t('admin.users.otherPlatform') },
+])
+
+const visibleOverrides = computed(() =>
+  overrides.value.filter((row) =>
+    rowVisibleOnTab(row, activeTab.value, catalogs.value, modelInfoByName.value.get(row.model.trim().toLowerCase()))
+  )
+)
+
+const modelOptions = computed(() =>
+  modelSelectOptions({
+    tab: activeTab.value,
+    catalogs: catalogs.value,
+    available: availableModels.value,
+    extraModels: visibleOverrides.value.map((row) => row.model),
+  })
+)
+
+function lookupSuggestedSource(model: string): ModelInfo | undefined {
+  return modelInfoByName.value.get(model.trim().toLowerCase())
+}
+
+function getSuggestedMTok(item: UserModelPricingFormRow, field: BillingPriceField): number | null {
+  return litellmSuggestedMTok(lookupSuggestedSource(item.model), field)
+}
 
 async function loadAvailableModels() {
   if (availableModels.value.length > 0) return
   try {
     const result = await adminAPI.modelPricing.list(1, 1000)
-    availableModels.value = (result.items || []).map((i: any) => ({
+    availableModels.value = (result.items || []).map((i: { model: string; provider?: string; litellm_prices?: SuggestedPriceSource | null }) => ({
       model: i.model,
       provider: i.provider || '',
       input_price: i.litellm_prices?.input_price ?? null,
@@ -303,39 +347,19 @@ async function loadAvailableModels() {
   }
 }
 
-/**
- * 获取选中模型的 LiteLLM 标准价格，格式化为 $/MTok 用于表单填充。
- * 若该字段没有 LiteLLM 价格则返回 null。
- */
-function getSuggestedMTok(item: OverrideRow, field: 'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'): number | null {
-  const info = modelInfoMap.value.get(item.model)
-  if (!info) return null
-  const perToken = info[field]
-  if (perToken == null) return null
-  return perTokenToMTok(perToken) ?? null
-}
-
-function applySuggestedBilling(item: OverrideRow) {
-  const fields: Array<'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'> = [
-    'input_price', 'output_price', 'cache_write_price', 'cache_write_1h_price', 'cache_read_price',
-  ]
-  for (const f of fields) {
-    const v = getSuggestedMTok(item, f)
-    if (v != null) item[f] = v
-  }
-}
-
-function applySuggestedDisplay(item: OverrideRow) {
-  const inputMTok = getSuggestedMTok(item, 'input_price')
-  if (inputMTok != null) item.display_input_price = inputMTok
-  const outputMTok = getSuggestedMTok(item, 'output_price')
-  if (outputMTok != null) item.display_output_price = outputMTok
-  const cacheReadMTok = getSuggestedMTok(item, 'cache_read_price')
-  if (cacheReadMTok != null) item.display_cache_read_price = cacheReadMTok
-  const cacheWriteMTok = getSuggestedMTok(item, 'cache_write_price')
-  if (cacheWriteMTok != null) item.display_cache_creation_price = cacheWriteMTok
-  const cacheWrite1hMTok = getSuggestedMTok(item, 'cache_write_1h_price')
-  if (cacheWrite1hMTok != null && cacheWrite1hMTok > 0) item.display_cache_creation_1h_price = cacheWrite1hMTok
+async function loadCatalogs() {
+  const next = emptyCatalogMap()
+  await Promise.all(
+    USER_PRICING_PLATFORM_TABS.map(async (platform) => {
+      try {
+        const catalog = await getPlatformModelCatalog(platform)
+        next[platform] = catalog.display_models ?? []
+      } catch (e) {
+        console.error(`[UserModelPricing] failed to load ${platform} catalog:`, e)
+      }
+    })
+  )
+  catalogs.value = next
 }
 
 watch(
@@ -343,16 +367,18 @@ watch(
   async (val) => {
     if (!val || !props.user) return
     loading.value = true
+    activeTab.value = 'anthropic'
     try {
       cacheMaxMultInput.value =
         props.user.display_cache_token_max_mult != null && props.user.display_cache_token_max_mult > 0
           ? props.user.display_cache_token_max_mult
           : ''
-      await loadAvailableModels()
+      await Promise.all([loadAvailableModels(), loadCatalogs()])
       const data = await getUserModelPricing(props.user.id)
       overrides.value = (data || []).map((o: UserModelPricingOverride) => ({
+        ...emptyOverrideRow(o.model),
         id: o.id,
-        model: o.model,
+        localKey: `id-${o.id}`,
         input_price: perTokenToMTok(o.input_price) ?? null,
         output_price: perTokenToMTok(o.output_price) ?? null,
         cache_write_price: perTokenToMTok(o.cache_write_price) ?? null,
@@ -376,25 +402,21 @@ watch(
 )
 
 function addOverride() {
-  overrides.value.push({
-    model: '',
-    input_price: null,
-    output_price: null,
-    cache_write_price: null,
-    cache_write_1h_price: null,
-    cache_read_price: null,
-    display_input_price: null,
-    display_output_price: null,
-    display_cache_read_price: null,
-    display_cache_creation_price: null,
-    display_cache_creation_1h_price: null,
-    enabled: true,
-    notes: '',
-  })
+  overrides.value.push(emptyOverrideRow('', activeTab.value))
 }
 
-function removeOverride(idx: number) {
-  overrides.value.splice(idx, 1)
+function removeOverride(row: UserModelPricingFormRow) {
+  const idx = overrides.value.indexOf(row)
+  if (idx >= 0) overrides.value.splice(idx, 1)
+}
+
+function applySuggestedToCurrentPlatform() {
+  if (activeTab.value === 'other') return
+  const curatedIds = catalogs.value[activeTab.value] || []
+  overrides.value = ensureCuratedOverrideRows(overrides.value, curatedIds, activeTab.value)
+  applySuggestedToCurated(overrides.value, curatedIds, (model, field) =>
+    litellmSuggestedMTok(lookupSuggestedSource(model), field)
+  )
 }
 
 async function save() {
@@ -427,7 +449,6 @@ async function save() {
         notes: o.notes || '',
       }))
 
-    // 前端去重：同一模型名多条记录时告警并阻止保存
     const modelCounts = new Map<string, number>()
     for (const o of toUpsert) {
       modelCounts.set(o.model, (modelCounts.get(o.model) || 0) + 1)
@@ -442,7 +463,6 @@ async function save() {
       await batchUpsertUserModelPricing(userId, toUpsert)
     }
 
-    // User-global cache amplify cap (empty/0 = inherit global)
     const rawMult = Number(cacheMaxMultInput.value)
     const multPayload =
       cacheMaxMultInput.value === '' || cacheMaxMultInput.value == null || Number.isNaN(rawMult) || rawMult <= 0

@@ -210,10 +210,7 @@ func (r *userModelPricingRepository) DeleteByUserID(ctx context.Context, userID 
 	return err
 }
 
-func (r *userModelPricingRepository) BatchUpsert(ctx context.Context, userID int64, overrides []service.UserModelPricingOverride) error {
-	now := time.Now()
-	for _, o := range overrides {
-		_, err := r.sql.ExecContext(ctx, `
+const userModelPricingBatchUpsertSQL = `
 			INSERT INTO user_model_pricing_overrides
 				(user_id, model, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price,
 				 display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier,
@@ -223,15 +220,22 @@ func (r *userModelPricingRepository) BatchUpsert(ctx context.Context, userID int
 				input_price = EXCLUDED.input_price,
 				output_price = EXCLUDED.output_price,
 				cache_write_price = EXCLUDED.cache_write_price,
+				cache_write_1h_price = EXCLUDED.cache_write_1h_price,
 				cache_read_price = EXCLUDED.cache_read_price,
 				display_input_price = EXCLUDED.display_input_price,
 				display_output_price = EXCLUDED.display_output_price,
 				display_cache_read_price = EXCLUDED.display_cache_read_price,
 				display_cache_creation_price = EXCLUDED.display_cache_creation_price,
+				display_cache_creation_1h_price = EXCLUDED.display_cache_creation_1h_price,
 				display_rate_multiplier = EXCLUDED.display_rate_multiplier,
 				enabled = EXCLUDED.enabled,
 				notes = EXCLUDED.notes,
-				updated_at = EXCLUDED.updated_at`,
+				updated_at = EXCLUDED.updated_at`
+
+func (r *userModelPricingRepository) BatchUpsert(ctx context.Context, userID int64, overrides []service.UserModelPricingOverride) error {
+	now := time.Now()
+	for _, o := range overrides {
+		_, err := r.sql.ExecContext(ctx, userModelPricingBatchUpsertSQL,
 			userID, o.Model,
 			toNullFloat(o.InputPrice), toNullFloat(o.OutputPrice),
 			toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheWrite1hPrice), toNullFloat(o.CacheReadPrice),

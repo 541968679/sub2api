@@ -144,7 +144,7 @@ PnL aggregates only `true_cost IS NOT NULL` rows.
 | **Usage Handler** | `handler/usage_handler.go:149-161` | 串联调用展示变换的入口 |
 | **Pricing Page** | `handler/pricing_page_handler.go` | 用户计价页 API，展示单价直传 |
 | **Admin (Global)** | `frontend/.../model-pricing/ModelPricingDetailDialog.vue` | 全局覆盖管理 UI |
-| **Admin (User)** | `frontend/.../user/UserModelPricingModal.vue` | 用户级定价覆盖管理 UI |
+| **Admin (User)** | `frontend/.../user/UserModelPricingModal.vue` | 用户级定价覆盖管理 UI（按平台页签；一键对 catalog `display_models` 应用 LiteLLM 建议值到计费+展示） |
 | **Admin (Rate)** | `frontend/.../group/GroupRateMultipliersModal.vue` | 分组级费率乘数+展示倍率管理 UI |
 | **Admin (User Groups)** | `frontend/.../user/UserAllowedGroupsModal.vue` | 用户级分组配置+展示倍率管理 UI |
 

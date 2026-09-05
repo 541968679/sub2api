@@ -1,3 +1,29 @@
+## 2026-09-05 - feat(admin): user model pricing by platform + bulk apply suggested
+
+### What
+- User model pricing modal is grouped by Anthropic / OpenAI / Gemini / Antigravity (plus Other for unclassified overrides).
+- One-click applies the existing LiteLLM suggested fill to both billing and display for that platform's live catalog `display_models`.
+- Batch upsert now persists 1h cache billing and display prices on conflict, matching insert/update.
+
+### Why
+Admins could not edit or bulk-fill prices per platform; the flat list mixed every model, and saving an existing override dropped 1h cache fields.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run UserModelPricingBatchUpsert -count=1`
+- `pnpm --dir frontend exec vitest run src/components/admin/user/__tests__/userModelPricingPlatform.spec.ts src/components/admin/user/__tests__/UserModelPricingModal.spec.ts`
+
+### Affected files
+`frontend/src/components/admin/user/UserModelPricingModal.vue`,
+`frontend/src/components/admin/user/userModelPricingPlatform.ts`,
+`frontend/src/components/admin/user/__tests__/userModelPricingPlatform.spec.ts`,
+`frontend/src/components/admin/user/__tests__/UserModelPricingModal.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`backend/internal/repository/user_model_pricing_repo.go`,
+`backend/internal/repository/user_model_pricing_repo_test.go`,
+`docs/dev/codebase/billing.md`,
+this changelog.
+
 ## 2026-09-05 - deploy: production v0.1.281
 
 ### What
