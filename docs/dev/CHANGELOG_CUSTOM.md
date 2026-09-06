@@ -1,3 +1,11 @@
+## 2026-09-06 - release: 0.1.282 user model pricing platform tabs
+
+### What
+- Ship admin user model-pricing platform tabs and one-click LiteLLM suggested fill as `v0.1.282`.
+
+### Why
+Production `v0.1.281` still has a flat mixed-model price editor with no bulk apply-suggested for a platform's curated list.
+
 ## 2026-09-05 - feat(admin): user model pricing by platform + bulk apply suggested
 
 ### What
