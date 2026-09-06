@@ -1,3 +1,12 @@
+## 2026-09-06 - deploy: production v0.1.282
+
+### What
+- Released and deployed `v0.1.282` (`d509b6ca0`) to production as `ghcr.io/541968679/sub2api:0.1.282`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:b2570a2505c1e21a3508426cff52e16a582a3e8cac6ad17a8eba2ae502768da9`. Rollback is `v0.1.281` digest `sha256:19e7fdbe2e93ab60c9a84978e75324b5dbe0184cbf2f6a17b3a3fc68885920dd`.
+
+### Why
+Ship platform-grouped user model pricing and one-click LiteLLM suggested fill.
+
 ## 2026-09-06 - release: 0.1.282 user model pricing platform tabs
 
 ### What
