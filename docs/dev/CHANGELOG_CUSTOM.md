@@ -1,3 +1,12 @@
+## 2026-09-06 - deploy: production v0.1.283
+
+### What
+- Released and deployed `v0.1.283` (`06fb2d3d1`) to production as `ghcr.io/541968679/sub2api:0.1.283`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:822b410aa44aa2a33c0a7d1f0c936c7a737fc53775e1b20b5a07dc57ce301c2d`. Rollback is `v0.1.282` digest `sha256:b2570a2505c1e21a3508426cff52e16a582a3e8cac6ad17a8eba2ae502768da9`.
+
+### Why
+Ship JSON-import fallback model mapping and clickable smart-pool membership/admission cells.
+
 ## 2026-09-06 - release: 0.1.283 import mapping and clickable pool membership
 
 ### What
