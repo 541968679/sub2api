@@ -843,6 +843,7 @@ export interface SmartScheduleAccountMembership {
   deleted: boolean
   platform: string
   enabled: boolean
+  in_pool: boolean
   paused: boolean
   pinned?: boolean
   probing?: boolean
@@ -882,6 +883,13 @@ export async function removeSmartScheduleMember(
   await apiClient.delete(`/admin/accounts/${accountId}/smart-schedule-members`, {
     data: { user_id: userId, platform }
   })
+}
+
+export async function setSmartScheduleMembersBatch(
+  accountId: number,
+  payload: { platform: string; user_ids: number[]; action: 'add' | 'remove' }
+): Promise<void> {
+  await apiClient.post(`/admin/accounts/${accountId}/smart-schedule-members-batch`, payload)
 }
 
 export async function setSmartScheduleAdmissionBatch(
@@ -1467,6 +1475,7 @@ export const accountsAPI = {
   listSmartScheduleMemberships,
   addSmartScheduleMember,
   removeSmartScheduleMember,
+  setSmartScheduleMembersBatch,
   setSmartScheduleAdmissionBatch,
   setPublicSchedulable,
   getQualityHistory,

@@ -72,28 +72,37 @@
       </p>
 
       <div class="mb-3 flex flex-wrap items-end gap-2">
-        <div class="min-w-[16rem] flex-1">
-          <OpenAIFastPolicyUserSelector
-            v-model="addUserIds"
-            :known-users="knownUsers"
-            @select="onPickUser"
-          />
-        </div>
-        <SmartScheduleAdmissionSwitch
-          :admission="'selectable'"
-          :disabled="busy || selectedIds.length === 0"
-          data-testid="account-schedule-batch-admission"
-          @select="applyBatchAdmission"
+        <input
+          v-model="userSearch"
+          type="search"
+          class="input min-w-[12rem] flex-1"
+          data-testid="account-schedule-search"
+          :placeholder="t('admin.accounts.accountSchedule.searchUsers')"
         />
         <button
           type="button"
           class="btn btn-secondary btn-sm"
+          data-testid="account-schedule-add-selected"
+          :disabled="busy || selectedOutOfPoolIds.length === 0"
+          @click="addSelected"
+        >
+          {{ t('admin.accounts.accountSchedule.addSelected') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
           data-testid="account-schedule-remove-selected"
-          :disabled="busy || selectedIds.length === 0"
+          :disabled="busy || selectedInPoolIds.length === 0"
           @click="removeSelected"
         >
           {{ t('admin.accounts.accountSchedule.removeSelected') }}
         </button>
+        <SmartScheduleAdmissionSwitch
+          :admission="'selectable'"
+          :disabled="busy || selectedInPoolIds.length === 0"
+          data-testid="account-schedule-batch-admission"
+          @select="applyBatchAdmission"
+        />
       </div>
 
       <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-dark-600">
@@ -105,21 +114,21 @@
                   type="checkbox"
                   data-testid="account-schedule-select-all"
                   :checked="allSelected"
-                  :disabled="members.length === 0"
+                  :disabled="visibleRows.length === 0"
                   @change="toggleSelectAll"
                 />
               </th>
               <th class="px-3 py-2">{{ t('common.email') }}</th>
               <th class="px-3 py-2">{{ t('admin.accounts.accountSchedule.poolStatus') }}</th>
-              <th class="px-3 py-2">{{ t('admin.users.smartSchedule.switchState') }}</th>
-              <th class="px-3 py-2" />
+              <th class="px-3 py-2">{{ t('admin.accounts.accountSchedule.membership') }}</th>
+              <th class="px-3 py-2">{{ t('admin.accounts.accountSchedule.admission') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
               <td colspan="5" class="px-3 py-6 text-center text-gray-500">{{ t('common.loading') }}</td>
             </tr>
-            <tr v-else-if="members.length === 0">
+            <tr v-else-if="visibleRows.length === 0">
               <td
                 colspan="5"
                 class="px-3 py-6 text-center text-gray-500"
@@ -129,7 +138,7 @@
               </td>
             </tr>
             <tr
-              v-for="row in members"
+              v-for="row in visibleRows"
               :key="`${row.platform}-${row.user_id}`"
               class="border-t border-gray-100 dark:border-dark-600"
               :data-testid="`account-schedule-member-${row.user_id}`"
@@ -159,24 +168,40 @@
                 }}
               </td>
               <td class="px-3 py-2">
+                <button
+                  type="button"
+                  class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                  :class="row.in_pool
+                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300'"
+                  :data-testid="`account-schedule-membership-${row.user_id}`"
+                  :disabled="busy"
+                  @click="toggleMembership(row)"
+                >
+                  {{
+                    row.in_pool
+                      ? t('admin.accounts.accountSchedule.inPool')
+                      : t('admin.accounts.accountSchedule.outPool')
+                  }}
+                </button>
+              </td>
+              <td class="px-3 py-2">
                 <SmartScheduleAdmissionSwitch
                   :admission="memberAdmission(row).state"
                   :paused="row.paused"
                   :pinned="Boolean(row.pinned)"
-                  :disabled="busy"
+                  :disabled="busy || !row.in_pool"
                   @select="(state) => applyAdmission(row.user_id, state)"
-                />
-              </td>
-              <td class="px-3 py-2 text-right">
-                <button
-                  type="button"
-                  class="text-xs text-red-600 hover:text-red-700"
-                  :data-testid="`account-schedule-remove-${row.user_id}`"
-                  :disabled="busy"
-                  @click="removeMember(row.user_id)"
                 >
-                  {{ t('admin.accounts.accountSchedule.remove') }}
-                </button>
+                  <span
+                    v-if="row.in_pool"
+                    class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    :class="admissionChipClass(memberAdmission(row).state)"
+                  >
+                    {{ admissionLabel(memberAdmission(row).state) }}
+                  </span>
+                  <span v-else class="text-xs text-gray-400">—</span>
+                </SmartScheduleAdmissionSwitch>
               </td>
             </tr>
           </tbody>
@@ -192,13 +217,12 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { Account } from '@/types'
-import type { SimpleUser } from '@/api/admin/usage'
 import type { SmartScheduleAccountMembership } from '@/api/admin/accounts'
-import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolicyUserSelector.vue'
 import SmartScheduleAdmissionSwitch from '@/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue'
 import {
   resolvePoolAdmission,
-  type PairAdmissionLiveState
+  type PairAdmissionLiveState,
+  type PoolAdmissionState
 } from '@/composables/smartSchedulePoolAdmission'
 
 const props = defineProps<{
@@ -216,22 +240,31 @@ const platforms = computed(() => schedulePlatforms(props.account.platform))
 const activePlatform = ref(defaultPlatform(props.account.platform))
 const members = ref<SmartScheduleAccountMembership[]>([])
 const selectedIds = ref<number[]>([])
-const addUserIds = ref<number[]>([])
+const userSearch = ref('')
 const loading = ref(false)
 const busy = ref(false)
 const localSchedulable = ref(Boolean(props.account.schedulable))
 const localPublic = ref(props.account.public_schedulable !== false)
 
-const knownUsers = computed<SimpleUser[]>(() =>
-  members.value.map((row) => ({
-    id: row.user_id,
-    email: row.email,
-    deleted: row.deleted
-  }))
-)
+const visibleRows = computed(() => {
+  const query = userSearch.value.trim().toLowerCase()
+  if (!query) return members.value
+  return members.value.filter((row) => {
+    const email = (row.email || '').toLowerCase()
+    return email.includes(query) || String(row.user_id).includes(query)
+  })
+})
 
 const allSelected = computed(
-  () => members.value.length > 0 && selectedIds.value.length === members.value.length
+  () => visibleRows.value.length > 0 && selectedIds.value.length === visibleRows.value.length
+)
+
+const selectedInPoolIds = computed(() =>
+  selectedIds.value.filter((id) => members.value.some((row) => row.user_id === id && row.in_pool))
+)
+
+const selectedOutOfPoolIds = computed(() =>
+  selectedIds.value.filter((id) => members.value.some((row) => row.user_id === id && !row.in_pool))
 )
 
 watch(
@@ -365,13 +398,34 @@ async function togglePublic() {
   }
 }
 
-async function onPickUser(user: SimpleUser) {
-  if (!user?.id) return
+async function toggleMembership(row: SmartScheduleAccountMembership) {
+  if (row.in_pool) {
+    await removeMembers([row.user_id])
+    return
+  }
+  await addMembers([row.user_id])
+}
+
+async function addSelected() {
+  await addMembers(selectedOutOfPoolIds.value)
+}
+
+async function addMembers(ids: number[]) {
+  const userIds = [...ids]
+  if (userIds.length === 0) return
   busy.value = true
   try {
-    await adminAPI.accounts.addSmartScheduleMember(props.account.id, user.id, activePlatform.value)
-    addUserIds.value = []
+    if (userIds.length === 1) {
+      await adminAPI.accounts.addSmartScheduleMember(props.account.id, userIds[0], activePlatform.value)
+    } else {
+      await adminAPI.accounts.setSmartScheduleMembersBatch(props.account.id, {
+        platform: activePlatform.value,
+        user_ids: userIds,
+        action: 'add'
+      })
+    }
     appStore.showSuccess(t('admin.accounts.accountSchedule.addSuccess'))
+    selectedIds.value = selectedIds.value.filter((id) => !userIds.includes(id))
     await loadMembers()
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.accountSchedule.addFailed'))
@@ -380,34 +434,32 @@ async function onPickUser(user: SimpleUser) {
   }
 }
 
-async function removeMember(userId: number) {
+async function removeSelected() {
+  await removeMembers(selectedInPoolIds.value)
+}
+
+async function removeMembers(ids: number[]) {
+  const userIds = [...ids]
+  if (userIds.length === 0) return
+  const inPoolBefore = members.value.filter((row) => row.in_pool).length
   busy.value = true
   try {
-    await adminAPI.accounts.removeSmartScheduleMember(props.account.id, userId, activePlatform.value)
-    const remaining = members.value.filter((row) => row.user_id !== userId)
+    if (userIds.length === 1) {
+      await adminAPI.accounts.removeSmartScheduleMember(props.account.id, userIds[0], activePlatform.value)
+    } else {
+      await adminAPI.accounts.setSmartScheduleMembersBatch(props.account.id, {
+        platform: activePlatform.value,
+        user_ids: userIds,
+        action: 'remove'
+      })
+    }
+    const remaining = inPoolBefore - userIds.length
     appStore.showSuccess(
-      remaining.length === 0
+      remaining <= 0
         ? t('admin.accounts.accountSchedule.lastMemberDisabled')
         : t('admin.accounts.accountSchedule.removeSuccess')
     )
-    await loadMembers()
-  } catch (error: any) {
-    appStore.showError(error?.message || t('admin.accounts.accountSchedule.removeFailed'))
-  } finally {
-    busy.value = false
-  }
-}
-
-async function removeSelected() {
-  const ids = [...selectedIds.value]
-  if (ids.length === 0) return
-  busy.value = true
-  try {
-    for (const userId of ids) {
-      await adminAPI.accounts.removeSmartScheduleMember(props.account.id, userId, activePlatform.value)
-    }
-    appStore.showSuccess(t('admin.accounts.accountSchedule.removeSuccess'))
-    selectedIds.value = []
+    selectedIds.value = selectedIds.value.filter((id) => !userIds.includes(id))
     await loadMembers()
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.accountSchedule.removeFailed'))
@@ -428,8 +480,32 @@ async function applyAdmission(userId: number, state: PairAdmissionLiveState) {
   }
 }
 
+function admissionLabel(state: PoolAdmissionState) {
+  if (state === 'paused') return t('admin.users.smartSchedule.admissionPaused')
+  if (state === 'cooling') return t('admin.users.smartSchedule.admissionCooling')
+  if (state === 'probing') return t('admin.users.smartSchedule.admissionProbing')
+  if (state === 'resumed') return t('admin.users.smartSchedule.admissionResumed')
+  if (state === 'pinned') return t('admin.users.smartSchedule.admissionPinned')
+  if (state === 'will_cool') return t('admin.users.smartSchedule.admissionWillCool')
+  if (state === 'pair_full') return t('admin.users.smartSchedule.admissionPairFull')
+  if (state === 'stopped') return t('admin.users.smartSchedule.admissionStopped')
+  return t('admin.users.smartSchedule.admissionSelectable')
+}
+
+function admissionChipClass(state: PoolAdmissionState) {
+  if (state === 'paused') return 'bg-slate-200 text-slate-800 dark:bg-slate-800/70 dark:text-slate-200'
+  if (state === 'cooling') return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+  if (state === 'will_cool') return 'bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200'
+  if (state === 'pair_full') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  if (state === 'stopped') return 'bg-gray-200 text-gray-700 dark:bg-dark-600 dark:text-gray-300'
+  if (state === 'resumed') return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+  if (state === 'pinned') return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300'
+  if (state === 'probing') return 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
+  return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+}
+
 async function applyBatchAdmission(state: PairAdmissionLiveState) {
-  const ids = [...selectedIds.value]
+  const ids = [...selectedInPoolIds.value]
   if (ids.length === 0) return
   busy.value = true
   try {
@@ -454,6 +530,6 @@ function toggleSelected(userId: number) {
 
 function toggleSelectAll(event: Event) {
   const checked = (event.target as HTMLInputElement).checked
-  selectedIds.value = checked ? members.value.map((row) => row.user_id) : []
+  selectedIds.value = checked ? visibleRows.value.map((row) => row.user_id) : []
 }
 </script>

@@ -313,6 +313,15 @@ func TestListSmartScheduleMemberships_ReturnsMembers(t *testing.T) {
 	}
 }
 
+func TestSetSmartScheduleMembersBatch_RequiresUserIDs(t *testing.T) {
+	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
+	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"platform":"anthropic","action":"add"}`, []gin.Param{{Key: "id", Value: "7"}})
+	h.SetSmartScheduleMembersBatch(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestAddSmartScheduleMember_RequiresUserID(t *testing.T) {
 	h := &AccountHandler{adminService: newStubAdminService(), smartSchedule: service.NewUserSmartScheduleService(&serviceSmartRepoStub{}, nil, nil, nil, nil)}
 	c, w := newSmartScheduleJSONContext(http.MethodPost, `{"platform":"anthropic"}`, []gin.Param{{Key: "id", Value: "7"}})
@@ -504,7 +513,7 @@ func (s *serviceSmartRepoStub) UpdateSortOrders(_ context.Context, _ int64, _ st
 	return nil
 }
 
-func (s *serviceSmartRepoStub) ListMembershipsByAccount(_ context.Context, _ int64, platform string) ([]service.SmartScheduleAccountMembership, error) {
+func (s *serviceSmartRepoStub) ListMembershipsByAccount(_ context.Context, accountID int64, platform string) ([]service.SmartScheduleAccountMembership, error) {
 	out := []service.SmartScheduleAccountMembership{}
 	if s == nil || s.bundle == nil || s.bundle.Policies == nil {
 		return out, nil
@@ -516,14 +525,14 @@ func (s *serviceSmartRepoStub) ListMembershipsByAccount(_ context.Context, _ int
 		if platform != "" && plat != platform {
 			continue
 		}
-		for accountID := range policy.AccountIDs {
-			out = append(out, service.SmartScheduleAccountMembership{
-				UserID:   16,
-				Platform: plat,
-				Enabled:  policy.Enabled,
-				Paused:   policy.IsPaused(accountID),
-			})
-		}
+		inPool := policy.HasAccount(accountID)
+		out = append(out, service.SmartScheduleAccountMembership{
+			UserID:   16,
+			Platform: plat,
+			Enabled:  policy.Enabled,
+			InPool:   inPool,
+			Paused:   inPool && policy.IsPaused(accountID),
+		})
 	}
 	return out, nil
 }

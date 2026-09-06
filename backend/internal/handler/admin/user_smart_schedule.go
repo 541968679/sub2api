@@ -10,26 +10,26 @@ import (
 )
 
 type putSmartScheduleRequest struct {
-	Enabled                  bool                                 `json:"enabled"`
-	QualityMaxP50TTFTMs      *int                                 `json:"quality_max_p50_ttft_ms"`
-	QualityMaxSlowInWindow   *int                                 `json:"quality_max_slow_in_window"`
-	QualityMaxConsecutiveSlow *int                                `json:"quality_max_consecutive_slow"`
-	QualityMaxP50DurationMs  *int                                 `json:"quality_max_p50_duration_ms"`
-	QualitySchedWindowN      *int                                 `json:"quality_sched_window_n"`
-	QualitySchedMaxSlowInWindow *int                              `json:"quality_sched_max_slow_in_window"`
-	QualitySchedMaxConsecutiveSlow *int                           `json:"quality_sched_max_consecutive_slow"`
-	QualityMinSuccessRate    *float64                             `json:"quality_min_success_rate"`
-	QualityWindowSamples     *int                                 `json:"quality_window_samples"`
-	QualityWindowN           *int                                 `json:"quality_window_n"`
-	QualityMinSuccessSamples *int                                 `json:"quality_min_success_samples"`
-	QualityMinTTFTSamples    *int                                 `json:"quality_min_ttft_samples"`
-	QualityCondition         *string                              `json:"quality_condition"`
-	CooldownMinutes          int                                  `json:"cooldown_minutes"`
-	SoftCooldown             bool                                 `json:"soft_cooldown"`
-	ProbeLatencyV2           bool                                 `json:"probe_latency_v2"`
-	ProbeConcurrencyMode     string                               `json:"probe_concurrency_mode"`
-	ProbeConcurrency         *int                                 `json:"probe_concurrency"`
-	Accounts                 []service.SmartScheduleAccountMember `json:"accounts"`
+	Enabled                        bool                                 `json:"enabled"`
+	QualityMaxP50TTFTMs            *int                                 `json:"quality_max_p50_ttft_ms"`
+	QualityMaxSlowInWindow         *int                                 `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow      *int                                 `json:"quality_max_consecutive_slow"`
+	QualityMaxP50DurationMs        *int                                 `json:"quality_max_p50_duration_ms"`
+	QualitySchedWindowN            *int                                 `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow    *int                                 `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int                                 `json:"quality_sched_max_consecutive_slow"`
+	QualityMinSuccessRate          *float64                             `json:"quality_min_success_rate"`
+	QualityWindowSamples           *int                                 `json:"quality_window_samples"`
+	QualityWindowN                 *int                                 `json:"quality_window_n"`
+	QualityMinSuccessSamples       *int                                 `json:"quality_min_success_samples"`
+	QualityMinTTFTSamples          *int                                 `json:"quality_min_ttft_samples"`
+	QualityCondition               *string                              `json:"quality_condition"`
+	CooldownMinutes                int                                  `json:"cooldown_minutes"`
+	SoftCooldown                   bool                                 `json:"soft_cooldown"`
+	ProbeLatencyV2                 bool                                 `json:"probe_latency_v2"`
+	ProbeConcurrencyMode           string                               `json:"probe_concurrency_mode"`
+	ProbeConcurrency               *int                                 `json:"probe_concurrency"`
+	Accounts                       []service.SmartScheduleAccountMember `json:"accounts"`
 }
 
 type patchSmartScheduleSortRequest struct {
@@ -41,8 +41,8 @@ type copySmartScheduleRequest struct {
 }
 
 type copyFromUserSmartScheduleRequest struct {
-	SourceUserID   int64                          `json:"source_user_id"`
-	SourceRevision string                         `json:"source_revision"`
+	SourceUserID   int64                           `json:"source_user_id"`
+	SourceRevision string                          `json:"source_revision"`
 	Slices         service.SmartScheduleCopySlices `json:"slices"`
 }
 
@@ -61,6 +61,12 @@ type smartScheduleAdmissionBatchRequest struct {
 	Platform string  `json:"platform"`
 	UserIDs  []int64 `json:"user_ids"`
 	State    string  `json:"state"`
+}
+
+type smartScheduleMembersBatchRequest struct {
+	Platform string  `json:"platform"`
+	UserIDs  []int64 `json:"user_ids"`
+	Action   string  `json:"action"`
 }
 
 type userSmartScheduleAdmissionBatchRequest struct {
@@ -158,26 +164,26 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		return
 	}
 	view, err := svc.PutPlatform(c.Request.Context(), userID, platform, service.SmartSchedulePlatformWrite{
-		Enabled:                   req.Enabled,
-		QualityMaxP50TTFTMs:       req.QualityMaxP50TTFTMs,
-		QualityMaxSlowInWindow:    req.QualityMaxSlowInWindow,
-		QualityMaxConsecutiveSlow: req.QualityMaxConsecutiveSlow,
-		QualityMaxP50DurationMs:   req.QualityMaxP50DurationMs,
-		QualitySchedWindowN:       req.QualitySchedWindowN,
-		QualitySchedMaxSlowInWindow: req.QualitySchedMaxSlowInWindow,
+		Enabled:                        req.Enabled,
+		QualityMaxP50TTFTMs:            req.QualityMaxP50TTFTMs,
+		QualityMaxSlowInWindow:         req.QualityMaxSlowInWindow,
+		QualityMaxConsecutiveSlow:      req.QualityMaxConsecutiveSlow,
+		QualityMaxP50DurationMs:        req.QualityMaxP50DurationMs,
+		QualitySchedWindowN:            req.QualitySchedWindowN,
+		QualitySchedMaxSlowInWindow:    req.QualitySchedMaxSlowInWindow,
 		QualitySchedMaxConsecutiveSlow: req.QualitySchedMaxConsecutiveSlow,
-		QualityMinSuccessRate:     req.QualityMinSuccessRate,
-		QualityWindowSamples:     req.QualityWindowSamples,
-		QualityWindowN:           req.QualityWindowN,
-		QualityMinSuccessSamples: req.QualityMinSuccessSamples,
-		QualityMinTTFTSamples:    req.QualityMinTTFTSamples,
-		QualityCondition:         req.QualityCondition,
-		CooldownMinutes:          req.CooldownMinutes,
-		SoftCooldown:             req.SoftCooldown,
-		ProbeLatencyV2:           req.ProbeLatencyV2,
-		ProbeConcurrencyMode:     req.ProbeConcurrencyMode,
-		ProbeConcurrency:         req.ProbeConcurrency,
-		Accounts:                 req.Accounts,
+		QualityMinSuccessRate:          req.QualityMinSuccessRate,
+		QualityWindowSamples:           req.QualityWindowSamples,
+		QualityWindowN:                 req.QualityWindowN,
+		QualityMinSuccessSamples:       req.QualityMinSuccessSamples,
+		QualityMinTTFTSamples:          req.QualityMinTTFTSamples,
+		QualityCondition:               req.QualityCondition,
+		CooldownMinutes:                req.CooldownMinutes,
+		SoftCooldown:                   req.SoftCooldown,
+		ProbeLatencyV2:                 req.ProbeLatencyV2,
+		ProbeConcurrencyMode:           req.ProbeConcurrencyMode,
+		ProbeConcurrency:               req.ProbeConcurrency,
+		Accounts:                       req.Accounts,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -548,6 +554,24 @@ func (h *AccountHandler) RemoveSmartScheduleMember(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"user_id": req.UserID, "platform": req.Platform})
+}
+
+// SetSmartScheduleMembersBatch POST /admin/accounts/:id/smart-schedule-members-batch
+func (h *AccountHandler) SetSmartScheduleMembersBatch(c *gin.Context) {
+	accountID, ok := h.requireSmartScheduleAccount(c)
+	if !ok {
+		return
+	}
+	var req smartScheduleMembersBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Action == "" {
+		response.BadRequest(c, "platform, user_ids, and action are required")
+		return
+	}
+	if err := h.smartSchedule.SetAccountMembersBatch(c.Request.Context(), accountID, req.Platform, req.UserIDs, req.Action); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"platform": req.Platform, "user_ids": req.UserIDs, "action": req.Action})
 }
 
 // SetSmartScheduleAdmissionBatch POST /admin/accounts/:id/smart-schedule-admission-batch

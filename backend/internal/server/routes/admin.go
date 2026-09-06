@@ -381,6 +381,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.GET("/:id/smart-schedule-memberships", h.Admin.Account.ListSmartScheduleMemberships)
 		accounts.POST("/:id/smart-schedule-members", h.Admin.Account.AddSmartScheduleMember)
 		accounts.DELETE("/:id/smart-schedule-members", h.Admin.Account.RemoveSmartScheduleMember)
+		accounts.POST("/:id/smart-schedule-members-batch", h.Admin.Account.SetSmartScheduleMembersBatch)
 		accounts.POST("/:id/smart-schedule-admission-batch", h.Admin.Account.SetSmartScheduleAdmissionBatch)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)

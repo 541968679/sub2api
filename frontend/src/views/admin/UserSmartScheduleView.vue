@@ -757,51 +757,59 @@
                 </div>
               </template>
               <template #cell-admission="{ row }">
-                <div
-                  class="flex min-w-0 flex-col gap-0.5"
-                  data-testid="smart-schedule-admission"
-                  :data-admission="row.admission"
-                  :title="coolingCellTitle(row)"
+                <SmartScheduleAdmissionSwitch
+                  :admission="row.admission"
+                  :paused="row.paused"
+                  :pinned="row.pinned"
+                  :disabled="row.admission === 'unsaved_preview'"
+                  @select="setPairAdmission(row.id, $event)"
                 >
-                  <div class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
-                    <span
-                      class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                      :class="admissionChipClass(row.admission)"
-                    >
-                      {{ admissionLabel(row.admission) }}
-                    </span>
-                    <template v-if="row.admission === 'cooling'">
-                      <span
-                        v-if="row.soft_cooldown"
-                        class="shrink-0 text-[10px] text-amber-700 dark:text-amber-300"
-                        data-testid="smart-schedule-soft-chip"
-                      >
-                        {{ t('admin.users.smartSchedule.admissionSoft') }}
-                      </span>
-                      <span
-                        v-if="row.cooldown_until"
-                        class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
-                      >
-                        {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
-                      </span>
-                      <span
-                        v-if="row.soft_cooldown && row.soft_cooldown_progress"
-                        class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
-                        data-testid="smart-schedule-soft-progress"
-                      >
-                        {{ formatSoftCooldownProgress(row.soft_cooldown_progress) }}
-                      </span>
-                    </template>
-                  </div>
                   <span
-                    v-if="admissionReasonText(row)"
-                    class="min-w-0 truncate text-[10px] text-gray-500 dark:text-gray-400"
-                    :title="admissionReasonText(row) ?? ''"
-                    data-testid="smart-schedule-cooldown-reason"
+                    class="flex min-w-0 flex-col gap-0.5"
+                    data-testid="smart-schedule-admission"
+                    :data-admission="row.admission"
+                    :title="coolingCellTitle(row)"
                   >
-                    {{ admissionReasonText(row) }}
+                    <span class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span
+                        class="inline-flex w-fit shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                        :class="admissionChipClass(row.admission)"
+                      >
+                        {{ admissionLabel(row.admission) }}
+                      </span>
+                      <template v-if="row.admission === 'cooling'">
+                        <span
+                          v-if="row.soft_cooldown"
+                          class="shrink-0 text-[10px] text-amber-700 dark:text-amber-300"
+                          data-testid="smart-schedule-soft-chip"
+                        >
+                          {{ t('admin.users.smartSchedule.admissionSoft') }}
+                        </span>
+                        <span
+                          v-if="row.cooldown_until"
+                          class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
+                        >
+                          {{ t('admin.users.smartSchedule.admissionCoolingRemaining', { minutes: cooldownRemainingMinutes(row.cooldown_until) }) }}
+                        </span>
+                        <span
+                          v-if="row.soft_cooldown && row.soft_cooldown_progress"
+                          class="min-w-0 truncate text-[10px] text-amber-700 dark:text-amber-300"
+                          data-testid="smart-schedule-soft-progress"
+                        >
+                          {{ formatSoftCooldownProgress(row.soft_cooldown_progress) }}
+                        </span>
+                      </template>
+                    </span>
+                    <span
+                      v-if="admissionReasonText(row)"
+                      class="min-w-0 truncate text-[10px] text-gray-500 dark:text-gray-400"
+                      :title="admissionReasonText(row) ?? ''"
+                      data-testid="smart-schedule-cooldown-reason"
+                    >
+                      {{ admissionReasonText(row) }}
+                    </span>
                   </span>
-                </div>
+                </SmartScheduleAdmissionSwitch>
               </template>
               <template #cell-status="{ row }">
                 <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
@@ -1004,13 +1012,6 @@
                     </svg>
                     <span class="text-xs">{{ t('admin.accounts.viewErrorRequestsShort') }}</span>
                   </button>
-                  <SmartScheduleAdmissionSwitch
-                    :admission="row.admission"
-                    :paused="row.paused"
-                    :pinned="row.pinned"
-                    :disabled="row.admission === 'unsaved_preview'"
-                    @select="setPairAdmission(row.id, $event)"
-                  />
                   <button
                     type="button"
                     data-testid="smart-schedule-remove"

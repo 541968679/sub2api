@@ -351,6 +351,7 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 			continue
 		}
 
+		credentials = service.SeedDefaultAccountModelMapping(service.PlatformOpenAI, credentials, extra)
 		account, createErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
 			Name:                   accountName,
 			Notes:                  req.Notes,

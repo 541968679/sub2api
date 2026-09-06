@@ -488,7 +488,7 @@ func (s *stubSmartRepo) SetMemberPaused(_ context.Context, _ int64, accountID in
 	return nil
 }
 
-func (s *stubSmartRepo) ListMembershipsByAccount(_ context.Context, _ int64, platform string) ([]SmartScheduleAccountMembership, error) {
+func (s *stubSmartRepo) ListMembershipsByAccount(_ context.Context, accountID int64, platform string) ([]SmartScheduleAccountMembership, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	platform = normalizeSmartSchedulePlatform(platform)
@@ -503,15 +503,14 @@ func (s *stubSmartRepo) ListMembershipsByAccount(_ context.Context, _ int64, pla
 		if platform != "" && plat != platform {
 			continue
 		}
-		for accountID := range policy.AccountIDs {
-			_ = accountID
-			out = append(out, SmartScheduleAccountMembership{
-				UserID:   16,
-				Platform: plat,
-				Enabled:  policy.Enabled,
-				Paused:   policy.IsPaused(accountID),
-			})
-		}
+		inPool := policy.HasAccount(accountID)
+		out = append(out, SmartScheduleAccountMembership{
+			UserID:   16,
+			Platform: plat,
+			Enabled:  policy.Enabled,
+			InPool:   inPool,
+			Paused:   inPool && policy.IsPaused(accountID),
+		})
 	}
 	return out, nil
 }

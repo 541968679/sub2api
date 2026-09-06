@@ -269,6 +269,7 @@ type SmartScheduleAccountMembership struct {
 	Deleted            bool       `json:"deleted"`
 	Platform           string     `json:"platform"`
 	Enabled            bool       `json:"enabled"`
+	InPool             bool       `json:"in_pool"`
 	Paused             bool       `json:"paused"`
 	Pinned             bool       `json:"pinned"`
 	Probing            bool       `json:"probing"`

@@ -33,6 +33,26 @@ func TestUserSmartScheduleService_AddAccountMember(t *testing.T) {
 	require.True(t, repo.bundle.Policies[PlatformAntigravity].HasAccount(9))
 }
 
+func TestUserSmartScheduleService_SetAccountMembersBatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := &stubSmartRepo{}
+	accounts := &stubSmartAccountRepo{accounts: []*Account{
+		{ID: 7, Platform: PlatformAnthropic},
+	}}
+	svc := NewUserSmartScheduleService(repo, stubSmartCache{}, accounts, nil, nil)
+
+	err := svc.SetAccountMembersBatch(ctx, 7, PlatformAnthropic, nil, "add")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "user_ids is required")
+
+	require.NoError(t, svc.SetAccountMembersBatch(ctx, 7, PlatformAnthropic, []int64{16, 16}, "add"))
+	require.True(t, repo.bundle.Policies[PlatformAnthropic].HasAccount(7))
+
+	require.NoError(t, svc.SetAccountMembersBatch(ctx, 7, PlatformAnthropic, []int64{16}, "remove"))
+	require.False(t, repo.bundle.Policies[PlatformAnthropic].HasAccount(7))
+}
+
 func TestUserSmartScheduleService_RemoveAccountMemberDisablesEmptyPool(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

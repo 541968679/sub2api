@@ -482,4 +482,44 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	require.Len(t, adminSvc.createdProxies, 0)
 	require.Len(t, adminSvc.createdAccounts, 1)
 	require.True(t, adminSvc.createdAccounts[0].SkipDefaultGroupBind)
+	mapping, ok := adminSvc.createdAccounts[0].Credentials["model_mapping"].(map[string]any)
+	require.True(t, ok)
+	require.NotEmpty(t, mapping)
+}
+
+func TestImportDataPreservesExistingModelMapping(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+
+	dataPayload := map[string]any{
+		"data": map[string]any{
+			"type":    dataType,
+			"version": dataVersion,
+			"proxies": []map[string]any{},
+			"accounts": []map[string]any{
+				{
+					"name":     "acc",
+					"platform": service.PlatformOpenAI,
+					"type":     service.AccountTypeOAuth,
+					"credentials": map[string]any{
+						"token":         "x",
+						"model_mapping": map[string]any{"custom-from": "custom-to"},
+					},
+					"concurrency": 3,
+					"priority":    50,
+				},
+			},
+		},
+		"skip_default_group_bind": true,
+	}
+
+	body, _ := json.Marshal(dataPayload)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, adminSvc.createdAccounts, 1)
+	mapping := adminSvc.createdAccounts[0].Credentials["model_mapping"].(map[string]any)
+	require.Equal(t, "custom-to", mapping["custom-from"])
+	require.NotContains(t, mapping, "gpt-5.5")
 }

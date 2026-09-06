@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -49,6 +50,50 @@ func (s *UserSmartScheduleService) AddAccountMember(ctx context.Context, account
 	return nil
 }
 
+func (s *UserSmartScheduleService) SetAccountMembersBatch(ctx context.Context, accountID int64, platform string, userIDs []int64, action string) error {
+	if s == nil || s.repo == nil {
+		return infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
+	}
+	if accountID <= 0 {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "account_id is required")
+	}
+	platform = normalizeSmartSchedulePlatform(platform)
+	if !IsAllowedSmartSchedulePlatform(platform) {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_PLATFORM", "platform is required")
+	}
+	action = strings.ToLower(strings.TrimSpace(action))
+	if action != "add" && action != "remove" {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACTION", "action must be add or remove")
+	}
+	seen := map[int64]struct{}{}
+	targets := make([]int64, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, dup := seen[userID]; dup {
+			continue
+		}
+		seen[userID] = struct{}{}
+		targets = append(targets, userID)
+	}
+	if len(targets) == 0 {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_ACCOUNT", "user_ids is required")
+	}
+	for _, userID := range targets {
+		var err error
+		if action == "add" {
+			err = s.AddAccountMember(ctx, accountID, userID, platform)
+		} else {
+			err = s.RemoveAccountMember(ctx, accountID, userID, platform)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *UserSmartScheduleService) RemoveAccountMember(ctx context.Context, accountID, userID int64, platform string) error {
 	if s == nil || s.repo == nil {
 		return infraerrors.New(503, "SMART_SCHEDULE_UNAVAILABLE", "smart schedule service unavailable")
@@ -91,7 +136,7 @@ func (s *UserSmartScheduleService) SetAccountPairAdmissionBatch(ctx context.Cont
 	memberSet := make(map[int64]struct{}, len(members))
 	allIDs := make([]int64, 0, len(members))
 	for _, member := range members {
-		if member.UserID <= 0 {
+		if member.UserID <= 0 || !member.InPool {
 			continue
 		}
 		if _, seen := memberSet[member.UserID]; seen {
@@ -227,7 +272,7 @@ func (s *UserSmartScheduleService) hydrateAccountMemberships(ctx context.Context
 	for i := range rows {
 		platform := normalizeSmartSchedulePlatform(rows[i].Platform)
 		userID := rows[i].UserID
-		if userID <= 0 {
+		if userID <= 0 || !rows[i].InPool {
 			continue
 		}
 		if s.cache != nil {

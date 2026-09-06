@@ -69,6 +69,10 @@ dimension, not as an Antigravity-only assumption:
 - Image billing's flat fallback field continues to use `per_request_price`,
   matching the existing detail dialog and backend image billing resolver.
 
+## Import-time account mapping seed
+
+JSON import (`POST /admin/accounts/data`), Codex session **create**, and CRS **create** persist a fallback `credentials.model_mapping` when the incoming credentials have none: catalog whitelist identity keys (`model -> model`) union `ResolvePlatformDefaultModelMapping` (rewrites win). Grok uses `xai.DefaultModelMapping()`. Skip when mapping is already non-empty or `extra.openai_passthrough=true`. Do **not** seed inside `CreateAccount`; the add-account form may intentionally leave mapping empty (allow all).
+
 ## Default Mapping Billing Object (2026-07-03)
 
 The model configuration page has one editable billing selector for platform

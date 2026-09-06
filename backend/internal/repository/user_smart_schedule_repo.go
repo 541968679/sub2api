@@ -265,19 +265,19 @@ func (r *userSmartScheduleRepository) ListMembershipsByAccount(ctx context.Conte
 	platform = strings.TrimSpace(strings.ToLower(platform))
 	client := clientFromContext(ctx, r.client)
 	rows, err := client.QueryContext(ctx, `
-		SELECT a.user_id,
+		SELECT p.user_id,
 		       COALESCE(u.email, '') AS email,
 		       (u.deleted_at IS NOT NULL) AS deleted,
-		       a.platform,
+		       p.platform,
 		       COALESCE(p.enabled, false) AS enabled,
-		       COALESCE(a.paused, false) AS paused
-		FROM user_smart_schedule_accounts a
-		LEFT JOIN users u ON u.id = a.user_id
-		LEFT JOIN user_smart_schedule_policies p
-		  ON p.user_id = a.user_id AND p.platform = a.platform
-		WHERE a.account_id = $1
-		  AND ($2 = '' OR a.platform = $2)
-		ORDER BY a.platform, u.email, a.user_id
+		       COALESCE(a.paused, false) AS paused,
+		       (a.account_id IS NOT NULL) AS in_pool
+		FROM user_smart_schedule_policies p
+		LEFT JOIN users u ON u.id = p.user_id
+		LEFT JOIN user_smart_schedule_accounts a
+		  ON a.user_id = p.user_id AND a.platform = p.platform AND a.account_id = $1
+		WHERE ($2 = '' OR p.platform = $2)
+		ORDER BY in_pool DESC, p.platform, u.email, p.user_id
 	`, accountID, platform)
 	if err != nil {
 		return nil, fmt.Errorf("list smart schedule memberships: %w", err)
@@ -286,7 +286,7 @@ func (r *userSmartScheduleRepository) ListMembershipsByAccount(ctx context.Conte
 	out := make([]service.SmartScheduleAccountMembership, 0)
 	for rows.Next() {
 		var row service.SmartScheduleAccountMembership
-		if err := rows.Scan(&row.UserID, &row.Email, &row.Deleted, &row.Platform, &row.Enabled, &row.Paused); err != nil {
+		if err := rows.Scan(&row.UserID, &row.Email, &row.Deleted, &row.Platform, &row.Enabled, &row.Paused, &row.InPool); err != nil {
 			return nil, fmt.Errorf("scan smart schedule membership: %w", err)
 		}
 		out = append(out, row)

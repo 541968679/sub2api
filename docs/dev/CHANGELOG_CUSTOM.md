@@ -1,3 +1,45 @@
+## 2026-09-06 - release: 0.1.283 import mapping and clickable pool membership
+
+### What
+- Ship JSON-import fallback model mapping and clickable smart-pool membership/admission cells as `v0.1.283`.
+
+### Why
+Imported accounts had empty whitelist/mapping; account-side pool editing could not see non-members.
+
+## 2026-09-06 - fix: JSON import default mapping + clickable pool membership
+
+### What
+- JSON import / Codex create / CRS create now persist the Add-Account fallback mapping (catalog whitelist identities ∪ platform default rewrites) when `model_mapping` is empty. Existing mappings and OpenAI passthrough are unchanged. Interactive CreateAccount empty mapping still means allow-all.
+- Account scheduling lists every user with a smart pool on the current platform. In/out-of-pool and in-pool admission are separate clickable cells; multi-select can batch both. `POST /admin/accounts/:id/smart-schedule-members-batch` adds or removes.
+- User smart-schedule pool admission chip opens the six-state dropdown; the actions-column switch is removed.
+
+### Why
+Imported accounts showed empty whitelist/mapping. Account-side pool editing could not see non-members and required one-by-one add. Pool admission lived on a separate action button.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestSeedDefaultAccountModelMapping|TestBuildDefaultAccountModelMapping|TestUserSmartScheduleService_ListAccountMemberships|TestUserSmartScheduleService_AddAccountMember|TestUserSmartScheduleService_SetAccountMembersBatch" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "TestImportData|TestListSmartScheduleMemberships|TestAddSmartScheduleMember|TestSetSmartScheduleMembersBatch" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountSchedulePanel.spec.ts src/components/admin/smart-schedule/__tests__/SmartScheduleAdmissionSwitch.spec.ts`
+
+### Affected files
+`backend/internal/service/account_model_mapping_seed.go`,
+`backend/internal/service/account_model_mapping_seed_test.go`,
+`backend/internal/handler/admin/account_data.go`,
+`backend/internal/handler/admin/account_codex_import.go`,
+`backend/internal/service/crs_sync_service.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_account.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/components/account/AccountSchedulePanel.vue`,
+`frontend/src/components/admin/smart-schedule/SmartScheduleAdmissionSwitch.vue`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`
+
 ## 2026-09-06 - deploy: production v0.1.282
 
 ### What

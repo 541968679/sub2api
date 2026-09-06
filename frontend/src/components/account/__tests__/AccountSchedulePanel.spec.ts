@@ -66,11 +66,6 @@ function mountPanel(accountOverride: Record<string, unknown> = {}) {
     props: { account: { ...account, ...accountOverride } },
     global: {
       stubs: {
-        OpenAIFastPolicyUserSelector: defineComponent({
-          name: 'OpenAIFastPolicyUserSelector',
-          emits: ['select', 'update:modelValue'],
-          template: '<button type="button" data-testid="add-user" @click="$emit(\'select\', { id: 16, email: \'a@x.com\', deleted: false })" />'
-        }),
         SmartScheduleAdmissionSwitch: defineComponent({
           name: 'SmartScheduleAdmissionSwitch',
           props: ['disabled'],
@@ -84,16 +79,27 @@ function mountPanel(accountOverride: Record<string, unknown> = {}) {
 }
 
 describe('AccountSchedulePanel', () => {
-  it('loads members for the current platform and can add one', async () => {
+  it('loads pool users for the current platform and can add one by clicking membership', async () => {
     listSmartScheduleMemberships.mockResolvedValue([
-      { user_id: 16, email: 'a@x.com', deleted: false, platform: 'anthropic', enabled: false, paused: false }
+      {
+        user_id: 16,
+        email: 'a@x.com',
+        deleted: false,
+        platform: 'anthropic',
+        enabled: false,
+        in_pool: false,
+        paused: false
+      }
     ])
     addSmartScheduleMember.mockResolvedValue(undefined)
     const wrapper = mountPanel()
     await flushPromises()
     expect(listSmartScheduleMemberships).toHaveBeenCalledWith(7, 'anthropic')
     expect(wrapper.get('[data-testid="account-schedule-member-16"]').text()).toContain('a@x.com')
-    await wrapper.get('[data-testid="add-user"]').trigger('click')
+    expect(wrapper.get('[data-testid="account-schedule-membership-16"]').text()).toContain(
+      'admin.accounts.accountSchedule.outPool'
+    )
+    await wrapper.get('[data-testid="account-schedule-membership-16"]').trigger('click')
     await flushPromises()
     expect(addSmartScheduleMember).toHaveBeenCalledWith(7, 16, 'anthropic')
   })
@@ -137,8 +143,24 @@ describe('AccountSchedulePanel', () => {
 
   it('batch admission only targets selected members', async () => {
     listSmartScheduleMemberships.mockResolvedValue([
-      { user_id: 16, email: 'a@x.com', deleted: false, platform: 'anthropic', enabled: true, paused: false },
-      { user_id: 42, email: 'b@x.com', deleted: false, platform: 'anthropic', enabled: true, paused: false }
+      {
+        user_id: 16,
+        email: 'a@x.com',
+        deleted: false,
+        platform: 'anthropic',
+        enabled: true,
+        in_pool: true,
+        paused: false
+      },
+      {
+        user_id: 42,
+        email: 'b@x.com',
+        deleted: false,
+        platform: 'anthropic',
+        enabled: true,
+        in_pool: true,
+        paused: false
+      }
     ])
     setSmartScheduleAdmissionBatch.mockResolvedValue([])
     const wrapper = mountPanel()

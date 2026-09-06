@@ -86,4 +86,19 @@ describe('SmartScheduleAdmissionSwitch', () => {
     })
     expect(w.get('[data-testid="smart-schedule-admission-switch"]').attributes('disabled')).toBeDefined()
   })
+
+  it('uses a custom chip trigger to open the same menu', async () => {
+    const w = mount(SmartScheduleAdmissionSwitch, {
+      props: { admission: 'selectable' },
+      slots: {
+        default: '<span data-testid="custom-admission-chip">调度</span>'
+      },
+      attachTo: document.body
+    })
+    expect(w.get('[data-testid="custom-admission-chip"]').text()).toBe('调度')
+    await w.get('[data-testid="smart-schedule-admission-switch"]').trigger('click')
+    await flushPromises()
+    expect(document.querySelector('[data-testid="smart-schedule-admission-paused"]')).toBeTruthy()
+    w.unmount()
+  })
 })

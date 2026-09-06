@@ -1,18 +1,19 @@
 <template>
-  <div class="relative">
+  <div class="relative inline-flex max-w-full">
     <button
       type="button"
       data-testid="smart-schedule-admission-switch"
-      class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors"
-      :class="triggerClass"
+      :class="hasCustomTrigger ? customTriggerClass : defaultTriggerClass"
       :disabled="disabled"
       :title="hintText"
       @click.stop="toggle"
     >
-      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-      </svg>
-      <span class="text-xs">{{ t('admin.users.smartSchedule.switchState') }}</span>
+      <slot>
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+        <span class="text-xs">{{ t('admin.users.smartSchedule.switchState') }}</span>
+      </slot>
     </button>
     <Teleport to="body">
       <div
@@ -47,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useSlots } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   PAIR_ADMISSION_LIVE_STATES,
@@ -76,6 +77,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const slots = useSlots()
+const hasCustomTrigger = computed(() => Boolean(slots.default))
 const open = ref(false)
 const triggerX = ref(0)
 const triggerY = ref(0)
@@ -84,25 +87,31 @@ const current = computed(() => pairAdmissionLiveState(props.admission, props.pau
 
 const hintText = computed(() => props.hint || t('admin.users.smartSchedule.switchStateHint'))
 
-const triggerClass = computed(() => {
-  if (props.disabled) return 'cursor-not-allowed text-gray-300 dark:text-gray-600'
+const defaultTriggerClass = computed(() => {
+  const base = 'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors'
+  if (props.disabled) return `${base} cursor-not-allowed text-gray-300 dark:text-gray-600`
   if (current.value === 'paused') {
-    return 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:text-slate-200'
+    return `${base} bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/60 dark:text-slate-200`
   }
   if (props.admission === 'cooling' || props.admission === 'will_cool') {
-    return 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300'
+    return `${base} bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300`
   }
   if (props.admission === 'resumed') {
-    return 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300'
+    return `${base} bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300`
   }
   if (props.admission === 'pinned' || current.value === 'pinned') {
-    return 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300'
+    return `${base} bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300`
   }
   if (props.admission === 'probing') {
-    return 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300'
+    return `${base} bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300`
   }
-  return 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700'
+  return `${base} text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700`
 })
+
+const customTriggerClass = computed(() => [
+  'inline-flex max-w-full items-stretch rounded-md text-left transition-opacity',
+  props.disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-90'
+])
 
 const menuStyle = computed(() => ({
   top: `${triggerY.value}px`,

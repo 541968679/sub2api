@@ -435,6 +435,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		}
 
 		enrichCredentialsFromIDToken(&item)
+		item.Credentials = service.SeedDefaultAccountModelMapping(item.Platform, item.Credentials, item.Extra)
 
 		accountInput := &service.CreateAccountInput{
 			Name:                   item.Name,
