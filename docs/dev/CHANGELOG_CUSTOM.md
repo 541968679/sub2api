@@ -1,3 +1,11 @@
+## 2026-09-07 - release: 0.1.284 Responses pre-output keepalive failover
+
+### What
+- Ship the Responses keepalive/control-frame commit fix as `v0.1.284`.
+
+### Why
+Production `v0.1.283` still commits SSE on keepalive/`codex.rate_limits` before visible output, so NewAPI records later rate-limit/overload/timeout as output=1.
+
 ## 2026-09-07 - fix(openai): do not commit Responses SSE on keepalive/control frames
 
 ### What
