@@ -294,6 +294,25 @@ func TestRewriteOpenAIWaitTimeoutClientText(t *testing.T) {
 	require.Equal(t, "context window exceeded", rewriteOpenAIWaitTimeoutClientText("context window exceeded"))
 }
 
+func TestOpenAIWaitTimeoutAccountSwitchLimit(t *testing.T) {
+	t.Parallel()
+	plain := &UpstreamFailoverError{StatusCode: http.StatusBadGateway, RawUpstreamBody: []byte(`{"error":{"message":"overloaded"}}`)}
+	require.Equal(t, 10, OpenAIWaitTimeoutAccountSwitchLimit(plain, 10))
+	require.Equal(t, 3, OpenAIWaitTimeoutAccountSwitchLimit(nil, 0))
+
+	wait := &UpstreamFailoverError{
+		StatusCode:      http.StatusBadGateway,
+		RawUpstreamBody: []byte(`{"error":{"message":"openai_header_wait_timeout waited_ms=90001"}}`),
+	}
+	require.Equal(t, 1, OpenAIWaitTimeoutAccountSwitchLimit(wait, 10))
+	require.Equal(t, 1, OpenAIWaitTimeoutAccountSwitchLimit(wait, 3))
+	frame := &UpstreamFailoverError{
+		StatusCode:      http.StatusBadGateway,
+		RawUpstreamBody: []byte(`{"error":{"message":"openai_first_useful_frame_timeout waited_ms=30000"}}`),
+	}
+	require.Equal(t, 1, OpenAIWaitTimeoutAccountSwitchLimit(frame, 10))
+}
+
 func TestNewOpenAIStreamFailoverError_WaitTimeoutSplitsClientAndOps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

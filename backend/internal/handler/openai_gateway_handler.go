@@ -549,7 +549,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[account.ID] = struct{}{}
 				lastFailoverErr = failoverErr
-				if switchCount >= maxAccountSwitches {
+				switchLimit := service.OpenAIWaitTimeoutAccountSwitchLimit(failoverErr, maxAccountSwitches)
+				if switchCount >= switchLimit {
 					h.handleFailoverExhausted(c, failoverErr, streamStarted)
 					return
 				}
@@ -558,7 +559,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 					zap.Int("upstream_status", failoverErr.StatusCode),
 					zap.Int("switch_count", switchCount),
-					zap.Int("max_switches", maxAccountSwitches),
+					zap.Int("max_switches", switchLimit),
 				)
 				continue
 			}
@@ -1133,7 +1134,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[account.ID] = struct{}{}
 				lastFailoverErr = failoverErr
-				if switchCount >= maxAccountSwitches {
+				switchLimit := service.OpenAIWaitTimeoutAccountSwitchLimit(failoverErr, maxAccountSwitches)
+				if switchCount >= switchLimit {
 					h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
 					return
 				}
@@ -1142,7 +1144,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 					zap.Int("upstream_status", failoverErr.StatusCode),
 					zap.Int("switch_count", switchCount),
-					zap.Int("max_switches", maxAccountSwitches),
+					zap.Int("max_switches", switchLimit),
 				)
 				continue
 			}
@@ -1937,7 +1939,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[turnAccount.ID] = struct{}{}
 				lastFailoverErr = failoverErr
-				if switchCount >= maxAccountSwitches {
+				switchLimit := service.OpenAIWaitTimeoutAccountSwitchLimit(failoverErr, maxAccountSwitches)
+				if switchCount >= switchLimit {
 					closeOpenAIWSFailoverExhausted(wsConn, failoverErr)
 					return
 				}
@@ -1946,7 +1949,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					zap.Int64("account_id", turnAccount.ID),
 					zap.Int("upstream_status", failoverErr.StatusCode),
 					zap.Int("switch_count", switchCount),
-					zap.Int("max_switches", maxAccountSwitches),
+					zap.Int("max_switches", switchLimit),
 				)
 				if !ensureUserSlotHeld() {
 					return

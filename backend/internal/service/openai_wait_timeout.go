@@ -47,6 +47,33 @@ func IsOpenAIWaitTimeoutOpsError(message, upstreamMessage, body string) bool {
 		strings.Contains(blob, OpenAIFirstUsefulFrameTimeoutMarker)
 }
 
+// maxOpenAIWaitTimeoutAccountSwitches is the switchCount threshold for
+// header-wait / first-useful-frame timeouts. Handlers compare then increment,
+// so 1 means: first timeout may try one other account, the next timeout stops.
+const maxOpenAIWaitTimeoutAccountSwitches = 1
+
+func isOpenAIWaitTimeoutFailover(err *UpstreamFailoverError) bool {
+	if err == nil {
+		return false
+	}
+	return IsOpenAIWaitTimeoutOpsError(err.Error(), "", string(err.RawUpstreamBody))
+}
+
+// OpenAIWaitTimeoutAccountSwitchLimit caps 90s/30s wait-timeout hops so a
+// single inbound request cannot occupy a user slot for 10×header-wait.
+func OpenAIWaitTimeoutAccountSwitchLimit(err *UpstreamFailoverError, defaultMax int) int {
+	if defaultMax <= 0 {
+		defaultMax = 3
+	}
+	if !isOpenAIWaitTimeoutFailover(err) {
+		return defaultMax
+	}
+	if defaultMax < maxOpenAIWaitTimeoutAccountSwitches {
+		return defaultMax
+	}
+	return maxOpenAIWaitTimeoutAccountSwitches
+}
+
 func (s *OpenAIGatewayService) openAIWaitTimeoutSettings() OpenAIWaitTimeoutSettings {
 	if openAIWaitTimeoutSettingsOverride != nil {
 		return *openAIWaitTimeoutSettingsOverride

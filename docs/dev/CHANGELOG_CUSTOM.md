@@ -1,3 +1,23 @@
+## 2026-09-07 - fix(openai): cap wait-timeout account switches at 2 attempts
+
+### What
+- Header-wait / first-useful-frame timeout now stops after one extra account hop (`switchCount >= 1`), instead of walking the full `max_account_switches` (production 10).
+- Applies to OpenAI `/v1/responses`, `/v1/messages`, chat completions, and Responses WebSocket. Other 429/502 failovers still use the existing switch cap.
+- Client still gets the mapped 502 *Upstream service temporarily unavailable*; Ops still sees the timeout marker.
+
+### Why
+User 16 (`zuoge85@gmail.com`) held ~190 live user slots. Sync `/v1/responses` (`stream:false`) waited 90s per hop and could switch 10 times, so one inbound request occupied concurrency for up to ~15 minutes while the client retried.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAIWaitTimeoutAccountSwitchLimit|TestNewOpenAIStreamFailoverError_WaitTimeoutSplitsClientAndOps"`
+
+### Affected files
+`backend/internal/service/openai_wait_timeout.go`,
+`backend/internal/service/openai_wait_timeout_test.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+this changelog.
+
 ## 2026-09-07 - deploy: production v0.1.284
 
 ### What

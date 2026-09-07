@@ -277,7 +277,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 				h.gatewayService.RecordOpenAIAccountSwitch()
 				failedAccountIDs[account.ID] = struct{}{}
 				lastFailoverErr = failoverErr
-				if switchCount >= maxAccountSwitches {
+				switchLimit := service.OpenAIWaitTimeoutAccountSwitchLimit(failoverErr, maxAccountSwitches)
+				if switchCount >= switchLimit {
 					h.handleFailoverExhausted(c, failoverErr, streamStarted)
 					return
 				}
@@ -286,7 +287,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 					zap.Int("upstream_status", failoverErr.StatusCode),
 					zap.Int("switch_count", switchCount),
-					zap.Int("max_switches", maxAccountSwitches),
+					zap.Int("max_switches", switchLimit),
 				)
 				continue
 			}

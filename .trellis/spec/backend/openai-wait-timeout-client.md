@@ -5,7 +5,7 @@
 ### 1. Scope / Trigger
 - Trigger: OpenAI header-wait (`openai_header_wait_timeout`) or first-useful-frame (`openai_first_useful_frame_timeout`) fires.
 - Includes Claude-GPT bridge / Anthropic `/v1/messages` failover replay and native OpenAI Chat Completions / Responses SSE after commit.
-- Does not change timeout seconds, failover timing, or inbound protocol.
+- Does not change timeout seconds or inbound protocol. Wait-timeout hops are capped separately: after the first header-wait / first-useful-frame timeout, at most one other account is tried (`OpenAIWaitTimeoutAccountSwitchLimit`). Ordinary 429/502 still use `max_account_switches`.
 
 ### 2. Signatures
 - `OpenAIWaitTimeoutClientMessage() string`
