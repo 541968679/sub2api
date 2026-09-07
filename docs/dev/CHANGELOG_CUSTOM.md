@@ -1,3 +1,12 @@
+## 2026-09-07 - deploy: production v0.1.287
+
+### What
+- Released and deployed `v0.1.287` (`55f887fb4`) to production as `ghcr.io/541968679/sub2api:0.1.287`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:4b1ba478682aed55b29d4356875193ea4156843cac2d5ad508b53e41e3004a52`. Rollback is `v0.1.286` digest `sha256:56d234691e80450e11e910f74b1ac9a236b56b30b8fc5fe9a4007c6ca8061246`.
+
+### Why
+Ship native `/v1/responses` large-preamble buffering so NewAPI no longer bills timeout/overload as empty-output success rows.
+
 ## 2026-09-07 - release: 0.1.287 native Responses large-preamble failover
 
 ### What
