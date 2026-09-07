@@ -1,3 +1,11 @@
+## 2026-09-07 - release: 0.1.285 wait-timeout hop cap
+
+### What
+- Ship the wait-timeout account-switch cap as `v0.1.285`.
+
+### Why
+User 16 sync `/v1/responses` could occupy a concurrency slot for up to 10×90s header waits.
+
 ## 2026-09-07 - fix(openai): cap wait-timeout account switches at 2 attempts
 
 ### What
