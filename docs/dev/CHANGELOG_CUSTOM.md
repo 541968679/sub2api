@@ -1,3 +1,12 @@
+## 2026-09-07 - deploy: production v0.1.286
+
+### What
+- Released and deployed `v0.1.286` (`5682fb816`) to production as `ghcr.io/541968679/sub2api:0.1.286`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:56d234691e80450e11e910f74b1ac9a236b56b30b8fc5fe9a4007c6ca8061246`. Rollback is `v0.1.285` digest `sha256:3385db40682cbad3570df5e8cb11627057336fdba789c84e576f03e25146dfd2`.
+
+### Why
+Ship Ops last-hop `provider_error_code` so wait-timeout rows are not prefixed with a previous hop NewAPI code.
+
 ## 2026-09-07 - release: 0.1.286 Ops hop-mix original line
 
 ### What
