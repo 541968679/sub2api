@@ -1,3 +1,11 @@
+## 2026-09-07 - release: 0.1.287 native Responses large-preamble failover
+
+### What
+- Ship the native `/v1/responses` 4KiB `bufio` write-through fix as `v0.1.287`.
+
+### Why
+Production `v0.1.286` still commits SSE when Codex `response.created` is larger than 4KiB, so NewAPI records later timeout/overload as empty-output success rows.
+
 ## 2026-09-07 - fix(openai): buffer native Responses preamble off the HTTP writer
 
 ### What
