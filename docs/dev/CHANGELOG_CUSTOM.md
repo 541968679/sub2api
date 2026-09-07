@@ -1,3 +1,12 @@
+## 2026-09-07 - deploy: production v0.1.285
+
+### What
+- Released and deployed `v0.1.285` (`e9b5589b0`) to production as `ghcr.io/541968679/sub2api:0.1.285`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:3385db40682cbad3570df5e8cb11627057336fdba789c84e576f03e25146dfd2`. Rollback is `v0.1.284` digest `sha256:82d36356870a4361f04d4ef7a8f68da838d33447a73a40405f78cd53237e632b`.
+
+### Why
+Cap wait-timeout account switches so one inbound request cannot occupy a user slot for 10×90s header waits.
+
 ## 2026-09-07 - fix(ops): do not join another hop's error.code onto wait-timeout
 
 ### What
