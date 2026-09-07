@@ -1,3 +1,11 @@
+## 2026-09-07 - release: 0.1.286 Ops hop-mix original line
+
+### What
+- Ship the Ops Recovered-row hop-mix fix as `v0.1.286`.
+
+### Why
+Production list showed `gateway_queue_full openai_header_wait_timeout waited_ms=90000` by joining two failover hops.
+
 ## 2026-09-07 - deploy: production v0.1.285
 
 ### What
