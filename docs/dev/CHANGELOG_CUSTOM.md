@@ -1,3 +1,12 @@
+## 2026-09-07 - deploy: production v0.1.284
+
+### What
+- Released and deployed `v0.1.284` (`bc62c3d0a`) to production as `ghcr.io/541968679/sub2api:0.1.284`.
+- Preflight `/health` passed; live container healthy. Digest `sha256:82d36356870a4361f04d4ef7a8f68da838d33447a73a40405f78cd53237e632b`. Rollback is `v0.1.283` digest `sha256:822b410aa44aa2a33c0a7d1f0c936c7a737fc53775e1b20b5a07dc57ce301c2d`.
+
+### Why
+Ship Responses pre-output keepalive/control-frame failover so NewAPI no longer records those errors as output=1.
+
 ## 2026-09-07 - release: 0.1.284 Responses pre-output keepalive failover
 
 ### What
