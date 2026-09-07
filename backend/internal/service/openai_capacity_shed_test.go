@@ -37,6 +37,10 @@ func TestOpenAIStreamErrorFrameDoesNotStartClientOutput(t *testing.T) {
 		{`{"type":"response.reasoning_summary_part.added","part":{"type":"summary_text","text":"thinking"}}`, "response.reasoning_summary_part.added", true},
 		{`{"type":"response.content_part.added","part":{"type":"output_text","text":""}}`, "response.content_part.added", false},
 		{`{"type":"response.output_text.delta","delta":"hi"}`, "response.output_text.delta", true},
+		{`{"type":"keepalive"}`, "keepalive", false},
+		{`{"type":"ping"}`, "ping", false},
+		{`{"type":"heartbeat"}`, "heartbeat", false},
+		{`{"type":"codex.rate_limits","rate_limits":{}}`, "codex.rate_limits", false},
 	}
 	for _, tc := range cases {
 		require.Equal(t, tc.want, openAIStreamDataStartsClientOutput(tc.data, tc.eventType), "data=%s type=%s", tc.data, tc.eventType)
@@ -123,6 +127,78 @@ func TestOpenAIStreamEmptyAddedThenOverloadedFailsOver(t *testing.T) {
 			require.False(t, c.Writer.Written())
 			require.Empty(t, rec.Body.String())
 		})
+	}
+}
+
+func TestOpenAIStreamControlFrameThenOverloadedFailsOver(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	overloaded := []string{
+		"event: error",
+		`data: {"type":"error","error":{"type":"service_unavailable_error","message":"Our servers are currently overloaded. Please try again later."}}`,
+		"",
+		"event: response.failed",
+		`data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"server_is_overloaded","message":"Our servers are currently overloaded. Please try again later."}}}`,
+		"",
+	}
+	frames := []struct {
+		name  string
+		event string
+		data  string
+	}{
+		{"keepalive", "keepalive", `{"type":"keepalive"}`},
+		{"codex_rate_limits", "codex.rate_limits", `{"type":"codex.rate_limits","rate_limits":{"limit":1}}`},
+	}
+	runners := []struct {
+		name string
+		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
+	}{
+		{
+			name: "native",
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				return err
+			},
+		},
+		{
+			name: "passthrough",
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				return err
+			},
+		},
+	}
+
+	for _, frame := range frames {
+		stream := strings.Join(append([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+			"",
+			"event: " + frame.event,
+			"data: " + frame.data,
+			"",
+		}, overloaded...), "\n")
+		for _, tt := range runners {
+			t.Run(frame.name+"/"+tt.name, func(t *testing.T) {
+				svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
+				rec := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(rec)
+				c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(stream)),
+					Header:     http.Header{"X-Request-Id": []string{"rid-control-" + frame.name}},
+				}
+				account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}
+
+				err := tt.run(svc, c, resp, account)
+				require.Error(t, err)
+				var failoverErr *UpstreamFailoverError
+				require.ErrorAs(t, err, &failoverErr)
+				require.True(t, failoverErr.RetryableOnSameAccount)
+				require.False(t, c.Writer.Written())
+				require.Empty(t, rec.Body.String())
+			})
+		}
 	}
 }
 

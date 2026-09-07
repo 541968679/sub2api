@@ -1,3 +1,22 @@
+## 2026-09-07 - fix(openai): do not commit Responses SSE on keepalive/control frames
+
+### What
+- `keepalive` / `ping` / `heartbeat` / `codex.rate_limits` no longer count as client output, so pre-output overload/rate-limit/`openai_error` can still JSON-failover.
+- Native `/v1/responses` no longer flushes `:\n\n` keepalive comments before visible output (that commit blocked failover and left NewAPI counting the later error as output=1).
+
+### Why
+User 220 NewAPI logs showed successful rows with 输出=1. Production `openai.forward_failed` had `upstream_error_response_already_written=true` after `first_client_output event_type=keepalive` / `codex.rate_limits`. v0.1.281 only ignored empty added shells.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAIStreamErrorFrameDoesNotStartClientOutput|TestOpenAIStreamEmptyAddedThenOverloadedFailsOver|TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient|TestOpenAIStreamingPreambleKeepaliveDoesNotCommitBeforeOutput|TestOpenAIStreamControlFrameThenOverloadedFailsOver"`
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_gateway_service_test.go`,
+`backend/internal/service/openai_capacity_shed_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-06 - deploy: production v0.1.283
 
 ### What

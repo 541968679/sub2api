@@ -4017,6 +4017,15 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 	}
 }
 
+func openAIStreamEventIsNonOutputControl(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "keepalive", "ping", "heartbeat", "codex.rate_limits":
+		return true
+	default:
+		return false
+	}
+}
+
 func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {
@@ -4034,7 +4043,10 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	case "response.output_item.added", "response.content_part.added", "response.reasoning_summary_part.added":
 		return openAIStreamAddedEventStartsClientOutput([]byte(trimmed), eventType)
 	}
-	return !openAIStreamEventIsPreamble(eventType)
+	if openAIStreamEventIsPreamble(eventType) || openAIStreamEventIsNonOutputControl(eventType) {
+		return false
+	}
+	return true
 }
 
 // openAIStreamDataMarksFirstToken reports whether this SSE payload should stamp
@@ -5888,6 +5900,12 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 		case <-keepaliveCh:
 			if clientDisconnected {
+				continue
+			}
+			if !clientOutputStarted {
+				// Flushing ":" before visible output commits HTTP 200 and
+				// blocks JSON failover; NewAPI then records the later error
+				// as a successful 1-token completion.
 				continue
 			}
 			if time.Since(lastDownstreamWriteAt) < keepaliveInterval {

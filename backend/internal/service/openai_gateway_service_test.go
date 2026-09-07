@@ -1322,7 +1322,7 @@ func TestOpenAIStreamingPreambleOnlyMissingTerminalReturnsFailover(t *testing.T)
 	require.Empty(t, rec.Body.String())
 }
 
-func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
+func TestOpenAIStreamingPreambleKeepaliveDoesNotCommitBeforeOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{
@@ -1341,7 +1341,7 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       pr,
-		Header:     http.Header{},
+		Header:     http.Header{"X-Request-Id": []string{"rid-preamble-keepalive"}},
 	}
 
 	go func() {
@@ -1351,15 +1351,17 @@ func TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle(t *testing.T) {
 			time.Sleep(250 * time.Millisecond)
 			_, _ = pw.Write([]byte("data: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_1\"}}\n\n"))
 		}
-		_, _ = pw.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"))
+		_, _ = pw.Write([]byte("data: {\"type\":\"error\",\"error\":{\"code\":\"server_is_overloaded\",\"message\":\"Our servers are currently overloaded. Please try again later.\"}}\n\n"))
 	}()
 
-	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
+	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
 	_ = pr.Close()
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Contains(t, rec.Body.String(), ":\n\n")
-	require.Contains(t, rec.Body.String(), "response.completed")
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.False(t, c.Writer.Written())
+	require.NotContains(t, rec.Body.String(), ":\n\n")
+	require.Empty(t, rec.Body.String())
 }
 
 func TestOpenAIStreamingPolicyResponseFailedBeforeOutputPassesThrough(t *testing.T) {
