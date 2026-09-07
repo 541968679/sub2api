@@ -44,6 +44,30 @@ func resetOpsErrorLoggerStateForTest(t *testing.T) {
 	opsErrorLogDrained.Store(false)
 }
 
+func TestApplyOpsProviderErrorCodeFromContext_EmptyStickyDoesNotReuseStaleDetail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	stale := `{"error":{"code":"gateway_queue_full","message":"Too many pending requests"}}`
+	c.Set(service.OpsProviderErrorCodeKey, "")
+	entry := &service.OpsInsertErrorLogInput{UpstreamErrorDetail: &stale}
+
+	applyOpsProviderErrorCodeFromContext(c, entry)
+	require.Nil(t, entry.ProviderErrorCode)
+}
+
+func TestApplyOpsProviderErrorCodeFromContext_MissingKeyExtractsFromDetail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	detail := `{"error":{"code":"gateway_queue_full","message":"Too many pending requests"}}`
+	entry := &service.OpsInsertErrorLogInput{UpstreamErrorDetail: &detail}
+
+	applyOpsProviderErrorCodeFromContext(c, entry)
+	require.NotNil(t, entry.ProviderErrorCode)
+	require.Equal(t, "gateway_queue_full", *entry.ProviderErrorCode)
+}
+
 func TestEnqueueOpsErrorLog_QueueFullDrop(t *testing.T) {
 	resetOpsErrorLoggerStateForTest(t)
 

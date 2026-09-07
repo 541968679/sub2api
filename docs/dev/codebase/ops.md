@@ -53,7 +53,7 @@ Do not repeat the SSH playbook here.
 | Service | `backend/internal/service/group_capacity_service.go` | Aggregates active-group capacity from one account projection plus batched concurrency/session/RPM reads. |
 | Repository | `backend/internal/repository/account_repo.go` | Provides statistics-only account projections and schedulable group-capacity rows. |
 | Repository | `backend/internal/repository/concurrency_cache.go` | Scans existing account slot keys for periodic expired-member cleanup. |
-| Capture | `backend/internal/service/ops_upstream_context.go` | `recordOpsUpstreamAttempt` writes raw upstream message/JSON/code for Ops only; merge ignores empty detail, generic client sentences, and mapped `upstream_error` wrapper JSON. |
+| Capture | `backend/internal/service/ops_upstream_context.go` | `recordOpsUpstreamAttempt` writes raw upstream message/JSON/code for Ops only; merge ignores empty detail, generic client sentences, and mapped `upstream_error` wrapper JSON. A specific hop with no `error.code` (header-wait timeout) replaces sticky `provider_error_code` so Recovered rows do not join another hop's code with this hop's message. |
 | Frontend API | `frontend/src/api/admin/ops.ts` | Metric type union and admin API calls. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue` | List「响应内容」primary = upstream original; secondary = downstream mapped sentence. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue` | Detail shows upstream original, upstream JSON, and downstream JSON as three blocks. |
@@ -123,6 +123,9 @@ group capacity refresh
   `upstream_error_detail` / `upstream_errors` / `provider_error_code`.
   `LogUpstreamErrorBody` only gates stdout, not admin capture.
   User `/usage` (`UserErrorRequestsTable`) stays client-facing only.
+  List `formatUpstreamOriginal` may join same-hop `error.code` + message.
+  It must not prefix `openai_header_wait_timeout` /
+  `openai_first_useful_frame_timeout` with a leftover previous-hop code.
 
 ## Known Pitfalls
 
@@ -137,3 +140,6 @@ group capacity refresh
   report capacity the scheduler cannot actually select.
 - Client cancellation and PostgreSQL canceled-statement errors are not new Ops
   failures and must not be converted into a second HTTP response.
+- Do not sticky-copy hop N's `error.code` onto hop N+1's timeout marker.
+  Production symptom: `gateway_queue_full openai_header_wait_timeout waited_ms=90000`.
+  Those are two hops; Recovered `provider_error_code` belongs to the last hop only.

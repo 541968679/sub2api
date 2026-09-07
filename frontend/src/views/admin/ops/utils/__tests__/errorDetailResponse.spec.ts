@@ -151,6 +151,22 @@ describe('errorDetailResponse', () => {
     })).toBe('no enabled keys')
   })
 
+  it('does not prefix a wait-timeout hop with another hop\'s provider_error_code', () => {
+    expect(formatUpstreamOriginal({
+      provider_error_code: 'gateway_queue_full',
+      upstream_error_message: 'openai_header_wait_timeout waited_ms=90000'
+    })).toBe('openai_header_wait_timeout waited_ms=90000')
+    expect(formatUpstreamOriginal({
+      provider_error_code: 'gateway_queue_full',
+      upstream_error_message: 'openai_first_useful_frame_timeout waited_ms=30000'
+    })).toBe('openai_first_useful_frame_timeout waited_ms=30000')
+    expect(formatOpsListPrimary({
+      provider_error_code: 'gateway_queue_full',
+      upstream_error_message: 'openai_header_wait_timeout waited_ms=90000',
+      message: 'Upstream service temporarily unavailable'
+    })).toBe('openai_header_wait_timeout waited_ms=90000')
+  })
+
   it('splits admin detail into upstream original, upstream JSON, and downstream JSON', () => {
     const detail = makeDetail({
       provider_error_code: 'channel:no_available_key',

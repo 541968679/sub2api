@@ -1157,8 +1157,10 @@ func applyOpsProviderErrorCodeFromContext(c *gin.Context, entry *service.OpsInse
 		if s, ok := v.(string); ok {
 			if code := strings.TrimSpace(s); code != "" {
 				entry.ProviderErrorCode = &code
-				return
 			}
+			// Explicit empty means this hop had no error.code. Do not
+			// re-extract a previous hop's code from leftover JSON.
+			return
 		}
 	}
 	if entry.UpstreamErrorDetail != nil {

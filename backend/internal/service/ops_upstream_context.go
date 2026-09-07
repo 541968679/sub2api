@@ -243,9 +243,47 @@ func setOpsProviderErrorCode(c *gin.Context, code string) {
 	}
 	code = strings.TrimSpace(code)
 	if code == "" {
+		c.Set(OpsProviderErrorCodeKey, "")
 		return
 	}
 	c.Set(OpsProviderErrorCodeKey, truncateString(code, 64))
+}
+
+// providerErrorCodeForAttempt returns this hop's error.code.
+// A specific hop with no code (header-wait timeout, dial error) must replace
+// any sticky previous-hop code so Recovered rows do not mix hops.
+// Generic 502 wrappers keep the previous NewAPI code.
+func providerErrorCodeForAttempt(rawBody []byte, message string) (code string, replaceSticky bool) {
+	code = strings.TrimSpace(extractUpstreamErrorCode(rawBody))
+	if code != "" {
+		return code, true
+	}
+	message = strings.TrimSpace(message)
+	if message != "" && !isGenericOpsUpstreamMessage(message) {
+		return "", true
+	}
+	return "", false
+}
+
+// formatOpsUpstreamOriginal is the admin list/detail original line.
+// Same-hop code+message may be joined; wait-timeout markers must not pick up
+// a leftover provider_error_code from another hop.
+func formatOpsUpstreamOriginal(code, message string) string {
+	code = strings.TrimSpace(code)
+	message = strings.TrimSpace(message)
+	if code == "" {
+		return message
+	}
+	if message == "" {
+		return code
+	}
+	if IsOpenAIWaitTimeoutOpsError(message, "", "") {
+		return message
+	}
+	if message == code || strings.HasPrefix(message, code+" ") {
+		return message
+	}
+	return code + " " + message
 }
 
 func setOpsUpstreamError(c *gin.Context, upstreamStatusCode int, upstreamMessage, upstreamDetail string) {
@@ -294,8 +332,12 @@ func recordOpsUpstreamAttempt(c *gin.Context, ev OpsUpstreamErrorEvent, rawBody 
 		ev.UpstreamResponseBody = ""
 	}
 
-	if code := strings.TrimSpace(extractUpstreamErrorCode(rawBody)); code != "" {
+	if code, replace := providerErrorCodeForAttempt(rawBody, ev.Message); replace {
+		ev.ProviderErrorCode = code
 		setOpsProviderErrorCode(c, code)
+		if code == "" && strings.TrimSpace(ev.Detail) == "" {
+			c.Set(OpsUpstreamErrorDetailKey, "")
+		}
 	}
 
 	setOpsUpstreamError(c, ev.UpstreamStatusCode, ev.Message, ev.Detail)
@@ -354,6 +396,9 @@ type OpsUpstreamErrorEvent struct {
 
 	Message string `json:"message,omitempty"`
 	Detail  string `json:"detail,omitempty"`
+	// ProviderErrorCode is this hop's error.code only. Empty hops must not
+	// inherit a previous hop's code onto the recovered list row.
+	ProviderErrorCode string `json:"provider_error_code,omitempty"`
 }
 
 func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {

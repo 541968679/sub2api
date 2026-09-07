@@ -464,19 +464,10 @@ func (s *SettingService) UpsertScheduleErrorCustomRule(ctx context.Context, rule
 }
 
 func scheduleErrorListPrimary(code, upstream, message string) string {
-	code = strings.TrimSpace(code)
-	upstream = strings.TrimSpace(upstream)
-	message = strings.TrimSpace(message)
-	switch {
-	case code != "" && upstream != "":
-		return code + " " + upstream
-	case upstream != "":
-		return upstream
-	case code != "":
-		return code
-	default:
-		return message
+	if original := formatOpsUpstreamOriginal(code, upstream); original != "" {
+		return original
 	}
+	return strings.TrimSpace(message)
 }
 
 func scheduleErrorLogStatus(log *OpsErrorLog) int {

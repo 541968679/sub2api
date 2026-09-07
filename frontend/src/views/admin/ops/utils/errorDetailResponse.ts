@@ -69,13 +69,29 @@ function isEmptyJSONPlaceholder(payload: string): boolean {
   return !text || text === '[]' || text === '{}' || text.toLowerCase() === 'null'
 }
 
+// Keep aligned with backend OpenAIHeaderWaitTimeoutMarker /
+// OpenAIFirstUsefulFrameTimeoutMarker. Do not prefix these with a leftover
+// provider_error_code from another failover hop.
+const OPENAI_WAIT_TIMEOUT_MARKERS = [
+  'openai_header_wait_timeout',
+  'openai_first_useful_frame_timeout'
+]
+
+function isOpenAIWaitTimeoutOpsMessage(message: string): boolean {
+  const blob = String(message || '').toLowerCase()
+  return OPENAI_WAIT_TIMEOUT_MARKERS.some((marker) => blob.includes(marker))
+}
+
 export function formatUpstreamOriginal(
   detail: Pick<OpsErrorLogLike, 'provider_error_code' | 'upstream_error_message'> | null | undefined
 ): string {
   const code = String(detail?.provider_error_code || '').trim()
   const message = String(detail?.upstream_error_message || '').trim()
-  if (code && message) return `${code} ${message}`
-  return message || code
+  if (!code) return message
+  if (!message) return code
+  if (isOpenAIWaitTimeoutOpsMessage(message)) return message
+  if (message === code || message.startsWith(`${code} `)) return message
+  return `${code} ${message}`
 }
 
 function lastHopUpstreamJSON(raw: string | undefined): string {

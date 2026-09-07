@@ -221,6 +221,64 @@ func TestFailoverOpsRawBody_PrefersUnreadRewrittenOriginal(t *testing.T) {
 	require.Nil(t, FailoverOpsRawBody(nil))
 }
 
+func TestRecordOpsUpstreamAttempt_WaitTimeoutHopDoesNotKeepPreviousProviderCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	queueFull := []byte(`{"error":{"code":"gateway_queue_full","message":"Too many pending requests, please retry later","type":"rate_limit_error"}}`)
+	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		Platform:           PlatformOpenAI,
+		AccountID:          1739,
+		AccountName:        "ppsubapi",
+		UpstreamStatusCode: 429,
+		Kind:               "failover",
+	}, queueFull)
+	require.Equal(t, "gateway_queue_full", opsContextString(c, OpsProviderErrorCodeKey))
+	require.Contains(t, opsContextString(c, OpsUpstreamErrorMessageKey), "Too many pending requests")
+
+	svc := &OpenAIGatewayService{}
+	account := &Account{ID: 1708, Name: "jizhiapi", Platform: PlatformOpenAI}
+	err := svc.newOpenAIStreamFailoverError(c, account, false, "rid-timeout", nil, "openai_header_wait_timeout waited_ms=90000")
+	require.NotNil(t, err)
+
+	require.Empty(t, opsContextString(c, OpsProviderErrorCodeKey))
+	require.Equal(t, "openai_header_wait_timeout waited_ms=90000", opsContextString(c, OpsUpstreamErrorMessageKey))
+	require.NotContains(t, opsContextString(c, OpsUpstreamErrorDetailKey), "gateway_queue_full")
+	require.Equal(t, "openai_header_wait_timeout waited_ms=90000", formatOpsUpstreamOriginal(
+		opsContextString(c, OpsProviderErrorCodeKey),
+		opsContextString(c, OpsUpstreamErrorMessageKey),
+	))
+
+	v, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events := v.([]*OpsUpstreamErrorEvent)
+	require.Len(t, events, 2)
+	require.Equal(t, "gateway_queue_full", events[0].ProviderErrorCode)
+	require.Contains(t, events[0].Message, "Too many pending requests")
+	require.Empty(t, events[1].ProviderErrorCode)
+	require.Equal(t, "openai_header_wait_timeout waited_ms=90000", events[1].Message)
+}
+
+func TestFormatOpsUpstreamOriginal_DoesNotMixWaitTimeoutWithPreviousCode(t *testing.T) {
+	require.Equal(t, "channel:no_available_key no enabled keys", formatOpsUpstreamOriginal(
+		"channel:no_available_key",
+		"no enabled keys",
+	))
+	require.Equal(t, "openai_header_wait_timeout waited_ms=90000", formatOpsUpstreamOriginal(
+		"gateway_queue_full",
+		"openai_header_wait_timeout waited_ms=90000",
+	))
+	require.Equal(t, "openai_first_useful_frame_timeout waited_ms=30000", formatOpsUpstreamOriginal(
+		"gateway_queue_full",
+		"openai_first_useful_frame_timeout waited_ms=30000",
+	))
+	require.Equal(t, "channel:no_available_key no enabled keys", formatOpsUpstreamOriginal(
+		"channel:no_available_key",
+		"channel:no_available_key no enabled keys",
+	))
+}
+
 func TestNewOpenAIStreamFailoverError_RecordsRawPayloadNotClientWrapper(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

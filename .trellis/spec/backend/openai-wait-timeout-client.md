@@ -19,6 +19,7 @@
 - Client text must not contain `openai_header_wait_timeout`, `openai_first_useful_frame_timeout`, or `waited_ms=`.
 - Ops `event.Message`, `RawUpstreamBody`, and committed-abort `error.Error()` keep `openai_*_timeout waited_ms=N`.
 - `recordOpsUpstreamAttempt` drops generic 502 sentences. Never put the client sentence in `event.Message` for these hops.
+- Wait-timeout hops have no upstream `error.code`. Recovered `provider_error_code` must not keep a previous hop's NewAPI code (`gateway_queue_full` + timeout marker is hop-mix). Generic 502 wrappers still keep the original NewAPI code.
 - Anthropic exhausted replay reads `ResponseBody`; that wrapper is client-only. Ops re-record uses `FailoverOpsRawBody` → `RawUpstreamBody`.
 
 ### 4. Validation & Error Matrix

@@ -1,3 +1,30 @@
+## 2026-09-07 - fix(ops): do not join another hop's error.code onto wait-timeout
+
+### What
+- Recovered Ops rows no longer sticky-copy a previous hop's `error.code` onto a later header-wait / first-useful-frame timeout.
+- Admin list/detail `formatUpstreamOriginal` does not prefix `openai_header_wait_timeout` / `openai_first_useful_frame_timeout` with a leftover code (covers historical mixed rows).
+- Generic 502 wrappers still keep the original NewAPI `provider_error_code`.
+
+### Why
+Production Recovered rows showed `gateway_queue_full openai_header_wait_timeout waited_ms=90000`. Those are two hops: NewAPI JSON `error.code=gateway_queue_full`, then our 90s header-wait on another account.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestRecordOpsUpstreamAttempt_WaitTimeoutHopDoesNotKeepPreviousProviderCode|TestFormatOpsUpstreamOriginal_DoesNotMixWaitTimeoutWithPreviousCode|TestRecordOpsUpstreamAttempt_IgnoresGenericWrapperBody"`
+- `go test -tags=unit ./internal/handler -count=1 -run "TestApplyOpsProviderErrorCodeFromContext_"`
+- `pnpm --dir frontend exec vitest run src/views/admin/ops/utils/__tests__/errorDetailResponse.spec.ts`
+
+### Affected files
+`backend/internal/service/ops_upstream_context.go`,
+`backend/internal/service/ops_upstream_context_test.go`,
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/handler/ops_error_logger.go`,
+`backend/internal/handler/ops_error_logger_test.go`,
+`frontend/src/views/admin/ops/utils/errorDetailResponse.ts`,
+`frontend/src/views/admin/ops/utils/__tests__/errorDetailResponse.spec.ts`,
+`docs/dev/codebase/ops.md`,
+`.trellis/spec/backend/openai-wait-timeout-client.md`,
+this changelog.
+
 ## 2026-09-07 - release: 0.1.285 wait-timeout hop cap
 
 ### What
