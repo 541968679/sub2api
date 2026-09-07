@@ -21,6 +21,7 @@
 - `recordOpsUpstreamAttempt` drops generic 502 sentences. Never put the client sentence in `event.Message` for these hops.
 - Wait-timeout hops have no upstream `error.code`. Recovered `provider_error_code` must not keep a previous hop's NewAPI code (`gateway_queue_full` + timeout marker is hop-mix). Generic 502 wrappers still keep the original NewAPI code.
 - Anthropic exhausted replay reads `ResponseBody`; that wrapper is client-only. Ops re-record uses `FailoverOpsRawBody` → `RawUpstreamBody`.
+- Native `/v1/responses` uncommitted preamble must not be written into `bufio.Writer` on the HTTP `ResponseWriter`. A `response.created` ≥ 4KiB write-through commits HTTP 200 and turns a later wait-timeout / overload into a NewAPI empty-output success row.
 
 ### 4. Validation & Error Matrix
 | Path | Downstream | Ops |

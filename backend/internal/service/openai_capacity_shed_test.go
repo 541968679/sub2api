@@ -130,6 +130,69 @@ func TestOpenAIStreamEmptyAddedThenOverloadedFailsOver(t *testing.T) {
 	}
 }
 
+func TestOpenAIStreamLargePreambleThenOverloadedFailsOver(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// Native handleStreamingResponse used a 4KiB bufio.Writer on the HTTP
+	// ResponseWriter. A single response.created larger than that buffer is
+	// written through (or auto-flushed) and commits HTTP 200, so later
+	// overload/timeout can only go into SSE. NewAPI then bills prompt tokens
+	// with empty output. Keep the payload above 4KiB.
+	pad := strings.Repeat("a", 8*1024)
+	stream := strings.Join([]string{
+		"event: response.created",
+		`data: {"type":"response.created","response":{"id":"resp_big","instructions":"` + pad + `"}}`,
+		"",
+		"event: response.in_progress",
+		`data: {"type":"response.in_progress","response":{"id":"resp_big"}}`,
+		"",
+		"event: error",
+		`data: {"type":"error","error":{"type":"service_unavailable_error","message":"Our servers are currently overloaded. Please try again later."}}`,
+		"",
+	}, "\n")
+
+	tests := []struct {
+		name string
+		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
+	}{
+		{
+			name: "native",
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				return err
+			},
+		},
+		{
+			name: "passthrough",
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "model", "model")
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(stream)),
+				Header:     http.Header{"X-Request-Id": []string{"rid-large-preamble-overload"}},
+			}
+			account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}
+
+			err := tt.run(svc, c, resp, account)
+			require.Error(t, err)
+			var failoverErr *UpstreamFailoverError
+			require.ErrorAs(t, err, &failoverErr)
+			require.False(t, c.Writer.Written(), "large preamble must not commit the downstream SSE")
+			require.Empty(t, rec.Body.String())
+		})
+	}
+}
+
 func TestOpenAIStreamControlFrameThenOverloadedFailsOver(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	overloaded := []string{

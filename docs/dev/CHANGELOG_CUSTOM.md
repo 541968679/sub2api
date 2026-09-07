@@ -1,3 +1,21 @@
+## 2026-09-07 - fix(openai): buffer native Responses preamble off the HTTP writer
+
+### What
+- Native `/v1/responses` SSE now holds uncommitted preamble in memory (`pendingLines`) instead of writing it into the 4KiB `bufio.Writer` that wraps the HTTP `ResponseWriter`.
+- A `response.created` larger than 4KiB no longer write-through commits HTTP 200, so pre-output overload / first-useful-frame timeout can still JSON-failover.
+
+### Why
+User 220 (`1264721342@qq.com`) still saw NewAPI success rows with empty 输出 after v0.1.284. That release only skipped explicit `Flush` of keepalive/control frames. Production Codex `response.created` (tools/instructions) is often >4KiB; `bufio.Writer` then writes straight to the client, NewAPI stamps 首字, and a later 30s `openai_first_useful_frame_timeout` or overload is billed as input-only with blank 输出. Sub2API `usage_logs` had no `output_tokens=0` rows because the hop returned an error after the stream was already committed.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestOpenAIStreamLargePreambleThenOverloadedFailsOver|TestOpenAIStreamingPreambleKeepaliveDoesNotCommitBeforeOutput|TestOpenAIStreamEmptyAddedThenOverloadedFailsOver|TestOpenAIStreamControlFrameThenOverloadedFailsOver|TestOpenAIStreamErrorFrameDoesNotStartClientOutput|TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient|TestOpenAIStreaming"`
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_capacity_shed_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-07 - deploy: production v0.1.286
 
 ### What

@@ -5395,6 +5395,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	if !ok {
 		return nil, errors.New("streaming not supported")
 	}
+	// 4KiB is only for committed SSE. Uncommitted preamble must not go through
+	// this writer: bufio.Writer writes through when a line is >= buffer size,
+	// which commits HTTP 200 and blocks JSON failover. NewAPI then records
+	// later timeout/overload as a successful empty-output row.
 	bufferedWriter := bufio.NewWriterSize(w, 4*1024)
 	flushBuffered := func() error {
 		if err := bufferedWriter.Flush(); err != nil {
@@ -5468,6 +5472,21 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	// 否则下游 SDK（例如 OpenCode）会因为类型校验失败而报错。
 	errorEventSent := false
 	clientDisconnected := false // 客户端断开后继续 drain 上游以收集 usage
+	pendingLines := make([]string, 0, 8)
+	flushPendingLines := func() bool {
+		for _, pending := range pendingLines {
+			if _, err := bufferedWriter.WriteString(pending); err != nil {
+				clientDisconnected = true
+				return false
+			}
+			if _, err := bufferedWriter.WriteString("\n"); err != nil {
+				clientDisconnected = true
+				return false
+			}
+		}
+		pendingLines = pendingLines[:0]
+		return true
+	}
 	sawTerminalEvent := false
 	sawFailedEvent := false
 	failedMessage := ""
@@ -5741,6 +5760,13 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					// first_token_ms 可能已在 created 打点，不能再用它当 flush 闸门。
 					shouldFlush = true
 				}
+				if !clientOutputStarted && !commitDownstream {
+					pendingLines = append(pendingLines, lineForDownstream)
+					return
+				}
+				if !clientOutputStarted && !flushPendingLines() {
+					return
+				}
 				for _, injectedLine := range injectedImageMessageLines {
 					if _, err := bufferedWriter.WriteString(injectedLine + "\n\n"); err != nil {
 						clientDisconnected = true
@@ -5792,6 +5818,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 		// Forward non-data lines as-is
 		if !clientDisconnected {
+			if !clientOutputStarted {
+				pendingLines = append(pendingLines, line)
+				return
+			}
 			if _, err := bufferedWriter.WriteString(line); err != nil {
 				clientDisconnected = true
 				logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
