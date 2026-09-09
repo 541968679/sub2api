@@ -651,6 +651,16 @@ type GatewayConfig struct {
 	// ForceCodexCLI: 强制将 OpenAI `/v1/responses` 请求按 Codex CLI 处理。
 	// 用于网关未透传/改写 User-Agent 时的兼容兜底（默认关闭，避免影响其他客户端）。
 	ForceCodexCLI bool `mapstructure:"force_codex_cli"`
+	// DisableCodexOriginatorNormalization turns off rewriting load-shed Codex
+	// originators (e.g. codex-tui) to the official CLI identity. Upstream
+	// /backend-api/codex capacity-sheds by originator; hits return
+	// server_is_overloaded and cool accounts.
+	//
+	// Inverted naming keeps the zero value safe: this flag is published as a
+	// process snapshot, so hand-built Config (tests/tools) without viper must
+	// default to normalization ON. Set true only if upstream retargets buckets
+	// so normalization would itself land in a shed bucket.
+	DisableCodexOriginatorNormalization bool `mapstructure:"disable_codex_originator_normalization"`
 	// CodexImageGenerationBridgeEnabled: 为 Codex `/v1/responses` 自动注入 image_generation 工具和桥接指令。
 	// 默认关闭；账号级 `extra.codex_image_generation_bridge` 可覆盖该全局值。
 	CodexImageGenerationBridgeEnabled bool `mapstructure:"codex_image_generation_bridge_enabled"`
@@ -1817,6 +1827,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.max_account_switches", 10)
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
 	viper.SetDefault("gateway.force_codex_cli", false)
+	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
 	// Claude→GPT bridge pre-generation compact for oversized history (opt-in).

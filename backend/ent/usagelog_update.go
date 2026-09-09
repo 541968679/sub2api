@@ -841,6 +841,27 @@ func (_u *UsageLogUpdate) AddImageCount(v int) *UsageLogUpdate {
 	return _u
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (_u *UsageLogUpdate) SetImageInputTokens(v int) *UsageLogUpdate {
+	_u.mutation.ResetImageInputTokens()
+	_u.mutation.SetImageInputTokens(v)
+	return _u
+}
+
+// SetNillableImageInputTokens sets the "image_input_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableImageInputTokens(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetImageInputTokens(*v)
+	}
+	return _u
+}
+
+// AddImageInputTokens adds value to the "image_input_tokens" field.
+func (_u *UsageLogUpdate) AddImageInputTokens(v int) *UsageLogUpdate {
+	_u.mutation.AddImageInputTokens(v)
+	return _u
+}
+
 // SetImageSize sets the "image_size" field.
 func (_u *UsageLogUpdate) SetImageSize(v string) *UsageLogUpdate {
 	_u.mutation.SetImageSize(v)
@@ -1032,6 +1053,60 @@ func (_u *UsageLogUpdate) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpdate
 	if v != nil {
 		_u.SetCacheTTLOverridden(*v)
 	}
+	return _u
+}
+
+// SetTrueCost sets the "true_cost" field.
+func (_u *UsageLogUpdate) SetTrueCost(v float64) *UsageLogUpdate {
+	_u.mutation.ResetTrueCost()
+	_u.mutation.SetTrueCost(v)
+	return _u
+}
+
+// SetNillableTrueCost sets the "true_cost" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableTrueCost(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetTrueCost(*v)
+	}
+	return _u
+}
+
+// AddTrueCost adds value to the "true_cost" field.
+func (_u *UsageLogUpdate) AddTrueCost(v float64) *UsageLogUpdate {
+	_u.mutation.AddTrueCost(v)
+	return _u
+}
+
+// ClearTrueCost clears the value of the "true_cost" field.
+func (_u *UsageLogUpdate) ClearTrueCost() *UsageLogUpdate {
+	_u.mutation.ClearTrueCost()
+	return _u
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (_u *UsageLogUpdate) SetTrueCostRate(v float64) *UsageLogUpdate {
+	_u.mutation.ResetTrueCostRate()
+	_u.mutation.SetTrueCostRate(v)
+	return _u
+}
+
+// SetNillableTrueCostRate sets the "true_cost_rate" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableTrueCostRate(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetTrueCostRate(*v)
+	}
+	return _u
+}
+
+// AddTrueCostRate adds value to the "true_cost_rate" field.
+func (_u *UsageLogUpdate) AddTrueCostRate(v float64) *UsageLogUpdate {
+	_u.mutation.AddTrueCostRate(v)
+	return _u
+}
+
+// ClearTrueCostRate clears the value of the "true_cost_rate" field.
+func (_u *UsageLogUpdate) ClearTrueCostRate() *UsageLogUpdate {
+	_u.mutation.ClearTrueCostRate()
 	return _u
 }
 
@@ -1439,6 +1514,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedImageCount(); ok {
 		_spec.AddField(usagelog.FieldImageCount, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.ImageInputTokens(); ok {
+		_spec.SetField(usagelog.FieldImageInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageInputTokens(); ok {
+		_spec.AddField(usagelog.FieldImageInputTokens, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.ImageSize(); ok {
 		_spec.SetField(usagelog.FieldImageSize, field.TypeString, value)
 	}
@@ -1498,6 +1579,24 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TrueCost(); ok {
+		_spec.SetField(usagelog.FieldTrueCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTrueCost(); ok {
+		_spec.AddField(usagelog.FieldTrueCost, field.TypeFloat64, value)
+	}
+	if _u.mutation.TrueCostCleared() {
+		_spec.ClearField(usagelog.FieldTrueCost, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.TrueCostRate(); ok {
+		_spec.SetField(usagelog.FieldTrueCostRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTrueCostRate(); ok {
+		_spec.AddField(usagelog.FieldTrueCostRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.TrueCostRateCleared() {
+		_spec.ClearField(usagelog.FieldTrueCostRate, field.TypeFloat64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2473,6 +2572,27 @@ func (_u *UsageLogUpdateOne) AddImageCount(v int) *UsageLogUpdateOne {
 	return _u
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (_u *UsageLogUpdateOne) SetImageInputTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetImageInputTokens()
+	_u.mutation.SetImageInputTokens(v)
+	return _u
+}
+
+// SetNillableImageInputTokens sets the "image_input_tokens" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableImageInputTokens(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetImageInputTokens(*v)
+	}
+	return _u
+}
+
+// AddImageInputTokens adds value to the "image_input_tokens" field.
+func (_u *UsageLogUpdateOne) AddImageInputTokens(v int) *UsageLogUpdateOne {
+	_u.mutation.AddImageInputTokens(v)
+	return _u
+}
+
 // SetImageSize sets the "image_size" field.
 func (_u *UsageLogUpdateOne) SetImageSize(v string) *UsageLogUpdateOne {
 	_u.mutation.SetImageSize(v)
@@ -2664,6 +2784,60 @@ func (_u *UsageLogUpdateOne) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpd
 	if v != nil {
 		_u.SetCacheTTLOverridden(*v)
 	}
+	return _u
+}
+
+// SetTrueCost sets the "true_cost" field.
+func (_u *UsageLogUpdateOne) SetTrueCost(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetTrueCost()
+	_u.mutation.SetTrueCost(v)
+	return _u
+}
+
+// SetNillableTrueCost sets the "true_cost" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableTrueCost(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetTrueCost(*v)
+	}
+	return _u
+}
+
+// AddTrueCost adds value to the "true_cost" field.
+func (_u *UsageLogUpdateOne) AddTrueCost(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddTrueCost(v)
+	return _u
+}
+
+// ClearTrueCost clears the value of the "true_cost" field.
+func (_u *UsageLogUpdateOne) ClearTrueCost() *UsageLogUpdateOne {
+	_u.mutation.ClearTrueCost()
+	return _u
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (_u *UsageLogUpdateOne) SetTrueCostRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetTrueCostRate()
+	_u.mutation.SetTrueCostRate(v)
+	return _u
+}
+
+// SetNillableTrueCostRate sets the "true_cost_rate" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableTrueCostRate(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetTrueCostRate(*v)
+	}
+	return _u
+}
+
+// AddTrueCostRate adds value to the "true_cost_rate" field.
+func (_u *UsageLogUpdateOne) AddTrueCostRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddTrueCostRate(v)
+	return _u
+}
+
+// ClearTrueCostRate clears the value of the "true_cost_rate" field.
+func (_u *UsageLogUpdateOne) ClearTrueCostRate() *UsageLogUpdateOne {
+	_u.mutation.ClearTrueCostRate()
 	return _u
 }
 
@@ -3101,6 +3275,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	if value, ok := _u.mutation.AddedImageCount(); ok {
 		_spec.AddField(usagelog.FieldImageCount, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.ImageInputTokens(); ok {
+		_spec.SetField(usagelog.FieldImageInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedImageInputTokens(); ok {
+		_spec.AddField(usagelog.FieldImageInputTokens, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.ImageSize(); ok {
 		_spec.SetField(usagelog.FieldImageSize, field.TypeString, value)
 	}
@@ -3160,6 +3340,24 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.TrueCost(); ok {
+		_spec.SetField(usagelog.FieldTrueCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTrueCost(); ok {
+		_spec.AddField(usagelog.FieldTrueCost, field.TypeFloat64, value)
+	}
+	if _u.mutation.TrueCostCleared() {
+		_spec.ClearField(usagelog.FieldTrueCost, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.TrueCostRate(); ok {
+		_spec.SetField(usagelog.FieldTrueCostRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTrueCostRate(); ok {
+		_spec.AddField(usagelog.FieldTrueCostRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.TrueCostRateCleared() {
+		_spec.ClearField(usagelog.FieldTrueCostRate, field.TypeFloat64)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

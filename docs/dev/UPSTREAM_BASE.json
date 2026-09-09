@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-09",
+  "fork_version": "0.1.287",
+  "fork_tip_at_record": "00bc18c5a",
+  "upstream_repo": "https://github.com/Wei-Shaw/sub2api",
+  "upstream_remote": "upstream",
+  "sync_mode": "selective_graded",
+  "equivalent_to_full_upstream_tag": false,
+  "upstream_large_baseline": {
+    "tag": "v0.1.152",
+    "commit": "b73d8c3ef",
+    "upstream_version_file": "0.1.152",
+    "batch_date": "2026-07-14",
+    "batch_title": "Selective alignment to upstream v0.1.152",
+    "branch": "codex/upstream-v0152-sync-20260713",
+    "notes": "Still the last baseline actually on main. UPSYNC-152-170 exists only on sync/upstream-v0152-to-v0170 and is not merged. Window 2 did not raise this baseline to upstream 0.1.179."
+  },
+  "standing_replica": {
+    "branch": "sync/upstream-standing-20260821",
+    "worktree": "E:/cursor project/api2sub-upstream-standing-20260821",
+    "branch_point": "00bc18c5a",
+    "patch_source": "7feb1549f",
+    "patch_source_branch": "sync/upstream-catchup-20260814",
+    "migrations": ["221", "222", "223"],
+    "window1_status": "landed_on_main_1_rehearsal",
+    "window2_status": "t0_t3_landed_on_main_1_rehearsal",
+    "window2_themes": ["T0", "T1", "T2", "T3"],
+    "folded_main": "00bc18c5a",
+    "merge_to_main": "locked_until_agreed_ab_complete_and_c_catalogued"
+  },
+  "rehearsal": {
+    "branch": "sync/main-1",
+    "worktree": "E:/cursor project/api2sub-main-1",
+    "base": "00bc18c5a",
+    "merged": "sync/upstream-standing-20260821",
+    "status": "rehearsal_only_not_merged_to_real_main"
+  },
+  "pending_eval_window": {
+    "from_commit": "fbfdcef81",
+    "to_commit": "d45135d87",
+    "to_ref_note": "Frozen ceiling is upstream d45135d87 / VERSION 0.1.179. Window 2 stacked only T0-T3 onto 0.1.287 rehearsal. Do not treat this as full 0.1.179 equivalence.",
+    "upstream_version_file": "0.1.179",
+    "window2_stacked": ["T0-fold-6fa10b136", "T1-b228b93e9", "T2-76a13a5a8", "T3-40c26f343"],
+    "window2_not_stacked": "remaining A/B after T3 plus all C catalog items"
+  },
+  "active_plan": {
+    "id": "MAIN-1-STANDING-REHEARSE-20260909",
+    "doc": "docs/dev/UPSTREAM_SYNC.md",
+    "trellis_parent": ".trellis/tasks/09-09-main-1-standing-rehearse",
+    "status": "rehearsal_on_sync_main_1_merge_to_real_main_still_locked",
+    "merge_to_main": "locked_until_agreed_ab_complete_and_c_catalogued"
+  }
+}

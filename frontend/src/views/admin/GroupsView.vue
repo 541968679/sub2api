@@ -546,6 +546,55 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
+        <div class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitControl") }}</label>
+              <p class="input-hint">{{ t("admin.groups.form.profitControlHint") }}</p>
+            </div>
+            <button
+              type="button"
+              @click="createForm.profit_control_enabled = !createForm.profit_control_enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                createForm.profit_control_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  createForm.profit_control_enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="createForm.profit_control_enabled" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitMinMargin") }}</label>
+              <input
+                v-model.number="createForm.profit_min_margin"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitSafetyBuffer") }}</label>
+              <input
+                v-model.number="createForm.profit_safety_buffer"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+          </div>
+        </div>
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -1932,6 +1981,55 @@
             class="input"
             data-tour="group-form-multiplier"
           />
+        </div>
+        <div class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitControl") }}</label>
+              <p class="input-hint">{{ t("admin.groups.form.profitControlHint") }}</p>
+            </div>
+            <button
+              type="button"
+              @click="editForm.profit_control_enabled = !editForm.profit_control_enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                editForm.profit_control_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  editForm.profit_control_enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="editForm.profit_control_enabled" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitMinMargin") }}</label>
+              <input
+                v-model.number="editForm.profit_min_margin"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitSafetyBuffer") }}</label>
+              <input
+                v-model.number="editForm.profit_safety_buffer"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+          </div>
         </div>
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
@@ -3689,6 +3787,9 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  profit_control_enabled: false,
+  profit_min_margin: 0,
+  profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
 });
@@ -4045,6 +4146,9 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  profit_control_enabled: false,
+  profit_min_margin: 0,
+  profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
 });
@@ -4242,6 +4346,9 @@ const closeCreateModal = () => {
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.profit_control_enabled = false;
+  createForm.profit_min_margin = 0;
+  createForm.profit_safety_buffer = 0;
   createForm.blocked_models_text = "";
   createForm.allowed_models_text = "";
   resetModelsListState(createModelsListState);
@@ -4399,6 +4506,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.profit_control_enabled = group.profit_control_enabled ?? false;
+  editForm.profit_min_margin = group.profit_min_margin ?? 0;
+  editForm.profit_safety_buffer = group.profit_safety_buffer ?? 0;
   editForm.blocked_models_text = modelAccessTextFromArray(
     group.blocked_models,
   );

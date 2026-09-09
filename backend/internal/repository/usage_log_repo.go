@@ -28,7 +28,7 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, true_first_token_ms, user_agent, ip_address, image_count, image_size, image_quality, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, long_context_applied, long_context_input_threshold, long_context_input_multiplier, long_context_output_multiplier, account_stats_cost, true_cost, true_cost_rate, display_token_cap_applied, display_context_token_max_used, display_output_token_max_used, created_at"
+const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, true_first_token_ms, user_agent, ip_address, image_count, image_input_tokens, image_size, image_quality, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, long_context_applied, long_context_input_threshold, long_context_input_multiplier, long_context_output_multiplier, account_stats_cost, true_cost, true_cost_rate, display_token_cap_applied, display_context_token_max_used, display_output_token_max_used, created_at"
 
 // usageLogInsertArgTypes must stay in the same order as:
 //  1. prepareUsageLogInsert().args
@@ -73,6 +73,7 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // user_agent
 	"text",        // ip_address
 	"integer",     // image_count
+	"integer",     // image_input_tokens
 	"text",        // image_size
 	"text",        // image_quality
 	"integer",     // video_count
@@ -364,6 +365,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -818,6 +820,7 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -909,6 +912,7 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				user_agent,
 				ip_address,
 				image_count,
+				image_input_tokens,
 				image_size,
 				image_quality,
 				video_count,
@@ -971,6 +975,7 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				user_agent,
 				ip_address,
 				image_count,
+				image_input_tokens,
 				image_size,
 				image_quality,
 				video_count,
@@ -1073,6 +1078,7 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -1161,6 +1167,7 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -1223,6 +1230,7 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -1293,6 +1301,7 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			user_agent,
 			ip_address,
 			image_count,
+			image_input_tokens,
 			image_size,
 			image_quality,
 			video_count,
@@ -1429,6 +1438,7 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			userAgent,
 			ipAddress,
 			log.ImageCount,
+			log.ImageInputTokens,
 			imageSize,
 			imageQuality,
 			log.VideoCount,
@@ -5035,6 +5045,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		userAgent             sql.NullString
 		ipAddress             sql.NullString
 		imageCount            int
+		imageInputTokens      int
 		imageSize             sql.NullString
 		imageQuality          sql.NullString
 		videoCount            int
@@ -5099,6 +5110,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		&userAgent,
 		&ipAddress,
 		&imageCount,
+		&imageInputTokens,
 		&imageSize,
 		&imageQuality,
 		&videoCount,
@@ -5155,6 +5167,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		BillingType:           int8(billingType),
 		RequestType:           service.RequestTypeFromInt16(requestTypeRaw),
 		ImageCount:            imageCount,
+		ImageInputTokens:      imageInputTokens,
 		VideoCount:            videoCount,
 		CacheTTLOverridden:         cacheTTLOverridden,
 		DisplayTokenCapApplied:     displayTokenCapApplied,

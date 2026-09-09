@@ -1,3 +1,21 @@
+## 2026-09-09 - sync: rehearse standing overlay onto main-1 (0.1.287)
+
+### What
+- Isolation branch `sync/main-1` three-way merged `sync/upstream-standing-20260821` onto occupied `main` `00bc18c5a` / VERSION **0.1.287**.
+- Window-1 SQL remapped to `221_subscription_plan_currency` / `222_usage_log_image_input_tokens` / `223_group_profit_control`. Main `212–220` kept.
+- Overlay kept: T0 terminal JSON return, T1 pre-terminal read failover, T2 SSE overload 529, T3 empty capabilities, profit-control default-off after pair-full, `image_input_tokens`.
+- Fork-local 0.1.253–287 (capacity-shed, wait-timeout hide, display cap, sessionToken, smart-schedule) kept. Not merged to real `main`, not pushed.
+
+### Why
+Rehearse landing standing overlay on current main without touching the occupied checkout.
+
+### Affected files
+`backend/migrations/221_*.sql` `222_*.sql` `223_*.sql`,
+gateway/scheduler/usage_log overlay files,
+`docs/dev/UPSTREAM_SYNC.md`,
+`docs/dev/UPSTREAM_BASE.json`,
+this changelog.
+
 ## 2026-09-07 - deploy: production v0.1.287
 
 ### What
@@ -2246,6 +2264,34 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 `frontend/src/components/admin/model-pricing/ModelTestDialog.vue`,
 `docs/dev/codebase/model-mapping.md`
 
+## 2026-08-23 - sync: window 2 T0–T3 on standing replica
+
+### What
+- **T0**: folded occupied `main` `6fa10b136` into `sync/upstream-standing-20260821` (main→copy only).
+- **T1**: Chat buffered read errors before a Responses terminal now failover (`b228b93e9`). Client cancel / oversized line / Messages path unchanged.
+- **T2**: pre-output Anthropic SSE `overloaded_error` uses semantic 529; post-output keeps 403 (`76a13a5a8`).
+- **T3**: empty `openai_capabilities` matches unset so OAuth text accounts stay schedulable (`40c26f343`).
+- Pending eval still starts at `fbfdcef81`. This is not full upstream 0.1.179. Merge-to-real-main stays locked.
+
+### Why
+- Occupied main already had true-terminal return; T1 had to stack on that same file. The three A-lane hotfixes are independently testable without absorbing the rest of the 305-commit freeze range.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestHandleChatBufferedStreamingResponse_|TestChatCompletionsBufferedResponsesReadError|TestGatewayService_Forward_PreOutputSSEOverloaded|TestGatewayService_Forward_PostOutputSSEOverloaded|TestAccountSupportsOpenAIEndpointCapability"`
+- `go run ./tools/upstream-sync-guard --base 6fa10b136`
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_stream_read_error.go`,
+`backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/gateway_forward_sse_overload_test.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/openai_images_test.go`,
+`docs/dev/UPSTREAM_BASE.json`,
+`docs/dev/UPSTREAM_SYNC.md`,
+this changelog.
+
 ## 2026-08-22 - fix: return Chat Completions JSON as soon as Responses buffer sees a terminal
 
 ### What
@@ -2261,6 +2307,34 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 ### Affected files
 `backend/internal/service/openai_gateway_chat_completions.go`,
 `backend/internal/service/openai_gateway_chat_completions_test.go`
+
+## 2026-08-22 - sync: fold current main into standing replica
+
+### What
+- Merged occupied `main` `1b3965a71` (VERSION **0.1.252**) into `sync/upstream-standing-20260821`.
+- Remapped window-1 SQL `210/211/212` to `212/213/214` so main keeps `210_ops_attention_alert` and `211_user_smart_schedule_account_pk`.
+- Three-way overlay: AG/unpooled/Ops raw error plus window-1 image tokens / default-off profit-control / `response.failed` to 429. Did not merge upstream/main or fold back onto occupied main.
+
+### Why
+- Window-1 must sit on current scheduler/AG/Ops rather than 0.1.247. Leaving window-1 at 210/211 would collide with main.
+
+### Verification
+- `go test -tags=unit` on service / repository / handler
+- `go run ./tools/upstream-sync-guard --base 1b3965a71`
+
+### Affected files
+`backend/migrations/212_subscription_plan_currency.sql`,
+`backend/migrations/213_usage_log_image_input_tokens.sql`,
+`backend/migrations/214_group_profit_control.sql`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/UPSTREAM_SYNC.md`,
+`docs/dev/UPSTREAM_BASE.json`,
+this changelog.
 
 ## 2026-08-22 - docs: record production deploy of v0.1.252
 
@@ -2680,6 +2754,33 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 `.trellis/tasks/08-21-smart-schedule-pin/research/pin-api-contract.md`,
 `.trellis/tasks/08-21-smart-schedule-pin/research/frontend-pin-wiring.md`,
 `docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-21 - sync: fine-port catchup window-1 onto 0.1.247 standing replica
+
+### What
+- Overlay window-1 P1/P2/P5 from `7feb1549f` onto `sync/upstream-standing-20260821` (branch-point `7f054bc3e`): Codex load-shed identity rewrite, Claude Code security-monitor classifier, configurable client-IP headers / True-Client-IP, moderation proxy fail-closed, plan currency, `response.failed` rate_limit → 429, security-audit default Off, optional group profit-control admin fields.
+- Keep pair/smart-schedule, `true_first_token_ms`, `true_cost`, display billing, and `actual_cost` unchanged. Migrations were later remapped to 212–214 when folding main (main already owned 210/211).
+
+### Why
+- Standing replica needs the catchup window-1 behaviors on current main 0.1.247 without merging old catchup branches or whole-file replacing hot paths.
+
+### Verification
+- `go test -tags=unit -count=1` on changed packages (service, repository, pkg/ip, pkg/openai, handler, securityaudit)
+- `go run ./tools/upstream-sync-guard` and `--base 7f054bc3e`
+
+### Affected files
+`backend/internal/pkg/openai/request.go`, `backend/internal/config/config.go`, `deploy/config.example.yaml`,
+`backend/internal/service/openai_codex_identity.go`, `backend/internal/service/claude_code_validator.go`,
+`backend/internal/pkg/ip/ip.go`, `backend/internal/service/content_moderation.go`,
+`backend/internal/handler/content_moderation_helper.go`, `backend/internal/handler/security_audit_helper.go`,
+`backend/internal/service/payment_config_plans.go`, `backend/internal/service/payment_config_service.go`,
+`backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_ws_v2/passthrough_relay.go`,
+`backend/internal/service/admin_service.go`, `backend/internal/handler/admin/group_handler.go`,
+`backend/internal/handler/dto/types.go`, `backend/internal/service/wire.go`,
+`frontend/src/views/admin/GroupsView.vue`, `frontend/src/views/admin/orders/PlanEditDialog.vue`,
+`frontend/src/views/admin/orders/AdminPaymentPlansView.vue`, `frontend/src/views/admin/RiskControlView.vue`,
+`docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`,
 this changelog.
 
 ## 2026-08-21 - fix: leftover u:/w: no longer blocks probe graduate

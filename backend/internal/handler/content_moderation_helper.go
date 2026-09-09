@@ -62,8 +62,10 @@ func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.Conte
 		if reqLog != nil {
 			reqLog.Warn("content_moderation.check_failed", zap.Error(err))
 		}
-		return nil
+		// Still run security-audit with flagged=false so ModeOff path is exercised.
+		return applySecurityAuditToDecision(nil)
 	}
+	decision = applySecurityAuditToDecision(decision)
 	if reqLog != nil && decision != nil {
 		reqLog.Info("content_moderation.gateway_check_done",
 			zap.String("request_id", input.RequestID),

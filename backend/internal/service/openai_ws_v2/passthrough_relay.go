@@ -157,7 +157,13 @@ func Relay(
 		return upstreamConn.WriteFrame(writeCtx, msgType, payload)
 	}
 	writeClient := func(msgType coderws.MessageType, payload []byte) error {
-		writeCtx, cancel := context.WithTimeout(relayCtx, writeTimeout)
+		// Downstream write timeout deliberately does not parent on relayCtx:
+		// coder/websocket hard-closes the connection when an armed write ctx is
+		// canceled (AfterFunc stop does not wait for an in-flight callback). An
+		// external cancel during the disarm window of a successful write can wipe
+		// a pending close frame and leave the client with a bare EOF. Same as
+		// conn.Read(context.Background()): teardown is via explicit Close/CloseNow.
+		writeCtx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 		return clientConn.WriteFrame(writeCtx, msgType, payload)
 	}

@@ -149,6 +149,9 @@ func (UsageLog) Fields() []ent.Field {
 		// 图片生成字段（仅 gemini-3-pro-image 等图片模型使用）
 		field.Int("image_count").
 			Default(0),
+		field.Int("image_input_tokens").
+			Default(0).
+			Comment("Image-modality portion of input tokens when reported by upstream"),
 		field.String("image_size").
 			MaxLen(32).
 			Optional().
