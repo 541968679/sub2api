@@ -50,13 +50,13 @@ const (
 
 	// Client-side configuration denials should remain visible in ops_error_logs,
 	// but should be excluded from SLA/error-rate calculations.
-	OpsClientBusinessLimitedKey                          = "ops_client_business_limited"
-	OpsClientBusinessLimitedReasonKey                    = "ops_client_business_limited_reason"
-	OpsClientBusinessLimitedReasonIPRestriction          = "api_key_ip_restriction"
-	OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable = "api_key_group_unavailable"
-	OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned  = "api_key_group_unassigned"
-	OpsClientBusinessLimitedReasonLocalFeatureGate       = "local_feature_gate"
-	OpsClientBusinessLimitedReasonLocalPolicyDenied      = "local_policy_denied"
+	OpsClientBusinessLimitedKey                           = "ops_client_business_limited"
+	OpsClientBusinessLimitedReasonKey                     = "ops_client_business_limited_reason"
+	OpsClientBusinessLimitedReasonIPRestriction           = "api_key_ip_restriction"
+	OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable  = "api_key_group_unavailable"
+	OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned   = "api_key_group_unassigned"
+	OpsClientBusinessLimitedReasonLocalFeatureGate        = "local_feature_gate"
+	OpsClientBusinessLimitedReasonLocalPolicyDenied       = "local_policy_denied"
 	OpsClientBusinessLimitedReasonLocalModelConfiguration = "local_model_configuration"
 )
 
@@ -407,8 +407,10 @@ type OpsUpstreamErrorEvent struct {
 	ProxyID   *int64 `json:"proxy_id,omitempty"`
 	ProxyName string `json:"proxy_name,omitempty"`
 
-	// Kind: http_error | request_error | retry_exhausted | failover
+	// Kind: http_error | request_error | retry_exhausted | failover | retry
 	Kind string `json:"kind,omitempty"`
+	// Reason is an optional hop-local cause (e.g. compact_model_fallback).
+	Reason string `json:"reason,omitempty"`
 
 	Message string `json:"message,omitempty"`
 	Detail  string `json:"detail,omitempty"`
@@ -433,6 +435,7 @@ func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {
 	ev.UpstreamRequestBody = strings.TrimSpace(ev.UpstreamRequestBody)
 	ev.UpstreamResponseBody = strings.TrimSpace(ev.UpstreamResponseBody)
 	ev.Kind = strings.TrimSpace(ev.Kind)
+	ev.Reason = strings.TrimSpace(ev.Reason)
 	ev.UpstreamURL = strings.TrimSpace(ev.UpstreamURL)
 	ev.Message = strings.TrimSpace(ev.Message)
 	ev.Detail = strings.TrimSpace(ev.Detail)

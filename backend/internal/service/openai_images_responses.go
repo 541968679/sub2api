@@ -102,6 +102,10 @@ type OpenAIImagesUpstreamError struct {
 	Message           string
 	Param             string
 	UpstreamRequestID string
+	// SynthesizedFromModelText marks an error inferred from model prose rather
+	// than an upstream error frame. It may fail over this turn but must not
+	// cool the image tool as if the account lost capability.
+	SynthesizedFromModelText bool
 }
 
 func (e *OpenAIImagesUpstreamError) Error() string {
@@ -715,10 +719,7 @@ func openAIImagesUpstreamErrorFromSSEPayload(payload []byte) *OpenAIImagesUpstre
 	}
 }
 
-// extractOpenAIImagesModelRefusal extracts text refusals from completed image
-// Responses streams that contain no image output. Non-empty output means the
-// failure is content-policy related and should not be retried.
-func extractOpenAIImagesModelRefusal(body []byte) string {
+func extractOpenAIImagesModelText(body []byte) string {
 	var b strings.Builder
 	collect := func(s string) {
 		if s = strings.TrimSpace(s); s != "" {
@@ -757,12 +758,62 @@ func extractOpenAIImagesModelRefusal(body []byte) string {
 			}
 		}
 	})
-	refusal := strings.TrimSpace(b.String())
-	const maxRefusal = 600
-	if len(refusal) > maxRefusal {
-		refusal = refusal[:maxRefusal]
+	text := strings.TrimSpace(b.String())
+	const maxText = 600
+	if len(text) > maxText {
+		return text[:maxText]
 	}
-	return refusal
+	return text
+}
+
+func isOpenAIImagesContentPolicyRefusal(text string) bool {
+	lower := strings.ToLower(text)
+	for _, marker := range []string{
+		"content policy", "content_policy", "content filter", "content_filter",
+		"safety system", "safety policy", "safety violation", "moderation",
+		"安全系统", "安全策略", "安全政策", "内容政策", "内容审核", "违规内容", "不适合生成",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractOpenAIImagesModelRefusal returns only text with an explicit safety or
+// moderation signal. Plain prompt suggestions are capability failures instead.
+func extractOpenAIImagesModelRefusal(body []byte) string {
+	text := extractOpenAIImagesModelText(body)
+	if !isOpenAIImagesContentPolicyRefusal(text) {
+		return ""
+	}
+	return text
+}
+
+func openAIImagesTextFallbackError(body []byte) *OpenAIImagesUpstreamError {
+	return openAIImagesTextFallbackErrorForText(extractOpenAIImagesModelText(body))
+}
+
+func openAIImagesTextFallbackErrorForText(text string) *OpenAIImagesUpstreamError {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	if isOpenAIImagesContentPolicyRefusal(text) {
+		return &OpenAIImagesUpstreamError{
+			StatusCode: http.StatusBadRequest,
+			ErrorType:  "image_generation_user_error",
+			Code:       "content_policy_violation",
+			Message:    sanitizeUpstreamErrorMessage(text),
+		}
+	}
+	return &OpenAIImagesUpstreamError{
+		StatusCode:               http.StatusBadGateway,
+		ErrorType:                "upstream_error",
+		Code:                     "image_generation_unavailable",
+		Message:                  "Upstream did not execute image generation",
+		SynthesizedFromModelText: true,
+	}
 }
 
 func summarizeOpenAIImagesNoOutputBody(body []byte) string {
@@ -1261,6 +1312,17 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	pendingResults := make([]openAIResponsesImageResult, 0, 1)
 	pendingSeen := make(map[string]struct{})
 	streamMeta := openAIResponsesImageResult{Model: strings.TrimSpace(fallbackModel)}
+	var fallbackText strings.Builder
+	appendFallbackText := func(text string) {
+		if text == "" || fallbackText.Len() >= 600 {
+			return
+		}
+		remaining := 600 - fallbackText.Len()
+		if len(text) > remaining {
+			text = text[:remaining]
+		}
+		_, _ = fallbackText.WriteString(text)
+	}
 	var createdAt int64
 	writerSizeBeforeResponse := c.Writer.Size()
 
@@ -1282,6 +1344,9 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 						if eventCreatedAt > 0 {
 							createdAt = eventCreatedAt
 						}
+					}
+					if gjson.GetBytes(dataBytes, "type").String() == "response.output_text.delta" {
+						appendFallbackText(gjson.GetBytes(dataBytes, "delta").String())
 					}
 					switch gjson.GetBytes(dataBytes, "type").String() {
 					case "response.image_generation_call.partial_image":
@@ -1343,6 +1408,18 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 							appendOpenAIResponsesImageResultDedup(&finalResults, finalSeen, "", img)
 						}
 						if len(finalResults) == 0 {
+							textFallbackErr := openAIImagesTextFallbackErrorForText(fallbackText.String())
+							if textFallbackErr == nil {
+								textFallbackErr = openAIImagesTextFallbackError(dataBytes)
+							}
+							if textFallbackErr != nil {
+								retryable := IsOpenAIImagesRetryableUpstreamError(textFallbackErr)
+								setOpsUpstreamError(c, textFallbackErr.clientStatusCode(), textFallbackErr.clientMessage(), summarizeOpenAIImagesNoOutputBody(dataBytes))
+								if !retryable {
+									_ = s.writeOpenAIImagesStreamEvent(c, flusher, "error", buildOpenAIImagesStreamTypedErrorBody(textFallbackErr.clientErrorType(), textFallbackErr.clientMessage()))
+								}
+								return OpenAIUsage{}, imageCount, firstTokenMs, textFallbackErr
+							}
 							err = fmt.Errorf("upstream did not return image output")
 							_ = s.writeOpenAIImagesStreamEvent(c, flusher, "error", buildOpenAIImagesStreamErrorBody(err.Error()))
 							return OpenAIUsage{}, imageCount, firstTokenMs, err

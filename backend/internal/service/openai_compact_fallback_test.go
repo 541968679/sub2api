@@ -3,14 +3,19 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newOpenAICompactFallbackTestContext(t *testing.T, path string) *gin.Context {
@@ -119,4 +124,56 @@ func TestResolveOpenAICompactFallbackModelPrefersAccountMapping(t *testing.T) {
 
 	require.Equal(t, "account-compact", svc.resolveOpenAICompactFallbackModel(account, "gpt-5.5"))
 	require.Equal(t, "global-compact", svc.resolveOpenAICompactFallbackModel(account, "unmapped-model"))
+}
+
+func TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-5.5","stream":false,"instructions":"compact-test","input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}]}`)
+	c := newOpenAICompactFallbackTestContext(t, "/v1/responses")
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	MarkOpenAINativeCompactionV2(c)
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"context_length_exceeded","message":"context window exceeded"}}`)),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","model":"gpt-5.4","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
+		},
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          &config.Config{Gateway: config.GatewayConfig{OpenAICompactModel: "gpt-5.4"}},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID: 1, Name: "openai-oauth", Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
+		Status:      StatusActive, Schedulable: true,
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, upstream.bodies, 2)
+	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.bodies[1], "model").String())
+	require.True(t, HasCompactionTriggerInInput(upstream.bodies[1]))
+	require.Equal(t, upstream.requests[0].URL.Path, upstream.requests[1].URL.Path)
+	require.NotContains(t, upstream.requests[1].URL.Path, "/compact")
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+	require.Len(t, events, 1)
+	require.Equal(t, "retry", events[0].Kind)
+	require.Equal(t, "compact_model_fallback", events[0].Reason)
+	require.Equal(t, http.StatusBadRequest, events[0].UpstreamStatusCode)
+	require.Nil(t, events[0].ProxyID)
+	require.Equal(t, opsProxyNameDirect, events[0].ProxyName)
 }

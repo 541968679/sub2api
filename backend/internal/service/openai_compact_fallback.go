@@ -192,3 +192,45 @@ func (s *OpenAIGatewayService) prepareOpenAICompactFallbackRetry(
 	}
 	return retryBody, fallbackModel, true
 }
+
+func (s *OpenAIGatewayService) appendOpenAICompactFallbackRetryOps(
+	c *gin.Context,
+	account *Account,
+	resp *http.Response,
+	payload []byte,
+	message string,
+	passthrough bool,
+) {
+	if account == nil {
+		return
+	}
+	statusCode := http.StatusBadRequest
+	requestID := ""
+	if resp != nil {
+		statusCode = resp.StatusCode
+		requestID = resp.Header.Get("x-request-id")
+	}
+	detail := ""
+	if s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+		if maxBytes <= 0 {
+			maxBytes = 2048
+		}
+		detail = truncateString(string(payload), maxBytes)
+	}
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		ProxyID:              opsUpstreamProxyID(account),
+		ProxyName:            opsUpstreamProxyName(account),
+		Platform:             account.Platform,
+		AccountID:            account.ID,
+		AccountName:          account.Name,
+		UpstreamStatusCode:   statusCode,
+		UpstreamRequestID:    requestID,
+		Passthrough:          passthrough,
+		Kind:                 "retry",
+		Reason:               "compact_model_fallback",
+		Message:              sanitizeUpstreamErrorMessage(strings.TrimSpace(message)),
+		Detail:               detail,
+		UpstreamResponseBody: detail,
+	})
+}

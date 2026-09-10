@@ -15,9 +15,11 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-pool | `TestGatewayCompatPoolMode429AllowsSameAccountRetry` |
 | N-compact deadline | `TestSameAccountRetryAllowedUsesDeadlineInsteadOfPoolCount` |
 | N-compact helper | `TestPrepareOpenAICompactFallbackRetryLegacyPathAndSingleAttemptGuard` |
+| N-compact Forward hook | `TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce` |
 | N-id default-off | `TestResolveCodexFingerprintIDsFromRequest_DefaultIsOff` (+ ExplicitOptInHonored) |
 | N-guard | `TestOpenAIGatewayService_GuardianParentAffinitySelectsParentAccountAcrossSchedulers` |
 | N-team | `TestTeamLinkedError_FanoutMarksSameTeamAccounts` |
+| N-img streaming | `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError` / `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400` |
 
 ## Residual (not claimed landed)
 
@@ -29,21 +31,17 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 
 ### Phase 2 remaining wiring
 
-- Compact fallback helper exists; **not** hooked into `OpenAIGatewayService.Forward` / passthrough retry loop (`TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce`).
 - Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
+- Compact passthrough SSE retry (`TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy`) not wired.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
-### Phase 3 B (image / ops / dash / Astra)
+### Phase 3 B remaining
 
-- N-img remaining streaming tests (`TestImagesOAuthStreaming_*`)
-- N24-img25 GPT Image 2.5 catalog/pricing (`TestDefaultModelsIncludeGPTImage25` …) — fork catalog is gpt-image-2
-- N24-b64 URL→b64 (`TestImagesURLToB64JSONEnabled` …)
-- N24-imgcd image-tool cooldown (`TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`)
-- N-ops / N24-ops list-return vitest unnamed
-- N-dash cache token breakdown vitest (`shows cache token breakdown values`)
-- N24-reqid usage_log upstream request id — SQL remap **≠ 232**
-- N24-acctlist compact admin account DTO
-- N24-astra capability increment (catalog UI stays fork)
+- N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **stop-and-ask**: new LiteLLM rates would change stored `actual_cost`. Fork catalog stays gpt-image-2 until Brandon confirms.
+- N24-b64 URL→b64 — needs `validateOutboundURL` / `WithHTTPUpstreamPublicHostsOnly` / `detectedImageContentType` which are not on fork.
+- N24-imgcd cooldown (`TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`) — upstream `handleOpenAIImagesErrorResponse` arity includes model; fork signature does not.
+- N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — needs `LongContextPricingEnabled` group field (C-price adjacent).
+- N-ops list-return vitest unnamed; N24-reqid SQL remap **≠ 232**; N24-acctlist DTO; N24-astra capability increment.
 
 ### Phase 4–6 C (stop-and-ask / residual, not silent adopt)
 

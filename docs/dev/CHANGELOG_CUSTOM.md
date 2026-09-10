@@ -1,3 +1,16 @@
+## 2026-09-10 - sync: compact Forward retry + image streaming capability errors on main-1
+
+### What
+- Isolation `sync/main-1` only: hook `prepareOpenAICompactFallbackRetry` into `OpenAIGatewayService.Forward` HTTP ≥400 path (one same-account retry, Ops `retry`/`compact_model_fallback`). Named gate: `TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce`.
+- Overlay OAuth Images streaming no-image classification: model prose → 502 `image_generation_unavailable` unflushed; split safety refusal → 400 `content_policy_violation` flushed. Named gates: `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError`, `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400`.
+- GPT Image 2.5 stored rates **not** adopted (would change `actual_cost`); listed as stop-and-ask on residual. VERSION stays **0.1.287**.
+
+### Why
+Compact fallback was helper-only; Forward now retries explicit native compact HTTP failures once. Image streaming previously treated all empty-image streams as a flushed generic error, blocking failover vs content-policy.
+
+### Affected files
+`openai_gateway_service.go`, `openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `ops_upstream_context.go`, `openai_images_responses.go`, `openai_images_incomplete_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: Phase 1 leftovers + Phase 2 B overlay on main-1 (keep 0.1.287)
 
 ### What
