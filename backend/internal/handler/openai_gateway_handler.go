@@ -2171,6 +2171,13 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 	responseBody := failoverErr.ResponseBody
 	opsBody := service.FailoverOpsRawBody(failoverErr)
 
+	if statusCode == http.StatusBadRequest && service.IsOpenAICompatibleModelNotFound400(responseBody) && !streamStarted {
+		upstreamMsg := service.SanitizeUpstreamErrorMessage(service.ExtractUpstreamErrorMessage(responseBody))
+		service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
+		service.WriteOpenAIUpstreamClientError(c, statusCode, responseBody, upstreamMsg)
+		return
+	}
+
 	service.RecordOpsUpstreamAttempt(c, service.OpsUpstreamErrorEvent{
 		Platform:           service.PlatformOpenAI,
 		UpstreamStatusCode: statusCode,

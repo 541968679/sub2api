@@ -23,13 +23,13 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N24-b64 | `TestImagesURLToB64JSONEnabled` / `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts` / `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL` |
 | N24-imgcd | `TestOpenAIImagesRejectedDriverDoesNotCoolImageModel` |
 | N-compact SSE | `TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy` / `TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput` |
+| N24-m404 exhaustion | `TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400` |
 
 ## Residual (not claimed landed)
 
 ### Phase 1 leftovers
 
 - `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount` / `TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect` — large WS session stack; later-turn 429 **before write** already on `e8fd01ffb`.
-- `TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400` — not extracted onto fork handler path this batch.
 - N24-created / N24-think / N24-cancel — still no stable `TestXxx` on fork.
 
 ### Phase 2 remaining wiring

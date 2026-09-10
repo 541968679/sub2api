@@ -1,3 +1,15 @@
+## 2026-09-10 - sync: preserve structured 400 on model-not-found exhaustion
+
+### What
+- Isolation `sync/main-1` only: when OpenAI failover exhausts on a non-stream 400 `model_not_found`, return the structured upstream error (type/code/param/message) instead of mapping it to 502 `upstream_error`. Sensitive query values stay redacted. Named gates: `TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400`, `TestOpenAIManagedModelNotFoundExhaustionSanitizesMessage`.
+- VERSION stays **0.1.287**.
+
+### Why
+Managed single-account model-not-found must stay a client 400 so callers can change the model, not a gateway 502.
+
+### Affected files
+`openai_gateway_handler.go`, `openai_gateway_handler_test.go`, `openai_upstream_client_error.go`, `model_not_found_error.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: compact SSE 200 response.failed same-account retry on main-1
 
 ### What

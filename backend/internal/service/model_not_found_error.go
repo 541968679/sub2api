@@ -57,6 +57,10 @@ func normalizeModelNotFoundBody(body []byte) string {
 }
 
 func isOpenAICompatibleModelNotFound400(respBody []byte) bool {
+	return IsOpenAICompatibleModelNotFound400(respBody)
+}
+
+func IsOpenAICompatibleModelNotFound400(respBody []byte) bool {
 	code := strings.TrimSpace(extractUpstreamErrorCode(respBody))
 	if code != "" {
 		return strings.EqualFold(code, "model_not_found")
