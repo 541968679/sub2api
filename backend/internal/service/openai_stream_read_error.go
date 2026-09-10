@@ -12,7 +12,12 @@ const (
 	// when an upstream HTTP/2 response stream is reset after the request started.
 	OpenAIUpstreamHTTP2StreamErrorCode = "upstream_http2_stream_error"
 	OpenAIUpstreamStreamReadErrorCode  = "upstream_stream_read_error"
+	// OpenAIUpstreamStreamTruncatedCode is returned when an upstream SSE stream
+	// closes cleanly before delivering any terminal signal.
+	OpenAIUpstreamStreamTruncatedCode = "upstream_stream_truncated"
 )
+
+var ErrOpenAIUpstreamStreamTruncated = errors.New("upstream stream ended before any terminal chunk")
 
 type openAIUpstreamStreamReadError struct {
 	cause         error
@@ -35,8 +40,6 @@ func newOpenAIUpstreamStreamReadError(err error) error {
 	}
 }
 
-// shouldClassifyOpenAIUpstreamStreamReadError excludes cancellation and
-// response-size enforcement from upstream retry.
 func shouldClassifyOpenAIUpstreamStreamReadError(err error, contexts ...context.Context) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
 		return false
@@ -49,8 +52,6 @@ func shouldClassifyOpenAIUpstreamStreamReadError(err error, contexts ...context.
 	return true
 }
 
-// OpenAIUpstreamStreamReadErrorDetails returns the stable, sanitized client
-// classification attached to an upstream stream read failure.
 func OpenAIUpstreamStreamReadErrorDetails(err error) (code, message string, ok bool) {
 	var streamErr *openAIUpstreamStreamReadError
 	if !errors.As(err, &streamErr) || streamErr == nil {
@@ -61,10 +62,10 @@ func OpenAIUpstreamStreamReadErrorDetails(err error) (code, message string, ok b
 
 func classifyOpenAIUpstreamStreamReadError(err error) (code, message string) {
 	if err != nil {
+		if errors.Is(err, ErrOpenAIUpstreamStreamTruncated) {
+			return OpenAIUpstreamStreamTruncatedCode, "Upstream response stream ended before completion"
+		}
 		lower := strings.ToLower(err.Error())
-		// net/http's HTTP/2 stream error is unexported. Its stable text contains
-		// "stream error: stream ID ..."; match only the transport signature and
-		// never pass the original text to the client.
 		if strings.Contains(lower, "stream error: stream id ") ||
 			(strings.Contains(lower, "http2:") && strings.Contains(lower, "stream")) {
 			return OpenAIUpstreamHTTP2StreamErrorCode, "Upstream HTTP/2 stream failed"

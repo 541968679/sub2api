@@ -235,15 +235,17 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 				Message:            upstreamMsg,
 				Detail:             upstreamDetail,
 			})
-			if s.rateLimitService != nil {
-				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+			if account.Platform != PlatformGrok {
+				s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			stageClk.Complete(c)
-			return nil, &UpstreamFailoverError{
-				StatusCode:             resp.StatusCode,
-				ResponseBody:           respBody,
-				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
-			}
+			return nil, newOpenAIUpstreamFailoverError(
+				resp.StatusCode,
+				resp.Header,
+				respBody,
+				upstreamMsg,
+				account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
+			)
 		}
 		stageClk.Complete(c)
 		return s.handleChatCompletionsErrorResponse(resp, c, account)
@@ -296,6 +298,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 
 	var usage OpenAIUsage
 	var firstTokenMs *int
+	var terminal openAIRawStreamTerminalState
 	clientDisconnected := false
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
@@ -416,6 +419,7 @@ scanRaw:
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			stageClk.MarkFirstSSE()
 			trimmedPayload := strings.TrimSpace(payload)
+			terminal.ObserveDataLine(trimmedPayload)
 			if trimmedPayload != "[DONE]" {
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
@@ -454,13 +458,49 @@ scanRaw:
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			logger.L().Warn("openai chat_completions raw: stream read error",
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
+	scanErr := scanner.Err()
+	if scanErr != nil && !errors.Is(scanErr, context.Canceled) && !errors.Is(scanErr, context.DeadlineExceeded) {
+		logger.L().Warn("openai chat_completions raw: stream read error",
+			zap.Error(scanErr),
+			zap.String("request_id", requestID),
+		)
+	}
+	clientAborted := clientDisconnected ||
+		errors.Is(scanErr, context.Canceled) ||
+		errors.Is(scanErr, context.DeadlineExceeded)
+	if !clientAborted && terminal.IsTruncated(clientOutputStarted) {
+		cause := scanErr
+		if cause == nil {
+			cause = ErrOpenAIUpstreamStreamTruncated
 		}
+		accountID := int64(0)
+		if account != nil {
+			accountID = account.ID
+		}
+		logger.L().Warn("openai chat_completions raw: upstream stream truncated before terminal chunk",
+			zap.Error(cause),
+			zap.String("request_id", requestID),
+			zap.Int64("account_id", accountID),
+			zap.String("upstream_model", upstreamModel),
+			zap.Bool("saw_sse_data", terminal.sawDataLine),
+			zap.Bool("client_output_started", clientOutputStarted),
+		)
+		if !clientOutputStarted {
+			return nil, newOpenAIRawStreamTruncatedFailoverError(c, account, requestID, cause)
+		}
+		recordOpenAIRawStreamTruncation(c, account, requestID, cause, "http_error")
+		return &OpenAIForwardResult{
+			RequestID:       requestID,
+			Usage:           usage,
+			Model:           originalModel,
+			BillingModel:    billingModel,
+			UpstreamModel:   upstreamModel,
+			ReasoningEffort: reasoningEffort,
+			ServiceTier:     serviceTier,
+			Stream:          true,
+			Duration:        time.Since(startTime),
+			FirstTokenMs:    firstTokenMs,
+		}, newOpenAIUpstreamStreamReadError(cause)
 	}
 	if !clientDisconnected && !clientOutputStarted {
 		if refusalDetector.IsSilentRefusal() {

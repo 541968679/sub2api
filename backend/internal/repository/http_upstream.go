@@ -28,6 +28,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"golang.org/x/mod/semver"
+	"golang.org/x/net/http2"
 )
 
 // 默认配置常量
@@ -53,10 +54,15 @@ const (
 	// 超出后会淘汰最久未使用的客户端
 	defaultMaxUpstreamClients = 5000
 	// defaultClientIdleTTLSeconds: 默认客户端空闲回收阈值（15分钟）
-	defaultClientIdleTTLSeconds = 900
-	grokCLIProxyHost            = "cli-chat-proxy.grok.com"
-	grokCLIStableVersion        = "0.2.93"
-	grokCLIVersionOverride      = "XAI_GROK_CLI_VERSION"
+	defaultClientIdleTTLSeconds      = 900
+	grokCLIProxyHost                 = "cli-chat-proxy.grok.com"
+	grokCLIStableVersion             = "0.2.93"
+	grokCLIVersionOverride           = "XAI_GROK_CLI_VERSION"
+	upstreamProtocolModeDefault      = "default"
+	upstreamProtocolModeLongStreamH2 = "long_stream_h2"
+	upstreamProtocolModeOpenAIH2     = "openai_h2"
+	longStreamHTTP2ReadIdleTimeout   = 10 * time.Second
+	longStreamHTTP2PingTimeout       = 5 * time.Second
 )
 
 var errUpstreamClientLimitReached = errors.New("upstream client cache limit reached")
@@ -151,7 +157,7 @@ func (s *httpUpstreamService) doPlainOnce(req *http.Request, proxyURL string, ac
 	}
 
 	// 获取或创建对应的客户端，并标记请求占用
-	entry, err := s.acquireClient(proxyURL, accountID, accountConcurrency)
+	entry, err := s.acquireClient(proxyURL, accountID, accountConcurrency, protocolModeFromRequest(req))
 	if err != nil {
 		return nil, err
 	}
@@ -535,8 +541,8 @@ func (s *httpUpstreamService) redirectChecker(req *http.Request, via []*http.Req
 
 // acquireClient 获取或创建客户端，并标记为进行中请求
 // 用于请求路径，避免在获取后被淘汰
-func (s *httpUpstreamService) acquireClient(proxyURL string, accountID int64, accountConcurrency int) (*upstreamClientEntry, error) {
-	return s.getClientEntry(proxyURL, accountID, accountConcurrency, true, true)
+func (s *httpUpstreamService) acquireClient(proxyURL string, accountID int64, accountConcurrency int, protocolMode ...string) (*upstreamClientEntry, error) {
+	return s.getClientEntry(proxyURL, accountID, accountConcurrency, true, true, firstProtocolMode(protocolMode))
 }
 
 // getOrCreateClient 获取或创建客户端
@@ -554,14 +560,14 @@ func (s *httpUpstreamService) acquireClient(proxyURL string, accountID int64, ac
 //   - proxy: 按代理地址隔离，同一代理共享客户端
 //   - account: 按账户隔离，同一账户共享客户端（代理变更时重建）
 //   - account_proxy: 按账户+代理组合隔离，最细粒度
-func (s *httpUpstreamService) getOrCreateClient(proxyURL string, accountID int64, accountConcurrency int) (*upstreamClientEntry, error) {
-	return s.getClientEntry(proxyURL, accountID, accountConcurrency, false, false)
+func (s *httpUpstreamService) getOrCreateClient(proxyURL string, accountID int64, accountConcurrency int, protocolMode ...string) (*upstreamClientEntry, error) {
+	return s.getClientEntry(proxyURL, accountID, accountConcurrency, false, false, firstProtocolMode(protocolMode))
 }
 
 // getClientEntry 获取或创建客户端条目
 // markInFlight=true 时会标记进行中请求，用于请求路径防止被淘汰
 // enforceLimit=true 时会限制客户端数量，超限且无法淘汰时返回错误
-func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, accountConcurrency int, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
+func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, accountConcurrency int, markInFlight bool, enforceLimit bool, protocolMode string) (*upstreamClientEntry, error) {
 	// 获取隔离模式
 	isolation := s.getIsolationMode()
 	// 标准化代理 URL 并解析
@@ -569,10 +575,11 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 	if err != nil {
 		return nil, err
 	}
+	mode := firstProtocolMode([]string{protocolMode})
 	// 构建缓存键（根据隔离策略不同）
-	cacheKey := buildCacheKey(isolation, proxyKey, accountID)
+	cacheKey := withProtocolModeSuffix(buildCacheKey(isolation, proxyKey, accountID), mode)
 	// 构建连接池配置键（用于检测配置变更）
-	poolKey := s.buildPoolKey(isolation, accountConcurrency)
+	poolKey := withProtocolModeSuffix(s.buildPoolKey(isolation, accountConcurrency), mode)
 
 	now := time.Now()
 	nowUnix := now.UnixNano()
@@ -616,7 +623,7 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 
 	// 缓存未命中或需要重建，创建新客户端
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
-	transport, err := buildUpstreamTransport(settings, parsedProxy)
+	transport, err := buildUpstreamTransport(settings, parsedProxy, mode)
 	if err != nil {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("build transport: %w", err)
@@ -856,6 +863,27 @@ func buildCacheKey(isolation, proxyKey string, accountID int64) string {
 	}
 }
 
+func firstProtocolMode(modes []string) string {
+	if len(modes) == 0 || strings.TrimSpace(modes[0]) == "" {
+		return upstreamProtocolModeDefault
+	}
+	return modes[0]
+}
+
+func withProtocolModeSuffix(base, mode string) string {
+	if mode == "" || mode == upstreamProtocolModeDefault {
+		return base
+	}
+	return base + "|proto:" + mode
+}
+
+func protocolModeFromRequest(req *http.Request) string {
+	if req != nil && service.HTTPUpstreamProfileFromContext(req.Context()) == service.HTTPUpstreamProfileOpenAI {
+		return upstreamProtocolModeOpenAIH2
+	}
+	return upstreamProtocolModeDefault
+}
+
 // normalizeProxyURL 标准化代理 URL
 // 处理空值和解析错误，返回标准化的键和解析后的 URL
 //
@@ -956,7 +984,8 @@ func defaultPoolSettings(cfg *config.Config) poolSettings {
 //   - MaxConnsPerHost: 每主机最大连接数（达到后新请求等待）
 //   - IdleConnTimeout: 空闲连接超时（超时后关闭）
 //   - ResponseHeaderTimeout: 等待响应头超时（不影响流式传输）
-func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL) (*http.Transport, error) {
+func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL, protocolMode ...string) (*http.Transport, error) {
+	mode := firstProtocolMode(protocolMode)
 	transport := &http.Transport{
 		MaxIdleConns:          settings.maxIdleConns,
 		MaxIdleConnsPerHost:   settings.maxIdleConnsPerHost,
@@ -964,10 +993,29 @@ func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL) (*http.Tra
 		IdleConnTimeout:       settings.idleConnTimeout,
 		ResponseHeaderTimeout: settings.responseHeaderTimeout,
 	}
+	switch mode {
+	case upstreamProtocolModeLongStreamH2, upstreamProtocolModeOpenAIH2:
+		transport.ForceAttemptHTTP2 = true
+		if _, err := enableHTTP2KeepAlive(transport); err != nil {
+			return nil, err
+		}
+	}
 	if err := proxyutil.ConfigureTransportProxy(transport, proxyURL); err != nil {
 		return nil, err
 	}
 	return transport, nil
+}
+
+func enableHTTP2KeepAlive(transport *http.Transport) (*http2.Transport, error) {
+	h2, err := http2.ConfigureTransports(transport)
+	if err != nil {
+		return nil, err
+	}
+	if h2 != nil {
+		h2.ReadIdleTimeout = longStreamHTTP2ReadIdleTimeout
+		h2.PingTimeout = longStreamHTTP2PingTimeout
+	}
+	return h2, nil
 }
 
 // buildUpstreamTransportWithTLSFingerprint 构建带 TLS 指纹伪装的 Transport

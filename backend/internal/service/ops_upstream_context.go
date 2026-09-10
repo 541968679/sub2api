@@ -391,6 +391,9 @@ type OpsUpstreamErrorEvent struct {
 	// Best-effort upstream response capture (sanitized+trimmed).
 	UpstreamResponseBody string `json:"upstream_response_body,omitempty"`
 
+	ProxyID   *int64 `json:"proxy_id,omitempty"`
+	ProxyName string `json:"proxy_name,omitempty"`
+
 	// Kind: http_error | request_error | retry_exhausted | failover
 	Kind string `json:"kind,omitempty"`
 

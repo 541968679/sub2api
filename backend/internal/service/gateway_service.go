@@ -540,6 +540,14 @@ type UpstreamFailoverError struct {
 	ResponseHeaders        http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling      bool        // Antigravity 粘性会话切换时设为 true
 	RetryableOnSameAccount bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
+	// RequestScopedTransient marks a failure that is not account health
+	// (capacity shed, client identity). Same-account retry is allowed, but
+	// TempUnscheduleRetryableError must not park the account.
+	RequestScopedTransient bool
+	// ClientStatusCode / ClientMessage are optional typed downstream fields.
+	// StatusCode remains the failover-engine status (often 502).
+	ClientStatusCode int
+	ClientMessage    string
 	// NoAccountFailover skips multi-account switching. Used for request-shaped
 	// failures (e.g. empty completed stream) where other accounts fail the same way.
 	NoAccountFailover bool
@@ -547,6 +555,10 @@ type UpstreamFailoverError struct {
 
 func (e *UpstreamFailoverError) Error() string {
 	return fmt.Sprintf("upstream error: %d (failover)", e.StatusCode)
+}
+
+func (e *UpstreamFailoverError) ShouldRetryNextAccount() bool {
+	return e != nil && !e.NoAccountFailover
 }
 
 // sseStreamErrorEventError 表示上游 SSE 流体内出现 event:error 帧。
@@ -564,6 +576,11 @@ func (e *sseStreamErrorEventError) Error() string { return "have error in stream
 // 由 handler 层在同账号重试全部用尽、切换账号时调用。
 func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *UpstreamFailoverError) {
 	if failoverErr == nil || !failoverErr.RetryableOnSameAccount {
+		return
+	}
+	// Request-scoped transients are not account health. Parking the account
+	// would walk the pool on a signal that every account would also fail.
+	if failoverErr.RequestScopedTransient {
 		return
 	}
 	// 根据状态码选择封禁策略
@@ -2942,6 +2959,23 @@ func (s *GatewayService) checkAndRegisterSession(ctx context.Context, account *A
 	return allowed
 }
 
+// ReleaseAccountSession immediately frees a session slot instead of waiting
+// for idle timeout. Used when select succeeded but forward failed.
+func (s *GatewayService) ReleaseAccountSession(ctx context.Context, account *Account, sessionID string) {
+	if s == nil || s.sessionLimitCache == nil || account == nil || sessionID == "" {
+		return
+	}
+	if !account.IsAnthropicOAuthOrSetupToken() {
+		return
+	}
+	if account.GetMaxSessions() <= 0 {
+		return
+	}
+	if err := s.sessionLimitCache.UnregisterSession(ctx, account.ID, sessionID); err != nil {
+		slog.Debug("session_limit.release_failed", "account_id", account.ID, "error", err)
+	}
+}
+
 func (s *GatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
 	if s.schedulerSnapshot != nil {
 		return s.schedulerSnapshot.GetAccount(ctx, accountID)
@@ -5195,14 +5229,14 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 
 	return &ForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		Usage:            *usage,
-		Model:            originalModel, // 使用原始模型用于计费和日志
-		BillingModel:     billingModel,
-		UpstreamModel:    mappedModel,
-		Stream:           reqStream,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
+		RequestID:     resp.Header.Get("x-request-id"),
+		Usage:         *usage,
+		Model:         originalModel, // 使用原始模型用于计费和日志
+		BillingModel:  billingModel,
+		UpstreamModel: mappedModel,
+		Stream:        reqStream,
+		Duration:      time.Since(startTime),
+		FirstTokenMs:  firstTokenMs,
 
 		ClientDisconnect: clientDisconnect,
 	}, nil
@@ -5443,13 +5477,13 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	}
 
 	return &ForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		Usage:            *usage,
-		Model:            input.OriginalModel,
-		UpstreamModel:    input.RequestModel,
-		Stream:           input.RequestStream,
-		Duration:         time.Since(input.StartTime),
-		FirstTokenMs:     firstTokenMs,
+		RequestID:     resp.Header.Get("x-request-id"),
+		Usage:         *usage,
+		Model:         input.OriginalModel,
+		UpstreamModel: input.RequestModel,
+		Stream:        input.RequestStream,
+		Duration:      time.Since(input.StartTime),
+		FirstTokenMs:  firstTokenMs,
 
 		ClientDisconnect: clientDisconnect,
 	}, nil
@@ -6059,13 +6093,13 @@ func (s *GatewayService) forwardBedrock(
 	}
 
 	return &ForwardResult{
-		RequestID:        resp.Header.Get("x-amzn-requestid"),
-		Usage:            *usage,
-		Model:            reqModel,
-		UpstreamModel:    mappedModel,
-		Stream:           reqStream,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
+		RequestID:     resp.Header.Get("x-amzn-requestid"),
+		Usage:         *usage,
+		Model:         reqModel,
+		UpstreamModel: mappedModel,
+		Stream:        reqStream,
+		Duration:      time.Since(startTime),
+		FirstTokenMs:  firstTokenMs,
 
 		ClientDisconnect: clientDisconnect,
 	}, nil

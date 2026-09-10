@@ -2604,6 +2604,15 @@ func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool 
 }
 
 func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
+	if hit, _, _ := detectOpenAICyberPolicy(upstreamBody); hit {
+		return false
+	}
+	if isUpstreamModelNotFoundError(statusCode, upstreamBody) {
+		return true
+	}
+	if statusCode == http.StatusBadRequest && isOpenAICompatibleModelNotFound400(upstreamBody) {
+		return true
+	}
 	if s.shouldFailoverUpstreamError(statusCode) {
 		return true
 	}
@@ -2638,6 +2647,10 @@ func (s *OpenAIGatewayService) readUpstreamErrorBody(resp *http.Response) []byte
 
 func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) bool {
 	if s == nil || s.rateLimitService == nil {
+		return false
+	}
+	// Capacity shedding describes this request, not account health.
+	if account != nil && account.Platform == PlatformOpenAI && isOpenAIRequestScopedCapacityShed("", responseBody) {
 		return false
 	}
 	return s.rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, responseBody)
@@ -3412,11 +3425,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				s.handleFailoverSideEffects(ctx, resp, account)
 				releaseOpenAIParsedRequestBody(c)
 				stageClk.Complete(c)
-				return nil, &UpstreamFailoverError{
-					StatusCode:             resp.StatusCode,
-					ResponseBody:           respBody,
-					RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
-				}
+				return nil, newOpenAIUpstreamFailoverError(
+					resp.StatusCode,
+					resp.Header,
+					respBody,
+					upstreamMsg,
+					account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
+				)
 			}
 			stageClk.Complete(c)
 			return s.handleErrorResponse(ctx, resp, c, account, body)
@@ -4359,12 +4374,19 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 			"message": clientMessage,
 		},
 	})
-	return &UpstreamFailoverError{
+	capacityShed := isOpenAIRequestScopedCapacityShed(opsMessage, incomingPayload)
+	failoverErr := &UpstreamFailoverError{
 		StatusCode:             http.StatusBadGateway,
 		ResponseBody:           body,
 		RawUpstreamBody:        rawPayload,
-		RetryableOnSameAccount: isOpenAIRequestScopedCapacityShed(opsMessage, incomingPayload),
+		RetryableOnSameAccount: capacityShed || openAIStreamFailedEventRetryableOnSameAccount(account, incomingPayload, opsMessage),
+		RequestScopedTransient: capacityShed,
 	}
+	if capacityShed {
+		failoverErr.ClientStatusCode = http.StatusServiceUnavailable
+		failoverErr.ClientMessage = openAICapacityShedClientMessage(opsMessage, incomingPayload)
+	}
+	return failoverErr
 }
 
 func (s *OpenAIGatewayService) newOpenAIStreamClientError(
@@ -4437,7 +4459,7 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 			Passthrough:        passthrough,
 			Kind:               kind,
 		}
-		if len(payload) == 0 && !isGenericOpsUpstreamMessage(message) {
+		if (kind == "stream_failed" || len(payload) == 0) && !isGenericOpsUpstreamMessage(message) {
 			event.Message = message
 		}
 		if account != nil {
@@ -4613,7 +4635,7 @@ scanLines:
 								s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
 						}
 					} else {
-						s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "http_error", dataBytes, failedMessage)
+						s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "stream_failed", dataBytes, failedMessage)
 					}
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
@@ -5676,7 +5698,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 							return
 						}
 					} else {
-						s.recordOpenAIStreamUpstreamError(c, account, false, upstreamRequestID, "http_error", dataBytes, failedMessage)
+						s.recordOpenAIStreamUpstreamError(c, account, false, upstreamRequestID, "stream_failed", dataBytes, failedMessage)
 					}
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
