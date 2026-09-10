@@ -20,6 +20,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-guard | `TestOpenAIGatewayService_GuardianParentAffinitySelectsParentAccountAcrossSchedulers` |
 | N-team | `TestTeamLinkedError_FanoutMarksSameTeamAccounts` |
 | N-img streaming | `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError` / `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400` |
+| N24-b64 | `TestImagesURLToB64JSONEnabled` / `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts` / `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL` |
 
 ## Residual (not claimed landed)
 
@@ -38,7 +39,6 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 ### Phase 3 B remaining
 
 - N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **stop-and-ask**: new LiteLLM rates would change stored `actual_cost`. Fork catalog stays gpt-image-2 until Brandon confirms.
-- N24-b64 URL→b64 — needs `validateOutboundURL` / `WithHTTPUpstreamPublicHostsOnly` / `detectedImageContentType` which are not on fork.
 - N24-imgcd cooldown (`TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`) — upstream `handleOpenAIImagesErrorResponse` arity includes model; fork signature does not.
 - N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — needs `LongContextPricingEnabled` group field (C-price adjacent).
 - N-ops list-return vitest unnamed; N24-reqid SQL remap **≠ 232**; N24-acctlist DTO; N24-astra capability increment.

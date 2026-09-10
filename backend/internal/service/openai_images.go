@@ -649,6 +649,19 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if imageTrace != nil {
 		imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
+	if !parsed.Stream && ImagesURLToB64JSONEnabled(account) && resp.Body != nil {
+		limit := resolveUpstreamResponseReadLimit(s.cfg)
+		if limit <= 0 {
+			limit = 2 << 20
+		}
+		bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, limit))
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		bodyBytes = s.backfillOpenAIImagesB64JSON(upstreamCtx, account, parsed, bodyBytes)
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
 		if imageTrace != nil {

@@ -1,3 +1,15 @@
+## 2026-09-10 - sync: Images URL→b64_json backfill on main-1 (opt-in extra)
+
+### What
+- Isolation `sync/main-1` only: account extra `images_url_to_b64_json` (strict bool opt-in) downloads public image URLs into `data[].b64_json` on API Key non-stream Images responses. Private/loopback/link-local hosts are never requested. Named gates: `TestImagesURLToB64JSONEnabled`, `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts`, `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL`.
+- GPT Image 2.5 stored rates and C-fast/C-price still **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Upstream 0.2.4 fills empty `b64_json` from URL for clients that only consume base64; fork-local billing/display chain is untouched.
+
+### Affected files
+`openai_images_b64_backfill.go`, `openai_images_b64_backfill_test.go`, `openai_images.go`, `http_upstream_profile.go`, `urlvalidator/validator.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: compact Forward retry + image streaming capability errors on main-1
 
 ### What
