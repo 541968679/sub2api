@@ -21,6 +21,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-team | `TestTeamLinkedError_FanoutMarksSameTeamAccounts` |
 | N-img streaming | `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError` / `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400` |
 | N24-b64 | `TestImagesURLToB64JSONEnabled` / `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts` / `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL` |
+| N24-imgcd | `TestOpenAIImagesRejectedDriverDoesNotCoolImageModel` |
 
 ## Residual (not claimed landed)
 
@@ -33,14 +34,13 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 ### Phase 2 remaining wiring
 
 - Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
-- Compact passthrough SSE retry (`TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy`) not wired.
+- Compact passthrough SSE retry (`TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy` / SSE-before-output) not wired. Forward HTTP ≥400 compact retry is landed; 200 SSE `response.failed` retry is not.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
 ### Phase 3 B remaining
 
 - N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **stop-and-ask**: new LiteLLM rates would change stored `actual_cost`. Fork catalog stays gpt-image-2 until Brandon confirms.
-- N24-imgcd cooldown (`TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`) — upstream `handleOpenAIImagesErrorResponse` arity includes model; fork signature does not.
-- N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — needs `LongContextPricingEnabled` group field (C-price adjacent).
+- N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — **stop-and-ask / C-price adjacent**: needs `Group.LongContextPricingEnabled` + `ModelPricing` on the auth snapshot **and** `ModelPricingResolver` (would change stored billing tiers).
 - N-ops list-return vitest unnamed; N24-reqid SQL remap **≠ 232**; N24-acctlist DTO; N24-astra capability increment.
 
 ### Phase 4–6 C (stop-and-ask / residual, not silent adopt)

@@ -1,3 +1,15 @@
+## 2026-09-10 - sync: Images driver 400 does not cool image-model on main-1
+
+### What
+- Isolation `sync/main-1` only: Codex plan-gated 400 that names the Responses **driver** (`SUB2API_IMAGES_MAIN_MODEL` / `openAIImagesResponsesMainModel`) is returned as a 400 images error and does **not** `SetModelRateLimit`. An images-endpoint 400 that names the actual image model still applies a bounded per-model cooldown. Named gate: `TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`.
+- GPT Image 2.5 LiteLLM rates and C-fast/C-price still **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Upstream 0.2.4 parks image-tool capability loss, but a retired driver must not cool every image account behind a generic 503.
+
+### Affected files
+`openai_images.go`, `openai_images_responses.go`, `openai_images_model_test.go`, `ratelimit_service_model_not_found.go`, `image_generation_intent.go`, `ctxkey.go`, `handler/openai_images.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: Images URL→b64_json backfill on main-1 (opt-in extra)
 
 ### What

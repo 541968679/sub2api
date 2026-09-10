@@ -482,7 +482,7 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	}
 
 	req := []byte(`{"instructions":"","stream":true,"reasoning":{"effort":"medium","summary":"auto"},"parallel_tool_calls":true,"include":["reasoning.encrypted_content"],"model":"","store":false,"tool_choice":{"type":"image_generation"}}`)
-	req, _ = sjson.SetBytes(req, "model", openAIImagesResponsesMainModel)
+	req, _ = sjson.SetBytes(req, "model", openAIImagesResponsesMainModelValue())
 
 	input := []byte(`[{"type":"message","role":"user","content":[{"type":"input_text","text":""}]}]`)
 	input, _ = sjson.SetBytes(input, "0.content.0.text", prompt)
@@ -1034,6 +1034,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 	resp *http.Response,
 	c *gin.Context,
 	account *Account,
+	requestedModel ...string,
 ) (*OpenAIForwardResult, error) {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 
@@ -1096,9 +1097,27 @@ func (s *OpenAIGatewayService) handleOpenAIImagesErrorResponse(
 		return nil, upErr
 	}
 
+	// A retired/configured Responses driver is not an image-model quota failure.
+	// Surface the actionable upstream error instead of cooling every image account.
+	if account.IsOpenAIOAuthLike() &&
+		isOpenAICodexPlanGatedModelError(resp.StatusCode, body) &&
+		strings.Contains(extractUpstreamErrorMessage(body), "'"+openAIImagesResponsesMainModelValue()+"'") {
+		upErr := openAIImagesUpstreamErrorFromHTTP(resp.StatusCode, resp.Header, body)
+		writeOpenAIImagesUpstreamErrorResponse(c, upErr)
+		return nil, upErr
+	}
+
+	var modelForCooldown string
+	if len(requestedModel) > 0 {
+		modelForCooldown = strings.TrimSpace(requestedModel[0])
+	}
 	shouldDisable := false
 	if s.rateLimitService != nil {
-		shouldDisable = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
+		if modelForCooldown != "" && s.rateLimitService.HandleUpstreamModelNotFound(ctx, account, modelForCooldown, resp.StatusCode, body) {
+			shouldDisable = true
+		} else {
+			shouldDisable = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
+		}
 	}
 	kind := "http_error"
 	if shouldDisable {
@@ -1716,7 +1735,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 				RetryableOnSameAccount: account.IsPoolMode() && isPoolModeRetryableStatus(resp.StatusCode),
 			}
 		}
-		return s.handleErrorResponse(ctx, resp, c, account, responsesBody)
+		return s.handleOpenAIImagesErrorResponse(ctx, resp, c, account, requestModel)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
