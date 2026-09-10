@@ -22,6 +22,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-img streaming | `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError` / `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400` |
 | N24-b64 | `TestImagesURLToB64JSONEnabled` / `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts` / `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL` |
 | N24-imgcd | `TestOpenAIImagesRejectedDriverDoesNotCoolImageModel` |
+| N-compact SSE | `TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy` / `TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput` |
 
 ## Residual (not claimed landed)
 
@@ -34,7 +35,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 ### Phase 2 remaining wiring
 
 - Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
-- Compact passthrough SSE retry (`TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy` / SSE-before-output) not wired. Forward HTTP ≥400 compact retry is landed; 200 SSE `response.failed` retry is not.
+- Streaming compact SSE retry (`TestOpenAIGatewayForwardRetriesStreamingCompactFailureBeforeOutput`) and passthrough second-stream failure (`TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath`) not wired. Non-stream SSE compact retry is landed.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
 ### Phase 3 B remaining

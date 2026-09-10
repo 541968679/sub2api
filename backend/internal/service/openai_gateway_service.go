@@ -3481,10 +3481,33 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			responseID = strings.TrimSpace(streamResult.responseID)
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
-			stageClk.Complete(c)
 			if err != nil {
+				if signal, ok := asOpenAICompactFallbackSignal(err); ok {
+					if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
+						c, account, originalModel, body, http.StatusBadRequest, signal.message, signal.payload, compactModelFallbackRetried,
+					); retry {
+						s.appendOpenAICompactFallbackRetryOps(c, account, resp, signal.payload, signal.message, false)
+						_ = resp.Body.Close()
+						fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+						body = retryBody
+						reqBody = nil
+						upstreamModel = fallbackModel
+						compactModelFallbackRetried = true
+						SetOpsUpstreamModel(c, fallbackModel)
+						setOpsUpstreamRequestBody(c, body)
+						stageClk.ResetForUpstreamRetry()
+						logger.LegacyPrintf(
+							"service.openai_gateway",
+							"[OpenAI] Retrying explicit compact SSE failure once with fallback model (account: %s, from: %s, to: %s)",
+							account.Name, fromModel, fallbackModel,
+						)
+						continue
+					}
+				}
+				stageClk.Complete(c)
 				return nil, err
 			}
+			stageClk.Complete(c)
 			usage = nonStreamResult.usage
 			responseID = strings.TrimSpace(nonStreamResult.responseID)
 		}
@@ -4949,6 +4972,9 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			msg := extractOpenAISSEErrorMessage(terminalPayload)
 			if msg == "" {
 				msg = "Upstream compact response failed"
+			}
+			if signal := newOpenAICompactFallbackSignal(c, terminalPayload, msg); signal != nil {
+				return nil, signal
 			}
 			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
 		}
@@ -6516,6 +6542,9 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			msg := extractOpenAISSEErrorMessage(terminalPayload)
 			if msg == "" {
 				msg = "Upstream compact response failed"
+			}
+			if signal := newOpenAICompactFallbackSignal(c, terminalPayload, msg); signal != nil {
+				return nil, signal
 			}
 			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
 		}

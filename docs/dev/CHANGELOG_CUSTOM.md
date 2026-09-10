@@ -1,3 +1,15 @@
+## 2026-09-10 - sync: compact SSE 200 response.failed same-account retry on main-1
+
+### What
+- Isolation `sync/main-1` only: when an explicit compact request gets HTTP 200 SSE `response.failed` (context window / compact-model failure) before any downstream write, Forward retries once with the compact fallback model and records Ops `retry`/`compact_model_fallback` with the managed proxy. Named gates: `TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy`, `TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput`.
+- Streaming compact SSE retry and passthrough second-stream failure stay residual. VERSION stays **0.1.287**.
+
+### Why
+HTTP ≥400 compact retry was already landed; non-stream SSE failures previously wrote a 502 and skipped the same-account fallback.
+
+### Affected files
+`openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `openai_gateway_service.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: Images driver 400 does not cool image-model on main-1
 
 ### What

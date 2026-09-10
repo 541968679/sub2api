@@ -1,12 +1,45 @@
 package service
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+type openAICompactFallbackSignal struct {
+	payload []byte
+	message string
+}
+
+func (e *openAICompactFallbackSignal) Error() string {
+	if e == nil || strings.TrimSpace(e.message) == "" {
+		return "upstream compact request failed"
+	}
+	return e.message
+}
+
+func asOpenAICompactFallbackSignal(err error) (*openAICompactFallbackSignal, bool) {
+	var signal *openAICompactFallbackSignal
+	return signal, errors.As(err, &signal) && signal != nil
+}
+
+func isExplicitOpenAICompactContext(c *gin.Context) bool {
+	return isOpenAIResponsesCompactPath(c) || isOpenAINativeCompactionV2(c)
+}
+
+func newOpenAICompactFallbackSignal(c *gin.Context, payload []byte, message string) error {
+	if !isExplicitOpenAICompactContext(c) ||
+		!isOpenAICompactModelFailure(http.StatusBadRequest, message, payload) {
+		return nil
+	}
+	return &openAICompactFallbackSignal{
+		payload: append([]byte(nil), payload...),
+		message: sanitizeUpstreamErrorMessage(strings.TrimSpace(message)),
+	}
+}
 
 const openAINativeCompactionV2Key = "openai_native_compaction_v2"
 
