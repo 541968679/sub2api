@@ -1,3 +1,17 @@
+## 2026-09-10 - sync: Phase 1 leftovers + Phase 2 B overlay on main-1 (keep 0.1.287)
+
+### What
+- Isolation `sync/main-1` only: three-way overlay of remaining Phase 1 named leftovers and Phase 2 B (pool 429 same-account retry, team-error fanout, fingerprint default-off, Guardian parent affinity, compact fallback helper + same-account retry deadline). No `git merge upstream/main`, no wholesale gateway/scheduler/usage replace.
+- Named gates: `TestClassifySelectionFailureError_ModelNotFoundIsNotOverriddenByRateLimited`, `TestForwardAsRawChatCompletions_StripsEmptyToolCallIdentity`, `TestBuildOpenAIWSCurrentTurnRetryPayloadRejectsOrphanToolOutput`, `TestGatewayCompatPoolMode429AllowsSameAccountRetry`, `TestSameAccountRetryAllowedUsesDeadlineInsteadOfPoolCount`, `TestPrepareOpenAICompactFallbackRetryLegacyPathAndSingleAttemptGuard`, `TestResolveCodexFingerprintIDsFromRequest_DefaultIsOff`, `TestOpenAIGatewayService_GuardianParentAffinitySelectsParentAccountAcrossSchedulers`, `TestTeamLinkedError_FanoutMarksSameTeamAccounts`.
+- Pool hard-eviction and profit-control stay default off. Fingerprint default is off. VERSION stays **0.1.287**. SQL 196–223 untouched. Occupied `main` not merged.
+- Residual (Phase 3 image/ops/dash/Astra, Phase 4–6 C Fast/billing/platforms/Agent Identity, WS replacement-account 429 stack, compact Forward loop hook, fingerprint header rewrite + seed SQL) recorded in `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`.
+
+### Why
+Finish remaining 0.2.4 A/B protocol/scheduler overlays that have assessment-named tests without regressing fork-local display/`actual_cost`, sessionToken, wait-timeout, or capacity-shed.
+
+### Affected files
+`no_account_error.go`, `failover_loop.go`, `openai_gateway_handler.go`, `openai_chat_completions.go`, `gateway_forward_as_{chat_completions,responses}.go`, `gateway_service.go`, `openai_gateway_chat_completions_raw.go`, `openai_gateway_cc_tool_call_identity.go`, `openai_ws_forwarder.go`, `openai_account_scheduler.go`, `openai_guardian_affinity.go`, `openai_compact_fallback.go`, `openai_codex_fingerprint.go`, `openai_team_linked_error.go`, `ratelimit_service.go`, `ops_upstream_context.go`, `account.go`, `config.go`, matching `*_test.go`, this changelog.
+
 ## 2026-09-10 - sync: Phase 1 A-lane overlay on main-1 (keep 0.1.287)
 
 ### What

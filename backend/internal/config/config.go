@@ -682,6 +682,10 @@ type GatewayConfig struct {
 	AnthropicBridgeAutoCompactInputBytes int `mapstructure:"anthropic_bridge_auto_compact_input_bytes"`
 	// AnthropicBridgeAutoCompactTimeoutSeconds bounds the internal compact request.
 	AnthropicBridgeAutoCompactTimeoutSeconds int `mapstructure:"anthropic_bridge_auto_compact_timeout_seconds"`
+	// OpenAICompactModel is the process-wide compact fallback model used when
+	// an explicit /responses/compact or native compaction request cannot use
+	// the client-requested model. Empty disables the global fallback.
+	OpenAICompactModel string `mapstructure:"openai_compact_model"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// OpenAIScheduler: OpenAI account scheduler behavior controls.

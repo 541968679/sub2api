@@ -548,6 +548,11 @@ type UpstreamFailoverError struct {
 	// StatusCode remains the failover-engine status (often 502).
 	ClientStatusCode int
 	ClientMessage    string
+	// SameAccountRetryDeadline, when set, allows same-account retries until
+	// this time even if the ordinary pool retry count is exhausted.
+	SameAccountRetryDeadline time.Time
+	SameAccountRetryDelay    time.Duration
+	SameAccountRetryMax      int
 	// NoAccountFailover skips multi-account switching. Used for request-shaped
 	// failures (e.g. empty completed stream) where other accounts fail the same way.
 	NoAccountFailover bool

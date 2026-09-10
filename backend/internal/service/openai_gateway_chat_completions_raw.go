@@ -436,7 +436,7 @@ scanRaw:
 			}
 		}
 
-		outLine := line
+		outLine := stripEmptyChatToolCallIdentityFromSSELine(line)
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			outLine = rewriteOpenAIChatSSEUsageTokens(outLine, mult)
 		}
