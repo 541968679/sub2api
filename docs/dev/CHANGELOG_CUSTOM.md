@@ -1,3 +1,15 @@
+## 2026-09-10 - sync: streaming compact SSE retry before client output on main-1
+
+### What
+- Isolation `sync/main-1` only: explicit compact streaming requests that fail with SSE `response.failed` (context window) **before any client output** retry once with the compact fallback model. The failed frame is not written downstream. Named gate: `TestOpenAIGatewayForwardRetriesStreamingCompactFailureBeforeOutput`.
+- Passthrough second-stream compact failure stays residual. VERSION stays **0.1.287**.
+
+### Why
+Non-stream compact SSE retry was landed; streaming compact used to flush the failed event and skip same-account fallback.
+
+### Affected files
+`openai_gateway_service.go`, `openai_compact_fallback_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: preserve structured 400 on model-not-found exhaustion
 
 ### What
