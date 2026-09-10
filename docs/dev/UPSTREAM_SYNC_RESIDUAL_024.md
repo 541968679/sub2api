@@ -25,18 +25,21 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-compact SSE | `TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy` / `TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput` |
 | N-compact stream SSE | `TestOpenAIGatewayForwardRetriesStreamingCompactFailureBeforeOutput` |
 | N24-m404 exhaustion | `TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400` |
+| N-compact exhaust | `TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails` |
+| N-compact passthrough | `TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath` |
+| N-compact native-v2 mark | `TestOpenAIGatewayForwardRetriesStreamingCompactAfterNativeV2ContextWithoutPreMark` |
+| N24-ws429 replacement | `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount` |
 
 ## Residual (not claimed landed)
 
 ### Phase 1 leftovers
 
-- `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount` / `TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect` — large WS session stack; later-turn 429 **before write** already on `e8fd01ffb`.
+- `TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect` — remaining WS session stack; later-turn 429 **before write** and replacement-account current-turn retry are landed.
 - N24-created / N24-think / N24-cancel — still no stable `TestXxx` on fork.
 
 ### Phase 2 remaining wiring
 
 - Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
-- Passthrough second-stream compact failure (`TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath`) not wired. Streaming compact SSE retry before output is landed.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
 ### Phase 3 B remaining

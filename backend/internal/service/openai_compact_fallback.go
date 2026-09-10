@@ -1,10 +1,14 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -59,6 +63,47 @@ func isOpenAINativeCompactionV2(c *gin.Context) bool {
 	}
 	marked, _ := v.(bool)
 	return marked
+}
+
+// IsOpenAINativeCompactionV2 reports whether the request was marked as native
+// remote_compaction_v2 streaming compact traffic.
+func IsOpenAINativeCompactionV2(c *gin.Context) bool {
+	return isOpenAINativeCompactionV2(c)
+}
+
+func openAIRemoteCompactionV2Header(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	for _, header := range c.Request.Header.Values("x-codex-beta-features") {
+		for _, feature := range strings.Split(header, ",") {
+			if strings.TrimSpace(feature) == "remote_compaction_v2" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ApplyOpenAIResponsesNativeCompactContext marks native remote_compaction_v2
+// compact traffic on /v1/responses so compact fallback can fire without the
+// unary /responses/compact rewrite.
+func ApplyOpenAIResponsesNativeCompactContext(c *gin.Context, body []byte) {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return
+	}
+	path := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
+	if !strings.HasSuffix(path, "/responses") || strings.HasSuffix(path, "/responses/compact") {
+		return
+	}
+	if !HasCompactionTriggerInInput(body) {
+		return
+	}
+	_, reqStream, _ := extractOpenAIRequestMetaFromBody(body)
+	if !reqStream || !openAIRemoteCompactionV2Header(c) {
+		return
+	}
+	MarkOpenAINativeCompactionV2(c)
 }
 
 func isExplicitOpenAICompactRequest(c *gin.Context, body []byte) bool {
@@ -266,4 +311,81 @@ func (s *OpenAIGatewayService) appendOpenAICompactFallbackRetryOps(
 		Detail:               detail,
 		UpstreamResponseBody: detail,
 	})
+}
+
+func openAICompactFallbackErrorResponse(resp *http.Response, signal *openAICompactFallbackSignal) (*http.Response, []byte) {
+	headers := make(http.Header)
+	if resp != nil {
+		headers = resp.Header.Clone()
+	}
+	if headers.Get("Content-Type") == "" {
+		headers.Set("Content-Type", "application/json")
+	}
+	payload := normalizeOpenAICompactFallbackHTTPErrorPayload(signal)
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Header:     headers,
+		Body:       io.NopCloser(bytes.NewReader(payload)),
+	}, payload
+}
+
+func normalizeOpenAICompactFallbackHTTPErrorPayload(signal *openAICompactFallbackSignal) []byte {
+	if signal == nil {
+		return nil
+	}
+	payload := append([]byte(nil), signal.payload...)
+	var terminal struct {
+		Error    json.RawMessage `json:"error"`
+		Response struct {
+			Error json.RawMessage `json:"error"`
+		} `json:"response"`
+	}
+	if json.Unmarshal(payload, &terminal) != nil || len(bytes.TrimSpace(terminal.Response.Error)) == 0 ||
+		bytes.Equal(bytes.TrimSpace(terminal.Response.Error), []byte("null")) {
+		return payload
+	}
+	normalized, err := json.Marshal(struct {
+		Error json.RawMessage `json:"error"`
+	}{Error: terminal.Response.Error})
+	if err != nil {
+		return payload
+	}
+	return normalized
+}
+
+func (s *OpenAIGatewayService) applyOpenAIPassthroughCompactFallbackFromSignal(
+	c *gin.Context,
+	account *Account,
+	requestedModel string,
+	body []byte,
+	err error,
+	alreadyRetried bool,
+	resp *http.Response,
+) ([]byte, string, bool) {
+	signal, ok := asOpenAICompactFallbackSignal(err)
+	if !ok {
+		return body, "", false
+	}
+	retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
+		c, account, requestedModel, body, http.StatusBadRequest, signal.message, signal.payload, alreadyRetried,
+	)
+	if !retry {
+		return body, "", false
+	}
+	s.appendOpenAICompactFallbackRetryOps(c, account, resp, signal.payload, signal.message, true)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	accountName := ""
+	if account != nil {
+		accountName = account.Name
+	}
+	SetOpsUpstreamModel(c, fallbackModel)
+	logger.LegacyPrintf(
+		"service.openai_gateway",
+		"[OpenAI passthrough] Retrying explicit compact request once with fallback model (account: %s, from: %s, to: %s, upstream_code: %s)",
+		accountName, fromModel, fallbackModel, extractUpstreamErrorCode(signal.payload),
+	)
+	return retryBody, fallbackModel, true
 }

@@ -1,3 +1,16 @@
+## 2026-09-10 - sync: native-v2 compact mark, compact exhaust, WS later-turn 429
+
+### What
+- Isolation `sync/main-1` only: `normalizeOpenAIResponsesCompactRequest` now marks native `remote_compaction_v2` streaming compact so fallback fires without a pre-call to `MarkOpenAINativeCompactionV2`. Compact fallback that also fails writes a standard 400 (no recurse). Passthrough second-stream compact failure uses the standard error path with managed-proxy Ops. Later-turn WS HTTP-bridge 429 retries the current turn on a replacement account.
+- Named gates: `TestOpenAIGatewayForwardRetriesStreamingCompactAfterNativeV2ContextWithoutPreMark`, `TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails`, `TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath`, `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount`.
+- GPT Image 2.5 / C-fast / C-price / dash stay **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Streaming compact retry was dead on the real native-v2 handler path; exhausted compact signals leaked as internal errors; later-turn WS 429 had no current-turn retry payload.
+
+### Affected files
+`openai_gateway_handler.go`, `openai_gateway_compact_body_signal_test.go`, `openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `openai_gateway_service.go`, `openai_ws_forwarder.go`, `openai_ws_http_bridge.go`, `openai_ws_http_bridge_resume_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
 ## 2026-09-10 - sync: streaming compact SSE retry before client output on main-1
 
 ### What

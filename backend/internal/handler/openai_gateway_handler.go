@@ -649,33 +649,13 @@ func isBareOpenAIResponsesPath(c *gin.Context) bool {
 	return strings.HasSuffix(normalizedPath, "/responses")
 }
 
-func isOpenAIRemoteCompactionV2Request(c *gin.Context, body []byte) bool {
-	stream, valid := parseOpenAICompatibleStream(body)
-	if !valid || !stream || c == nil || c.Request == nil {
-		return false
-	}
-	for _, header := range c.Request.Header.Values("x-codex-beta-features") {
-		for _, feature := range strings.Split(header, ",") {
-			if strings.TrimSpace(feature) == "remote_compaction_v2" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // normalizeOpenAIResponsesCompactRequest keeps native remote_compaction_v2
 // traffic on the streaming /responses wire. Explicit /responses/compact
 // requests retain the fork's existing unary normalization behavior.
 func (h *OpenAIGatewayHandler) normalizeOpenAIResponsesCompactRequest(c *gin.Context, reqLog *zap.Logger, body []byte) ([]byte, bool) {
 	isCompactRequest := service.IsOpenAIResponsesCompactPathForTest(c)
-	if !isCompactRequest &&
-		isBareOpenAIResponsesPath(c) &&
-		service.HasCompactionTriggerInInput(body) &&
-		isOpenAIRemoteCompactionV2Request(c, body) {
-		return body, true
-	}
 	if !isCompactRequest {
+		service.ApplyOpenAIResponsesNativeCompactContext(c, body)
 		return body, true
 	}
 	if compactSeed := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()); compactSeed != "" {

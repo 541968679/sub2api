@@ -266,8 +266,9 @@ type OpenAIForwardResult struct {
 	VideoDurationSeconds    int
 	WebSearchCalls          int
 
-	wsReplayInput       []json.RawMessage
-	wsReplayInputExists bool
+	wsReplayInput                []json.RawMessage
+	wsReplayInputExists          bool
+	wsAccountFailoverReplayInput []json.RawMessage
 }
 
 func SetActualOpenAIUpstreamEndpoint(c *gin.Context, endpoint string) {
@@ -3493,6 +3494,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 						)
 						continue
 					}
+					_ = resp.Body.Close()
+					stageClk.Complete(c)
+					compactResp, _ := openAICompactFallbackErrorResponse(resp, signal)
+					return s.handleErrorResponse(ctx, compactResp, c, account, body)
 				}
 				stageClk.Complete(c)
 				return nil, err
@@ -3696,76 +3701,99 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		return nil, err
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
-	upstreamReq, err := s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token)
-	releaseUpstreamCtx()
-	if err != nil {
-		return nil, err
-	}
-
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-
-	setOpsUpstreamRequestBody(c, body)
 	if c != nil {
 		c.Set("openai_passthrough", true)
 	}
 	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
 
-	var stageClk *openAIStreamStageClock
-	if reqStream {
-		stageClk = s.beginOpenAIStreamStageTiming(c, account, reqModel, "responses_passthrough", startTime)
-	}
-	stageClk.MarkDoStart()
-	upstreamStart := time.Now()
-	resp, err := s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, true, reqModel)
-	headerMs := time.Since(upstreamStart).Milliseconds()
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
-	if err != nil {
-		stageClk.Complete(c)
-		return nil, err
-	}
-	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
-	defer func() { _ = resp.Body.Close() }()
-	logger.LegacyPrintf("service.openai_gateway",
-		"[OpenAI stream_debug] headers_received_passthrough account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
-		account.ID, account.Name, resp.StatusCode, headerMs, reqStream, time.Since(startTime).Milliseconds(),
+	compactModelFallbackRetried := false
+	var (
+		usage            *OpenAIUsage
+		firstTokenMs     *int
+		trueFirstTokenMs *int
+		responseID       string
+		resp             *http.Response
+		headerMs         int64
 	)
+	for {
+		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
+		upstreamReq, buildErr := s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token)
+		releaseUpstreamCtx()
+		if buildErr != nil {
+			return nil, buildErr
+		}
 
-	if resp.StatusCode >= 400 {
-		// 透传模式默认保持原样代理；但 429/529 属于网关必须兜底的
-		// 上游容量类错误，应先触发多账号 failover 以维持基础 SLA。
-		stageClk.Complete(c)
-		if shouldFailoverOpenAIPassthroughResponse(resp.StatusCode) {
-			return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body)
+		setOpsUpstreamRequestBody(c, body)
+		var stageClk *openAIStreamStageClock
+		if reqStream {
+			stageClk = s.beginOpenAIStreamStageTiming(c, account, reqModel, "responses_passthrough", startTime)
 		}
-		return nil, s.handleErrorResponsePassthrough(ctx, resp, c, account, body)
-	}
+		stageClk.MarkDoStart()
+		upstreamStart := time.Now()
+		var doErr error
+		resp, doErr = s.doOpenAIUpstreamWithHeaderWait(ctx, c, account, upstreamReq, proxyURL, true, reqModel)
+		headerMs = time.Since(upstreamStart).Milliseconds()
+		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
+		if doErr != nil {
+			stageClk.Complete(c)
+			return nil, doErr
+		}
+		stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
+		logger.LegacyPrintf("service.openai_gateway",
+			"[OpenAI stream_debug] headers_received_passthrough account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
+			account.ID, account.Name, resp.StatusCode, headerMs, reqStream, time.Since(startTime).Milliseconds(),
+		)
 
-	var usage *OpenAIUsage
-	var firstTokenMs *int
-	var trueFirstTokenMs *int
-	responseID := ""
-	if reqStream {
-		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
-		stageClk.Complete(c)
-		if err != nil {
-			return nil, err
+		if resp.StatusCode >= 400 {
+			stageClk.Complete(c)
+			if shouldFailoverOpenAIPassthroughResponse(resp.StatusCode) {
+				return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body)
+			}
+			return nil, s.handleErrorResponsePassthrough(ctx, resp, c, account, body)
 		}
-		usage = result.usage
-		firstTokenMs = result.firstTokenMs
-		trueFirstTokenMs = result.trueFirstTokenMs
-		responseID = strings.TrimSpace(result.responseID)
-	} else {
-		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
-		stageClk.Complete(c)
-		if err != nil {
-			return nil, err
+
+		if reqStream {
+			result, streamErr := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
+			if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
+				c, account, reqModel, body, streamErr, compactModelFallbackRetried, resp,
+			); retry {
+				body = retryBody
+				upstreamPassthroughModel = fallbackModel
+				compactModelFallbackRetried = true
+				stageClk.ResetForUpstreamRetry()
+				continue
+			}
+			if signal, ok := asOpenAICompactFallbackSignal(streamErr); ok {
+				_ = resp.Body.Close()
+				stageClk.Complete(c)
+				compactResp, _ := openAICompactFallbackErrorResponse(resp, signal)
+				return nil, s.handleErrorResponsePassthrough(ctx, compactResp, c, account, body)
+			}
+			stageClk.Complete(c)
+			if streamErr != nil {
+				_ = resp.Body.Close()
+				return nil, streamErr
+			}
+			usage = result.usage
+			firstTokenMs = result.firstTokenMs
+			trueFirstTokenMs = result.trueFirstTokenMs
+			responseID = strings.TrimSpace(result.responseID)
+		} else {
+			result, nsErr := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
+			stageClk.Complete(c)
+			if nsErr != nil {
+				_ = resp.Body.Close()
+				return nil, nsErr
+			}
+			usage = result.usage
+			responseID = strings.TrimSpace(result.responseID)
 		}
-		usage = result.usage
-		responseID = strings.TrimSpace(result.responseID)
+		_ = resp.Body.Close()
+		break
 	}
 	s.bindHTTPResponseAccount(ctx, c, account, responseID)
 
@@ -4010,6 +4038,8 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
@@ -4692,6 +4722,9 @@ scanLines:
 				} else {
 					outputStarted := openAIStreamClientOutputStarted(c, clientOutputStarted)
 					if !outputStarted {
+						if compactErr := newOpenAICompactFallbackSignal(c, dataBytes, failedMessage); compactErr != nil {
+							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, compactErr
+						}
 						if eventType == "response.failed" {
 							if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, dataBytes, failedMessage); matched {
 								s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "http_error", dataBytes, failedMessage)
@@ -5217,6 +5250,8 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 	recordOpsUpstreamAttempt(c, OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
