@@ -42,16 +42,23 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
+### Brandon 2026-09-10
+
+- GPT Image 2.5 LiteLLM 单价：**不采用**（生图账单继续 gpt-image-2）。
+- OpenAI Fast 写入账单 / 分组强制 Fast / 免费 Fast 按标准档扣费：**不采用**。
+- 渠道时段/工作日/倍率价、分组长上下文阶梯价、dash 分组定价快照进计价器：**不采用**。
+- 计价相关后续同步默认跳过，除非 Brandon 另说。
+
 ### Phase 3 B remaining
 
-- N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **stop-and-ask**: new LiteLLM rates would change stored `actual_cost`. Fork catalog stays gpt-image-2 until Brandon confirms.
-- N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — **stop-and-ask / C-price adjacent**: needs `Group.LongContextPricingEnabled` + `ModelPricing` on the auth snapshot **and** `ModelPricingResolver` (would change stored billing tiers).
+- N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **Brandon 否决改价**；fork catalog stays gpt-image-2。
+- N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — **Brandon 否决改价**（`LongContextPricingEnabled` + group `ModelPricing` 会改 stored billing）。
 - N-ops list-return vitest unnamed; N24-reqid SQL remap **≠ 232**; N24-acctlist DTO; N24-astra capability increment.
 
 ### Phase 4–6 C (stop-and-ask / residual, not silent adopt)
 
-- **C-fast** stored `service_tier` / group force+free Fast — writes billing; display/`actual_cost` collision risk
-- **C-price** channel time/weekday/multiplier prices — may touch stored cost
+- **C-fast** stored `service_tier` / group force+free Fast — **Brandon 否决改价**
+- **C-price** channel time/weekday/multiplier prices — **Brandon 否决改价**
 - **C-rollup** group usage daily rollup — remap; do not steal 222/223
 - **C-grok** wholesale 4.6 / xhigh / media
 - **C-cmv2** channel-monitor v2
