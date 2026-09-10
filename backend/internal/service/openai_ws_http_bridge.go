@@ -258,6 +258,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if upstreamMsg == "" {
 			upstreamMsg = "Upstream request failed"
 		}
+		if account.Platform != PlatformGrok &&
+			s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) &&
+			(turn == 1 || resp.StatusCode == http.StatusTooManyRequests) {
+			return nil, newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, false)
+		}
 		_ = writeClientMessage(buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg))
 		return nil, fmt.Errorf("upstream http bridge error: status=%d message=%s", resp.StatusCode, upstreamMsg)
 	}

@@ -2,14 +2,14 @@
 
 ### What
 - On isolation `sync/main-1` only: overlay remaining A-lane protocol/failover from upstream freeze 0.2.4 without `git merge upstream/main` or wholesale gateway replace.
-- Landed: N-sticky (leading system prefix), remaining N-cap request-scoped shed, N24-m404 model-not-found failover (AG bare 404 kept), N24-h2 PING keepalive, N24-slot immediate session release, N24-trunc raw CC truncated stream.
+- Landed: N-sticky (leading system prefix), remaining N-cap request-scoped shed, N24-m404 model-not-found failover (AG bare 404 kept), N24-h2 PING keepalive, N24-slot immediate session release, N24-trunc raw CC truncated stream, N24-sticky2 (capacity spillover keeps binding), N-proto (file→input_file, omit empty tool name, strip deferred tool cache_control), N24-ws429 later-turn 429 before client write, N24-xport Anthropic/Bedrock transport failover.
 - VERSION stays **0.1.287**. SQL 196–223 untouched. Occupied `main` not merged.
 
 ### Why
 Campaign to upstream 0.2.4 starts with A-lane hotfixes that must not regress fork-local wait-timeout, capacity-shed, display transform, or sessionToken.
 
 ### Affected files
-`openai_content_session_seed.go`, `openai_capacity_shed.go`, `openai_gateway_service.go`, `openai_gateway_chat_completions*.go`, `openai_gateway_messages.go`, `gateway_service.go`, `gateway_handler.go`, `http_upstream.go`, `session_limit_cache.go`, `model_not_found_error.go`, `openai_raw_stream_truncation.go`, this changelog.
+`openai_content_session_seed.go`, `openai_capacity_shed.go`, `openai_gateway_service.go`, `openai_gateway_chat_completions*.go`, `openai_gateway_messages.go`, `gateway_service.go`, `gateway_handler.go`, `http_upstream.go`, `session_limit_cache.go`, `model_not_found_error.go`, `openai_raw_stream_truncation.go`, `apicompat/types.go`, `chatcompletions_to_responses.go`, `gateway_tool_rewrite.go`, `openai_ws_http_bridge.go`, `gateway_upstream_transport_error.go`, this changelog.
 
 ## 2026-09-09 - sync: rehearse standing overlay onto main-1 (0.1.287)
 
