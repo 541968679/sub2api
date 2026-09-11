@@ -37,6 +37,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-compact passthrough | `TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath` |
 | N-compact native-v2 mark | `TestOpenAIGatewayForwardRetriesStreamingCompactAfterNativeV2ContextWithoutPreMark` |
 | N24-ws429 replacement | `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount` |
+| N24-grok46 | `TestDefaultModelsIncludesGrok46` / `TestClampGrokReasoningEffortValue_PreservesXHighForGrok46` / `TestPatchGrokResponsesBodyPreservesXHighForGrok46` / `TestGrokChatResponsesRuntimeEligibility` / `TestGrokRetryableOnSameAccount_CapacityAndRateLimit` |
 
 ## Residual (not claimed landed)
 
@@ -68,7 +69,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-fast** stored `service_tier` / group force+free Fast — **Brandon 否决改价**
 - **C-price** channel time/weekday/multiplier prices — **Brandon 否决改价**
 - **C-rollup** group usage daily rollup — remap; do not steal 222/223
-- **C-grok** wholesale 4.6 / xhigh / media
+- **C-grok** wholesale 4.6 / xhigh / Chat→Responses vision-media / same-account capacity 429 — **landed this pack** (no official Grok price cards). Residual: admin Grok Imagine media-eligibility controls on Edit Account (would overlay a large EditAccountModal section; not wholesale-replaced).
 - **C-cmv2** channel-monitor v2
 - **C-plaza** model plaza
 - **C-cn** / **C-minimax** / Kimi / Zhipu / MiniMax / DeepSeek — **landed this pack** (first-class platforms, quota SQL, create-account buttons, coding-plan quota probe). Ollama Cloud still residual (usage window hang-under-CN not fully ported).

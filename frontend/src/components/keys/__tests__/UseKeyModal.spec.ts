@@ -83,8 +83,8 @@ describe('UseKeyModal', () => {
     await nextTick()
 
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model = "grok-4.5"'))
-    const catalog = codeBlocks.find((content) => content.includes('"slug": "grok-4.5"'))
+    const configToml = codeBlocks.find((content) => content.includes('model = "grok-4.6"'))
+    const catalog = codeBlocks.find((content) => content.includes('"slug": "grok-4.6"'))
 
     expect(configToml).toBeDefined()
     expect(configToml).toContain('model_context_window = 1000000')
@@ -94,7 +94,7 @@ describe('UseKeyModal', () => {
 
     expect(catalog).toBeDefined()
     const parsed = JSON.parse(catalog!)
-    expect(parsed.models[0].slug).toBe('grok-4.5')
+    expect(parsed.models[0].slug).toBe('grok-4.6')
     expect(parsed.models[0].base_instructions).toBeTruthy()
   })
 

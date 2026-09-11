@@ -914,13 +914,13 @@ const zhBase = {
         note: '保存为 ~/.grok/config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
         noteWindows: '保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
         codexDescription:
-          '将以下 Codex 配置写入 ~/.codex。含 model_context_window 与 model-catalog-grok.json，避免 “Model metadata for grok-4.5 not found”。',
+          '将以下 Codex 配置写入 ~/.codex。含 model_context_window 与 model-catalog-grok.json，避免 “Model metadata for grok-4.6 not found”。',
         codexConfigTomlHint:
           '请放在 config.toml 顶部；model_catalog_json 使用相对文件名，Codex 会从 ~/.codex 目录解析。',
         codexCatalogHint:
           '与 config.toml 同目录保存。CCS 一键导入不会写入 catalog，若从 CCS 导入后仍有 metadata 警告，请补上此文件并重启 Codex。',
         codexNote:
-          '保存后完全退出并重启 Codex。CCS 导入仅写 model=grok-4.5，不会自动生成 catalog，请以本面板文件为准补齐元数据。',
+          '保存后完全退出并重启 Codex。CCS 导入仅写 model=grok-4.6，不会自动生成 catalog，请以本面板文件为准补齐元数据。',
         codexNoteWindows:
           '按 Win+R 打开 %userprofile%\\.codex，写入三份文件后完全退出并重启 Codex。'
       },
@@ -949,7 +949,7 @@ const zhBase = {
     ccSwitchImportLaunched:
       '已唤起 CC-Switch 导入。若未自动打开，请确认已安装 CC-Switch，或改用「使用密钥」手动配置。',
     ccsGrokCodexMetadataHint:
-      'Grok 已导入为 Codex（model=grok-4.5）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.5 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
+      'Grok 已导入为 Codex（model=grok-4.6）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.6 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
     ccsClientSelect: {
       title: '选择客户端',
       description: '请选择您要导入到 CC-Switch 的客户端类型：',

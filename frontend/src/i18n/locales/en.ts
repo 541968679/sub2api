@@ -914,13 +914,13 @@ const enBase = {
         note: 'Save the file as ~/.grok/config.toml, then run grok inspect and select sub2api-grok from /model.',
         noteWindows: 'Save the file as %USERPROFILE%\\.grok\\config.toml, then run grok inspect and select sub2api-grok from /model.',
         codexDescription:
-          'Write the following Codex files under ~/.codex. They include model_context_window and model-catalog-grok.json so Codex does not warn “Model metadata for grok-4.5 not found”.',
+          'Write the following Codex files under ~/.codex. They include model_context_window and model-catalog-grok.json so Codex does not warn “Model metadata for grok-4.6 not found”.',
         codexConfigTomlHint:
           'Place this at the top of config.toml. model_catalog_json uses a relative filename that Codex resolves from ~/.codex.',
         codexCatalogHint:
           'Save next to config.toml. CCS one-click import does not write a catalog; if you still see a metadata warning after CCS import, add this file and restart Codex.',
         codexNote:
-          'Fully quit and restart Codex after saving. CCS import only sets model=grok-4.5 and does not generate a catalog—use these files to complete metadata.',
+          'Fully quit and restart Codex after saving. CCS import only sets model=grok-4.6 and does not generate a catalog—use these files to complete metadata.',
         codexNoteWindows:
           'Press Win+R, open %userprofile%\\.codex, write all three files, then fully quit and restart Codex.'
       },
@@ -948,7 +948,7 @@ const enBase = {
     ccSwitchImportLaunched:
       'CC-Switch import launched. If nothing opened, install CC-Switch first or use "Use Key" to configure manually.',
     ccsGrokCodexMetadataHint:
-      'Grok was imported as Codex (model=grok-4.5). CCS does not write a model catalog; if you see “Model metadata for grok-4.5 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
+      'Grok was imported as Codex (model=grok-4.6). CCS does not write a model catalog; if you see “Model metadata for grok-4.6 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
     ccsClientSelect: {
       title: 'Select Client',
       description: 'Please select the client type to import to CC-Switch:',

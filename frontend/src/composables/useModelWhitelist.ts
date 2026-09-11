@@ -136,6 +136,9 @@ const metaModels = [
 
 // xAI Grok
 const xaiModels = [
+  'grok-4.6', 'grok-4.6-latest',
+  'grok-4.5', 'grok-4.5-latest',
+  'grok-4.3',
   'grok-4', 'grok-4-0709',
   'grok-3-beta', 'grok-3-mini-beta', 'grok-3-fast-beta',
   'grok-2', 'grok-2-vision', 'grok-2-image',
@@ -445,6 +448,13 @@ export function mergeModelMappingWithClaudeGPTBridgeTemplate(
   }
 }
 
+const grokPresetMappings = [
+  { label: 'Grok 4.6', from: 'grok-4.6', to: 'grok-4.6', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
+  { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
+  { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
+  { label: 'Grok Latest', from: 'grok-latest', to: 'grok-4.6', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' }
+]
+
 const geminiPresetMappings = [
   { label: 'Flash 2.0', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
   { label: '2.5 Flash', from: 'gemini-2.5-flash', to: 'gemini-2.5-flash', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
@@ -555,6 +565,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'deepseek': return deepseekModels
     case 'mistral': return mistralModels
     case 'meta': return metaModels
+    case 'grok':
     case 'xai': return xaiModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
@@ -575,6 +586,7 @@ export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings
+  if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   return anthropicPresetMappings
 }
 

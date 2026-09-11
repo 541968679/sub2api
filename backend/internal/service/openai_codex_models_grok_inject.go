@@ -138,15 +138,17 @@ func buildCodexGrokModelEntryFromTemplate(template map[string]any, slug string) 
 	entry["display_name"] = display
 	entry["description"] = fmt.Sprintf("xAI %s via Sub2API (OpenAI-group Grok access).", display)
 	// Advertise xhigh for Codex Desktop/CLI picker parity with GPT models.
-	// Many users keep model_reasoning_effort=xhigh (or plan_mode xhigh); Desktop
-	// hides models that omit the currently selected effort. Upstream Grok only
-	// accepts low/medium/high — gateway clamps xhigh→high on the wire.
+	// Grok 4.6 forwards xhigh; older Grok models clamp xhigh→high on the wire.
+	xhighDescription := "Extra high (mapped to high on Grok)"
+	if GrokSupportsXHighReasoningEffort(slug) {
+		xhighDescription = "Extra-high reasoning depth for difficult tasks"
+	}
 	entry["default_reasoning_level"] = "high"
 	entry["supported_reasoning_levels"] = []map[string]any{
 		{"effort": "low", "description": "Faster responses"},
 		{"effort": "medium", "description": "Balanced"},
 		{"effort": "high", "description": "Deeper reasoning"},
-		{"effort": "xhigh", "description": "Extra high (mapped to high on Grok)"},
+		{"effort": "xhigh", "description": xhighDescription},
 	}
 	entry["base_instructions"] = grokCodexBaseInstructions
 	entry["model_messages"] = map[string]any{

@@ -239,13 +239,15 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 				s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			stageClk.Complete(c)
-			return nil, newOpenAIUpstreamFailoverError(
+			failoverErr := newOpenAIUpstreamFailoverError(
 				resp.StatusCode,
 				resp.Header,
 				respBody,
 				upstreamMsg,
 				account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 			)
+			overlayGrokSameAccountRetry(failoverErr, account, resp.StatusCode, respBody)
+			return nil, failoverErr
 		}
 		stageClk.Complete(c)
 		return s.handleChatCompletionsErrorResponse(resp, c, account)

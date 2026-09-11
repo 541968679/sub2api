@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 2 Grok 4.6 catalog xhigh media same-account 429
+
+### What
+- Isolation `sync/main-1` only: Grok 4.6 is a first-class text model (catalog + aliases; `grok` / `grok-latest` default to 4.6). Grok 4.6 keeps `xhigh` on the wire; older Grok still clamps xhigh→high. Chat Completions→Responses cache/vision bridge treats grok-4.6 like grok-4.5 (including image input without a cache key). Capacity 429 retries the same Grok account; generic rate-limit / billing / free-usage do not. Official Grok price cards are **not** adopted; display prices stay on the fork chain.
+- Named gates: `TestDefaultModelsIncludesGrok46`, `TestClampGrokReasoningEffortValue_PreservesXHighForGrok46`, `TestPatchGrokResponsesBodyPreservesXHighForGrok46`, `TestGrokChatResponsesRuntimeEligibility`, `TestGrokRetryableOnSameAccount_CapacityAndRateLimit`.
+- Residual: admin Grok media eligibility controls (Imagine eligibility UI on Edit Account) not overlaid; would add a large EditAccountModal section. Chat-bridge vision/media for 4.6 is landed. VERSION stays **0.1.287**.
+
+### Why
+Pack 2 of the 0.2.4 A-tier overlay: operators can schedule Grok 4.6, advertise/forward xhigh, and retry capacity 429 on the same account without merging upstream/main or changing stored billing.
+
+### Affected files
+`pkg/xai/models.go`, `openai_gateway_grok.go`, `openai_gateway_grok_chat_bridge.go`, `grok_upstream_failure.go`, `grok_media.go`, `openai_gateway_chat_completions_raw.go`, `openai_gateway_messages.go`, `openai_codex_models_grok_inject.go`, `useModelWhitelist.ts`, `codexGrokCatalog.ts`, `UseKeyModal.vue`, i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 1 CN first-class platforms (Kimi / Zhipu / MiniMax / DeepSeek)
 
 ### What
