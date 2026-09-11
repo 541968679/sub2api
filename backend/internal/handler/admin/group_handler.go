@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -20,6 +21,7 @@ type GroupHandler struct {
 	adminService         service.AdminService
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
+	cfg                  *config.Config
 }
 
 type optionalLimitField struct {
@@ -84,11 +86,55 @@ type CompositeRouteRequest struct {
 }
 
 func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
+	return NewGroupHandlerWithConfig(adminService, dashboardService, groupCapacityService, nil)
+}
+
+func NewGroupHandlerWithConfig(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, cfg *config.Config) *GroupHandler {
 	return &GroupHandler{
 		adminService:         adminService,
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
+		cfg:                  cfg,
 	}
+}
+
+func (h *GroupHandler) simpleMode() bool {
+	return h != nil && h.cfg != nil && h.cfg.RunMode == config.RunModeSimple
+}
+
+func sanitizeSimpleModeCreateGroup(input *service.CreateGroupInput) {
+	if input == nil {
+		return
+	}
+	input.RateMultiplier = 1
+	input.IsExclusive = false
+	input.SubscriptionType = service.SubscriptionTypeStandard
+	input.DailyLimitUSD = nil
+	input.WeeklyLimitUSD = nil
+	input.MonthlyLimitUSD = nil
+	input.AllowImageGeneration = false
+	input.AllowBatchImageGeneration = false
+	input.VideoPrice720P = nil
+	input.WebSearchPricePerCall = nil
+	input.RPMLimit = 0
+}
+
+func sanitizeSimpleModeUpdateGroup(input *service.UpdateGroupInput) {
+	if input == nil {
+		return
+	}
+	one := 1.0
+	input.RateMultiplier = &one
+	excl := false
+	input.IsExclusive = &excl
+	input.SubscriptionType = service.SubscriptionTypeStandard
+	input.DailyLimitUSD = nil
+	input.AllowImageGeneration = &excl
+	input.AllowBatchImageGeneration = &excl
+	input.VideoPrice720P = nil
+	input.WebSearchPricePerCall = nil
+	zero := 0
+	input.RPMLimit = &zero
 }
 
 // CreateGroupRequest represents create group request
@@ -324,7 +370,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
+	createInput := &service.CreateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
 		Platform:                        req.Platform,
@@ -373,7 +419,11 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ProfitMinMargin:                 req.ProfitMinMargin,
 		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
-	})
+	}
+	if h.simpleMode() {
+		sanitizeSimpleModeCreateGroup(createInput)
+	}
+	group, err := h.adminService.CreateGroup(c.Request.Context(), createInput)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -397,7 +447,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		return
 	}
 
-	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, &service.UpdateGroupInput{
+	updateInput := &service.UpdateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
 		Platform:                        req.Platform,
@@ -447,7 +497,11 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ProfitMinMargin:                 req.ProfitMinMargin,
 		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
-	})
+	}
+	if h.simpleMode() {
+		sanitizeSimpleModeUpdateGroup(updateInput)
+	}
+	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, updateInput)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

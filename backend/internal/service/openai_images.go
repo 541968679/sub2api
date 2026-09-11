@@ -653,7 +653,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if imageTrace != nil {
 		imageTrace.LogAt(c, "upstream_request_start", upstreamStart, 0, "")
 	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(upstreamCtx, c, account, err, false)

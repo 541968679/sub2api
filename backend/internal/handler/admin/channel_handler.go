@@ -491,12 +491,21 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{
+	payload := gin.H{
 		"found":              true,
 		"input_price":        pricing.InputPricePerToken,
 		"output_price":       pricing.OutputPricePerToken,
 		"cache_write_price":  pricing.CacheCreationPricePerToken,
 		"cache_read_price":   pricing.CacheReadPricePerToken,
 		"image_output_price": pricing.ImageOutputPricePerToken,
-	})
+	}
+	if pricing.CacheCreation1hPrice > 0 && pricing.CacheCreation1hPrice > pricing.CacheCreationPricePerToken {
+		price1h := pricing.CacheCreation1hPrice
+		payload["cache_write_1h_price"] = price1h
+	}
+	if strings.HasPrefix(strings.ToLower(model), "claude-fable-5") {
+		mult := 3.0
+		payload["max_reasoning_effort_multiplier"] = mult
+	}
+	response.Success(c, payload)
 }

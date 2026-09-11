@@ -42,6 +42,7 @@ type AdminHandlers struct {
 	ContentModeration      *admin.ContentModerationHandler
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
+	Plugin                 *admin.PluginHandler
 }
 
 type Handlers struct {

@@ -46,6 +46,7 @@ func ProvideAdminHandlers(
 	contentModerationHandler *admin.ContentModerationHandler,
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
+	pluginHandler *admin.PluginHandler,
 	smartSchedule *service.UserSmartScheduleService,
 	qualityMaintenance *service.AccountQualityMaintenanceService,
 	settingService *service.SettingService,
@@ -96,6 +97,7 @@ func ProvideAdminHandlers(
 		ContentModeration:      contentModerationHandler,
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
+		Plugin:                 pluginHandler,
 	}
 }
 
@@ -237,6 +239,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewRedeemPageAdminHandler,
 	NewRedeemPageHandler,
 	admin.NewChannelMonitorHandler,
+	admin.NewPluginHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,

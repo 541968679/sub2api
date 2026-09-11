@@ -5257,6 +5257,30 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.plugins.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.plugins.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.plugins.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.plugins.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.plugin_management_enabled" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.availableChannels.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7360,6 +7384,7 @@ const form = reactive<SettingsForm>({
   channel_monitor_hide_throughput: true,
   channel_monitor_show_quota: false,
   channel_monitor_hide_user_ranking: false,
+  plugin_management_enabled: false,
   // Available Channels feature switch
   available_channels_enabled: false,
   model_plaza_enabled: true,
@@ -8554,6 +8579,7 @@ async function saveSettings() {
       channel_monitor_hide_throughput: form.channel_monitor_hide_throughput,
       channel_monitor_show_quota: form.channel_monitor_show_quota,
       channel_monitor_hide_user_ranking: form.channel_monitor_hide_user_ranking,
+      plugin_management_enabled: form.plugin_management_enabled,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
       model_plaza_enabled: form.model_plaza_enabled,

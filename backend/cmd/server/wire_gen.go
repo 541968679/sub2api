@@ -188,6 +188,11 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	grokOAuthService := service.NewGrokOAuthService(proxyRepository, grokOAuthClient)
 	grokTokenProvider := service.ProvideGrokTokenProvider(accountRepository, geminiTokenCache, grokOAuthService, oAuthRefreshAPI, tempUnschedCache)
 	accountTestService := service.NewAccountTestService(accountRepository, geminiTokenProvider, claudeTokenProvider, grokTokenProvider, antigravityGatewayService, httpUpstream, configConfig, tlsFingerprintProfileService)
+	pluginRepository := repository.NewPluginRepository(db)
+	pluginHostInfo := providePluginHostInfo(buildInfo)
+	pluginManager := service.NewPluginManager(pluginRepository, secretEncryptor, configConfig, pluginHostInfo)
+	accountTestService.SetPluginManager(pluginManager)
+	pluginHandler := admin.NewPluginHandler(pluginManager)
 	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService, geminiOAuthService, configConfig)
 	accountQualitySnapshotRepository := repository.NewAccountQualitySnapshotRepository(client, db)
 	userQualitySnapshotRepository := repository.NewUserQualitySnapshotRepository(db)
@@ -244,6 +249,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountUsageService.SetGrokQuotaService(grokQuotaService)
 	grokOAuthHandler := admin.NewGrokOAuthHandler(grokOAuthService, adminService, grokQuotaService)
 	openAIGatewayService := service.ProvideOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, deferredService, openAITokenProvider, grokTokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService, accountQualityLiveCache, userSmartScheduleService, accountQualityMaintenanceService, publicScheduleQualityService)
+	openAIGatewayService.SetPluginManager(pluginManager)
 	openAI7dCycleRepository := repository.NewOpenAI7dCycleRepository(db)
 	openAI7dLiteLLMCycleService := service.NewOpenAI7dLiteLLMCycleService(openAI7dCycleRepository, pricingService)
 	accountUsageService.SetOpenAI7dLiteLLMCycles(openAI7dLiteLLMCycleService)
@@ -313,7 +319,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	contentModerationHandler := admin.NewContentModerationHandler(contentModerationService)
 	paymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)
-	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, grokOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, modelPricingHandler, userModelPricingHandler, pricingPageHandler, loginPageHandler, tutorialPageHandler, purchasePageAdminHandler, redeemPageAdminHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, imageChannelMonitorHandler, contentModerationHandler, paymentHandler, affiliateHandler, userSmartScheduleService, accountQualityMaintenanceService, settingService, publicScheduleQualityService)
+	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, grokOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, modelPricingHandler, userModelPricingHandler, pricingPageHandler, loginPageHandler, tutorialPageHandler, purchasePageAdminHandler, redeemPageAdminHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, imageChannelMonitorHandler, contentModerationHandler, paymentHandler, affiliateHandler, pluginHandler, userSmartScheduleService, accountQualityMaintenanceService, settingService, publicScheduleQualityService)
 	distributionRepository := repository.NewDistributionRepository(client, db)
 	distributionService := service.NewDistributionService(distributionRepository, settingRepository, redeemService, apiKeyService, groupRepository, paymentConfigService)
 	distributionHandler := handler.NewDistributionHandler(distributionService)
@@ -354,10 +360,11 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	imageChannelMonitorRunner := service.ProvideImageChannelMonitorRunner(imageChannelMonitorService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, imageChannelMonitorRunner, userPlatformQuotaUsageFlusher, accountQualityMaintenanceService)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, imageChannelMonitorRunner, userPlatformQuotaUsageFlusher, accountQualityMaintenanceService, pluginManager)
 	application := &Application{
-		Server:  httpServer,
-		Cleanup: v,
+		Server:        httpServer,
+		PluginManager: pluginManager,
+		Cleanup:       v,
 	}
 	return application, nil
 }
@@ -365,8 +372,16 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 // wire.go:
 
 type Application struct {
-	Server  *http.Server
-	Cleanup func()
+	Server        *http.Server
+	PluginManager *service.PluginManager
+	Cleanup       func()
+}
+
+func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
+	return service.PluginHostInfo{
+		Version:   buildInfo.Version,
+		BuildType: buildInfo.BuildType,
+	}
 }
 
 func providePrivacyClientFactory() service.PrivacyClientFactory {
@@ -418,6 +433,7 @@ func provideCleanup(
 	imageChannelMonitorRunner *service.ImageChannelMonitorRunner,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	accountQualityMaintenance *service.AccountQualityMaintenanceService,
+	pluginManager *service.PluginManager,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -429,6 +445,12 @@ func provideCleanup(
 		}
 
 		parallelSteps := []cleanupStep{
+			{"PluginManager", func() error {
+				if pluginManager != nil {
+					pluginManager.Stop()
+				}
+				return nil
+			}},
 			{"OpsScheduledReportService", func() error {
 				if opsScheduledReport != nil {
 					opsScheduledReport.Stop()

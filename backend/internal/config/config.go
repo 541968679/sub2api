@@ -90,6 +90,18 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+}
+
+// PluginConfig controls admin-uploaded local process plugins.
+// Default: no bundled plugins; unsigned packages are rejected.
+type PluginConfig struct {
+	DataDir              string            `mapstructure:"data_dir"`
+	AllowUnsigned        bool              `mapstructure:"allow_unsigned"`
+	TrustedPublishers    map[string]string `mapstructure:"trusted_publishers"`
+	MaxUploadBytes       int64             `mapstructure:"max_upload_bytes"`
+	MaxUncompressedBytes int64             `mapstructure:"max_uncompressed_bytes"`
+	StartTimeoutSeconds  int               `mapstructure:"start_timeout_seconds"`
 }
 
 type LogConfig struct {
@@ -1509,6 +1521,12 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 
 func setDefaults() {
 	viper.SetDefault("run_mode", RunModeStandard)
+	viper.SetDefault("plugins.data_dir", "")
+	viper.SetDefault("plugins.allow_unsigned", false)
+	viper.SetDefault("plugins.trusted_publishers", map[string]string{})
+	viper.SetDefault("plugins.max_upload_bytes", int64(128*1024*1024))
+	viper.SetDefault("plugins.max_uncompressed_bytes", int64(256*1024*1024))
+	viper.SetDefault("plugins.start_timeout_seconds", 15)
 
 	// Server
 	viper.SetDefault("server.host", "0.0.0.0")

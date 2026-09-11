@@ -82,6 +82,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // imageChannelMonitorRunner
 		nil, // userPlatformQuotaUsageFlusher
 		nil, // accountQualityMaintenance
+		nil, // pluginManager
 	)
 
 	require.NotPanics(t, func() {

@@ -682,6 +682,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorHideThroughput,
 		SettingKeyChannelMonitorShowQuota,
 		SettingKeyChannelMonitorHideUserRanking,
+		SettingKeyPluginManagementEnabled,
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyAllowUserViewErrorRequests,
 		SettingKeyModelPlazaEnabled,
@@ -790,6 +791,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ModelPlazaEnabled:          !isFalseSettingValue(settings[SettingKeyModelPlazaEnabled]),
 		ModelPlazaRequireAuth:      settings[SettingKeyModelPlazaRequireAuth] == "true",
 		ModelPlazaDescription:      settings[SettingKeyModelPlazaDescription],
+		PluginManagementEnabled:    settings[SettingKeyPluginManagementEnabled] == "true",
 
 		AffiliateEnabled:   settings[SettingKeyAffiliateEnabled] == "true",
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
@@ -1046,6 +1048,7 @@ type PublicSettingsInjectionPayload struct {
 	ModelPlazaEnabled                    bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth                bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription                string `json:"model_plaza_description"`
+	PluginManagementEnabled              bool   `json:"plugin_management_enabled"`
 	AffiliateEnabled                     bool `json:"affiliate_enabled"`
 	RiskControlEnabled                   bool `json:"risk_control_enabled"`
 
@@ -1117,6 +1120,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
 		ModelPlazaDescription:                settings.ModelPlazaDescription,
+		PluginManagementEnabled:              settings.PluginManagementEnabled,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		LegalConsent:                         settings.LegalConsent,
@@ -1625,6 +1629,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyModelPlazaEnabled] = strconv.FormatBool(settings.ModelPlazaEnabled)
 	updates[SettingKeyModelPlazaRequireAuth] = strconv.FormatBool(settings.ModelPlazaRequireAuth)
 	updates[SettingKeyModelPlazaDescription] = settings.ModelPlazaDescription
+	updates[SettingKeyPluginManagementEnabled] = strconv.FormatBool(settings.PluginManagementEnabled)
 
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
@@ -2592,6 +2597,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled:   "false",
 		SettingKeyAllowUserViewErrorRequests: "false",
+		SettingKeyPluginManagementEnabled:    "false",
 		SettingKeyModelPlazaEnabled:          "true",
 		SettingKeyModelPlazaRequireAuth:      "false",
 		SettingKeyModelPlazaDescription:      "",
@@ -2963,6 +2969,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ModelPlazaEnabled = !isFalseSettingValue(settings[SettingKeyModelPlazaEnabled])
 	result.ModelPlazaRequireAuth = settings[SettingKeyModelPlazaRequireAuth] == "true"
 	result.ModelPlazaDescription = settings[SettingKeyModelPlazaDescription]
+	result.PluginManagementEnabled = settings[SettingKeyPluginManagementEnabled] == "true"
 
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"

@@ -408,6 +408,10 @@ const (
 	SettingKeyModelPlazaRequireAuth = "model_plaza_require_auth"
 	SettingKeyModelPlazaDescription = "model_plaza_description"
 
+	// SettingKeyPluginManagementEnabled controls sidebar visibility only.
+	// Default off. Unsigned plugin packages are still rejected by installer config.
+	SettingKeyPluginManagementEnabled = "plugin_management_enabled"
+
 	// SettingKeyAllowUserViewErrorRequests controls whether end users can view
 	// their own failed requests. Defaults to false.
 	SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"

@@ -505,6 +505,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/plugins',
+    name: 'AdminPlugins',
+    component: () => import('@/views/admin/PluginsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Plugins',
+      titleKey: 'admin.plugins.title'
+    }
+  },
+  {
     path: '/admin/channels/image-monitor',
     name: 'AdminImageChannelMonitor',
     component: () => import('@/views/admin/ImageChannelMonitorView.vue'),

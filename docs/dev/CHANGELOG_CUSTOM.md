@@ -1,3 +1,17 @@
+## 2026-09-11 - sync: pack 5 plugins default-off, fable 5.1, simple-mode grouping
+
+### What
+- Isolation `sync/main-1` only: OAuth outbound transport plugins land with installer **reject-unsigned by default**, `plugin_management_enabled` **default off**, and `doOpenAIUpstream` leaving API Key / non-OAuth paths on `httpUpstream.Do`. SQL remaps freeze 229/230 → **246/247**. `claude-fable-5.1` is added; `claude-fable-5` stays. CLI pin is 2.1.258 (≥ 2.1.251). Simple-mode can create basic groups and strips commercial fields / composite bindings.
+- Named gates: `TestPluginManagerRoutingDoesNotTouchAPIKeyOrOtherProviders`, `TestPluginPackageInstallerRejectsUnsignedPackageByDefault`, `TestOpenAIGatewayPluginRoutingPreservesAPIKeyAndFailsClosedForOAuth`, `TestDefaultModelsContainsClaudeFable51`, `TestCLICurrentVersionSatisfiesFable51Gate`, `TestGetModelDefaultPricing_ReturnsFable51CacheTTLs`.
+- `openai_session_refresh.go` is unchanged. Create/Edit account modals were not wholesale-replaced.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 5 of the 0.2.4 A-tier overlay: operators can install signed plugins later, schedule Fable 5.1, and use simple-mode grouping without merging upstream/main or hijacking API-key routing.
+
+### Affected files
+plugin manager/repo/handler, SQL 246/247, `openai_plugin_transport.go`, Claude constants/CLI version, group/account simple-mode sanitizers, PluginsView, i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 4 channel-monitor v2 quota mode and passive views
 
 ### What

@@ -1555,7 +1555,7 @@ func (s *OpenAIGatewayService) doOpenAIImagesOAuthRequestWithRetry(
 				zap.Int("max_attempts", openAIImagesOAuthTransportMaxAttempts),
 			)
 		}
-		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		if err == nil && resp != nil {
 			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
 			if imageTrace != nil {

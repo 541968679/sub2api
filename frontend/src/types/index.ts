@@ -387,6 +387,7 @@ export interface PublicSettings {
   channel_monitor_hide_throughput?: boolean
   channel_monitor_show_quota?: boolean
   channel_monitor_hide_user_ranking?: boolean
+  plugin_management_enabled?: boolean
   available_channels_enabled: boolean
   allow_user_view_error_requests: boolean
   model_plaza_enabled: boolean

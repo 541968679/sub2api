@@ -25,6 +25,8 @@ type stubAdminService struct {
 	boundAuthIdentity                   *service.AdminBindAuthIdentityInput
 	boundAuthIdentityFor                int64
 	createdAccounts                     []*service.CreateAccountInput
+	createdGroups                       []*service.CreateGroupInput
+	updatedGroups                       []*service.UpdateGroupInput
 	createdProxies                      []*service.CreateProxyInput
 	updatedProxyIDs                     []int64
 	updatedProxies                      []*service.UpdateProxyInput
@@ -298,12 +300,32 @@ func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id 
 	return nil, nil
 }
 
+func (s *stubAdminService) ValidateAccountGroupBindings(_ context.Context, _ []int64) error {
+	return nil
+}
+
 func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.CreateGroupInput) (*service.Group, error) {
-	group := service.Group{ID: 200, Name: input.Name, Status: service.StatusActive}
+	s.createdGroups = append(s.createdGroups, input)
+	group := service.Group{
+		ID:                        200,
+		Name:                      input.Name,
+		Description:               input.Description,
+		Status:                    service.StatusActive,
+		RateMultiplier:            input.RateMultiplier,
+		IsExclusive:               input.IsExclusive,
+		SubscriptionType:          input.SubscriptionType,
+		DailyLimitUSD:             input.DailyLimitUSD,
+		AllowImageGeneration:      input.AllowImageGeneration,
+		AllowBatchImageGeneration: input.AllowBatchImageGeneration,
+		VideoPrice720P:            input.VideoPrice720P,
+		WebSearchPricePerCall:     input.WebSearchPricePerCall,
+		RPMLimit:                  input.RPMLimit,
+	}
 	return &group, nil
 }
 
 func (s *stubAdminService) UpdateGroup(ctx context.Context, id int64, input *service.UpdateGroupInput) (*service.Group, error) {
+	s.updatedGroups = append(s.updatedGroups, input)
 	group := service.Group{ID: id, Name: input.Name, Status: service.StatusActive}
 	return &group, nil
 }

@@ -40,6 +40,8 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N24-grok46 | `TestDefaultModelsIncludesGrok46` / `TestClampGrokReasoningEffortValue_PreservesXHighForGrok46` / `TestPatchGrokResponsesBodyPreservesXHighForGrok46` / `TestGrokChatResponsesRuntimeEligibility` / `TestGrokRetryableOnSameAccount_CapacityAndRateLimit` |
 | N24-plaza | `TestListPlazaGroups_UsesDisplayPricesNotCostPerToken` / `TestFilterPlazaVisibleGroups_AnonymousSeesOnlyNonExclusive` / vitest `renders display prices for public groups` |
 | N24-cmv2 | `TestChannelMonitorQuotaModeRoundTrip` / `TestChannelMonitorV2QueryListSupportsRepeatedAndCommaValues` / `TestChannelMonitorV2ScopeFilterUsesAvailableGroupsForOrdinaryUser` |
+| N24-plugin | `TestPluginManagerRoutingDoesNotTouchAPIKeyOrOtherProviders` / `TestPluginPackageInstallerRejectsUnsignedPackageByDefault` / `TestOpenAIGatewayPluginRoutingPreservesAPIKeyAndFailsClosedForOAuth` |
+| N24-fable51 | `TestDefaultModelsContainsClaudeFable51` / `TestCLICurrentVersionSatisfiesFable51Gate` / `TestGetModelDefaultPricing_ReturnsFable51CacheTTLs` |
 
 ## Residual (not claimed landed)
 
@@ -75,10 +77,10 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-cmv2** channel-monitor v2 — **landed this pack** (v2 API + admin settings panel + user `/monitor` V1/V2 switch; quota check_mode SQL **236** not 226; image-channel-monitor kept). Residual: live quota-fetch dispatch not wired (CN usage-window fetcher missing on this fork); popular-model seed not adopted.
 - **C-plaza** model plaza — **landed this pack** (new `/model-plaza` routes + zh/en i18n; paid prices = fork display chain; anonymous sees only non-exclusive groups). Residual: freeze time-of-day / long-context stored-tier showcase columns are not adopted (billing lock).
 - **C-cn** / **C-minimax** / Kimi / Zhipu / MiniMax / DeepSeek — **landed this pack** (first-class platforms, quota SQL, create-account buttons, coding-plan quota probe). Ollama Cloud still residual (usage window hang-under-CN not fully ported).
-- **C-plugin** OAuth outbound plugins
+- **C-plugin** OAuth outbound plugins — **landed this pack** (default off, unsigned rejected, API-key path not hijacked; SQL 246/247 not 229/230). Residual: freeze Totp step-up on plugin admin UI not ported (fork has no step-up).
 - **C-allowlist** breaking group model allowlists
-- **C-fable51** claude-fable-5.1
-- **C-simple** simple-mode grouping
+- **C-fable51** claude-fable-5.1 — **landed this pack** (`claude-fable-5` kept; CLI pin 2.1.258)
+- **C-simple** simple-mode grouping — **landed this pack** (basic groups visible; commercial fields stripped; composite binds rejected)
 - **C-deploy** Go 1.27 / GHCR path swap — 延后
 - **C-passkey** never
 - **C-agent** Agent Identity last — must overlay on `chatgpt_session_token`; forbid wholesale `CreateAccountModal.vue` / deleting session refresh

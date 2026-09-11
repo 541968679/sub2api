@@ -840,6 +840,7 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorRunner,
 	ProvideChannelMonitorV2Service,
 	ProvideChannelMonitorV2Aggregator,
+	NewPluginManager,
 	ProvideImageChannelMonitorService,
 	ProvideImageChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,

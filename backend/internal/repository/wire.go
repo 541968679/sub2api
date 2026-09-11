@@ -107,6 +107,7 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityUsageAggregator,
 	NewChannelMonitorRepository,
 	NewChannelMonitorV2Repository,
+	NewPluginRepository,
 	NewImageChannelMonitorRepository,
 	NewChannelMonitorRequestTemplateRepository,
 	NewContentModerationRepository,

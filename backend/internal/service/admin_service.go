@@ -82,6 +82,7 @@ type AdminService interface {
 	GetAccount(ctx context.Context, id int64) (*Account, error)
 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
+	ValidateAccountGroupBindings(ctx context.Context, groupIDs []int64) error
 	UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error)
 	MarkAccountsExported(ctx context.Context, ids []int64, exportedAt time.Time) (int64, error)
 	DeleteAccount(ctx context.Context, id int64) error
@@ -4300,6 +4301,19 @@ func (s *adminServiceImpl) validateGroupIDsExist(ctx context.Context, groupIDs [
 	for _, groupID := range groupIDs {
 		if _, err := s.groupRepo.GetByID(ctx, groupID); err != nil {
 			return fmt.Errorf("get group: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) ValidateAccountGroupBindings(ctx context.Context, groupIDs []int64) error {
+	for _, id := range groupIDs {
+		group, err := s.groupRepo.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("get group: %w", err)
+		}
+		if group != nil && group.Platform == PlatformComposite {
+			return infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups cannot be bound in simple mode")
 		}
 	}
 	return nil

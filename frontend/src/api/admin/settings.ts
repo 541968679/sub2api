@@ -620,6 +620,7 @@ export interface SystemSettings {
   channel_monitor_hide_throughput?: boolean;
   channel_monitor_show_quota?: boolean;
   channel_monitor_hide_user_ranking?: boolean;
+  plugin_management_enabled?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled: boolean;
@@ -849,6 +850,7 @@ export interface UpdateSettingsRequest {
   channel_monitor_hide_throughput?: boolean;
   channel_monitor_show_quota?: boolean;
   channel_monitor_hide_user_ranking?: boolean;
+  plugin_management_enabled?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;

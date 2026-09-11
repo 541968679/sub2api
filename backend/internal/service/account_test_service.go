@@ -79,6 +79,14 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	pluginManager             *PluginManager
+}
+
+func (s *AccountTestService) SetPluginManager(manager *PluginManager) {
+	if s == nil {
+		return
+	}
+	s.pluginManager = manager
 }
 
 // NewAccountTestService creates a new AccountTestService

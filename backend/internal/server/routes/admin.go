@@ -114,6 +114,8 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		registerPluginRoutes(admin, h)
+
 		// 分销管理
 		registerDistributionRoutes(admin, h)
 	}
@@ -848,6 +850,25 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.AdminUsers)
 		}
+	}
+}
+
+func registerPluginRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.Plugin == nil {
+		return
+	}
+	plugins := admin.Group("/plugins")
+	{
+		plugins.GET("", h.Admin.Plugin.List)
+		plugins.GET("/:id", h.Admin.Plugin.Get)
+		plugins.POST("/upload", h.Admin.Plugin.Upload)
+		plugins.POST("/:id/enable", h.Admin.Plugin.Enable)
+		plugins.POST("/:id/disable", h.Admin.Plugin.Disable)
+		plugins.DELETE("/:id", h.Admin.Plugin.Delete)
+		plugins.GET("/:id/config", h.Admin.Plugin.GetConfig)
+		plugins.PUT("/:id/config", h.Admin.Plugin.SaveConfig)
+		plugins.POST("/:id/test", h.Admin.Plugin.Test)
+		plugins.POST("/:id/ui-session", h.Admin.Plugin.CreateUISession)
 	}
 }
 
