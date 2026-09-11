@@ -710,6 +710,11 @@ export interface ModelsListConfig {
   models: string[]
 }
 
+export interface ModelAllowlistConfig {
+  enabled: boolean
+  models: string[]
+}
+
 export interface Group {
   id: number
   name: string
@@ -755,6 +760,7 @@ export interface Group {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
@@ -774,6 +780,7 @@ export interface AdminGroup extends Group {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
 
   // 分组下账号数量（仅管理员可见）
   account_count?: number
@@ -880,6 +887,7 @@ export interface CreateGroupRequest {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -920,6 +928,7 @@ export interface UpdateGroupRequest {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]

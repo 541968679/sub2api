@@ -815,6 +815,31 @@
               moveModelsListItem(createModelsListState, fromIndex, toIndex)
           "
         />
+        <GroupModelsListConfigPanel
+          i18n-prefix="admin.groups.modelAllowlist"
+          :state="createAllowlistState"
+          :loading="createModelsListLoading"
+          @toggle-enabled="createAllowlistState.enabled = !createAllowlistState.enabled"
+          @select-all="selectAllModelAllowlistItems(createAllowlistState)"
+          @invert-selection="invertModelAllowlistSelection(createAllowlistState)"
+          @toggle-item="toggleModelAllowlistItem(createAllowlistState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelAllowlistItem(createAllowlistState, fromIndex, toIndex)
+          "
+        />
+        <div v-if="createAllowlistState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="createAllowlistCustom"
+            type="text"
+            class="input flex-1"
+            :placeholder="t('admin.groups.modelAllowlist.addCustomPlaceholder')"
+            @keydown.enter.prevent="addCreateAllowlistCustom"
+          />
+          <button type="button" class="btn-secondary" @click="addCreateAllowlistCustom">
+            {{ t("admin.groups.modelAllowlist.addCustom") }}
+          </button>
+        </div>
           </div>
         </section>
 
@@ -2257,6 +2282,31 @@
               moveModelsListItem(editModelsListState, fromIndex, toIndex)
           "
         />
+        <GroupModelsListConfigPanel
+          i18n-prefix="admin.groups.modelAllowlist"
+          :state="editAllowlistState"
+          :loading="editModelsListLoading"
+          @toggle-enabled="editAllowlistState.enabled = !editAllowlistState.enabled"
+          @select-all="selectAllModelAllowlistItems(editAllowlistState)"
+          @invert-selection="invertModelAllowlistSelection(editAllowlistState)"
+          @toggle-item="toggleModelAllowlistItem(editAllowlistState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelAllowlistItem(editAllowlistState, fromIndex, toIndex)
+          "
+        />
+        <div v-if="editAllowlistState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="editAllowlistCustom"
+            type="text"
+            class="input flex-1"
+            :placeholder="t('admin.groups.modelAllowlist.addCustomPlaceholder')"
+            @keydown.enter.prevent="addEditAllowlistCustom"
+          />
+          <button type="button" class="btn-secondary" @click="addEditAllowlistCustom">
+            {{ t("admin.groups.modelAllowlist.addCustom") }}
+          </button>
+        </div>
           </div>
         </section>
 
@@ -3422,6 +3472,18 @@ import {
   toggleModelsListItem,
 } from "./groupsModelsList";
 import {
+  addCustomModelAllowlistItem,
+  buildModelAllowlistConfig,
+  createModelAllowlistState,
+  invertModelAllowlistSelection,
+  moveModelAllowlistItem,
+  resetModelAllowlistState,
+  selectAllModelAllowlistItems,
+  setModelAllowlistCandidates,
+  toggleModelAllowlistItem,
+  type ModelAllowlistAddError,
+} from "./groupModelAllowlist";
+import {
   getImagePricePlaceholder,
   getVideoPricePlaceholder,
   supportsImagePricingPlatform,
@@ -3731,6 +3793,10 @@ const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const createModelsListState = reactive(createInitialModelsListState());
 const editModelsListState = reactive(createInitialModelsListState());
+const createAllowlistState = reactive(createModelAllowlistState());
+const editAllowlistState = reactive(createModelAllowlistState());
+const createAllowlistCustom = ref("");
+const editAllowlistCustom = ref("");
 const createModelsListLoading = ref(false);
 const editModelsListLoading = ref(false);
 let createModelsListCandidatesRequestID = 0;
@@ -4031,6 +4097,41 @@ const parseModelAccessText = (value: string): string[] => {
 const modelAccessTextFromArray = (values?: string[] | null): string =>
   (values || []).join("\n");
 
+const allowlistAddErrorMessage = (code: ModelAllowlistAddError): string => {
+  switch (code) {
+    case "empty":
+      return t("admin.groups.modelAllowlist.addErrorEmpty");
+    case "invalid_wildcard":
+      return t("admin.groups.modelAllowlist.addErrorWildcard");
+    case "duplicate":
+      return t("admin.groups.modelAllowlist.addErrorDuplicate");
+  }
+};
+
+const addCreateAllowlistCustom = () => {
+  const err = addCustomModelAllowlistItem(
+    createAllowlistState,
+    createAllowlistCustom.value,
+  );
+  if (err) {
+    appStore.showError(allowlistAddErrorMessage(err));
+    return;
+  }
+  createAllowlistCustom.value = "";
+};
+
+const addEditAllowlistCustom = () => {
+  const err = addCustomModelAllowlistItem(
+    editAllowlistState,
+    editAllowlistCustom.value,
+  );
+  if (err) {
+    appStore.showError(allowlistAddErrorMessage(err));
+    return;
+  }
+  editAllowlistCustom.value = "";
+};
+
 const loadModelsListCandidates = async (
   mode: "create" | "edit",
   groupID: number,
@@ -4057,6 +4158,10 @@ const loadModelsListCandidates = async (
       return;
     }
     setModelsListCandidates(state, models);
+    setModelAllowlistCandidates(
+      mode === "create" ? createAllowlistState : editAllowlistState,
+      models,
+    );
   } catch (error) {
     if (!isCurrentRequest()) {
       return;
@@ -4352,6 +4457,8 @@ const closeCreateModal = () => {
   createForm.blocked_models_text = "";
   createForm.allowed_models_text = "";
   resetModelsListState(createModelsListState);
+  resetModelAllowlistState(createAllowlistState);
+  createAllowlistCustom.value = "";
   createModelRoutingRules.value = [];
 };
 
@@ -4408,6 +4515,7 @@ const handleCreateGroup = async () => {
       blocked_models: parseModelAccessText(createForm.blocked_models_text),
       allowed_models: parseModelAccessText(createForm.allowed_models_text),
       models_list_config: buildModelsListConfig(createModelsListState),
+      model_allowlist: buildModelAllowlistConfig(createAllowlistState),
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -4520,6 +4628,8 @@ const handleEdit = async (group: AdminGroup) => {
     group.model_routing,
   );
   resetModelsListState(editModelsListState, group.models_list_config);
+  resetModelAllowlistState(editAllowlistState, group.model_allowlist);
+  editAllowlistCustom.value = "";
   loadModelsListCandidates("edit", group.id, group.platform);
   editZone2Expanded.value = false;
   editZone3Expanded.value = false;
@@ -4539,6 +4649,8 @@ const closeEditModal = () => {
   editForm.allowed_models_text = "";
   resetMessagesDispatchFormState(editForm);
   resetModelsListState(editModelsListState);
+  resetModelAllowlistState(editAllowlistState);
+  editAllowlistCustom.value = "";
 };
 
 const handleUpdateGroup = async () => {
@@ -4578,6 +4690,7 @@ const handleUpdateGroup = async () => {
       blocked_models: parseModelAccessText(editForm.blocked_models_text),
       allowed_models: parseModelAccessText(editForm.allowed_models_text),
       models_list_config: buildModelsListConfig(editModelsListState),
+      model_allowlist: buildModelAllowlistConfig(editAllowlistState),
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -4721,6 +4834,7 @@ watch(
       createForm.require_privacy_set = false;
     }
     resetModelsListState(createModelsListState);
+    resetModelAllowlistState(createAllowlistState);
     if (showCreateModal.value) {
       loadModelsListCandidates("create", 0, newVal);
     }
@@ -4745,6 +4859,12 @@ watch(
         editModelsListState,
         newVal === editingGroup.value.platform
           ? editingGroup.value.models_list_config
+          : undefined,
+      );
+      resetModelAllowlistState(
+        editAllowlistState,
+        newVal === editingGroup.value.platform
+          ? editingGroup.value.model_allowlist
           : undefined,
       );
       loadModelsListCandidates("edit", editingGroup.value.id, newVal);

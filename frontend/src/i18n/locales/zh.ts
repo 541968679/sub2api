@@ -2951,6 +2951,22 @@ const zhBase = {
         moveUp: '上移',
         moveDown: '下移'
       },
+      modelAllowlist: {
+        title: '模型白名单',
+        hint: '开启后，/v1/models 只展示白名单内的模型。网关请求准入默认关闭（group_model_allowlist_enforce=false）；条目支持精确模型 ID 与末尾 * 通配。',
+        selectedCount: '已选 {selected} / {total}',
+        selectAll: '全选',
+        invert: '反选',
+        loading: '加载模型候选中...',
+        empty: '暂无候选模型，可在下方手工添加条目',
+        moveUp: '上移',
+        moveDown: '下移',
+        addCustom: '添加条目',
+        addCustomPlaceholder: '例如 gpt-5.5-*',
+        addErrorEmpty: '请输入模型条目',
+        addErrorWildcard: '通配符 * 只能出现在条目末尾',
+        addErrorDuplicate: '该条目已存在'
+      },
       exclusiveObj: {
         yes: '是',
         no: '否'

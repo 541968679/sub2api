@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 6 group model allowlist config, gateway enforce default-off
+
+### What
+- Isolation `sync/main-1` only: group `model_allowlist` JSONB is additive (SQL **248/249**, never 235/236 and never filenames 225/226/231–234). Fork `models_list_config` listing column is **kept** (not renamed). Admins can persist/normalize allowlists (exact IDs + trailing `*`). `/v1/models` listing expands wildcards against source when allowlist is enabled. Gateway request-admission middleware is mounted but **default off** (`group_model_allowlist_enforce` missing/false = not enforced).
+- Named gates: `TestNormalizeGroupModelAllowlist`, `TestAdminService_CreateGroup_NormalizesModelAllowlist`, `TestGatewayModels_ModelAllowlistWildcardExpandsAgainstSource`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 6 of the 0.2.4 A-tier overlay: operators can configure group model allowlists without merging upstream/main, replacing GroupsView wholesale, or turning request admission on.
+
+### Affected files
+`group_model_allowlist.go`, SQL 248/249, group/api-key repo extra-column persist, gateway listing overlay, default-off middleware, GroupsView allowlist panel + zh/en i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 5 plugins default-off, fable 5.1, simple-mode grouping
 
 ### What

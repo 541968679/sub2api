@@ -3079,6 +3079,22 @@ const enBase = {
         moveUp: 'Move up',
         moveDown: 'Move down'
       },
+      modelAllowlist: {
+        title: 'Model allowlist',
+        hint: 'When enabled, /v1/models only shows allowlisted models. Gateway request admission stays off unless group_model_allowlist_enforce=true. Entries may be exact IDs or trailing * wildcards.',
+        selectedCount: '{selected} / {total} selected',
+        selectAll: 'Select all',
+        invert: 'Invert',
+        loading: 'Loading model candidates...',
+        empty: 'No model candidates. You can add a custom entry below.',
+        moveUp: 'Move up',
+        moveDown: 'Move down',
+        addCustom: 'Add entry',
+        addCustomPlaceholder: 'e.g. gpt-5.5-*',
+        addErrorEmpty: 'Enter a model entry',
+        addErrorWildcard: 'Wildcard * is only allowed at the end of an entry',
+        addErrorDuplicate: 'That entry already exists'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',

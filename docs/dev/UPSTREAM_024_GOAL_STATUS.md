@@ -15,7 +15,8 @@ Not merged to real `main`, not pushed, not deployed.
 | 2 Grok 4.6 | `bbabdb2f1` | catalog, xhigh, Chat→Responses media, same-account capacity 429; no official Grok price cards |
 | 3 Model plaza | `03b0871f9` | `/model-plaza` + zh/en; paid prices = fork display chain; anonymous sees only non-exclusive groups |
 | 4 Channel-monitor v2 | `13c9b456e` | v2 API + admin UI; quota mode SQL 236; image-channel-monitor kept; default mode v1 |
-| 5 Plugins + Fable 5.1 + simple-mode | (this pack) | plugins default off / unsigned rejected; fable-5 kept + 5.1; simple-mode basic grouping |
+| 5 Plugins + Fable 5.1 + simple-mode | `0b4e8257c` | plugins default off / unsigned rejected; fable-5 kept + 5.1; simple-mode basic grouping |
+| 6 Group model allowlist | `c4e40deca` | admin can configure allowlists; listing wildcard; gateway enforce DEFAULT OFF; SQL 248/249 |
 
 ## Residual (do not re-litigate)
 
@@ -27,9 +28,8 @@ Not merged to real `main`, not pushed, not deployed.
 - Passkey never; Go 1.27 / GHCR path swap never
 - Channel-monitor live quota-fetch dispatch (CN usage-window fetcher) not wired
 - Channel-monitor v2 popular-model seed not adopted
+- Group model allowlist **gateway enforce stays off** (opening `group_model_allowlist_enforce` is not this campaign)
 
 ## Next pack
 
-**6 — Group model allowlist.** Admin can configure allowlists. Gateway enforce DEFAULT OFF (missing/false = not enforced). SQL remap (upstream 235/236 → unused numbers).
-
-Then 7 Agent Identity, then waterline + this file’s final done/residual.
+**7 — Agent Identity.** Stack on existing session import. Keep chatgpt_session_token / OAuth RT / PAT. Never write ST as RT. Never delete `openai_session_refresh.go`. Add an import path on Create/Edit; do not replace the page.

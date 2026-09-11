@@ -42,6 +42,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N24-cmv2 | `TestChannelMonitorQuotaModeRoundTrip` / `TestChannelMonitorV2QueryListSupportsRepeatedAndCommaValues` / `TestChannelMonitorV2ScopeFilterUsesAvailableGroupsForOrdinaryUser` |
 | N24-plugin | `TestPluginManagerRoutingDoesNotTouchAPIKeyOrOtherProviders` / `TestPluginPackageInstallerRejectsUnsignedPackageByDefault` / `TestOpenAIGatewayPluginRoutingPreservesAPIKeyAndFailsClosedForOAuth` |
 | N24-fable51 | `TestDefaultModelsContainsClaudeFable51` / `TestCLICurrentVersionSatisfiesFable51Gate` / `TestGetModelDefaultPricing_ReturnsFable51CacheTTLs` |
+| N24-allowlist | `TestNormalizeGroupModelAllowlist` / `TestAdminService_CreateGroup_NormalizesModelAllowlist` / `TestGatewayModels_ModelAllowlistWildcardExpandsAgainstSource` |
 
 ## Residual (not claimed landed)
 
@@ -78,7 +79,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-plaza** model plaza — **landed this pack** (new `/model-plaza` routes + zh/en i18n; paid prices = fork display chain; anonymous sees only non-exclusive groups). Residual: freeze time-of-day / long-context stored-tier showcase columns are not adopted (billing lock).
 - **C-cn** / **C-minimax** / Kimi / Zhipu / MiniMax / DeepSeek — **landed this pack** (first-class platforms, quota SQL, create-account buttons, coding-plan quota probe). Ollama Cloud still residual (usage window hang-under-CN not fully ported).
 - **C-plugin** OAuth outbound plugins — **landed this pack** (default off, unsigned rejected, API-key path not hijacked; SQL 246/247 not 229/230). Residual: freeze Totp step-up on plugin admin UI not ported (fork has no step-up).
-- **C-allowlist** breaking group model allowlists
+- **C-allowlist** group model allowlists — **landed this pack** (admin can configure; listing wildcard; SQL **248/249** not 235/236; `models_list_config` kept). Gateway request-admission **default off** (`group_model_allowlist_enforce` missing/false = not enforced). Residual: turning enforce on is not this campaign.
 - **C-fable51** claude-fable-5.1 — **landed this pack** (`claude-fable-5` kept; CLI pin 2.1.258)
 - **C-simple** simple-mode grouping — **landed this pack** (basic groups visible; commercial fields stripped; composite binds rejected)
 - **C-deploy** Go 1.27 / GHCR path swap — 延后

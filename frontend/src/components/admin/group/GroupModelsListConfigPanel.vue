@@ -3,10 +3,10 @@
     <div class="mb-3 flex items-start justify-between gap-3">
       <div>
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {{ t("admin.groups.modelsList.title") }}
+          {{ t(`${i18nPrefix}.title`) }}
         </label>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {{ t("admin.groups.modelsList.hint") }}
+          {{ t(`${i18nPrefix}.hint`) }}
         </p>
       </div>
       <button
@@ -37,7 +37,7 @@
       >
         <span class="text-gray-500 dark:text-gray-400">
           {{
-            t("admin.groups.modelsList.selectedCount", {
+            t(`${i18nPrefix}.selectedCount`, {
               selected: selectedCount,
               total: state.items.length,
             })
@@ -49,27 +49,27 @@
             class="rounded px-2 py-1 font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
             @click="$emit('select-all')"
           >
-            {{ t("admin.groups.modelsList.selectAll") }}
+            {{ t(`${i18nPrefix}.selectAll`) }}
           </button>
           <button
             type="button"
             class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
             @click="$emit('invert-selection')"
           >
-            {{ t("admin.groups.modelsList.invert") }}
+            {{ t(`${i18nPrefix}.invert`) }}
           </button>
         </div>
       </div>
 
       <div class="max-h-64 space-y-2 overflow-y-auto p-2">
         <p v-if="loading" class="text-xs text-gray-500 dark:text-gray-400">
-          {{ t("admin.groups.modelsList.loading") }}
+          {{ t(`${i18nPrefix}.loading`) }}
         </p>
         <p
           v-else-if="state.items.length === 0"
           class="text-xs text-gray-500 dark:text-gray-400"
         >
-          {{ t("admin.groups.modelsList.empty") }}
+          {{ t(`${i18nPrefix}.empty`) }}
         </p>
         <div
           v-for="(item, index) in state.items"
@@ -89,7 +89,7 @@
             type="button"
             :disabled="index === 0"
             class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
-            :title="t('admin.groups.modelsList.moveUp')"
+            :title="t(`${i18nPrefix}.moveUp`)"
             @click="$emit('move-item', index, index - 1)"
           >
             <Icon name="arrowUp" size="sm" />
@@ -98,7 +98,7 @@
             type="button"
             :disabled="index === state.items.length - 1"
             class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
-            :title="t('admin.groups.modelsList.moveDown')"
+            :title="t(`${i18nPrefix}.moveDown`)"
             @click="$emit('move-item', index, index + 1)"
           >
             <Icon name="arrowDown" size="sm" />
@@ -114,11 +114,20 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import Icon from "@/components/icons/Icon.vue";
 import type { ModelsListState } from "@/views/admin/groupsModelsList";
+import type { ModelAllowlistState } from "@/views/admin/groupModelAllowlist";
 
-const props = defineProps<{
-  state: ModelsListState;
-  loading?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    state: ModelsListState | ModelAllowlistState;
+    loading?: boolean;
+    i18nPrefix?: string;
+  }>(),
+  {
+    i18nPrefix: "admin.groups.modelsList",
+  },
+);
+
+const i18nPrefix = computed(() => props.i18nPrefix);
 
 defineEmits<{
   "toggle-enabled": [];

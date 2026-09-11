@@ -412,6 +412,10 @@ const (
 	// Default off. Unsigned plugin packages are still rejected by installer config.
 	SettingKeyPluginManagementEnabled = "plugin_management_enabled"
 
+	// SettingKeyGroupModelAllowlistEnforce gates gateway request admission
+	// for group model allowlists. Missing/false = not enforced.
+	SettingKeyGroupModelAllowlistEnforce = "group_model_allowlist_enforce"
+
 	// SettingKeyAllowUserViewErrorRequests controls whether end users can view
 	// their own failed requests. Defaults to false.
 	SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"
