@@ -2803,7 +2803,11 @@ const zhBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kimi: 'Kimi',
+        zhipu: '智谱',
+        deepseek: 'DeepSeek',
+        minimax: 'MiniMax'
       },
       saving: '保存中...',
       noGroups: '暂无分组',

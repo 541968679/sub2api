@@ -2964,7 +2964,11 @@ const enBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kimi: 'Kimi',
+        zhipu: 'Zhipu',
+        deepseek: 'DeepSeek',
+        minimax: 'MiniMax'
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",

@@ -26,6 +26,23 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
+	PlatformKimi        = "kimi"
+	PlatformZhipu       = "zhipu"
+	PlatformDeepseek    = "deepseek"
+	PlatformMiniMax     = "minimax"
+	PlatformComposite   = "composite"
+)
+
+const (
+	AccountModePayG   = "payg"
+	AccountModeCoding = "coding"
+)
+
+const (
+	APIProtocolChatCompletions = "chat_completions"
+	APIProtocolAnthropic       = "anthropic"
+	APIProtocolResponses       = "responses"
+	APIProtocolAdaptive        = "adaptive"
 )
 
 const (

@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 1 CN first-class platforms (Kimi / Zhipu / MiniMax / DeepSeek)
+
+### What
+- Isolation `sync/main-1` only: Kimi, Zhipu, DeepSeek, and MiniMax are first-class platforms (constants, quota CHECK SQL 229/230/235, composite target binding, OpenAI-compatible gateway dispatch, default base URLs, create-account platform buttons). OpenAI sessionToken import is unchanged. Gateway enforce of group allowlists stays off.
+- Named gates: `TestCNProviderBalanceCheckRunOnceProbesCodingPlanQuota`, `TestCompositeRouteTargetPlatform_AllowsCNProviders`, `TestMiniMaxPlatformMigration`, vitest `exposes CN first-class platforms on the create form`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 1 of the 0.2.4 A-tier overlay: operators can add CN accounts without merging upstream/main or replacing CreateAccountModal.
+
+### Affected files
+`domain/constants.go`, `domain_constants.go`, `account.go`, `cn_provider_balance_check_service.go`, `group_handler.go`, `gateway.go`, `CreateAccountModal.vue`, SQL 229/230/235, i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 0 leftovers (created_at, thinking bridges, cancel, fingerprint rewrite, ops return-to-list, request id, compact list, Astra)
 
 ### What

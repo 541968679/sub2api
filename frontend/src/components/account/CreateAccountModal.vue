@@ -92,7 +92,7 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
         <div
-          class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-5"
+          class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9"
           data-tour="account-form-platform"
         >
           <button
@@ -183,6 +183,62 @@
           >
             <PlatformIcon platform="grok" size="sm" />
             <span class="truncate">Grok</span>
+          </button>
+          <button
+            type="button"
+            data-testid="create-platform-kimi"
+            @click="form.platform = 'kimi'; form.type = 'apikey'"
+            :class="[
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'kimi'
+                ? 'bg-white text-sky-600 shadow-sm dark:bg-dark-600 dark:text-sky-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="kimi" size="sm" />
+            <span class="truncate">Kimi</span>
+          </button>
+          <button
+            type="button"
+            data-testid="create-platform-zhipu"
+            @click="form.platform = 'zhipu'; form.type = 'apikey'"
+            :class="[
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'zhipu'
+                ? 'bg-white text-blue-700 shadow-sm dark:bg-dark-600 dark:text-blue-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="zhipu" size="sm" />
+            <span class="truncate">Zhipu</span>
+          </button>
+          <button
+            type="button"
+            data-testid="create-platform-minimax"
+            @click="form.platform = 'minimax'; form.type = 'apikey'"
+            :class="[
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'minimax'
+                ? 'bg-white text-rose-600 shadow-sm dark:bg-dark-600 dark:text-rose-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="minimax" size="sm" />
+            <span class="truncate">MiniMax</span>
+          </button>
+          <button
+            type="button"
+            data-testid="create-platform-deepseek"
+            @click="form.platform = 'deepseek'; form.type = 'apikey'"
+            :class="[
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'deepseek'
+                ? 'bg-white text-indigo-600 shadow-sm dark:bg-dark-600 dark:text-indigo-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon platform="deepseek" size="sm" />
+            <span class="truncate">DeepSeek</span>
           </button>
         </div>
       </div>

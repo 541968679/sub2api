@@ -356,6 +356,28 @@ describe('CreateAccountModal', () => {
       .toBe('authorization_bearer')
   })
 
+  it('exposes CN first-class platforms on the create form', async () => {
+    const wrapper = mount(CreateAccountModal, {
+      props: { show: true, proxies: [], groups: [] },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          ConfirmDialog: BaseDialogStub,
+          Icon: true,
+          PlatformIcon: true,
+          ProxySelector: true,
+          GroupSelector: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          OAuthAuthorizationFlow: true,
+          Select: SelectStub
+        }
+      }
+    })
+    expect(wrapper.find('[data-testid="create-platform-kimi"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-platform-zhipu"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-platform-minimax"]').exists()).toBe(true)
+  })
+
   it('creates a Grok API key account with the official xAI base URL', async () => {
     createAccountMock.mockReset()
     createAccountMock.mockResolvedValue({})

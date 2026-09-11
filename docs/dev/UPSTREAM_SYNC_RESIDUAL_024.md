@@ -71,7 +71,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-grok** wholesale 4.6 / xhigh / media
 - **C-cmv2** channel-monitor v2
 - **C-plaza** model plaza
-- **C-cn** / **C-minimax** / Kimi / Zhipu / Ollama Cloud
+- **C-cn** / **C-minimax** / Kimi / Zhipu / MiniMax / DeepSeek — **landed this pack** (first-class platforms, quota SQL, create-account buttons, coding-plan quota probe). Ollama Cloud still residual (usage window hang-under-CN not fully ported).
 - **C-plugin** OAuth outbound plugins
 - **C-allowlist** breaking group model allowlists
 - **C-fable51** claude-fable-5.1
