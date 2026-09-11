@@ -38,6 +38,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N-compact native-v2 mark | `TestOpenAIGatewayForwardRetriesStreamingCompactAfterNativeV2ContextWithoutPreMark` |
 | N24-ws429 replacement | `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount` |
 | N24-grok46 | `TestDefaultModelsIncludesGrok46` / `TestClampGrokReasoningEffortValue_PreservesXHighForGrok46` / `TestPatchGrokResponsesBodyPreservesXHighForGrok46` / `TestGrokChatResponsesRuntimeEligibility` / `TestGrokRetryableOnSameAccount_CapacityAndRateLimit` |
+| N24-plaza | `TestListPlazaGroups_UsesDisplayPricesNotCostPerToken` / `TestFilterPlazaVisibleGroups_AnonymousSeesOnlyNonExclusive` / vitest `renders display prices for public groups` |
 
 ## Residual (not claimed landed)
 
@@ -71,7 +72,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-rollup** group usage daily rollup — remap; do not steal 222/223
 - **C-grok** wholesale 4.6 / xhigh / Chat→Responses vision-media / same-account capacity 429 — **landed this pack** (no official Grok price cards). Residual: admin Grok Imagine media-eligibility controls on Edit Account (would overlay a large EditAccountModal section; not wholesale-replaced).
 - **C-cmv2** channel-monitor v2
-- **C-plaza** model plaza
+- **C-plaza** model plaza — **landed this pack** (new `/model-plaza` routes + zh/en i18n; paid prices = fork display chain; anonymous sees only non-exclusive groups). Residual: freeze time-of-day / long-context stored-tier showcase columns are not adopted (billing lock).
 - **C-cn** / **C-minimax** / Kimi / Zhipu / MiniMax / DeepSeek — **landed this pack** (first-class platforms, quota SQL, create-account buttons, coding-plan quota probe). Ollama Cloud still residual (usage window hang-under-CN not fully ported).
 - **C-plugin** OAuth outbound plugins
 - **C-allowlist** breaking group model allowlists

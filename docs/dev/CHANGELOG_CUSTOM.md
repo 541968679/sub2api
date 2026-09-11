@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 3 model plaza with fork display prices
+
+### What
+- Isolation `sync/main-1` only: new public `/model-plaza` page and `GET /api/v1/model-plaza`. Paid columns use the fork display-price chain (`DisplayInputPrice` / `DisplayOutputPrice` / `DisplayCacheReadPrice`, falling back to configured unit prices). Official catalog list prices are reference only. Anonymous visitors see only non-exclusive groups. Time-of-day stored cost and long-context stored tiers are not adopted.
+- Named gates: `TestListPlazaGroups_UsesDisplayPricesNotCostPerToken`, `TestFilterPlazaVisibleGroups_AnonymousSeesOnlyNonExclusive`, vitest `renders display prices for public groups`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 3 of the 0.2.4 A-tier overlay: operators and visitors can browse group display prices without merging upstream/main or changing stored billing.
+
+### Affected files
+`model_plaza_service.go`, `model_plaza_handler.go`, `routes/model_plaza.go`, optional JWT middleware, settings public flags, `ModelPlazaView.vue`, i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 2 Grok 4.6 catalog xhigh media same-account 429
 
 ### What

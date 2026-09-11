@@ -144,6 +144,7 @@ func ProvideHandlers(
 	redeemPageUserHandler *RedeemPageHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	batchImageHandler *BatchImageHandler,
+	modelPlazaHandler *ModelPlazaHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -171,6 +172,7 @@ func ProvideHandlers(
 		RedeemPage:              redeemPageUserHandler,
 		AvailableChannel:        availableChannelHandler,
 		BatchImage:              batchImageHandler,
+		ModelPlaza:              modelPlazaHandler,
 	}
 }
 
@@ -195,6 +197,7 @@ var ProviderSet = wire.NewSet(
 	NewTutorialPageHandler,
 	NewAvailableChannelHandler,
 	NewBatchImageHandler,
+	NewModelPlazaHandler,
 	admin.NewDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,

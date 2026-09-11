@@ -399,6 +399,11 @@ const (
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
+	// Model plaza showcase (public /model-plaza). Default on in this overlay.
+	SettingKeyModelPlazaEnabled     = "model_plaza_enabled"
+	SettingKeyModelPlazaRequireAuth = "model_plaza_require_auth"
+	SettingKeyModelPlazaDescription = "model_plaza_description"
+
 	// SettingKeyAllowUserViewErrorRequests controls whether end users can view
 	// their own failed requests. Defaults to false.
 	SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"

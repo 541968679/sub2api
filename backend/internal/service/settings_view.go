@@ -150,6 +150,9 @@ type SystemSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests bool
+	ModelPlazaEnabled          bool
+	ModelPlazaRequireAuth      bool
+	ModelPlazaDescription      string
 
 	// Claude Code version check
 	MinClaudeCodeVersion                 string
@@ -302,6 +305,9 @@ type PublicSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	ModelPlazaEnabled          bool   `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth      bool   `json:"model_plaza_require_auth"`
+	ModelPlazaDescription      string `json:"model_plaza_description"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`

@@ -382,6 +382,7 @@ const zhBase = {
     groups: '分组管理',
     channels: '渠道管理',
     availableChannels: '可用渠道',
+    modelPlaza: '模型广场',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     modelConfig: '模型配置',
@@ -1292,6 +1293,21 @@ const zhBase = {
     empty: {
       title: '暂无可显示的渠道',
       description: '管理员尚未配置可监控的渠道。'
+    }
+  },
+
+  modelPlaza: {
+    title: '模型广场',
+    description: '按分组展示二开展示单价。匿名仅能看到非专属分组。',
+    empty: '暂无可见分组',
+    loadFailed: '加载模型广场失败',
+    rate: '倍率',
+    columns: {
+      model: '模型',
+      displayInput: '展示输入',
+      displayOutput: '展示输出',
+      displayCache: '展示缓存读',
+      officialInput: '官方参考输入'
     }
   },
 
@@ -7227,6 +7243,14 @@ const zhBase = {
           configureLink: '前往 渠道管理 > 渠道定价 配置模型价格',
           enabled: '启用可用渠道',
           enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+        },
+        modelPlaza: {
+          title: '模型广场',
+          description: '公开的分组展示价橱窗。展示单价走二开展示价链，不按 cost/tokens 推算。匿名只看非专属分组。',
+          enabled: '启用模型广场',
+          enabledHint: '关闭后入口隐藏，接口返回 404。',
+          requireAuth: '要求登录',
+          requireAuthHint: '开启后匿名无法访问广场接口。',
         },
         userErrorRequests: {
           title: '用户错误请求',

@@ -383,6 +383,7 @@ const enBase = {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    modelPlaza: 'Model Plaza',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     modelConfig: 'Model Config',
@@ -1358,6 +1359,21 @@ const enBase = {
     empty: {
       title: 'No channels available',
       description: 'No monitored channels have been configured yet.'
+    }
+  },
+
+  modelPlaza: {
+    title: 'Model Plaza',
+    description: 'Group-scoped display prices. Anonymous visitors see only non-exclusive groups.',
+    empty: 'No visible groups',
+    loadFailed: 'Failed to load model plaza',
+    rate: 'Rate',
+    columns: {
+      model: 'Model',
+      displayInput: 'Display input',
+      displayOutput: 'Display output',
+      displayCache: 'Display cache read',
+      officialInput: 'Official input'
     }
   },
 
@@ -7600,6 +7616,14 @@ const enBase = {
           configureLink: 'Configure model pricing in Channel Management > Channel Pricing',
           enabled: 'Enable Available Channels',
           enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
+        },
+        modelPlaza: {
+          title: 'Model Plaza',
+          description: 'Public group-scoped display-price showcase. Prices use the fork display chain, never cost/tokens. Anonymous visitors see only non-exclusive groups.',
+          enabled: 'Enable Model Plaza',
+          enabledHint: 'When off, the menu is hidden and the endpoint returns 404.',
+          requireAuth: 'Require sign-in',
+          requireAuthHint: 'When on, anonymous callers cannot load the plaza API.',
         },
         userErrorRequests: {
           title: 'User Error Requests',

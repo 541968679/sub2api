@@ -85,6 +85,9 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		AvailableChannelsEnabled:   settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+		ModelPlazaEnabled:          settings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:      settings.ModelPlazaRequireAuth,
+		ModelPlazaDescription:      settings.ModelPlazaDescription,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 

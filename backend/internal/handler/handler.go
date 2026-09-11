@@ -68,6 +68,7 @@ type Handlers struct {
 	RedeemPage              *RedeemPageHandler
 	AvailableChannel        *AvailableChannelHandler
 	BatchImage              *BatchImageHandler
+	ModelPlaza              *ModelPlazaHandler
 }
 
 type BuildInfo struct {
