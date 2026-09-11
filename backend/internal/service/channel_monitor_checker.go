@@ -184,6 +184,11 @@ var providerAdapters = map[string]providerAdapter{
 		},
 		textPath: "content.0.text",
 	},
+	MonitorProviderGrok:     providerOpenAIChatAdapter,
+	MonitorProviderKimi:     providerOpenAIChatAdapter,
+	MonitorProviderZhipu:    providerOpenAIChatAdapter,
+	MonitorProviderDeepseek: providerOpenAIChatAdapter,
+	MonitorProviderMiniMax:  providerOpenAIChatAdapter,
 	MonitorProviderGemini: {
 		// Gemini 把 model 名写在 URL path 上：/v1beta/models/{model}:generateContent
 		buildPath: func(model string) string { return fmt.Sprintf(providerGeminiPathTemplate, model) },

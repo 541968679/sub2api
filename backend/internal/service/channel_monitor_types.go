@@ -1,6 +1,10 @@
 package service
 
-import "time"
+import (
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+)
 
 // MonitorBodyOverrideMode 自定义请求体处理模式。
 //
@@ -53,6 +57,11 @@ type ChannelMonitor struct {
 	// APIKeyDecryptFailed 表示 APIKey 字段无法解密（密钥不一致或损坏）。
 	// 此时 APIKey 为空字符串，runner / RunCheck 必须跳过该监控并提示重填。
 	APIKeyDecryptFailed bool
+
+	// CheckMode: probe (default), quota, quota_probe.
+	CheckMode string
+	// AccountID is the quota-mode data source. Nil for probe-only monitors.
+	AccountID *int64
 }
 
 // ChannelMonitorListParams 列表查询过滤参数。
@@ -81,6 +90,8 @@ type ChannelMonitorCreateParams struct {
 	ExtraHeaders     map[string]string
 	BodyOverrideMode string
 	BodyOverride     map[string]any
+	CheckMode        string
+	AccountID        *int64
 }
 
 // ChannelMonitorUpdateParams 更新参数（指针字段表示"未提供则不更新"）。
@@ -103,6 +114,9 @@ type ChannelMonitorUpdateParams struct {
 	ExtraHeaders     *map[string]string
 	BodyOverrideMode *string
 	BodyOverride     *map[string]any
+	CheckMode        *string
+	AccountID        *int64
+	ClearAccount     bool
 }
 
 // CheckResult 单个模型一次检测的结果。
@@ -174,6 +188,7 @@ type ChannelMonitorHistoryRow struct {
 	PingLatencyMs *int
 	Message       string
 	CheckedAt     time.Time
+	Quota         *domain.MonitorQuotaSnapshot
 }
 
 // ChannelMonitorHistoryEntry 历史记录查询返回行（含 ent 主键 ID）。
@@ -185,6 +200,7 @@ type ChannelMonitorHistoryEntry struct {
 	PingLatencyMs *int
 	Message       string
 	CheckedAt     time.Time
+	Quota         *domain.MonitorQuotaSnapshot
 }
 
 // ChannelMonitorLatest 最近一次检测的简明信息（用于 UserMonitorView 聚合）。

@@ -383,6 +383,10 @@ export interface PublicSettings {
   balance_low_notify_recharge_url?: string
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
+  channel_monitor_mode?: string
+  channel_monitor_hide_throughput?: boolean
+  channel_monitor_show_quota?: boolean
+  channel_monitor_hide_user_ranking?: boolean
   available_channels_enabled: boolean
   allow_user_view_error_requests: boolean
   model_plaza_enabled: boolean

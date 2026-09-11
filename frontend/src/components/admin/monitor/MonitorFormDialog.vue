@@ -12,8 +12,28 @@
       </div>
 
       <div>
+        <label class="input-label">{{ t('admin.channelMonitor.form.checkMode') }}</label>
+        <div class="grid gap-3 sm:grid-cols-3" data-testid="monitor-check-mode">
+          <button
+            v-for="opt in checkModeOptions"
+            :key="opt.value"
+            type="button"
+            :data-testid="`monitor-check-mode-${opt.value}`"
+            :aria-pressed="form.check_mode === opt.value"
+            :disabled="opt.disabled"
+            class="rounded-lg border-2 px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            :class="checkModeButtonClass(opt.value)"
+            @click="selectCheckMode(opt.value)"
+          >
+            <span class="block text-sm font-semibold">{{ opt.label }}</span>
+            <span class="mt-0.5 block text-xs opacity-80">{{ opt.hint }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
         <label class="input-label">{{ t('admin.channelMonitor.form.provider') }} <span class="text-red-500">*</span></label>
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
             v-for="opt in providerOptions"
             :key="opt.value"
@@ -29,7 +49,23 @@
         </div>
       </div>
 
-      <div v-if="form.provider === PROVIDER_OPENAI" class="rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+      <div v-if="usesQuotaMode">
+        <label class="input-label">
+          {{ t('admin.channelMonitor.form.linkedAccount') }} <span class="text-red-500">*</span>
+        </label>
+        <input
+          v-model.number="form.account_id"
+          data-testid="monitor-linked-account"
+          type="number"
+          min="1"
+          required
+          class="input"
+          :placeholder="t('admin.channelMonitor.form.linkedAccountPlaceholder')"
+        />
+        <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelMonitor.form.linkedAccountHint') }}</p>
+      </div>
+
+      <div v-if="form.provider === PROVIDER_OPENAI && usesProbePart" class="rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
         <label class="input-label">{{ t('admin.channelMonitor.form.apiMode') }}</label>
         <div class="grid gap-3 sm:grid-cols-2">
           <button
@@ -47,7 +83,7 @@
         </div>
       </div>
 
-      <div>
+      <div v-if="usesProbePart">
         <label class="input-label">{{ t('admin.channelMonitor.form.endpoint') }} <span class="text-red-500">*</span></label>
         <div class="flex gap-2">
           <input v-model="form.endpoint" type="text" required class="input flex-1" :placeholder="t('admin.channelMonitor.form.endpointPlaceholder')" />
@@ -57,7 +93,7 @@
         </div>
       </div>
 
-      <div>
+      <div v-if="usesProbePart">
         <label class="input-label">
           {{ t('admin.channelMonitor.form.apiKey') }}<span v-if="!editing" class="text-red-500"> *</span>
         </label>
@@ -76,7 +112,7 @@
         <p v-if="editing && editing.api_key_masked" class="mt-1 text-xs text-gray-400">{{ editing.api_key_masked }}</p>
       </div>
 
-      <div>
+      <div v-if="usesProbePart">
         <label class="input-label">{{ t('admin.channelMonitor.form.primaryModel') }} <span class="text-red-500">*</span></label>
         <input
           v-model="form.primary_model"
@@ -88,7 +124,7 @@
         />
       </div>
 
-      <div>
+      <div v-if="usesProbePart">
         <label class="input-label">{{ t('admin.channelMonitor.form.extraModels') }}</label>
         <ModelTagInput
           :models="form.extra_models"
@@ -187,6 +223,7 @@ import { userGroupsAPI } from '@/api/groups'
 import type {
   BodyOverrideMode,
   ChannelMonitor,
+  CheckMode,
   CreateParams,
   APIMode,
   Provider,
@@ -207,6 +244,15 @@ import {
   PROVIDER_OPENAI,
   PROVIDER_ANTHROPIC,
   PROVIDER_GEMINI,
+  PROVIDER_GROK,
+  PROVIDER_ANTIGRAVITY,
+  PROVIDER_KIMI,
+  PROVIDER_ZHIPU,
+  PROVIDER_DEEPSEEK,
+  PROVIDER_MINIMAX,
+  CHECK_MODE_PROBE,
+  CHECK_MODE_QUOTA,
+  CHECK_MODE_QUOTA_PROBE,
   API_MODE_CHAT_COMPLETIONS,
   API_MODE_RESPONSES,
   DEFAULT_INTERVAL_SECONDS,
@@ -250,6 +296,8 @@ interface MonitorForm {
   api_mode: APIMode
   endpoint: string
   api_key: string
+  check_mode: CheckMode
+  account_id: number | null
   primary_model: string
   extra_models: string[]
   group_name: string
@@ -268,6 +316,8 @@ const form = reactive<MonitorForm>({
   api_mode: API_MODE_CHAT_COMPLETIONS,
   endpoint: '',
   api_key: '',
+  check_mode: CHECK_MODE_PROBE,
+  account_id: null,
   primary_model: '',
   extra_models: [],
   group_name: '',
@@ -278,6 +328,9 @@ const form = reactive<MonitorForm>({
   body_override_mode: 'off',
   body_override: null,
 })
+
+const usesQuotaMode = computed(() => form.check_mode !== CHECK_MODE_PROBE)
+const usesProbePart = computed(() => form.check_mode !== CHECK_MODE_QUOTA)
 
 let suppressFormWatchers = false
 
@@ -385,7 +438,53 @@ const providerOptions = computed<ProviderOption[]>(() => [
   { value: PROVIDER_ANTHROPIC, label: t('monitorCommon.providers.anthropic') },
   { value: PROVIDER_OPENAI, label: t('monitorCommon.providers.openai') },
   { value: PROVIDER_GEMINI, label: t('monitorCommon.providers.gemini') },
+  { value: PROVIDER_GROK, label: t('monitorCommon.providers.grok') },
+  { value: PROVIDER_ANTIGRAVITY, label: t('monitorCommon.providers.antigravity') },
+  { value: PROVIDER_KIMI, label: t('monitorCommon.providers.kimi') },
+  { value: PROVIDER_ZHIPU, label: t('monitorCommon.providers.zhipu') },
+  { value: PROVIDER_DEEPSEEK, label: t('monitorCommon.providers.deepseek') },
+  { value: PROVIDER_MINIMAX, label: t('monitorCommon.providers.minimax') },
 ])
+
+interface CheckModeOption {
+  value: CheckMode
+  label: string
+  hint: string
+  disabled?: boolean
+}
+
+const checkModeOptions = computed<CheckModeOption[]>(() => [
+  {
+    value: CHECK_MODE_PROBE,
+    label: t('admin.channelMonitor.form.checkModeProbe'),
+    hint: t('admin.channelMonitor.form.checkModeProbeHint'),
+    disabled: form.provider === PROVIDER_ANTIGRAVITY,
+  },
+  {
+    value: CHECK_MODE_QUOTA,
+    label: t('admin.channelMonitor.form.checkModeQuota'),
+    hint: t('admin.channelMonitor.form.checkModeQuotaHint'),
+  },
+  {
+    value: CHECK_MODE_QUOTA_PROBE,
+    label: t('admin.channelMonitor.form.checkModeQuotaProbe'),
+    hint: t('admin.channelMonitor.form.checkModeQuotaProbeHint'),
+    disabled: form.provider === PROVIDER_ANTIGRAVITY,
+  },
+])
+
+function checkModeButtonClass(mode: CheckMode): string {
+  const active = form.check_mode === mode
+  if (active) {
+    return 'border-primary-500 bg-white text-primary-700 shadow-sm dark:border-primary-400 dark:bg-primary-500/15 dark:text-primary-300'
+  }
+  return 'border-gray-200 bg-white/70 text-gray-600 hover:border-primary-300 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400'
+}
+
+function selectCheckMode(mode: CheckMode) {
+  if (checkModeOptions.value.find((opt) => opt.value === mode)?.disabled) return
+  form.check_mode = mode
+}
 
 // Clear api_key whenever provider changes to avoid cross-provider key mismatch.
 // Editing mode loads api_key='' via loadFromMonitor and only sets it on user
@@ -397,6 +496,11 @@ watch(() => form.provider, () => {
   form.api_key = ''
   if (form.provider !== PROVIDER_OPENAI) {
     form.api_mode = API_MODE_CHAT_COMPLETIONS
+  }
+  if (form.provider === PROVIDER_ANTIGRAVITY) {
+    form.check_mode = CHECK_MODE_QUOTA
+  } else if (form.check_mode === CHECK_MODE_QUOTA && form.provider !== PROVIDER_ANTIGRAVITY) {
+    // keep quota if the operator already chose it
   }
   clearRequestSnapshot()
 }, { flush: 'sync' })
@@ -415,6 +519,8 @@ function resetForm() {
   form.api_mode = API_MODE_CHAT_COMPLETIONS
   form.endpoint = ''
   form.api_key = ''
+  form.check_mode = CHECK_MODE_PROBE
+  form.account_id = null
   form.primary_model = ''
   form.extra_models = []
   form.group_name = ''
@@ -434,6 +540,8 @@ function loadFromMonitor(m: ChannelMonitor) {
   form.api_mode = normalizeAPIMode(m.api_mode)
   form.endpoint = m.endpoint
   form.api_key = ''
+  form.check_mode = m.check_mode || CHECK_MODE_PROBE
+  form.account_id = m.account_id ?? null
   form.primary_model = m.primary_model
   form.extra_models = [...(m.extra_models || [])]
   form.group_name = m.group_name || ''
@@ -499,7 +607,9 @@ function buildPayload(): CreateParams {
     api_mode: form.provider === PROVIDER_OPENAI ? form.api_mode : API_MODE_CHAT_COMPLETIONS,
     endpoint: form.endpoint.trim(),
     api_key: form.api_key.trim(),
-    primary_model: form.primary_model.trim(),
+    check_mode: form.check_mode,
+    account_id: usesQuotaMode.value ? form.account_id : 0,
+    primary_model: usesProbePart.value ? form.primary_model.trim() : (form.primary_model.trim() || 'quota'),
     extra_models: form.extra_models,
     group_name: form.group_name.trim(),
     enabled: form.enabled,
@@ -517,8 +627,12 @@ async function handleSubmit() {
     appStore.showError(t('admin.channelMonitor.nameRequired'))
     return
   }
-  if (!form.primary_model.trim()) {
+  if (usesProbePart.value && !form.primary_model.trim()) {
     appStore.showError(t('admin.channelMonitor.primaryModelRequired'))
+    return
+  }
+  if (usesQuotaMode.value && (!form.account_id || form.account_id <= 0)) {
+    appStore.showError(t('admin.channelMonitor.form.linkedAccountRequired'))
     return
   }
 

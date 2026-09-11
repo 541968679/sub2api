@@ -14,6 +14,7 @@ Not merged to real `main`, not pushed, not deployed.
 | 1 CN platforms | `76d0376b7` | Kimi / Zhipu / MiniMax / DeepSeek first-class; sessionToken kept |
 | 2 Grok 4.6 | `bbabdb2f1` | catalog, xhigh, Chat→Responses media, same-account capacity 429; no official Grok price cards |
 | 3 Model plaza | `03b0871f9` | `/model-plaza` + zh/en; paid prices = fork display chain; anonymous sees only non-exclusive groups |
+| 4 Channel-monitor v2 | `1bbf7827d` | v2 API + admin UI; quota mode SQL 236; image-channel-monitor kept; default mode v1 |
 
 ## Residual (do not re-litigate)
 
@@ -23,9 +24,11 @@ Not merged to real `main`, not pushed, not deployed.
 - Plaza freeze time-of-day / long-context stored-tier columns (billing lock)
 - Billing lock: Fast stored billing, group force/free Fast, channel time prices, GPT Image 2.5 catalog/LiteLLM rates
 - Passkey never; Go 1.27 / GHCR path swap never
+- Channel-monitor live quota-fetch dispatch (CN usage-window fetcher) not wired
+- Channel-monitor v2 popular-model seed not adopted
 
 ## Next pack
 
-**4 — Channel-monitor v2.** SQL remap must not use filename 226. Keep fork image-channel-monitor.
+**5 — OAuth outbound plugins + claude-fable-5.1 + simple-mode grouping.** Plugins default off, unsigned rejected, API-key path not hijacked. Keep claude-fable-5; add 5.1.
 
-Then 5 plugins+fable-5.1, 6 group allowlist default OFF, 7 Agent Identity, then waterline + this file’s final done/residual.
+Then 6 group allowlist default OFF, 7 Agent Identity, then waterline + this file’s final done/residual.

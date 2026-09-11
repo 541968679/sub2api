@@ -55,9 +55,22 @@ const (
 	providerGeminiPathTemplate = "/v1beta/models/%s:generateContent"
 
 	// MonitorProviderOpenAI / Anthropic / Gemini provider 字符串常量（也是 ent enum 的实际值）。
-	MonitorProviderOpenAI    = "openai"
-	MonitorProviderAnthropic = "anthropic"
-	MonitorProviderGemini    = "gemini"
+	MonitorProviderOpenAI       = "openai"
+	MonitorProviderAnthropic    = "anthropic"
+	MonitorProviderGemini       = "gemini"
+	MonitorProviderGrok         = "grok"
+	MonitorProviderAntigravity  = "antigravity"
+	MonitorProviderKimi         = "kimi"
+	MonitorProviderZhipu        = "zhipu"
+	MonitorProviderDeepseek     = "deepseek"
+	MonitorProviderMiniMax      = "minimax"
+
+	MonitorCheckModeProbe      = "probe"
+	MonitorCheckModeQuota      = "quota"
+	MonitorCheckModeQuotaProbe = "quota_probe"
+
+	ChannelMonitorModeV1 = "v1"
+	ChannelMonitorModeV2 = "v2"
 
 	// MonitorStatusOperational 等监控状态字符串常量（与 ent enum 一致）。
 	MonitorStatusOperational = "operational"
@@ -112,7 +125,13 @@ var (
 		"CHANNEL_MONITOR_NOT_FOUND", "channel monitor not found",
 	)
 	ErrChannelMonitorInvalidProvider = infraerrors.BadRequest(
-		"CHANNEL_MONITOR_INVALID_PROVIDER", "provider must be one of openai/anthropic/gemini",
+		"CHANNEL_MONITOR_INVALID_PROVIDER", "provider must be one of openai/anthropic/gemini/grok/antigravity/kimi/zhipu/deepseek/minimax",
+	)
+	ErrChannelMonitorInvalidCheckMode = infraerrors.BadRequest(
+		"CHANNEL_MONITOR_INVALID_CHECK_MODE", "check_mode must be probe, quota, or quota_probe",
+	)
+	ErrChannelMonitorAccountRequired = infraerrors.BadRequest(
+		"CHANNEL_MONITOR_ACCOUNT_REQUIRED", "quota monitor requires a linked account_id",
 	)
 	ErrChannelMonitorInvalidAPIMode = infraerrors.BadRequest(
 		"CHANNEL_MONITOR_INVALID_API_MODE", "api_mode must be chat_completions or responses; responses is only supported for openai",
@@ -146,5 +165,11 @@ var (
 	)
 	ErrChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",
+	)
+	ErrChannelMonitorDisabled = infraerrors.NotFound(
+		"CHANNEL_MONITOR_DISABLED", "channel monitor is disabled",
+	)
+	ErrChannelMonitorModeMismatch = infraerrors.Forbidden(
+		"CHANNEL_MONITOR_MODE_MISMATCH", "channel monitor v2 is not the active mode",
 	)
 )

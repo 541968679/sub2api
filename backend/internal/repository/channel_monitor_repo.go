@@ -62,7 +62,7 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 	m.ID = created.ID
 	m.CreatedAt = created.CreatedAt
 	m.UpdatedAt = created.UpdatedAt
-	return nil
+	return r.persistQuotaModeColumns(ctx, m)
 }
 
 func (r *channelMonitorRepository) GetByID(ctx context.Context, id int64) (*service.ChannelMonitor, error) {
@@ -72,7 +72,9 @@ func (r *channelMonitorRepository) GetByID(ctx context.Context, id int64) (*serv
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
 	}
-	return entToServiceMonitor(row), nil
+	out := entToServiceMonitor(row)
+	r.loadQuotaModeColumns(ctx, out)
+	return out, nil
 }
 
 func (r *channelMonitorRepository) Update(ctx context.Context, m *service.ChannelMonitor) error {
@@ -106,7 +108,7 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 		return translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
 	}
 	m.UpdatedAt = updated.UpdatedAt
-	return nil
+	return r.persistQuotaModeColumns(ctx, m)
 }
 
 func (r *channelMonitorRepository) Delete(ctx context.Context, id int64) error {
@@ -725,6 +727,7 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		ExtraHeaders:     headers,
 		BodyOverrideMode: row.BodyOverrideMode,
 		BodyOverride:     row.BodyOverride,
+		CheckMode:        defaultCheckModeRepo(""),
 	}
 	if row.TemplateID != nil {
 		id := *row.TemplateID
@@ -743,6 +746,51 @@ func emptyHeadersIfNilRepo(h map[string]string) map[string]string {
 }
 
 // defaultBodyModeRepo 空串归一为 off（同上不循环）。
+func (r *channelMonitorRepository) persistQuotaModeColumns(ctx context.Context, m *service.ChannelMonitor) error {
+	if r == nil || r.db == nil || m == nil || m.ID == 0 {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE channel_monitors SET check_mode = $1, account_id = $2 WHERE id = $3`,
+		defaultCheckModeRepo(m.CheckMode), m.AccountID, m.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("persist channel monitor quota mode: %w", err)
+	}
+	return nil
+}
+
+func (r *channelMonitorRepository) loadQuotaModeColumns(ctx context.Context, m *service.ChannelMonitor) {
+	if r == nil || r.db == nil || m == nil || m.ID == 0 {
+		return
+	}
+	var checkMode sql.NullString
+	var accountID sql.NullInt64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT check_mode, account_id FROM channel_monitors WHERE id = $1`, m.ID,
+	).Scan(&checkMode, &accountID)
+	if err != nil {
+		return
+	}
+	m.CheckMode = defaultCheckModeRepo(checkMode.String)
+	if accountID.Valid {
+		id := accountID.Int64
+		m.AccountID = &id
+	} else {
+		m.AccountID = nil
+	}
+}
+
+func defaultCheckModeRepo(mode string) string {
+	mode = strings.TrimSpace(mode)
+	switch mode {
+	case service.MonitorCheckModeQuota, service.MonitorCheckModeQuotaProbe:
+		return mode
+	default:
+		return service.MonitorCheckModeProbe
+	}
+}
+
 func defaultBodyModeRepo(mode string) string {
 	if mode == "" {
 		return "off"

@@ -43,6 +43,7 @@ export {
 } from './redeemPage'
 export { loginPageAPI, type LoginPageContent } from './loginPage'
 export { channelMonitorUserAPI } from './channelMonitor'
+export * as channelMonitorV2API from './channelMonitorV2'
 export * as batchImageAPI from './batchImage'
 
 // Admin APIs

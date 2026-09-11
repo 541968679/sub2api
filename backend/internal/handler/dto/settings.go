@@ -247,8 +247,12 @@ type SystemSettings struct {
 	AccountQuotaNotifyEmails    []NotifyEmailEntry `json:"account_quota_notify_emails"`
 
 	// Channel Monitor feature switch
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
+	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
+	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 
 	// Available Channels feature switch (user-facing aggregate view)
 	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
@@ -343,8 +347,12 @@ type PublicSettings struct {
 	BalanceLowNotifyThreshold   float64           `json:"balance_low_notify_threshold"`
 	BalanceLowNotifyRechargeURL string            `json:"balance_low_notify_recharge_url"`
 
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
+	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
+	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 
 	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`

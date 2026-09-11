@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -147,11 +148,45 @@ func RegisterUserRoutes(
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
+		if h.ChannelMonitorV2 != nil {
+			monitorV2 := authenticated.Group("/channel-monitor-v2")
+			monitorV2.Use(channelMonitorModeV2Guard(settingService))
+			{
+				monitorV2.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
+				monitorV2.GET("/snapshot", h.ChannelMonitorV2.Snapshot)
+				monitorV2.GET("/models", h.ChannelMonitorV2.Models)
+				monitorV2.GET("/matrix", h.ChannelMonitorV2.Matrix)
+				monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
+				monitorV2.GET("/users", h.ChannelMonitorV2.Users)
+			}
+		}
 		// 图片渠道监控（用户只读，仅 public_visible 渠道）
 		imageMonitors := authenticated.Group("/image-channel-monitors")
 		{
 			imageMonitors.GET("", h.ImageChannelMonitorUser.List)
 			imageMonitors.GET("/:id/status", h.ImageChannelMonitorUser.GetStatus)
 		}
+	}
+}
+
+func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if settingService == nil {
+			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
+			c.Abort()
+			return
+		}
+		rt := settingService.GetChannelMonitorRuntime(c.Request.Context())
+		if !rt.Enabled {
+			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
+			c.Abort()
+			return
+		}
+		if !rt.PassiveAggregationAllowed() {
+			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }

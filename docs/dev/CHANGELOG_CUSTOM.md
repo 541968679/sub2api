@@ -1,3 +1,17 @@
+## 2026-09-11 - sync: pack 4 channel-monitor v2 quota mode and passive views
+
+### What
+- Isolation `sync/main-1` only: channel-monitor v2 API + admin V2 settings panel + user `/monitor` mode switch (V1 probes vs V2 passive aggregation). Quota check_mode (`probe` / `quota` / `quota_probe`) + `account_id` persist via remapped SQL **236** (never 226). V2 tables/settings remapped to **237–239, 241–245**. Default mode stays **v1**; hide-throughput default true; show-quota default false. Fork image-channel-monitor stays on both V1 and V2 user pages.
+- Named gates: `TestChannelMonitorQuotaModeRoundTrip`, `TestChannelMonitorV2QueryListSupportsRepeatedAndCommaValues`, `TestChannelMonitorV2ScopeFilterUsesAvailableGroupsForOrdinaryUser`.
+- Residual: live quota-fetch dispatch (`channel_monitor_quota_fetcher.go` / CN usage-window probe) is not wired; quota columns round-trip without calling missing CN quota services. Popular-model seed (would have been 240) not adopted.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 4 of the 0.2.4 A-tier overlay: operators can configure v2 passive views and quota-mode monitors without merging upstream/main, replacing ChannelMonitorView wholesale, or dropping image-channel-monitor.
+
+### Affected files
+`channel_monitor_v2_*` handler/service/repo/aggregator, remapped SQL 236–245, `ChannelMonitorView.vue` overlay, `ChannelStatusView.vue` wrapper + V1/V2, i18n zh/en `channelMonitorV2`, this changelog.
+
 ## 2026-09-11 - sync: pack 3 model plaza with fork display prices
 
 ### What

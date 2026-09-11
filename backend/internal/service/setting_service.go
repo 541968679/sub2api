@@ -678,6 +678,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAccountQuotaNotifyEnabled,
 		SettingKeyChannelMonitorEnabled,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
+		SettingKeyChannelMonitorMode,
+		SettingKeyChannelMonitorHideThroughput,
+		SettingKeyChannelMonitorShowQuota,
+		SettingKeyChannelMonitorHideUserRanking,
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyAllowUserViewErrorRequests,
 		SettingKeyModelPlazaEnabled,
@@ -776,6 +780,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		ChannelMonitorEnabled:                !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled]),
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
+		ChannelMonitorMode:                   normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode]),
+		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
+		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
+		ChannelMonitorHideUserRanking:        settings[SettingKeyChannelMonitorHideUserRanking] == "true",
 
 		AvailableChannelsEnabled:   settings[SettingKeyAvailableChannelsEnabled] == "true",
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
@@ -841,22 +849,60 @@ func clampChannelMonitorInterval(v int) int {
 // consumed by the runner and user-facing handlers.
 type ChannelMonitorRuntime struct {
 	Enabled                bool
+	Mode                   string
 	DefaultIntervalSeconds int
+	HideThroughput         bool
+	ShowQuota              bool
+	HideUserRanking        bool
+}
+
+func (r ChannelMonitorRuntime) ActiveProbesAllowed() bool {
+	return r.Enabled && r.Mode == ChannelMonitorModeV1
+}
+
+func (r ChannelMonitorRuntime) PassiveAggregationAllowed() bool {
+	return r.Enabled && r.Mode == ChannelMonitorModeV2
+}
+
+func normalizeChannelMonitorMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case ChannelMonitorModeV2:
+		return ChannelMonitorModeV2
+	default:
+		return ChannelMonitorModeV1
+	}
 }
 
 // GetChannelMonitorRuntime reads the channel monitor feature flags directly from
-// the settings store. Fail-open: on error returns Enabled=true with the default interval.
+// the settings store. Fail-open: on error returns Enabled=true, Mode=v1.
 func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMonitorRuntime {
+	failOpen := ChannelMonitorRuntime{
+		Enabled:                true,
+		Mode:                   ChannelMonitorModeV1,
+		DefaultIntervalSeconds: channelMonitorIntervalFallback,
+		HideThroughput:         true,
+	}
+	if s == nil || s.settingRepo == nil {
+		return failOpen
+	}
 	vals, err := s.settingRepo.GetMultiple(ctx, []string{
 		SettingKeyChannelMonitorEnabled,
+		SettingKeyChannelMonitorMode,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
+		SettingKeyChannelMonitorHideThroughput,
+		SettingKeyChannelMonitorShowQuota,
+		SettingKeyChannelMonitorHideUserRanking,
 	})
 	if err != nil {
-		return ChannelMonitorRuntime{Enabled: true, DefaultIntervalSeconds: channelMonitorIntervalFallback}
+		return failOpen
 	}
 	return ChannelMonitorRuntime{
 		Enabled:                !isFalseSettingValue(vals[SettingKeyChannelMonitorEnabled]),
+		Mode:                   normalizeChannelMonitorMode(vals[SettingKeyChannelMonitorMode]),
 		DefaultIntervalSeconds: parseChannelMonitorInterval(vals[SettingKeyChannelMonitorDefaultIntervalSeconds]),
+		HideThroughput:         !isFalseSettingValue(vals[SettingKeyChannelMonitorHideThroughput]),
+		ShowQuota:              vals[SettingKeyChannelMonitorShowQuota] == "true",
+		HideUserRanking:        vals[SettingKeyChannelMonitorHideUserRanking] == "true",
 	}
 }
 
@@ -991,6 +1037,10 @@ type PublicSettingsInjectionPayload struct {
 	// that hid the "可用渠道" menu on page refresh.
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
+	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
+	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
 	ModelPlazaEnabled                    bool   `json:"model_plaza_enabled"`
@@ -1058,6 +1108,10 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
+		ChannelMonitorMode:                   settings.ChannelMonitorMode,
+		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
+		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
@@ -1560,6 +1614,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if v := clampChannelMonitorInterval(settings.ChannelMonitorDefaultIntervalSeconds); v > 0 {
 		updates[SettingKeyChannelMonitorDefaultIntervalSeconds] = strconv.Itoa(v)
 	}
+	updates[SettingKeyChannelMonitorMode] = normalizeChannelMonitorMode(settings.ChannelMonitorMode)
+	updates[SettingKeyChannelMonitorHideThroughput] = strconv.FormatBool(settings.ChannelMonitorHideThroughput)
+	updates[SettingKeyChannelMonitorShowQuota] = strconv.FormatBool(settings.ChannelMonitorShowQuota)
+	updates[SettingKeyChannelMonitorHideUserRanking] = strconv.FormatBool(settings.ChannelMonitorHideUserRanking)
 
 	// Available channels feature switch
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
@@ -2526,6 +2584,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// Channel monitor defaults (enabled, 60s)
 		SettingKeyChannelMonitorEnabled:                "true",
 		SettingKeyChannelMonitorDefaultIntervalSeconds: "60",
+		SettingKeyChannelMonitorMode:                   ChannelMonitorModeV1,
+		SettingKeyChannelMonitorHideThroughput:         "true",
+		SettingKeyChannelMonitorShowQuota:              "false",
+		SettingKeyChannelMonitorHideUserRanking:        "false",
 
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled:   "false",
@@ -2885,11 +2947,15 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		}
 	}
 
-	// Channel monitor feature (default: enabled, 60s)
+	// Channel monitor feature (default: enabled, 60s, v1)
 	result.ChannelMonitorEnabled = !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled])
 	result.ChannelMonitorDefaultIntervalSeconds = parseChannelMonitorInterval(
 		settings[SettingKeyChannelMonitorDefaultIntervalSeconds],
 	)
+	result.ChannelMonitorMode = normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode])
+	result.ChannelMonitorHideThroughput = !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput])
+	result.ChannelMonitorShowQuota = settings[SettingKeyChannelMonitorShowQuota] == "true"
+	result.ChannelMonitorHideUserRanking = settings[SettingKeyChannelMonitorHideUserRanking] == "true"
 
 	// Available channels feature (default: disabled; strict true)
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"

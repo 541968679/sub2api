@@ -393,6 +393,10 @@ const (
 	// SettingKeyChannelMonitorDefaultIntervalSeconds controls the default interval (seconds)
 	// pre-filled when creating a new channel monitor from the admin UI. Range: [15, 3600].
 	SettingKeyChannelMonitorDefaultIntervalSeconds = "channel_monitor_default_interval_seconds"
+	SettingKeyChannelMonitorMode                   = "channel_monitor_mode"
+	SettingKeyChannelMonitorHideThroughput         = "channel_monitor_hide_throughput"
+	SettingKeyChannelMonitorShowQuota              = "channel_monitor_show_quota"
+	SettingKeyChannelMonitorHideUserRanking        = "channel_monitor_hide_user_ranking"
 
 	// SettingKeyAvailableChannelsEnabled is a DB-backed soft switch for the "Available Channels"
 	// user-facing aggregate view. When false: user endpoint returns an empty list and the

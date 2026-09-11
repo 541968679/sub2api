@@ -71,6 +71,7 @@
 
 import { useAppStore } from '@/stores/app'
 import type { PublicSettings } from '@/types'
+import { DEFAULT_INTERVAL_SECONDS } from '@/constants/channelMonitor'
 
 export type FeatureFlagMode = 'opt-in' | 'opt-out'
 
@@ -151,4 +152,53 @@ export function isFeatureFlagEnabled(flag: FeatureFlagDefinition): boolean {
  */
 export function makeSidebarFlag(flag: FeatureFlagDefinition): () => boolean {
   return () => isFeatureFlagEnabled(flag)
+}
+
+/** True when channel monitor feature flag is enabled. */
+export function isChannelMonitorRouteEnabled(): boolean {
+  return isFeatureFlagEnabled(FeatureFlags.channelMonitor)
+}
+
+export type ChannelMonitorMode = 'v1' | 'v2'
+
+/** Exclusive channel-monitor implementation. Invalid/missing → v1 (opt-in to v2). */
+export function getChannelMonitorMode(): ChannelMonitorMode {
+  const appStore = useAppStore()
+  const mode = appStore.cachedPublicSettings?.channel_monitor_mode
+  return mode === 'v2' ? 'v2' : 'v1'
+}
+
+export function isChannelMonitorV1Mode(): boolean {
+  return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v1'
+}
+
+export function isChannelMonitorV2Mode(): boolean {
+  return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v2'
+}
+
+export function getChannelMonitorRefreshIntervalSeconds(): number {
+  const appStore = useAppStore()
+  const configured = appStore.cachedPublicSettings?.channel_monitor_default_interval_seconds
+  return configured && configured > 0 ? configured : DEFAULT_INTERVAL_SECONDS
+}
+
+/** Hide RPM/TPM on user-facing monitor (scale privacy). Admin always shows full metrics. */
+export function isChannelMonitorThroughputHidden(): boolean {
+  const appStore = useAppStore()
+  return Boolean(appStore.cachedPublicSettings?.channel_monitor_hide_throughput)
+}
+
+/**
+ * Show quota/balance snapshots on the user-facing monitor page
+ * (channel_monitor_show_quota, default off).
+ */
+export function isChannelMonitorQuotaVisible(): boolean {
+  const appStore = useAppStore()
+  return appStore.cachedPublicSettings?.channel_monitor_show_quota === true
+}
+
+/** Hide the user ranking tab on user-facing monitor v2. Admin always keeps it. */
+export function isChannelMonitorUserRankingHidden(): boolean {
+  const appStore = useAppStore()
+  return Boolean(appStore.cachedPublicSettings?.channel_monitor_hide_user_ranking)
 }
