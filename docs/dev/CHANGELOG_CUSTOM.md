@@ -1,3 +1,14 @@
+## 2026-09-11 - sync: 0.2.4 A-tier overlay waterline on isolation sync/main-1
+
+### What
+- Isolation waterline: this checkout is **0.1.287 + upstream 0.2.4 A-tier overlay**, recorded in `docs/dev/UPSTREAM_BASE.json`. It is **not** git-equivalent to upstream 0.2.4. VERSION stays **0.1.287**. Not merged to real `main`, not pushed, not deployed.
+
+### Why
+Close the isolation 0.2.4 A-tier overlay after packs 0–7.
+
+### Affected files
+`docs/dev/UPSTREAM_BASE.json`, `docs/dev/UPSTREAM_024_GOAL_STATUS.md`, this changelog.
+
 ## 2026-09-11 - sync: pack 7 Agent Identity stacked on session import
 
 ### What

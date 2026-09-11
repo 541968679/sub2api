@@ -1,12 +1,22 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-09",
+  "updated_at": "2026-09-11",
   "fork_version": "0.1.287",
   "fork_tip_at_record": "00bc18c5a",
   "upstream_repo": "https://github.com/Wei-Shaw/sub2api",
   "upstream_remote": "upstream",
   "sync_mode": "selective_graded",
   "equivalent_to_full_upstream_tag": false,
+  "isolation_overlay": {
+    "worktree": "E:/cursor project/api2sub-main-1",
+    "branch": "sync/main-1",
+    "fork_version": "0.1.287",
+    "upstream_freeze": "0.2.4",
+    "upstream_freeze_commit": "98d86915b",
+    "overlay_tier": "A",
+    "git_equivalent_to_upstream_024": false,
+    "notes": "Isolation checkout is 0.1.287 plus an upstream 0.2.4 A-tier overlay. It is NOT git-equivalent to upstream 0.2.4. Billing overlays were skipped. Not merged to real main, not pushed, not deployed."
+  },
   "upstream_large_baseline": {
     "tag": "v0.1.152",
     "commit": "b73d8c3ef",

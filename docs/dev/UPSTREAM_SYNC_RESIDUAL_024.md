@@ -3,7 +3,8 @@
 Date: 2026-09-10  
 Rehearsal HEAD parent: `e8fd01ffb`  
 Freeze: `upstream/main` `98d86915b` / 0.2.4  
-Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
+Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.  
+Waterline: isolation `sync/main-1` = **0.1.287 + upstream 0.2.4 A-tier overlay**, not git-equivalent to 0.2.4.
 
 ## Landed this overlay (named TestXxx)
 
