@@ -285,7 +285,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			)
 		}
 	}
-	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, upstreamStream, promptCacheKey, false)
+	upstreamCtx := ctx
+	cancelUpstream := func() {}
+	if clientStream {
+		upstreamCtx, cancelUpstream = context.WithCancel(ctx)
+	}
+	defer cancelUpstream()
+	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, upstreamStream, promptCacheKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
@@ -304,7 +310,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		cancelUpstream()
+		_ = resp.Body.Close()
+	}()
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
@@ -957,16 +966,21 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 
 	resultWithUsage := func() *OpenAIForwardResult {
+		headers := http.Header{}
+		if resp != nil {
+			headers = resp.Header.Clone()
+		}
 		return &OpenAIForwardResult{
-			RequestID:     requestID,
-			ResponseID:    responseID,
-			Usage:         usage,
-			Model:         originalModel,
-			BillingModel:  billingModel,
-			UpstreamModel: upstreamModel,
-			Stream:        true,
-			Duration:      time.Since(startTime),
-			FirstTokenMs:  firstTokenMs,
+			RequestID:       requestID,
+			ResponseID:      responseID,
+			Usage:           usage,
+			Model:           originalModel,
+			BillingModel:    billingModel,
+			UpstreamModel:   upstreamModel,
+			Stream:          true,
+			ResponseHeaders: headers,
+			Duration:        time.Since(startTime),
+			FirstTokenMs:    firstTokenMs,
 		}
 	}
 
@@ -1084,7 +1098,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		if len(chunks) > 0 {
 			c.Writer.Flush()
 		}
-		return false
+		return isTerminalEvent
 	}
 
 	finalizeStream := func() (*OpenAIForwardResult, error) {
@@ -1126,7 +1140,10 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				continue
 			}
 			if processDataLine(line[6:]) {
-				return resultWithUsage(), terminalErr
+				if terminalErr != nil {
+					return resultWithUsage(), terminalErr
+				}
+				return finalizeStream()
 			}
 		}
 		handleScanErr(scanner.Err())
@@ -1185,7 +1202,10 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				continue
 			}
 			if processDataLine(line[6:]) {
-				return resultWithUsage(), terminalErr
+				if terminalErr != nil {
+					return resultWithUsage(), terminalErr
+				}
+				return finalizeStream()
 			}
 
 		case <-firstFrameCh:

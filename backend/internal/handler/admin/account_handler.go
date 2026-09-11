@@ -762,7 +762,8 @@ func applyAccountListLiteProjection(items []AccountWithConcurrency) {
 		if items[i].Account == nil {
 			continue
 		}
-		items[i].Account.ScheduleUsers = nil
+		items[i].Account.AccountGroups = nil
+		items[i].Account.Groups = nil
 		items[i].Account.Credentials = liteAccountCredentials(items[i].Account.Credentials)
 	}
 }

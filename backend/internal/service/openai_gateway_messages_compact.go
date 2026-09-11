@@ -1559,10 +1559,11 @@ func buildAnthropicCompactEmergencyResponse(model, summary string, usage OpenAIU
 		model = "compact-fallback"
 	}
 	return &apicompat.ResponsesResponse{
-		ID:     fmt.Sprintf("compact_fallback_%d", time.Now().UnixNano()),
-		Object: "response",
-		Model:  model,
-		Status: "completed",
+		ID:        fmt.Sprintf("compact_fallback_%d", time.Now().UnixNano()),
+		Object:    "response",
+		CreatedAt: time.Now().Unix(),
+		Model:     model,
+		Status:    "completed",
 		Output: []apicompat.ResponsesOutput{{
 			Type: "message", Role: "assistant", Status: "completed",
 			Content: []apicompat.ResponsesContentPart{{Type: "output_text", Text: summary}},

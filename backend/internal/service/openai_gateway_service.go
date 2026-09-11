@@ -3136,6 +3136,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		CacheOpenAIParsedRequestBody(c, body, reqBody)
 	}
 
+	body = stageAndApplyCodexFingerprintBody(c, account, body)
+
 	// Get access token
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
@@ -3580,6 +3582,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			ReasoningEffort:  reasoningEffort,
 			Stream:           reqStream,
 			OpenAIWSMode:     false,
+			ResponseHeaders:  resp.Header.Clone(),
 			Duration:         duration,
 			FirstTokenMs:     firstTokenMs,
 			TrueFirstTokenMs: trueFirstTokenMs,
@@ -3671,6 +3674,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		return nil, policyErr
 	}
 	body = updatedBody
+	body = stageAndApplyCodexFingerprintBody(c, account, body)
 
 	logger.LegacyPrintf("service.openai_gateway",
 		"[OpenAI 自动透传] 命中自动透传分支: account=%d name=%s type=%s model=%s stream=%v",
@@ -3826,6 +3830,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		ReasoningEffort:  reasoningEffort,
 		Stream:           reqStream,
 		OpenAIWSMode:     false,
+		ResponseHeaders:  resp.Header.Clone(),
 		Duration:         duration,
 		FirstTokenMs:     firstTokenMs,
 		TrueFirstTokenMs: trueFirstTokenMs,
@@ -3964,6 +3969,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	}
 	// OAuth 安全透传：对非 Codex UA 统一兜底，降低被上游风控拦截概率。
 	if account.Type == AccountTypeOAuth {
+		applyStagedCodexFingerprintHeaders(c, account, req.Header)
 		enforceCodexIdentityHeaders(req.Header)
 	}
 
@@ -5217,6 +5223,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		req.Header.Set("user-agent", codexCLIUserAgent)
 	}
 	if account.Type == AccountTypeOAuth {
+		applyStagedCodexFingerprintHeaders(c, account, req.Header)
 		enforceCodexIdentityHeaders(req.Header)
 	}
 
@@ -7651,6 +7658,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ReasoningEffort:     result.ReasoningEffort,
 		InboundEndpoint:     optionalTrimmedStringPtr(input.InboundEndpoint),
 		UpstreamEndpoint:    optionalTrimmedStringPtr(input.UpstreamEndpoint),
+		UpstreamRequestID:   usageUpstreamRequestIDPtr(account, result.ResponseHeaders, result.OpenAIWSMode),
 		InputTokens:         actualInputTokens,
 		OutputTokens:        result.Usage.OutputTokens,
 		CacheCreationTokens: cacheCreationInputTokens,

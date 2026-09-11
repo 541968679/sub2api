@@ -118,11 +118,18 @@
           :group-id="groupId"
           :error-type="errorDetailsType"
           :needs-ops-attention="errorDetailsNeedsAttention"
+          :resume-state="resumeListState"
           @update:show="showErrorDetails = $event"
           @openErrorDetail="openError"
         />
 
-        <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="errorDetailsType" />
+        <OpsErrorDetailModal
+          v-model:show="showErrorModal"
+          :error-id="selectedErrorId"
+          :error-type="errorDetailsType"
+          :back-to-list="detailReturnTarget !== null"
+          @back="handleBackToList"
+        />
 
         <OpsRequestDetailsModal
           v-model="showRequestDetails"
@@ -130,6 +137,7 @@
           :preset="requestDetailsPreset"
           :platform="platform"
           :group-id="groupId"
+          :resume-state="resumeListState"
           @openErrorDetail="openError"
         />
       </template>
@@ -169,6 +177,11 @@ import OpsOpenAITokenStatsCard from './components/OpsOpenAITokenStatsCard.vue'
 import OpsSystemLogTable from './components/OpsSystemLogTable.vue'
 import OpsRequestDetailsModal, { type OpsRequestDetailsPreset } from './components/OpsRequestDetailsModal.vue'
 import OpsSettingsDialog from './components/OpsSettingsDialog.vue'
+import {
+  captureOpsErrorDetailReturnTarget,
+  nextOpsListVisibility,
+  type OpsDetailReturnTarget
+} from './utils/opsErrorDetailReturn'
 import OpsAlertRulesCard from './components/OpsAlertRulesCard.vue'
 
 const route = useRoute()
@@ -384,6 +397,9 @@ const requestDetailsPreset = ref<OpsRequestDetailsPreset>({
   sort: 'created_at_desc'
 })
 
+const detailReturnTarget = ref<OpsDetailReturnTarget>(null)
+const resumeListState = ref(false)
+
 const showSettingsDialog = ref(false)
 const showAlertRulesCard = ref(false)
 
@@ -513,10 +529,24 @@ function onQueryModeChange(v: string | number | boolean | null) {
 
 function openError(id: number) {
   selectedErrorId.value = id
+  detailReturnTarget.value = captureOpsErrorDetailReturnTarget(showErrorDetails.value, showRequestDetails.value)
   // Ensure only one modal visible at a time.
   showErrorDetails.value = false
   showRequestDetails.value = false
   showErrorModal.value = true
+}
+
+function handleBackToList() {
+  const target = detailReturnTarget.value
+  resumeListState.value = true
+  const next = nextOpsListVisibility(target)
+  showErrorModal.value = next.errorDetail
+  showErrorDetails.value = next.errorList
+  showRequestDetails.value = next.requestList
+  detailReturnTarget.value = null
+  window.setTimeout(() => {
+    resumeListState.value = false
+  }, 0)
 }
 
 function buildApiParams() {

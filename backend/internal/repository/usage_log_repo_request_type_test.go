@@ -222,8 +222,31 @@ func TestBuildUsageLogBestEffortInsertQuery_IncludesRequestedModelColumn(t *test
 	require.Contains(t, query, "INSERT INTO usage_logs (")
 	require.Contains(t, query, "\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
 	require.Contains(t, query, "\n\t\t\trequest_id,\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
+	require.Contains(t, query, "upstream_request_id")
 	require.Len(t, args, len(prepared.args))
 	require.Equal(t, prepared.args[5], args[5])
+}
+
+func TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChangingActualCost(t *testing.T) {
+	id := "up-req-1"
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:            1,
+		APIKeyID:          2,
+		AccountID:         3,
+		RequestID:         "req-upstream-id",
+		Model:             "gpt-5",
+		ActualCost:        1.25,
+		UpstreamRequestID: &id,
+		CreatedAt:         time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+	})
+	query, args := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
+	require.Contains(t, query, "upstream_request_id")
+	require.Equal(t, 1.25, prepared.args[22], "actual_cost argument position must not shift")
+	require.Contains(t, args, 1.25)
+	gotID, ok := prepared.args[len(prepared.args)-2].(sql.NullString)
+	require.True(t, ok)
+	require.True(t, gotID.Valid)
+	require.Equal(t, id, gotID.String)
 }
 
 func TestExecUsageLogInsertNoResult_PersistsRequestedModel(t *testing.T) {

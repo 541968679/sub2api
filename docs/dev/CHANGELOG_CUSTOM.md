@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 0 leftovers (created_at, thinking bridges, cancel, fingerprint rewrite, ops return-to-list, request id, compact list, Astra)
+
+### What
+- Isolation `sync/main-1` only: synthesized Responses objects now emit `created_at`; Anthropic→Chat tool turns replay thinking as `reasoning_content`; Anthropic→Responses closes the message item before thinking and advances `content_index`; Chat Completions streaming cancels the upstream context before closing the body; Codex fingerprint outbound header/body rewrite stays default-off with seed SQL remapped to 224; Ops error detail can return to the source list and keep filters (0.1.286 hop-mix / attention filter kept); usage logs store an optional upstream request id (SQL 227/228, not 232/233) without changing `actual_cost`; lite account list omits group graphs but keeps quality/smart-schedule columns; GPT-6 Astra IDs added to the OpenAI default model table (catalog admin UI stays fork).
+- Named gates: `TestChatCompletionsResponseToResponses_CarriesCreatedAt`, `TestAnthropicToResponsesResponse_StampsCreatedAt`, `TestAnthropicEventToResponsesStream_CreatedAtStableAcrossEvents`, `TestWriteOpenAICompactSSEFailureMessage_CarriesCreatedAt`, `TestAnthropicToChatCompletionsRequest_ThinkingBecomesReasoningContentOnToolTurn`, `TestAnthropicEventToResponses_ThinkingAfterTextKeepsMessageOutput`, `TestForwardAsChatCompletions_CancelsUpstreamBeforeClosingBody`, `TestApplyCodexFingerprintHeaders_DeviceMode` (+ Off/Session/Full), `TestUpstreamRequestIDFromHeaders_ReadsOnlyConfiguredHeader`, `TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChangingActualCost`, `TestAccountListLiteKeepsQualityAndSmartScheduleColumns`, `TestDefaultModelsIncludeGPT6Astra`, vitest `returns to the source error list and keeps filters`.
+- Residual: WS passthrough later-turn pre-output 429 reconnect (`TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect`) needs the freeze WS v2 passthrough stack (`newStagedPassthroughConn` / ingress hooks). Fork HTTP-bridge already has later-turn replacement-account 429; wholesale WS replace is forbidden. VERSION stays **0.1.287**.
+
+### Why
+Pack 0 leftovers that already had named tests were still missing on the isolation overlay; strict Responses clients, DeepSeek multi-turn thinking, interleaved thinking streams, and stream Close() deadlocks needed the overlays without touching stored billing.
+
+### Affected files
+`apicompat` synthesis/thinking/stream files, `stream_error_event.go`, `openai_gateway_codex_compact_v2.go`, `openai_gateway_chat_completions.go`, `openai_codex_fingerprint.go`, `224_backfill_codex_fingerprint_seed.sql`, Ops error-detail Vue + i18n, `upstream_request_id.go`, `usage_log_repo.go`, `227`/`228` SQL, `account_handler.go` lite projection, `pkg/openai/constants.go`, this changelog, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`.
+
 ## 2026-09-10 - sync: native-v2 compact mark, compact exhaust, WS later-turn 429
 
 ### What

@@ -9,6 +9,14 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 
 | ID | Named test |
 |----|------------|
+| N24-created | `TestChatCompletionsResponseToResponses_CarriesCreatedAt` / `TestAnthropicToResponsesResponse_StampsCreatedAt` / `TestAnthropicEventToResponsesStream_CreatedAtStableAcrossEvents` / `TestWriteOpenAICompactSSEFailureMessage_CarriesCreatedAt` |
+| N24-think | `TestAnthropicToChatCompletionsRequest_ThinkingBecomesReasoningContentOnToolTurn` / `TestAnthropicEventToResponses_ThinkingAfterTextKeepsMessageOutput` |
+| N24-cancel | `TestForwardAsChatCompletions_CancelsUpstreamBeforeClosingBody` |
+| N-id rewrite | `TestApplyCodexFingerprintHeaders_DeviceMode` (+ Off/Session/Full); seed SQL 224 |
+| N24-ops list | vitest `returns to the source error list and keeps filters` |
+| N24-reqid | `TestUpstreamRequestIDFromHeaders_ReadsOnlyConfiguredHeader` / `TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChangingActualCost` |
+| N24-acctlist | `TestAccountListLiteKeepsQualityAndSmartScheduleColumns` |
+| N24-astra | `TestDefaultModelsIncludeGPT6Astra` |
 | N24-m404 leftover | `TestClassifySelectionFailureError_ModelNotFoundIsNotOverriddenByRateLimited` (+ CallSiteChain / StillUpgrades) |
 | N24-empty-tc | `TestForwardAsRawChatCompletions_StripsEmptyToolCallIdentity` |
 | N-proto orphan replay | `TestBuildOpenAIWSCurrentTurnRetryPayloadRejectsOrphanToolOutput` |
@@ -34,12 +42,12 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 
 ### Phase 1 leftovers
 
-- `TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect` — remaining WS session stack; later-turn 429 **before write** and replacement-account current-turn retry are landed.
-- N24-created / N24-think / N24-cancel — still no stable `TestXxx` on fork.
+- **Landed this pack:** synthesized Responses `created_at`; Anthropic→Chat thinking on tool turns; Anthropic→Responses close-message-before-thinking; cancel upstream before closing body.
+- `TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect` — **residual**. The freeze test is wired to the WS v2 passthrough stack (`newStagedPassthroughConn`, ingress hooks, `OpenAIWSIngressModeHTTPBridge`). Fork uses HTTP-bridge (`HTTPBridgeEnabled`) and already has later-turn replacement-account 429. Porting this named test would require wholesale WS replace, which is forbidden.
 
 ### Phase 2 remaining wiring
 
-- Fingerprint **default off** resolver exists; outbound header/body rewrite + SQL seed backfill (upstream dual `225_backfill_codex_fingerprint_seed.sql`) **not** applied. Do not copy filename 225.
+- Fingerprint **default off** resolver + outbound header/body rewrite + seed SQL **224** (not 225) **landed**. Profit-control stays default-off.
 - Guardian affinity is applied on HTTP Responses + WS first-message context; profit-control stays default-off.
 
 ### Brandon 2026-09-10
@@ -53,7 +61,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 
 - N24-img25 GPT Image 2.5 catalog/pricing (`TestGPTImage25PricingDoesNotUseLegacyImageRates`) — **Brandon 否决改价**；fork catalog stays gpt-image-2。
 - N-dash `TestAPIKeyAuthSnapshotGroupPricingRoundtrip` — **Brandon 否决改价**（`LongContextPricingEnabled` + group `ModelPricing` 会改 stored billing）。
-- N-ops list-return vitest unnamed; N24-reqid SQL remap **≠ 232**; N24-acctlist DTO; N24-astra capability increment.
+- **Landed this pack:** Ops error-detail return-to-list keeps filters (named vitest; hop-mix/attention filter stays); usage-log upstream request id SQL **227/228** (not 232/233), `actual_cost` unchanged; compact admin account list omits group graphs and keeps quality/smart-schedule columns; GPT-6 Astra IDs on the default model table, catalog admin UI stays fork.
 
 ### Phase 4–6 C (stop-and-ask / residual, not silent adopt)
 

@@ -301,10 +301,11 @@ func buildCodexCompactV2Responses(summary, model, responseID string, usage *apic
 		id = "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	out := &apicompat.ResponsesResponse{
-		ID:     id,
-		Object: "response",
-		Model:  model,
-		Status: "completed",
+		ID:        id,
+		Object:    "response",
+		CreatedAt: time.Now().Unix(),
+		Model:     model,
+		Status:    "completed",
 		Output: []apicompat.ResponsesOutput{{
 			Type:             "compaction",
 			ID:               "cmp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
@@ -554,15 +555,27 @@ func writeCodexCompactV2Failure(c *gin.Context, message string) {
 	if strings.TrimSpace(message) == "" {
 		message = "Upstream compact request produced no summary"
 	}
+	writeOpenAICompactSSEFailureMessage(c, http.StatusOK, "compact_v2_empty_summary", message)
+}
+
+// writeOpenAICompactSSEFailureMessage writes a response.failed terminal event.
+// Codex treats response.failed as a legal stream terminator; a generic error
+// event is ignored and the client reconnects blindly. CreatedAt is always
+// emitted so strict Responses clients can deserialize the frame.
+func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType, message string) {
+	if c == nil {
+		return
+	}
 	payload, err := json.Marshal(map[string]any{
 		"type": "response.failed",
 		"response": map[string]any{
-			"id":     "resp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
-			"object": "response",
-			"status": "failed",
-			"output": []any{},
+			"id":         "resp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
+			"object":     "response",
+			"created_at": time.Now().Unix(),
+			"status":     "failed",
+			"output":     []any{},
 			"error": map[string]any{
-				"code":    "compact_v2_empty_summary",
+				"code":    errType,
 				"message": message,
 			},
 		},
@@ -577,7 +590,7 @@ func writeCodexCompactV2Failure(c *gin.Context, message string) {
 	buf.WriteString("event: response.failed\ndata: ")
 	buf.Write(payload)
 	buf.WriteString("\n\n")
-	writeCodexCompactV2SSE(c, http.StatusOK, buf.Bytes())
+	writeCodexCompactV2SSE(c, statusCode, buf.Bytes())
 }
 
 func applyCodexCompactV2ToResponsesJSON(body []byte, model, responseID string) ([]byte, compactV2Class, error) {

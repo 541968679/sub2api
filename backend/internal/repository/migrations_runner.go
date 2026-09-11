@@ -57,6 +57,8 @@ const schedulerOutboxPendingDedupKeyMigration = "187_scheduler_outbox_pending_de
 const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
 const usageLogTrueCostIndexMigration = "206_usage_log_true_cost_index_notx.sql"
 const usageLogTrueCostIndex = "idx_usage_logs_true_cost_user_account_created"
+const usageLogsUpstreamRequestIDIndexMigration = "228_add_usage_log_upstream_request_id_index_notx.sql"
+const usageLogsUpstreamRequestIDIndex = "idx_usage_logs_upstream_request_id"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -271,6 +273,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
 	case usageLogTrueCostIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, usageLogTrueCostIndex)
+	case usageLogsUpstreamRequestIDIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamRequestIDIndex)
 	default:
 		return nil
 	}

@@ -7006,6 +7006,7 @@ const enBase = {
         title: 'Error Detail',
         titleWithId: 'Error #{id}',
         noErrorSelected: 'No error selected.',
+        backToList: 'Back to List',
         resolution: 'Resolved:',
         pinnedToOriginalAccountId: 'Pinned to original account_id',
         missingUpstreamRequestBody: 'Missing upstream request body',

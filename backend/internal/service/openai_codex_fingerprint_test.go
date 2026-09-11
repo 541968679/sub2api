@@ -80,6 +80,93 @@ func TestResolveCodexFingerprintIDsFromRequest_ExplicitOptInHonored(t *testing.T
 	}
 }
 
+func TestApplyCodexFingerprintHeaders_OffMode(t *testing.T) {
+	h := http.Header{}
+	h.Set("session_id", "client-session")
+	applyCodexFingerprintHeaders(h, nil)
+	assert.Equal(t, "client-session", h.Get("session_id"))
+	assert.Empty(t, h.Get("x-codex-installation-id"))
+}
+
+func TestApplyCodexFingerprintHeaders_DeviceMode(t *testing.T) {
+	account := newTestOAuthAccount(7, map[string]any{codexFingerprintModeExtraKey: "device"})
+	ids := resolveCodexFingerprintIDsFromRequest(account, nil)
+	require.NotNil(t, ids)
+
+	h := http.Header{}
+	h.Set("session_id", "client-session")
+	h.Set("x-codex-turn-metadata", `{"sandbox":"none","installation_id":"old"}`)
+	applyCodexFingerprintHeaders(h, ids)
+	assert.Equal(t, ids.installationID, h.Get("x-codex-installation-id"))
+	assert.Equal(t, "client-session", h.Get("session_id"), "device mode must not rewrite session_id")
+	assert.Contains(t, h.Get("x-codex-turn-metadata"), ids.installationID)
+	assert.Contains(t, h.Get("x-codex-turn-metadata"), `"sandbox":"none"`)
+}
+
+func TestApplyCodexFingerprintHeaders_SessionMode(t *testing.T) {
+	account := newTestOAuthAccount(8, map[string]any{codexFingerprintModeExtraKey: "session"})
+	client := http.Header{}
+	client.Set("session-id", "client-session-a")
+	ids := resolveCodexFingerprintIDsFromRequest(account, client)
+	require.NotNil(t, ids)
+	require.NotEmpty(t, ids.sessionID)
+
+	h := http.Header{}
+	h.Set("session_id", "client-session-a")
+	applyCodexFingerprintHeaders(h, ids)
+	assert.Equal(t, ids.sessionID, h.Get("session_id"))
+	assert.Equal(t, ids.sessionID, h.Get("session-id"))
+	assert.Equal(t, ids.threadID, h.Get("thread-id"))
+	assert.Equal(t, ids.installationID, h.Get("x-codex-installation-id"))
+}
+
+func TestApplyCodexFingerprintHeaders_FullMode(t *testing.T) {
+	account := newTestOAuthAccount(9, map[string]any{codexFingerprintModeExtraKey: "full"})
+	ids := resolveCodexFingerprintIDsFromRequest(account, nil)
+	require.NotNil(t, ids)
+
+	h := http.Header{}
+	applyCodexFingerprintHeaders(h, ids)
+	assert.Equal(t, ids.sessionID, h.Get("session_id"))
+	assert.Equal(t, ids.threadID, h.Get("thread-id"))
+	assert.Equal(t, ids.windowID, h.Get("x-codex-window-id"))
+}
+
+func TestApplyCodexFingerprintClientMetadata_OffMode(t *testing.T) {
+	body := map[string]any{"client_metadata": map[string]any{"session_id": "keep-me"}}
+	assert.False(t, applyCodexFingerprintClientMetadata(body, nil))
+	meta := body["client_metadata"].(map[string]any)
+	assert.Equal(t, "keep-me", meta["session_id"])
+}
+
+func TestApplyCodexFingerprintClientMetadata_SessionMode(t *testing.T) {
+	account := newTestOAuthAccount(10, map[string]any{codexFingerprintModeExtraKey: "session"})
+	ids := resolveCodexFingerprintIDsFromRequest(account, http.Header{"session-id": []string{"client-session-a"}})
+	require.NotNil(t, ids)
+
+	body := map[string]any{"client_metadata": map[string]any{"session_id": "client-session-a", "other": "keep"}}
+	require.True(t, applyCodexFingerprintClientMetadata(body, ids))
+	meta := body["client_metadata"].(map[string]any)
+	assert.Equal(t, ids.sessionID, meta["session_id"])
+	assert.Equal(t, ids.turnID, meta["turn_id"])
+	assert.Equal(t, "keep", meta["other"])
+}
+
+func TestFingerprintIDs_HeaderAndBody_TurnID_Consistent(t *testing.T) {
+	account := newTestOAuthAccount(11, map[string]any{codexFingerprintModeExtraKey: "full"})
+	ids := resolveCodexFingerprintIDsFromRequest(account, nil)
+	require.NotNil(t, ids)
+
+	h := http.Header{}
+	h.Set("x-codex-turn-metadata", `{"turn_id":"old"}`)
+	applyCodexFingerprintHeaders(h, ids)
+	body := map[string]any{"client_metadata": map[string]any{}}
+	require.True(t, applyCodexFingerprintClientMetadata(body, ids))
+	meta := body["client_metadata"].(map[string]any)
+	assert.Equal(t, ids.turnID, meta["turn_id"])
+	assert.Contains(t, h.Get("x-codex-turn-metadata"), ids.turnID)
+}
+
 func TestExtractClientSessionID(t *testing.T) {
 	hyphen := http.Header{}
 	hyphen.Set("session-id", "hyphen-form")
