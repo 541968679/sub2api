@@ -52,4 +52,26 @@ describe('OAuthAuthorizationFlow Codex session paste', () => {
     await wrapper.get('[data-testid="oauth-method-codex-session"]').setValue(true)
     expect(wrapper.text()).toContain('access_token 已过期')
   })
+
+  it('adds an Agent Identity import path that reuses session import', async () => {
+    const wrapper = mount(OAuthAuthorizationFlow, {
+      props: {
+        addMethod: 'oauth',
+        platform: 'openai',
+        showCodexSessionImportOption: true,
+        showAgentIdentityOption: true,
+        showSessionTokenOption: false
+      },
+      global: {
+        stubs: { Icon: true }
+      }
+    })
+
+    expect(wrapper.find('[data-testid="oauth-method-codex-session"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="oauth-method-agent-identity"]').setValue(true)
+    await wrapper.get('[data-testid="agent-identity-input"]').setValue('  {"auth_mode":"agentIdentity"}  ')
+    await wrapper.get('[data-testid="agent-identity-submit"]').trigger('click')
+
+    expect(wrapper.emitted('import-codex-session')).toEqual([['{"auth_mode":"agentIdentity"}']])
+  })
 })

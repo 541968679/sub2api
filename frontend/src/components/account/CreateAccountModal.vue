@@ -3476,6 +3476,7 @@
         :show-access-token-option="false"
         :show-codex-pat-option="form.platform === 'openai'"
         :show-codex-session-import-option="form.platform === 'openai'"
+        :show-agent-identity-option="form.platform === 'openai'"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"

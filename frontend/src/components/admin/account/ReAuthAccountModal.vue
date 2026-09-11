@@ -134,8 +134,11 @@
         :method-label="t('admin.accounts.inputMethod')"
         :platform="isOpenAI ? 'openai' : isGemini ? 'gemini' : isAntigravity ? 'antigravity' : isGrok ? 'grok' : 'anthropic'"
         :show-project-id="isGemini && geminiOAuthType === 'code_assist'"
+        :show-codex-session-import-option="isOpenAI"
+        :show-agent-identity-option="isOpenAI"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
+        @import-codex-session="handleImportCodexSession"
       />
 
     </div>
@@ -333,6 +336,46 @@ const resetState = () => {
 
 const handleClose = () => {
   emit('close')
+}
+
+const handleImportCodexSession = async (content: string) => {
+  const payload = content.trim()
+  if (!payload) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.codexSessionEmpty')
+    return
+  }
+  if (!props.account) return
+  openaiOAuth.loading.value = true
+  openaiOAuth.error.value = ''
+  try {
+    const result = await adminAPI.accounts.importCodexSession({
+      content: payload,
+      name: props.account.name,
+      update_existing: true,
+      skip_default_group_bind: true,
+    })
+    if (result.failed > 0 && result.created === 0 && result.updated === 0) {
+      const failed = (result.items || [])
+        .filter((item) => item.action === 'failed' && item.message)
+        .map((item) => item.message as string)
+        .join('\n')
+      openaiOAuth.error.value = failed || t('admin.accounts.oauth.openai.codexSessionImportFailed')
+      appStore.showError(openaiOAuth.error.value)
+      return
+    }
+    appStore.showSuccess(t('admin.accounts.oauth.openai.agentIdentityImportAndCreate'))
+    emit('reauthorized', props.account)
+    handleClose()
+  } catch (error: any) {
+    openaiOAuth.error.value =
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
+      error.message ||
+      t('admin.accounts.oauth.openai.codexSessionImportFailed')
+    appStore.showError(openaiOAuth.error.value)
+  } finally {
+    openaiOAuth.loading.value = false
+  }
 }
 
 const handleGenerateUrl = async () => {

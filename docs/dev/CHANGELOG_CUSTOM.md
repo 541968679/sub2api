@@ -1,3 +1,16 @@
+## 2026-09-11 - sync: pack 7 Agent Identity stacked on session import
+
+### What
+- Isolation `sync/main-1` only: Codex Agent Identity is a fourth OpenAI import path stacked on the existing Codex session import. `chatgpt_session_token` / OAuth refresh_token / PAT remain. Agent Identity stores runtime + PKCS#8 private key and never writes sessionToken as refresh_token. `openai_session_refresh.go` is unchanged. Create/Edit add an Agent Identity radio; CreateAccountModal / EditAccountModal / OAuthAuthorizationFlow were not wholesale-replaced.
+- Named gates: `TestBuildAgentAssertionMatchesCodexEnvelopeAndSignature`, `TestOpenAIAuthenticationHeadersPreserveOAuthPATAndAPIKeyBearerModes`, `TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON`, `TestImportCodexSessionsCreatesAgentIdentityWithoutOAuthExpiry`, `TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 7 of the 0.2.4 A-tier overlay: operators can import Agent Identity auth.json without merging upstream/main or deleting session-token refresh.
+
+### Affected files
+`openai_agent_identity.go`, Codex session import overlay, passthrough Authorization overlay, Create/ReAuth OAuth flow radio, zh/en i18n, this changelog.
+
 ## 2026-09-11 - sync: pack 6 group model allowlist config, gateway enforce default-off
 
 ### What

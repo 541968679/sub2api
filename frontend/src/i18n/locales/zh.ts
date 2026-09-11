@@ -5619,7 +5619,15 @@ const zhBase = {
             '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
-          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败',
+          agentIdentityAuth: '导入 Agent Identity',
+          agentIdentityDesc:
+            '粘贴 Codex Agent Identity auth.json。会保存 runtime/private_key，不会写入 OAuth access_token 或 refresh_token。sessionToken 导入路径保持不变。',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: '粘贴含 auth_mode=agentIdentity 与 agent_identity 的 JSON',
+          agentIdentityHint:
+            '走现有 Codex session 导入接口。不会把 sessionToken 写成 refresh_token。',
+          agentIdentityImportAndCreate: '导入 Agent Identity'
         },
         // Gemini specific
         gemini: {
@@ -10040,7 +10048,15 @@ const v117ZhPatch = {
             '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
-          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败',
+          agentIdentityAuth: '导入 Agent Identity',
+          agentIdentityDesc:
+            '粘贴 Codex Agent Identity auth.json。会保存 runtime/private_key，不会写入 OAuth access_token 或 refresh_token。sessionToken 导入路径保持不变。',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: '粘贴含 auth_mode=agentIdentity 与 agent_identity 的 JSON',
+          agentIdentityHint:
+            '走现有 Codex session 导入接口。不会把 sessionToken 写成 refresh_token。',
+          agentIdentityImportAndCreate: '导入 Agent Identity'
         },
         gemini: {
           refreshTokenAuth: 'Refresh Token 认证',

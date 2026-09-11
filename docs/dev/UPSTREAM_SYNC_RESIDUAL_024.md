@@ -43,6 +43,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 | N24-plugin | `TestPluginManagerRoutingDoesNotTouchAPIKeyOrOtherProviders` / `TestPluginPackageInstallerRejectsUnsignedPackageByDefault` / `TestOpenAIGatewayPluginRoutingPreservesAPIKeyAndFailsClosedForOAuth` |
 | N24-fable51 | `TestDefaultModelsContainsClaudeFable51` / `TestCLICurrentVersionSatisfiesFable51Gate` / `TestGetModelDefaultPricing_ReturnsFable51CacheTTLs` |
 | N24-allowlist | `TestNormalizeGroupModelAllowlist` / `TestAdminService_CreateGroup_NormalizesModelAllowlist` / `TestGatewayModels_ModelAllowlistWildcardExpandsAgainstSource` |
+| N24-agent | `TestBuildAgentAssertionMatchesCodexEnvelopeAndSignature` / `TestOpenAIAuthenticationHeadersPreserveOAuthPATAndAPIKeyBearerModes` / `TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON` / `TestImportCodexSessionsCreatesAgentIdentityWithoutOAuthExpiry` / `TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders` |
 
 ## Residual (not claimed landed)
 
@@ -84,7 +85,7 @@ Not merged to real `main`, not pushed, not deployed. VERSION stays `0.1.287`.
 - **C-simple** simple-mode grouping — **landed this pack** (basic groups visible; commercial fields stripped; composite binds rejected)
 - **C-deploy** Go 1.27 / GHCR path swap — 延后
 - **C-passkey** never
-- **C-agent** Agent Identity last — must overlay on `chatgpt_session_token`; forbid wholesale `CreateAccountModal.vue` / deleting session refresh
+- **C-agent** Agent Identity — **landed this pack** (stacked on Codex session import; ST/OAuth RT/PAT kept; `openai_session_refresh.go` kept; Create/Edit add an import path, pages not wholesale-replaced). Residual: freeze WS v2 connection invalidation is not wholesale-ported.
 
 ### Never this campaign
 

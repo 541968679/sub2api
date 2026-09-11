@@ -5913,7 +5913,15 @@ const enBase = {
             'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
-          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials',
+          agentIdentityAuth: 'Import Agent Identity',
+          agentIdentityDesc:
+            'Paste a Codex Agent Identity auth.json. Runtime and private key are stored; OAuth access_token and refresh_token are not. The sessionToken import path is unchanged.',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: 'Paste JSON with auth_mode=agentIdentity and agent_identity',
+          agentIdentityHint:
+            'Uses the existing Codex session import API. sessionToken is never saved as a refresh_token.',
+          agentIdentityImportAndCreate: 'Import Agent Identity'
         },
         // Gemini specific
 	        gemini: {
@@ -9993,7 +10001,15 @@ const phase0LocalePatch = {
             'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
-          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials',
+          agentIdentityAuth: 'Import Agent Identity',
+          agentIdentityDesc:
+            'Paste a Codex Agent Identity auth.json. Runtime and private key are stored; OAuth access_token and refresh_token are not. The sessionToken import path is unchanged.',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: 'Paste JSON with auth_mode=agentIdentity and agent_identity',
+          agentIdentityHint:
+            'Uses the existing Codex session import API. sessionToken is never saved as a refresh_token.',
+          agentIdentityImportAndCreate: 'Import Agent Identity'
         },
         grok: {
           failedToGenerateUrl: 'Failed to generate Grok auth URL',

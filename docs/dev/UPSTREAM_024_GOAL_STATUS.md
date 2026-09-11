@@ -16,7 +16,8 @@ Not merged to real `main`, not pushed, not deployed.
 | 3 Model plaza | `03b0871f9` | `/model-plaza` + zh/en; paid prices = fork display chain; anonymous sees only non-exclusive groups |
 | 4 Channel-monitor v2 | `13c9b456e` | v2 API + admin UI; quota mode SQL 236; image-channel-monitor kept; default mode v1 |
 | 5 Plugins + Fable 5.1 + simple-mode | `0b4e8257c` | plugins default off / unsigned rejected; fable-5 kept + 5.1; simple-mode basic grouping |
-| 6 Group model allowlist | `c4e40deca` | admin can configure allowlists; listing wildcard; gateway enforce DEFAULT OFF; SQL 248/249 |
+| 6 Group model allowlist | `aa51ea2e7` | admin can configure allowlists; listing wildcard; gateway enforce DEFAULT OFF; SQL 248/249 |
+| 7 Agent Identity | *(this pack)* | stacked on session import; ST/OAuth RT/PAT kept; session refresh file kept |
 
 ## Residual (do not re-litigate)
 
@@ -29,7 +30,8 @@ Not merged to real `main`, not pushed, not deployed.
 - Channel-monitor live quota-fetch dispatch (CN usage-window fetcher) not wired
 - Channel-monitor v2 popular-model seed not adopted
 - Group model allowlist **gateway enforce stays off** (opening `group_model_allowlist_enforce` is not this campaign)
+- Agent Identity WS/task recovery is best-effort HTTP assertion; freeze WS v2 invalidation is not wholesale-ported
 
 ## Next pack
 
-**7 — Agent Identity.** Stack on existing session import. Keep chatgpt_session_token / OAuth RT / PAT. Never write ST as RT. Never delete `openai_session_refresh.go`. Add an import path on Create/Edit; do not replace the page.
+Waterline: isolation = 0.1.287 + upstream 0.2.4 A-tier overlay, **not** git-equivalent to 0.2.4.

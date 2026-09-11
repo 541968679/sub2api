@@ -429,6 +429,12 @@ type OpenAIGatewayService struct {
 	accountQuality                      AccountQualityObserver
 	publicSchedule                      *PublicScheduleQualityService
 	openAI7dLiteLLM                     *OpenAI7dLiteLLMCycleService
+	agentIdentityTaskMu                 sync.Mutex
+}
+
+func (s *OpenAIGatewayService) InvalidateAgentIdentityWSConnections(accountID int64) {
+	// WS pool invalidation is best-effort; HTTP Agent Identity recovery
+	// re-registers a task even if idle WS conns are not evicted here.
 }
 
 func (s *OpenAIGatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
@@ -3915,7 +3921,15 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	req.Header.Del("authorization")
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
-	req.Header.Set("authorization", "Bearer "+token)
+	authHeaders, err := s.buildOpenAIAuthenticationHeaders(ctx, account, token)
+	if err != nil {
+		return nil, err
+	}
+	if auth := strings.TrimSpace(authHeaders.Get("Authorization")); auth != "" {
+		req.Header.Set("authorization", auth)
+	} else {
+		req.Header.Set("authorization", "Bearer "+token)
+	}
 
 	// OAuth 透传到 ChatGPT internal API 时补齐必要头。
 	if account.Type == AccountTypeOAuth {
