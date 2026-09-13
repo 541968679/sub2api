@@ -92,27 +92,28 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
         <div
-          class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9"
+          class="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 lg:grid-cols-5"
           data-tour="account-form-platform"
+          data-testid="create-account-platform-grid"
         >
           <button
             type="button"
             @click="form.platform = 'anthropic'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'anthropic'
                 ? 'bg-white text-orange-600 shadow-sm dark:bg-dark-600 dark:text-orange-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="sparkles" size="sm" class="shrink-0" />
-            <span class="truncate">Anthropic</span>
+            <span class="whitespace-nowrap">Anthropic</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'openai'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'openai'
                 ? 'bg-white text-green-600 shadow-sm dark:bg-dark-600 dark:text-green-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -131,13 +132,13 @@
                 d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
               />
             </svg>
-            <span class="truncate">OpenAI</span>
+            <span class="whitespace-nowrap">OpenAI</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'gemini'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'gemini'
                 ? 'bg-white text-blue-600 shadow-sm dark:bg-dark-600 dark:text-blue-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -156,89 +157,89 @@
                 d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2z"
               />
             </svg>
-            <span class="truncate">Gemini</span>
+            <span class="whitespace-nowrap">Gemini</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'antigravity'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'antigravity'
                 ? 'bg-white text-purple-600 shadow-sm dark:bg-dark-600 dark:text-purple-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="cloud" size="sm" />
-            <span class="truncate">Antigravity</span>
+            <span class="whitespace-nowrap">Antigravity</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'grok'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'grok'
                 ? 'bg-white text-zinc-700 shadow-sm dark:bg-dark-600 dark:text-zinc-200'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="grok" size="sm" />
-            <span class="truncate">Grok</span>
+            <span class="whitespace-nowrap">Grok</span>
           </button>
           <button
             type="button"
             data-testid="create-platform-kimi"
             @click="form.platform = 'kimi'; form.type = 'apikey'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'kimi'
                 ? 'bg-white text-sky-600 shadow-sm dark:bg-dark-600 dark:text-sky-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="kimi" size="sm" />
-            <span class="truncate">Kimi</span>
+            <span class="whitespace-nowrap">Kimi</span>
           </button>
           <button
             type="button"
             data-testid="create-platform-zhipu"
             @click="form.platform = 'zhipu'; form.type = 'apikey'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'zhipu'
                 ? 'bg-white text-blue-700 shadow-sm dark:bg-dark-600 dark:text-blue-300'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="zhipu" size="sm" />
-            <span class="truncate">Zhipu</span>
+            <span class="whitespace-nowrap">Zhipu</span>
           </button>
           <button
             type="button"
             data-testid="create-platform-minimax"
             @click="form.platform = 'minimax'; form.type = 'apikey'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'minimax'
                 ? 'bg-white text-rose-600 shadow-sm dark:bg-dark-600 dark:text-rose-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="minimax" size="sm" />
-            <span class="truncate">MiniMax</span>
+            <span class="whitespace-nowrap">MiniMax</span>
           </button>
           <button
             type="button"
             data-testid="create-platform-deepseek"
             @click="form.platform = 'deepseek'; form.type = 'apikey'"
             :class="[
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
               form.platform === 'deepseek'
                 ? 'bg-white text-indigo-600 shadow-sm dark:bg-dark-600 dark:text-indigo-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="deepseek" size="sm" />
-            <span class="truncate">DeepSeek</span>
+            <span class="whitespace-nowrap">DeepSeek</span>
           </button>
         </div>
       </div>

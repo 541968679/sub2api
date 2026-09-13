@@ -376,6 +376,11 @@ describe('CreateAccountModal', () => {
     expect(wrapper.find('[data-testid="create-platform-kimi"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-platform-zhipu"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-platform-minimax"]').exists()).toBe(true)
+    const grid = wrapper.get('[data-testid="create-account-platform-grid"]')
+    expect(grid.classes()).toContain('lg:grid-cols-5')
+    expect(grid.classes().some((c) => c.includes('grid-cols-9'))).toBe(false)
+    expect(wrapper.text()).toContain('Antigravity')
+    expect(wrapper.text()).toContain('DeepSeek')
   })
 
   it('creates a Grok API key account with the official xAI base URL', async () => {

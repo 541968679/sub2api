@@ -1,3 +1,15 @@
+## 2026-09-13 - fix: create-account platform picker wraps to two rows
+
+### What
+- Isolation `sync/main-1` only: create-account platform chips wrap as 3×3 on small screens and **5+4 two rows** from `lg` up. Dropped `xl:grid-cols-9` (nine names in one row were truncated unreadable). Labels no longer use `truncate`.
+- Named gate: CreateAccountModal spec asserts `lg:grid-cols-5` and no `grid-cols-9`, and that Antigravity / DeepSeek text is present.
+
+### Why
+Nine first-class platforms in one row made names unreadable in the import dialog.
+
+### Affected files
+`frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/__tests__/CreateAccountModal.spec.ts`, this changelog.
+
 ## 2026-09-11 - sync: 0.2.4 A-tier overlay waterline on isolation sync/main-1
 
 ### What
