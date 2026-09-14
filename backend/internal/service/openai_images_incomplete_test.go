@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -166,5 +168,62 @@ func TestExtractModelRefusal_EmptyWhenNoText(t *testing.T) {
 	body := "data: {\"type\":\"response.completed\",\"response\":{\"output\":[],\"tool_usage\":{\"image_gen\":{\"output_tokens\":0}}}}\n\n"
 	if r := extractOpenAIImagesModelRefusal([]byte(body)); r != "" {
 		t.Fatalf("empty response should yield no refusal, got %q", r)
+	}
+}
+
+func TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError(t *testing.T) {
+	upstreamSSE := "event: response.output_text.delta\n" +
+		"data: {\"type\":\"response.output_text.delta\",\"delta\":\"Here's a polished image prompt for your request.\"}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"status\":\"completed\",\"model\":\"gpt-5.4-mini\",\"output\":[]}}\n\n"
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
+
+	svc := &OpenAIGatewayService{}
+	_, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, context.Background(), 0, time.Now(), "b64_json", "image_generation", "gpt-image-2", nil)
+
+	var imgErr *OpenAIImagesUpstreamError
+	if !errors.As(err, &imgErr) {
+		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
+	}
+	if imgErr.StatusCode != http.StatusBadGateway {
+		t.Fatalf("streaming text fallback should be retryable 502, got %d", imgErr.StatusCode)
+	}
+	if imgErr.Code != "image_generation_unavailable" {
+		t.Fatalf("streaming text fallback should identify missing image execution, got %q", imgErr.Code)
+	}
+	if strings.Contains(rec.Body.String(), "event: error") {
+		t.Fatal("retryable text fallback must remain unflushed for failover")
+	}
+}
+
+func TestImagesOAuthStreaming_SplitSafetyRefusalReturns400(t *testing.T) {
+	upstreamSSE := "event: response.output_text.delta\n" +
+		"data: {\"type\":\"response.output_text.delta\",\"delta\":\"安全系\"}\n\n" +
+		"event: response.output_text.delta\n" +
+		"data: {\"type\":\"response.output_text.delta\",\"delta\":\"统拒绝生成\"}\n\n" +
+		"event: response.completed\n" +
+		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"status\":\"completed\",\"output\":[]}}\n\n"
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
+
+	svc := &OpenAIGatewayService{}
+	_, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, context.Background(), 0, time.Now(), "b64_json", "image_generation", "gpt-image-2", nil)
+
+	var imgErr *OpenAIImagesUpstreamError
+	if !errors.As(err, &imgErr) {
+		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
+	}
+	if imgErr.StatusCode != http.StatusBadRequest || imgErr.Code != "content_policy_violation" {
+		t.Fatalf("split safety refusal should remain a content-policy 400, got status=%d code=%q", imgErr.StatusCode, imgErr.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "event: error") {
+		t.Fatal("content-policy refusal must reach the streaming client")
 	}
 }

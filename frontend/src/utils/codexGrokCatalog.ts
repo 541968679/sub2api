@@ -1,5 +1,5 @@
 /** Default Grok model id used for Codex CLI / CCS-style Responses imports. */
-export const GROK_CODEX_DEFAULT_MODEL = 'grok-4.5'
+export const GROK_CODEX_DEFAULT_MODEL = 'grok-4.6'
 
 /** Relative path Codex resolves from ~/.codex (portable across OS / WSL). */
 export const GROK_CODEX_CATALOG_FILENAME = 'model-catalog-grok.json'
@@ -8,7 +8,7 @@ const GROK_BASE_INSTRUCTIONS =
   'You are a coding agent powered by Grok. Collaborate with the user until their goal is handled. Prefer clear, correct, minimal diffs. Follow repository conventions and existing patterns. When uncertain, inspect the code before changing it.'
 
 /**
- * Codex ModelInfo catalog for `grok-4.5`.
+ * Codex ModelInfo catalog for Grok text models (default grok-4.6).
  *
  * Fields mirror Codex CLI's strict ModelInfo schema (serde): omitting required
  * booleans such as `supports_reasoning_summaries` fails startup with
@@ -21,16 +21,24 @@ export function buildGrokCodexModelCatalogJson(
     models: [
       {
         slug: model,
-        display_name: 'Grok 4.5',
-        description: 'xAI Grok 4.5 via Sub2API (OpenAI-compatible Responses).',
+        display_name: model.startsWith('grok-4.6') ? 'Grok 4.6' : 'Grok 4.5',
+        description: model.startsWith('grok-4.6')
+          ? 'xAI Grok 4.6 via Sub2API (OpenAI-compatible Responses).'
+          : 'xAI Grok 4.5 via Sub2API (OpenAI-compatible Responses).',
         // Advertise xhigh so Desktop/CLI pickers stay visible when the user has
-        // model_reasoning_effort=xhigh. Sub2API clamps xhigh→high for xAI.
+        // model_reasoning_effort=xhigh. Grok 4.6 forwards xhigh; older Grok
+        // models clamp xhigh→high on the wire.
         default_reasoning_level: 'high',
         supported_reasoning_levels: [
           { effort: 'low', description: 'Faster responses' },
           { effort: 'medium', description: 'Balanced' },
           { effort: 'high', description: 'Deeper reasoning' },
-          { effort: 'xhigh', description: 'Extra high (mapped to high on Grok)' }
+          {
+            effort: 'xhigh',
+            description: model.startsWith('grok-4.6')
+              ? 'Extra-high reasoning depth for difficult tasks'
+              : 'Extra high (mapped to high on Grok)'
+          }
         ],
         additional_speed_tiers: ['fast'],
         service_tiers: [

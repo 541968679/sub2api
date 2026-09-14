@@ -1,3 +1,16 @@
+## 2026-09-14 - merge: sync/main-1 0.2.4 A-tier overlay onto main a8fb83591
+
+### What
+- New branch merge/sync-main-1-024 from occupied main 8fb83591, merged isolation sync/main-1 cb9749442.
+- Keeps main user pricing-page dual tables and nav (计费规则 / API接入 first). Keeps isolation overlay: CN platforms, plaza, plugins, allowlist (enforce off), Agent Identity stacked on sessionToken, channel-monitor v2.
+- Does **not** take isolation uncommitted SQL 196-220 checksum copies, nor occupied uncommitted CreateAccountModal/gateway WIP. VERSION stays **0.1.287**. Not pushed, not merged to live main.
+
+### Why
+Deliver the isolation overlay without replacing the running occupied checkout.
+
+### Affected files
+merge of sync/main-1 into main; this changelog.
+
 ## 2026-09-14 - feat(frontend): nav focus on billing rules and API access
 
 ### What
@@ -45,6 +58,266 @@ this changelog.
 
 ### Follow-up
 - Default billing copy rewritten to the formula explanation (百万 token 单价 × token 数量 × 分组倍率 × 1 人民币/1 美元); education default cleared; group-rate footer hint removed.
+
+## 2026-09-13 - fix: create-account platform picker wraps to two rows
+
+### What
+- Isolation `sync/main-1` only: create-account platform chips wrap as 3×3 on small screens and **5+4 two rows** from `lg` up. Dropped `xl:grid-cols-9` (nine names in one row were truncated unreadable). Labels no longer use `truncate`.
+- Named gate: CreateAccountModal spec asserts `lg:grid-cols-5` and no `grid-cols-9`, and that Antigravity / DeepSeek text is present.
+
+### Why
+Nine first-class platforms in one row made names unreadable in the import dialog.
+
+### Affected files
+`frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/__tests__/CreateAccountModal.spec.ts`, this changelog.
+
+## 2026-09-11 - sync: 0.2.4 A-tier overlay waterline on isolation sync/main-1
+
+### What
+- Isolation waterline: this checkout is **0.1.287 + upstream 0.2.4 A-tier overlay**, recorded in `docs/dev/UPSTREAM_BASE.json`. It is **not** git-equivalent to upstream 0.2.4. VERSION stays **0.1.287**. Not merged to real `main`, not pushed, not deployed.
+
+### Why
+Close the isolation 0.2.4 A-tier overlay after packs 0–7.
+
+### Affected files
+`docs/dev/UPSTREAM_BASE.json`, `docs/dev/UPSTREAM_024_GOAL_STATUS.md`, this changelog.
+
+## 2026-09-11 - sync: pack 7 Agent Identity stacked on session import
+
+### What
+- Isolation `sync/main-1` only: Codex Agent Identity is a fourth OpenAI import path stacked on the existing Codex session import. `chatgpt_session_token` / OAuth refresh_token / PAT remain. Agent Identity stores runtime + PKCS#8 private key and never writes sessionToken as refresh_token. `openai_session_refresh.go` is unchanged. Create/Edit add an Agent Identity radio; CreateAccountModal / EditAccountModal / OAuthAuthorizationFlow were not wholesale-replaced.
+- Named gates: `TestBuildAgentAssertionMatchesCodexEnvelopeAndSignature`, `TestOpenAIAuthenticationHeadersPreserveOAuthPATAndAPIKeyBearerModes`, `TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON`, `TestImportCodexSessionsCreatesAgentIdentityWithoutOAuthExpiry`, `TestOpenAIAgentIdentityPassthroughKeepsSessionAndPromptCacheHeaders`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 7 of the 0.2.4 A-tier overlay: operators can import Agent Identity auth.json without merging upstream/main or deleting session-token refresh.
+
+### Affected files
+`openai_agent_identity.go`, Codex session import overlay, passthrough Authorization overlay, Create/ReAuth OAuth flow radio, zh/en i18n, this changelog.
+
+## 2026-09-11 - sync: pack 6 group model allowlist config, gateway enforce default-off
+
+### What
+- Isolation `sync/main-1` only: group `model_allowlist` JSONB is additive (SQL **248/249**, never 235/236 and never filenames 225/226/231–234). Fork `models_list_config` listing column is **kept** (not renamed). Admins can persist/normalize allowlists (exact IDs + trailing `*`). `/v1/models` listing expands wildcards against source when allowlist is enabled. Gateway request-admission middleware is mounted but **default off** (`group_model_allowlist_enforce` missing/false = not enforced).
+- Named gates: `TestNormalizeGroupModelAllowlist`, `TestAdminService_CreateGroup_NormalizesModelAllowlist`, `TestGatewayModels_ModelAllowlistWildcardExpandsAgainstSource`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 6 of the 0.2.4 A-tier overlay: operators can configure group model allowlists without merging upstream/main, replacing GroupsView wholesale, or turning request admission on.
+
+### Affected files
+`group_model_allowlist.go`, SQL 248/249, group/api-key repo extra-column persist, gateway listing overlay, default-off middleware, GroupsView allowlist panel + zh/en i18n, this changelog.
+
+## 2026-09-11 - sync: pack 5 plugins default-off, fable 5.1, simple-mode grouping
+
+### What
+- Isolation `sync/main-1` only: OAuth outbound transport plugins land with installer **reject-unsigned by default**, `plugin_management_enabled` **default off**, and `doOpenAIUpstream` leaving API Key / non-OAuth paths on `httpUpstream.Do`. SQL remaps freeze 229/230 → **246/247**. `claude-fable-5.1` is added; `claude-fable-5` stays. CLI pin is 2.1.258 (≥ 2.1.251). Simple-mode can create basic groups and strips commercial fields / composite bindings.
+- Named gates: `TestPluginManagerRoutingDoesNotTouchAPIKeyOrOtherProviders`, `TestPluginPackageInstallerRejectsUnsignedPackageByDefault`, `TestOpenAIGatewayPluginRoutingPreservesAPIKeyAndFailsClosedForOAuth`, `TestDefaultModelsContainsClaudeFable51`, `TestCLICurrentVersionSatisfiesFable51Gate`, `TestGetModelDefaultPricing_ReturnsFable51CacheTTLs`.
+- `openai_session_refresh.go` is unchanged. Create/Edit account modals were not wholesale-replaced.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 5 of the 0.2.4 A-tier overlay: operators can install signed plugins later, schedule Fable 5.1, and use simple-mode grouping without merging upstream/main or hijacking API-key routing.
+
+### Affected files
+plugin manager/repo/handler, SQL 246/247, `openai_plugin_transport.go`, Claude constants/CLI version, group/account simple-mode sanitizers, PluginsView, i18n, this changelog.
+
+## 2026-09-11 - sync: pack 4 channel-monitor v2 quota mode and passive views
+
+### What
+- Isolation `sync/main-1` only: channel-monitor v2 API + admin V2 settings panel + user `/monitor` mode switch (V1 probes vs V2 passive aggregation). Quota check_mode (`probe` / `quota` / `quota_probe`) + `account_id` persist via remapped SQL **236** (never 226). V2 tables/settings remapped to **237–239, 241–245**. Default mode stays **v1**; hide-throughput default true; show-quota default false. Fork image-channel-monitor stays on both V1 and V2 user pages.
+- Named gates: `TestChannelMonitorQuotaModeRoundTrip`, `TestChannelMonitorV2QueryListSupportsRepeatedAndCommaValues`, `TestChannelMonitorV2ScopeFilterUsesAvailableGroupsForOrdinaryUser`.
+- Residual: live quota-fetch dispatch (`channel_monitor_quota_fetcher.go` / CN usage-window probe) is not wired; quota columns round-trip without calling missing CN quota services. Popular-model seed (would have been 240) not adopted.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 4 of the 0.2.4 A-tier overlay: operators can configure v2 passive views and quota-mode monitors without merging upstream/main, replacing ChannelMonitorView wholesale, or dropping image-channel-monitor.
+
+### Affected files
+`channel_monitor_v2_*` handler/service/repo/aggregator, remapped SQL 236–245, `ChannelMonitorView.vue` overlay, `ChannelStatusView.vue` wrapper + V1/V2, i18n zh/en `channelMonitorV2`, this changelog.
+
+## 2026-09-11 - sync: pack 3 model plaza with fork display prices
+
+### What
+- Isolation `sync/main-1` only: new public `/model-plaza` page and `GET /api/v1/model-plaza`. Paid columns use the fork display-price chain (`DisplayInputPrice` / `DisplayOutputPrice` / `DisplayCacheReadPrice`, falling back to configured unit prices). Official catalog list prices are reference only. Anonymous visitors see only non-exclusive groups. Time-of-day stored cost and long-context stored tiers are not adopted.
+- Named gates: `TestListPlazaGroups_UsesDisplayPricesNotCostPerToken`, `TestFilterPlazaVisibleGroups_AnonymousSeesOnlyNonExclusive`, vitest `renders display prices for public groups`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 3 of the 0.2.4 A-tier overlay: operators and visitors can browse group display prices without merging upstream/main or changing stored billing.
+
+### Affected files
+`model_plaza_service.go`, `model_plaza_handler.go`, `routes/model_plaza.go`, optional JWT middleware, settings public flags, `ModelPlazaView.vue`, i18n, this changelog.
+
+## 2026-09-11 - sync: pack 2 Grok 4.6 catalog xhigh media same-account 429
+
+### What
+- Isolation `sync/main-1` only: Grok 4.6 is a first-class text model (catalog + aliases; `grok` / `grok-latest` default to 4.6). Grok 4.6 keeps `xhigh` on the wire; older Grok still clamps xhigh→high. Chat Completions→Responses cache/vision bridge treats grok-4.6 like grok-4.5 (including image input without a cache key). Capacity 429 retries the same Grok account; generic rate-limit / billing / free-usage do not. Official Grok price cards are **not** adopted; display prices stay on the fork chain.
+- Named gates: `TestDefaultModelsIncludesGrok46`, `TestClampGrokReasoningEffortValue_PreservesXHighForGrok46`, `TestPatchGrokResponsesBodyPreservesXHighForGrok46`, `TestGrokChatResponsesRuntimeEligibility`, `TestGrokRetryableOnSameAccount_CapacityAndRateLimit`.
+- Residual: admin Grok media eligibility controls (Imagine eligibility UI on Edit Account) not overlaid; would add a large EditAccountModal section. Chat-bridge vision/media for 4.6 is landed. VERSION stays **0.1.287**.
+
+### Why
+Pack 2 of the 0.2.4 A-tier overlay: operators can schedule Grok 4.6, advertise/forward xhigh, and retry capacity 429 on the same account without merging upstream/main or changing stored billing.
+
+### Affected files
+`pkg/xai/models.go`, `openai_gateway_grok.go`, `openai_gateway_grok_chat_bridge.go`, `grok_upstream_failure.go`, `grok_media.go`, `openai_gateway_chat_completions_raw.go`, `openai_gateway_messages.go`, `openai_codex_models_grok_inject.go`, `useModelWhitelist.ts`, `codexGrokCatalog.ts`, `UseKeyModal.vue`, i18n, this changelog.
+
+## 2026-09-11 - sync: pack 1 CN first-class platforms (Kimi / Zhipu / MiniMax / DeepSeek)
+
+### What
+- Isolation `sync/main-1` only: Kimi, Zhipu, DeepSeek, and MiniMax are first-class platforms (constants, quota CHECK SQL 229/230/235, composite target binding, OpenAI-compatible gateway dispatch, default base URLs, create-account platform buttons). OpenAI sessionToken import is unchanged. Gateway enforce of group allowlists stays off.
+- Named gates: `TestCNProviderBalanceCheckRunOnceProbesCodingPlanQuota`, `TestCompositeRouteTargetPlatform_AllowsCNProviders`, `TestMiniMaxPlatformMigration`, vitest `exposes CN first-class platforms on the create form`.
+- VERSION stays **0.1.287**.
+
+### Why
+Pack 1 of the 0.2.4 A-tier overlay: operators can add CN accounts without merging upstream/main or replacing CreateAccountModal.
+
+### Affected files
+`domain/constants.go`, `domain_constants.go`, `account.go`, `cn_provider_balance_check_service.go`, `group_handler.go`, `gateway.go`, `CreateAccountModal.vue`, SQL 229/230/235, i18n, this changelog.
+
+## 2026-09-11 - sync: pack 0 leftovers (created_at, thinking bridges, cancel, fingerprint rewrite, ops return-to-list, request id, compact list, Astra)
+
+### What
+- Isolation `sync/main-1` only: synthesized Responses objects now emit `created_at`; Anthropic→Chat tool turns replay thinking as `reasoning_content`; Anthropic→Responses closes the message item before thinking and advances `content_index`; Chat Completions streaming cancels the upstream context before closing the body; Codex fingerprint outbound header/body rewrite stays default-off with seed SQL remapped to 224; Ops error detail can return to the source list and keep filters (0.1.286 hop-mix / attention filter kept); usage logs store an optional upstream request id (SQL 227/228, not 232/233) without changing `actual_cost`; lite account list omits group graphs but keeps quality/smart-schedule columns; GPT-6 Astra IDs added to the OpenAI default model table (catalog admin UI stays fork).
+- Named gates: `TestChatCompletionsResponseToResponses_CarriesCreatedAt`, `TestAnthropicToResponsesResponse_StampsCreatedAt`, `TestAnthropicEventToResponsesStream_CreatedAtStableAcrossEvents`, `TestWriteOpenAICompactSSEFailureMessage_CarriesCreatedAt`, `TestAnthropicToChatCompletionsRequest_ThinkingBecomesReasoningContentOnToolTurn`, `TestAnthropicEventToResponses_ThinkingAfterTextKeepsMessageOutput`, `TestForwardAsChatCompletions_CancelsUpstreamBeforeClosingBody`, `TestApplyCodexFingerprintHeaders_DeviceMode` (+ Off/Session/Full), `TestUpstreamRequestIDFromHeaders_ReadsOnlyConfiguredHeader`, `TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChangingActualCost`, `TestAccountListLiteKeepsQualityAndSmartScheduleColumns`, `TestDefaultModelsIncludeGPT6Astra`, vitest `returns to the source error list and keeps filters`.
+- Residual: WS passthrough later-turn pre-output 429 reconnect (`TestPassthroughLifecycle_LaterTurnPreOutputRateLimitRequestsReconnect`) needs the freeze WS v2 passthrough stack (`newStagedPassthroughConn` / ingress hooks). Fork HTTP-bridge already has later-turn replacement-account 429; wholesale WS replace is forbidden. VERSION stays **0.1.287**.
+
+### Why
+Pack 0 leftovers that already had named tests were still missing on the isolation overlay; strict Responses clients, DeepSeek multi-turn thinking, interleaved thinking streams, and stream Close() deadlocks needed the overlays without touching stored billing.
+
+### Affected files
+`apicompat` synthesis/thinking/stream files, `stream_error_event.go`, `openai_gateway_codex_compact_v2.go`, `openai_gateway_chat_completions.go`, `openai_codex_fingerprint.go`, `224_backfill_codex_fingerprint_seed.sql`, Ops error-detail Vue + i18n, `upstream_request_id.go`, `usage_log_repo.go`, `227`/`228` SQL, `account_handler.go` lite projection, `pkg/openai/constants.go`, this changelog, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`.
+
+## 2026-09-10 - sync: native-v2 compact mark, compact exhaust, WS later-turn 429
+
+### What
+- Isolation `sync/main-1` only: `normalizeOpenAIResponsesCompactRequest` now marks native `remote_compaction_v2` streaming compact so fallback fires without a pre-call to `MarkOpenAINativeCompactionV2`. Compact fallback that also fails writes a standard 400 (no recurse). Passthrough second-stream compact failure uses the standard error path with managed-proxy Ops. Later-turn WS HTTP-bridge 429 retries the current turn on a replacement account.
+- Named gates: `TestOpenAIGatewayForwardRetriesStreamingCompactAfterNativeV2ContextWithoutPreMark`, `TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails`, `TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPath`, `TestOpenAIWSHTTPBridgeLaterTurn429RetriesCurrentTurnOnReplacementAccount`.
+- GPT Image 2.5 / C-fast / C-price / dash stay **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Streaming compact retry was dead on the real native-v2 handler path; exhausted compact signals leaked as internal errors; later-turn WS 429 had no current-turn retry payload.
+
+### Affected files
+`openai_gateway_handler.go`, `openai_gateway_compact_body_signal_test.go`, `openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `openai_gateway_service.go`, `openai_ws_forwarder.go`, `openai_ws_http_bridge.go`, `openai_ws_http_bridge_resume_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: streaming compact SSE retry before client output on main-1
+
+### What
+- Isolation `sync/main-1` only: explicit compact streaming requests that fail with SSE `response.failed` (context window) **before any client output** retry once with the compact fallback model. The failed frame is not written downstream. Named gate: `TestOpenAIGatewayForwardRetriesStreamingCompactFailureBeforeOutput`.
+- Passthrough second-stream compact failure stays residual. VERSION stays **0.1.287**.
+
+### Why
+Non-stream compact SSE retry was landed; streaming compact used to flush the failed event and skip same-account fallback.
+
+### Affected files
+`openai_gateway_service.go`, `openai_compact_fallback_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: preserve structured 400 on model-not-found exhaustion
+
+### What
+- Isolation `sync/main-1` only: when OpenAI failover exhausts on a non-stream 400 `model_not_found`, return the structured upstream error (type/code/param/message) instead of mapping it to 502 `upstream_error`. Sensitive query values stay redacted. Named gates: `TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400`, `TestOpenAIManagedModelNotFoundExhaustionSanitizesMessage`.
+- VERSION stays **0.1.287**.
+
+### Why
+Managed single-account model-not-found must stay a client 400 so callers can change the model, not a gateway 502.
+
+### Affected files
+`openai_gateway_handler.go`, `openai_gateway_handler_test.go`, `openai_upstream_client_error.go`, `model_not_found_error.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: compact SSE 200 response.failed same-account retry on main-1
+
+### What
+- Isolation `sync/main-1` only: when an explicit compact request gets HTTP 200 SSE `response.failed` (context window / compact-model failure) before any downstream write, Forward retries once with the compact fallback model and records Ops `retry`/`compact_model_fallback` with the managed proxy. Named gates: `TestOpenAIGatewayForwardNonStreamCompactRetryRecordsAttemptWithManagedProxy`, `TestOpenAIGatewayForwardRetriesExplicitNativeCompactSSEFailureBeforeOutput`.
+- Streaming compact SSE retry and passthrough second-stream failure stay residual. VERSION stays **0.1.287**.
+
+### Why
+HTTP ≥400 compact retry was already landed; non-stream SSE failures previously wrote a 502 and skipped the same-account fallback.
+
+### Affected files
+`openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `openai_gateway_service.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: Images driver 400 does not cool image-model on main-1
+
+### What
+- Isolation `sync/main-1` only: Codex plan-gated 400 that names the Responses **driver** (`SUB2API_IMAGES_MAIN_MODEL` / `openAIImagesResponsesMainModel`) is returned as a 400 images error and does **not** `SetModelRateLimit`. An images-endpoint 400 that names the actual image model still applies a bounded per-model cooldown. Named gate: `TestOpenAIImagesRejectedDriverDoesNotCoolImageModel`.
+- GPT Image 2.5 LiteLLM rates and C-fast/C-price still **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Upstream 0.2.4 parks image-tool capability loss, but a retired driver must not cool every image account behind a generic 503.
+
+### Affected files
+`openai_images.go`, `openai_images_responses.go`, `openai_images_model_test.go`, `ratelimit_service_model_not_found.go`, `image_generation_intent.go`, `ctxkey.go`, `handler/openai_images.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: Images URL→b64_json backfill on main-1 (opt-in extra)
+
+### What
+- Isolation `sync/main-1` only: account extra `images_url_to_b64_json` (strict bool opt-in) downloads public image URLs into `data[].b64_json` on API Key non-stream Images responses. Private/loopback/link-local hosts are never requested. Named gates: `TestImagesURLToB64JSONEnabled`, `TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts`, `TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL`.
+- GPT Image 2.5 stored rates and C-fast/C-price still **stop-and-ask**. VERSION stays **0.1.287**.
+
+### Why
+Upstream 0.2.4 fills empty `b64_json` from URL for clients that only consume base64; fork-local billing/display chain is untouched.
+
+### Affected files
+`openai_images_b64_backfill.go`, `openai_images_b64_backfill_test.go`, `openai_images.go`, `http_upstream_profile.go`, `urlvalidator/validator.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: compact Forward retry + image streaming capability errors on main-1
+
+### What
+- Isolation `sync/main-1` only: hook `prepareOpenAICompactFallbackRetry` into `OpenAIGatewayService.Forward` HTTP ≥400 path (one same-account retry, Ops `retry`/`compact_model_fallback`). Named gate: `TestOpenAIGatewayForwardRetriesExplicitNativeCompactHTTPFailureOnce`.
+- Overlay OAuth Images streaming no-image classification: model prose → 502 `image_generation_unavailable` unflushed; split safety refusal → 400 `content_policy_violation` flushed. Named gates: `TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError`, `TestImagesOAuthStreaming_SplitSafetyRefusalReturns400`.
+- GPT Image 2.5 stored rates **not** adopted (would change `actual_cost`); listed as stop-and-ask on residual. VERSION stays **0.1.287**.
+
+### Why
+Compact fallback was helper-only; Forward now retries explicit native compact HTTP failures once. Image streaming previously treated all empty-image streams as a flushed generic error, blocking failover vs content-policy.
+
+### Affected files
+`openai_gateway_service.go`, `openai_compact_fallback.go`, `openai_compact_fallback_test.go`, `ops_upstream_context.go`, `openai_images_responses.go`, `openai_images_incomplete_test.go`, `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`, this changelog.
+
+## 2026-09-10 - sync: Phase 1 leftovers + Phase 2 B overlay on main-1 (keep 0.1.287)
+
+### What
+- Isolation `sync/main-1` only: three-way overlay of remaining Phase 1 named leftovers and Phase 2 B (pool 429 same-account retry, team-error fanout, fingerprint default-off, Guardian parent affinity, compact fallback helper + same-account retry deadline). No `git merge upstream/main`, no wholesale gateway/scheduler/usage replace.
+- Named gates: `TestClassifySelectionFailureError_ModelNotFoundIsNotOverriddenByRateLimited`, `TestForwardAsRawChatCompletions_StripsEmptyToolCallIdentity`, `TestBuildOpenAIWSCurrentTurnRetryPayloadRejectsOrphanToolOutput`, `TestGatewayCompatPoolMode429AllowsSameAccountRetry`, `TestSameAccountRetryAllowedUsesDeadlineInsteadOfPoolCount`, `TestPrepareOpenAICompactFallbackRetryLegacyPathAndSingleAttemptGuard`, `TestResolveCodexFingerprintIDsFromRequest_DefaultIsOff`, `TestOpenAIGatewayService_GuardianParentAffinitySelectsParentAccountAcrossSchedulers`, `TestTeamLinkedError_FanoutMarksSameTeamAccounts`.
+- Pool hard-eviction and profit-control stay default off. Fingerprint default is off. VERSION stays **0.1.287**. SQL 196–223 untouched. Occupied `main` not merged.
+- Residual (Phase 3 image/ops/dash/Astra, Phase 4–6 C Fast/billing/platforms/Agent Identity, WS replacement-account 429 stack, compact Forward loop hook, fingerprint header rewrite + seed SQL) recorded in `docs/dev/UPSTREAM_SYNC_RESIDUAL_024.md`.
+
+### Why
+Finish remaining 0.2.4 A/B protocol/scheduler overlays that have assessment-named tests without regressing fork-local display/`actual_cost`, sessionToken, wait-timeout, or capacity-shed.
+
+### Affected files
+`no_account_error.go`, `failover_loop.go`, `openai_gateway_handler.go`, `openai_chat_completions.go`, `gateway_forward_as_{chat_completions,responses}.go`, `gateway_service.go`, `openai_gateway_chat_completions_raw.go`, `openai_gateway_cc_tool_call_identity.go`, `openai_ws_forwarder.go`, `openai_account_scheduler.go`, `openai_guardian_affinity.go`, `openai_compact_fallback.go`, `openai_codex_fingerprint.go`, `openai_team_linked_error.go`, `ratelimit_service.go`, `ops_upstream_context.go`, `account.go`, `config.go`, matching `*_test.go`, this changelog.
+
+## 2026-09-10 - sync: Phase 1 A-lane overlay on main-1 (keep 0.1.287)
+
+### What
+- On isolation `sync/main-1` only: overlay remaining A-lane protocol/failover from upstream freeze 0.2.4 without `git merge upstream/main` or wholesale gateway replace.
+- Landed: N-sticky (leading system prefix), remaining N-cap request-scoped shed, N24-m404 model-not-found failover (AG bare 404 kept), N24-h2 PING keepalive, N24-slot immediate session release, N24-trunc raw CC truncated stream, N24-sticky2 (capacity spillover keeps binding), N-proto (file→input_file, omit empty tool name, strip deferred tool cache_control), N24-ws429 later-turn 429 before client write, N24-xport Anthropic/Bedrock transport failover.
+- VERSION stays **0.1.287**. SQL 196–223 untouched. Occupied `main` not merged.
+
+### Why
+Campaign to upstream 0.2.4 starts with A-lane hotfixes that must not regress fork-local wait-timeout, capacity-shed, display transform, or sessionToken.
+
+### Affected files
+`openai_content_session_seed.go`, `openai_capacity_shed.go`, `openai_gateway_service.go`, `openai_gateway_chat_completions*.go`, `openai_gateway_messages.go`, `gateway_service.go`, `gateway_handler.go`, `http_upstream.go`, `session_limit_cache.go`, `model_not_found_error.go`, `openai_raw_stream_truncation.go`, `apicompat/types.go`, `chatcompletions_to_responses.go`, `gateway_tool_rewrite.go`, `openai_ws_http_bridge.go`, `gateway_upstream_transport_error.go`, this changelog.
+
+## 2026-09-09 - sync: rehearse standing overlay onto main-1 (0.1.287)
+
+### What
+- Isolation branch `sync/main-1` three-way merged `sync/upstream-standing-20260821` onto occupied `main` `00bc18c5a` / VERSION **0.1.287**.
+- Window-1 SQL remapped to `221_subscription_plan_currency` / `222_usage_log_image_input_tokens` / `223_group_profit_control`. Main `212–220` kept.
+- Overlay kept: T0 terminal JSON return, T1 pre-terminal read failover, T2 SSE overload 529, T3 empty capabilities, profit-control default-off after pair-full, `image_input_tokens`.
+- Fork-local 0.1.253–287 (capacity-shed, wait-timeout hide, display cap, sessionToken, smart-schedule) kept. Not merged to real `main`, not pushed.
+
+### Why
+Rehearse landing standing overlay on current main without touching the occupied checkout.
+
+### Affected files
+`backend/migrations/221_*.sql` `222_*.sql` `223_*.sql`,
+gateway/scheduler/usage_log overlay files,
+`docs/dev/UPSTREAM_SYNC.md`,
+`docs/dev/UPSTREAM_BASE.json`,
+this changelog.
 
 ## 2026-09-07 - deploy: production v0.1.287
 
@@ -2294,6 +2567,34 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 `frontend/src/components/admin/model-pricing/ModelTestDialog.vue`,
 `docs/dev/codebase/model-mapping.md`
 
+## 2026-08-23 - sync: window 2 T0–T3 on standing replica
+
+### What
+- **T0**: folded occupied `main` `6fa10b136` into `sync/upstream-standing-20260821` (main→copy only).
+- **T1**: Chat buffered read errors before a Responses terminal now failover (`b228b93e9`). Client cancel / oversized line / Messages path unchanged.
+- **T2**: pre-output Anthropic SSE `overloaded_error` uses semantic 529; post-output keeps 403 (`76a13a5a8`).
+- **T3**: empty `openai_capabilities` matches unset so OAuth text accounts stay schedulable (`40c26f343`).
+- Pending eval still starts at `fbfdcef81`. This is not full upstream 0.1.179. Merge-to-real-main stays locked.
+
+### Why
+- Occupied main already had true-terminal return; T1 had to stack on that same file. The three A-lane hotfixes are independently testable without absorbing the rest of the 305-commit freeze range.
+
+### Verification
+- `go test -tags=unit ./internal/service -count=1 -run "TestHandleChatBufferedStreamingResponse_|TestChatCompletionsBufferedResponsesReadError|TestGatewayService_Forward_PreOutputSSEOverloaded|TestGatewayService_Forward_PostOutputSSEOverloaded|TestAccountSupportsOpenAIEndpointCapability"`
+- `go run ./tools/upstream-sync-guard --base 6fa10b136`
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_stream_read_error.go`,
+`backend/internal/service/openai_gateway_compat_buffered_read_failover_test.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/gateway_forward_sse_overload_test.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/openai_images_test.go`,
+`docs/dev/UPSTREAM_BASE.json`,
+`docs/dev/UPSTREAM_SYNC.md`,
+this changelog.
+
 ## 2026-08-22 - fix: return Chat Completions JSON as soon as Responses buffer sees a terminal
 
 ### What
@@ -2309,6 +2610,34 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 ### Affected files
 `backend/internal/service/openai_gateway_chat_completions.go`,
 `backend/internal/service/openai_gateway_chat_completions_test.go`
+
+## 2026-08-22 - sync: fold current main into standing replica
+
+### What
+- Merged occupied `main` `1b3965a71` (VERSION **0.1.252**) into `sync/upstream-standing-20260821`.
+- Remapped window-1 SQL `210/211/212` to `212/213/214` so main keeps `210_ops_attention_alert` and `211_user_smart_schedule_account_pk`.
+- Three-way overlay: AG/unpooled/Ops raw error plus window-1 image tokens / default-off profit-control / `response.failed` to 429. Did not merge upstream/main or fold back onto occupied main.
+
+### Why
+- Window-1 must sit on current scheduler/AG/Ops rather than 0.1.247. Leaving window-1 at 210/211 would collide with main.
+
+### Verification
+- `go test -tags=unit` on service / repository / handler
+- `go run ./tools/upstream-sync-guard --base 1b3965a71`
+
+### Affected files
+`backend/migrations/212_subscription_plan_currency.sql`,
+`backend/migrations/213_usage_log_image_input_tokens.sql`,
+`backend/migrations/214_group_profit_control.sql`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/UPSTREAM_SYNC.md`,
+`docs/dev/UPSTREAM_BASE.json`,
+this changelog.
 
 ## 2026-08-22 - docs: record production deploy of v0.1.252
 
@@ -2728,6 +3057,33 @@ Release `v0.1.254` failed: `form.custom` was possibly undefined under optional `
 `.trellis/tasks/08-21-smart-schedule-pin/research/pin-api-contract.md`,
 `.trellis/tasks/08-21-smart-schedule-pin/research/frontend-pin-wiring.md`,
 `docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-21 - sync: fine-port catchup window-1 onto 0.1.247 standing replica
+
+### What
+- Overlay window-1 P1/P2/P5 from `7feb1549f` onto `sync/upstream-standing-20260821` (branch-point `7f054bc3e`): Codex load-shed identity rewrite, Claude Code security-monitor classifier, configurable client-IP headers / True-Client-IP, moderation proxy fail-closed, plan currency, `response.failed` rate_limit → 429, security-audit default Off, optional group profit-control admin fields.
+- Keep pair/smart-schedule, `true_first_token_ms`, `true_cost`, display billing, and `actual_cost` unchanged. Migrations were later remapped to 212–214 when folding main (main already owned 210/211).
+
+### Why
+- Standing replica needs the catchup window-1 behaviors on current main 0.1.247 without merging old catchup branches or whole-file replacing hot paths.
+
+### Verification
+- `go test -tags=unit -count=1` on changed packages (service, repository, pkg/ip, pkg/openai, handler, securityaudit)
+- `go run ./tools/upstream-sync-guard` and `--base 7f054bc3e`
+
+### Affected files
+`backend/internal/pkg/openai/request.go`, `backend/internal/config/config.go`, `deploy/config.example.yaml`,
+`backend/internal/service/openai_codex_identity.go`, `backend/internal/service/claude_code_validator.go`,
+`backend/internal/pkg/ip/ip.go`, `backend/internal/service/content_moderation.go`,
+`backend/internal/handler/content_moderation_helper.go`, `backend/internal/handler/security_audit_helper.go`,
+`backend/internal/service/payment_config_plans.go`, `backend/internal/service/payment_config_service.go`,
+`backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_ws_v2/passthrough_relay.go`,
+`backend/internal/service/admin_service.go`, `backend/internal/handler/admin/group_handler.go`,
+`backend/internal/handler/dto/types.go`, `backend/internal/service/wire.go`,
+`frontend/src/views/admin/GroupsView.vue`, `frontend/src/views/admin/orders/PlanEditDialog.vue`,
+`frontend/src/views/admin/orders/AdminPaymentPlansView.vue`, `frontend/src/views/admin/RiskControlView.vue`,
+`docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`,
 this changelog.
 
 ## 2026-08-21 - fix: leftover u:/w: no longer blocks probe graduate

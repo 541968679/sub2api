@@ -24,7 +24,7 @@ const (
 	grokComposerImageBridgeMaxOutputTokens = 512
 	grokUpstreamUserAgent                  = "sub2api-grok/1.0"
 	grokCLIVersion                         = "0.2.93"
-	grokDefaultResponsesModel              = "grok-4.5"
+	grokDefaultResponsesModel              = "grok-4.6"
 	grokRateLimitFallbackCooldown          = 2 * time.Minute
 )
 
@@ -100,7 +100,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		}
 
 		upstreamStart := time.Now()
-		resp, doErr := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		resp, doErr := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 		if doErr != nil {
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, doErr, false)
@@ -143,11 +143,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 			})
 			s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			if s.shouldFailoverUpstreamError(resp.StatusCode) {
-				return nil, &UpstreamFailoverError{
-					StatusCode:             resp.StatusCode,
-					ResponseBody:           respBody,
-					RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
-				}
+				return nil, newGrokUpstreamFailoverError(account, resp.StatusCode, resp.Header, respBody)
 			}
 			// Stream clients expect SSE error events, not a bare JSON body.
 			if reqStream && c != nil && c.Writer != nil && !c.Writer.Written() {
@@ -374,7 +370,7 @@ func patchGrokResponsesBody(body []byte, upstreamModel string) ([]byte, error) {
 			}
 		}
 	}
-	if strings.EqualFold(upstreamModel, "grok-4.5") {
+	if grokChatResponsesBridgeModel(upstreamModel) {
 		for _, unsupportedField := range []string{"presence_penalty", "presencePenalty", "frequency_penalty", "frequencyPenalty", "stop"} {
 			if gjson.GetBytes(out, unsupportedField).Exists() {
 				out, err = sjson.DeleteBytes(out, unsupportedField)
@@ -457,12 +453,12 @@ func sanitizeGrokResponsesModelCapabilities(body []byte, upstreamModel string) (
 		return out, nil
 	}
 
-	// Main Grok models accept low/medium/high only. Codex catalogs may still
-	// offer xhigh (OpenAI-style); clamp to high so xAI does not 400.
-	return clampGrokReasoningEffortFields(body)
+	// Main Grok models accept low/medium/high. Grok 4.6 also accepts xhigh.
+	// Codex catalogs may still offer xhigh for older models; clamp those to high.
+	return clampGrokReasoningEffortFields(body, upstreamModel)
 }
 
-func clampGrokReasoningEffortFields(body []byte) ([]byte, error) {
+func clampGrokReasoningEffortFields(body []byte, upstreamModel string) ([]byte, error) {
 	out := body
 	paths := []string{"reasoning.effort", "reasoning_effort", "reasoningEffort"}
 	for _, path := range paths {
@@ -470,7 +466,7 @@ func clampGrokReasoningEffortFields(body []byte) ([]byte, error) {
 		if raw == "" {
 			continue
 		}
-		clamped := clampGrokReasoningEffortValue(raw)
+		clamped := clampGrokReasoningEffortValueForModel(raw, upstreamModel)
 		if clamped == "" || clamped == raw {
 			continue
 		}
@@ -484,8 +480,12 @@ func clampGrokReasoningEffortFields(body []byte) ([]byte, error) {
 }
 
 // clampGrokReasoningEffortValue maps Codex/OpenAI-style effort labels onto the
-// set xAI Grok Responses accepts: low | medium | high.
+// set xAI Grok Responses accepts for models that do not advertise xhigh.
 func clampGrokReasoningEffortValue(raw string) string {
+	return clampGrokReasoningEffortValueForModel(raw, "")
+}
+
+func clampGrokReasoningEffortValueForModel(raw, model string) string {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	if value == "" {
 		return ""
@@ -498,12 +498,24 @@ func clampGrokReasoningEffortValue(raw string) string {
 		return "medium"
 	case "high":
 		return "high"
-	case "xhigh", "extrahigh", "extra", "max", "ultra", "ultracode":
+	case "xhigh", "extrahigh", "extra":
+		if GrokSupportsXHighReasoningEffort(model) {
+			return "xhigh"
+		}
+		return "high"
+	case "max", "ultra", "ultracode":
 		return "high"
 	default:
 		// Unknown labels: prefer high over passthrough to avoid upstream 400s.
 		return "high"
 	}
+}
+
+// GrokSupportsXHighReasoningEffort reports whether the model advertises and
+// forwards the xhigh reasoning effort (Grok 4.6 and its undated alias).
+func GrokSupportsXHighReasoningEffort(model string) bool {
+	model = strings.ToLower(xai.StripGrokProviderPrefix(strings.TrimSpace(model)))
+	return model == "grok-4.6" || model == "grok-4.6-latest"
 }
 
 func grokModelRejectsReasoningEffort(model string) bool {
@@ -910,7 +922,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	if err != nil {
 		return "", OpenAIUsage{}, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 	}
@@ -933,11 +945,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 		})
 		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 		if s.shouldFailoverUpstreamError(resp.StatusCode) {
-			return "", OpenAIUsage{}, &UpstreamFailoverError{
-				StatusCode:             resp.StatusCode,
-				ResponseBody:           respBody,
-				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
-			}
+			return "", OpenAIUsage{}, newGrokUpstreamFailoverError(account, resp.StatusCode, resp.Header, respBody)
 		}
 		return "", OpenAIUsage{}, fmt.Errorf("grok composer image bridge upstream error: %s", upstreamMsg)
 	}

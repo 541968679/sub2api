@@ -382,6 +382,7 @@ const zhBase = {
     groups: '分组管理',
     channels: '渠道管理',
     availableChannels: '可用渠道',
+    modelPlaza: '模型广场',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     modelConfig: '模型配置',
@@ -409,6 +410,7 @@ const zhBase = {
     channelManagement: '渠道管理',
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
+    plugins: '插件管理',
     imageChannelMonitor: '图片渠道监控',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
@@ -914,13 +916,13 @@ const zhBase = {
         note: '保存为 ~/.grok/config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
         noteWindows: '保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
         codexDescription:
-          '将以下 Codex 配置写入 ~/.codex。含 model_context_window 与 model-catalog-grok.json，避免 “Model metadata for grok-4.5 not found”。',
+          '将以下 Codex 配置写入 ~/.codex。含 model_context_window 与 model-catalog-grok.json，避免 “Model metadata for grok-4.6 not found”。',
         codexConfigTomlHint:
           '请放在 config.toml 顶部；model_catalog_json 使用相对文件名，Codex 会从 ~/.codex 目录解析。',
         codexCatalogHint:
           '与 config.toml 同目录保存。CCS 一键导入不会写入 catalog，若从 CCS 导入后仍有 metadata 警告，请补上此文件并重启 Codex。',
         codexNote:
-          '保存后完全退出并重启 Codex。CCS 导入仅写 model=grok-4.5，不会自动生成 catalog，请以本面板文件为准补齐元数据。',
+          '保存后完全退出并重启 Codex。CCS 导入仅写 model=grok-4.6，不会自动生成 catalog，请以本面板文件为准补齐元数据。',
         codexNoteWindows:
           '按 Win+R 打开 %userprofile%\\.codex，写入三份文件后完全退出并重启 Codex。'
       },
@@ -949,7 +951,7 @@ const zhBase = {
     ccSwitchImportLaunched:
       '已唤起 CC-Switch 导入。若未自动打开，请确认已安装 CC-Switch，或改用「使用密钥」手动配置。',
     ccsGrokCodexMetadataHint:
-      'Grok 已导入为 Codex（model=grok-4.5）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.5 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
+      'Grok 已导入为 Codex（model=grok-4.6）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.6 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
     ccsClientSelect: {
       title: '选择客户端',
       description: '请选择您要导入到 CC-Switch 的客户端类型：',
@@ -1220,7 +1222,18 @@ const zhBase = {
     providers: {
       openai: 'OpenAI',
       anthropic: 'Anthropic',
-      gemini: 'Gemini'
+      gemini: 'Gemini',
+      grok: 'Grok',
+      antigravity: 'Antigravity',
+      kimi: 'Kimi',
+      zhipu: '智谱',
+      deepseek: 'DeepSeek',
+      minimax: 'MiniMax'
+    },
+    checkMode: {
+      probe: '探活',
+      quota: '配额',
+      quota_probe: '探活+配额'
     },
     extraModelsHeader: '附加模型',
     extraModelsEmpty: '无附加模型',
@@ -1292,6 +1305,162 @@ const zhBase = {
     empty: {
       title: '暂无可显示的渠道',
       description: '管理员尚未配置可监控的渠道。'
+    }
+  },
+
+  channelMonitorV2: {
+    title: '渠道监控',
+    updating: '正在更新数据',
+    updatedTo: '更新至 {time}',
+    partialCoverage: '部分历史覆盖',
+    bootstrap: {
+      title: '正在补齐历史监控数据',
+      description:
+        '首次启用被动监控时，系统会在后台静默聚合 90 分钟、24 小时、7 天与 30 天窗口；完成后可切换全部时间范围。',
+      progress: '进度 {percent}%',
+      working: '后台聚合中…',
+    },
+    timeRange: '时间范围',
+    clearFilters: '重置',
+    refreshingFilters: '筛选条件已变化，正在刷新矩阵、趋势和明细…',
+    switchingData: '正在切换筛选数据…',
+    summaryAria: '筛选范围整体汇总',
+    loadFailed: '渠道监控加载失败',
+    detailLoadFailed: '渠道监控明细加载失败',
+    otherModels: '其他模型',
+    ignored: '忽略',
+    currentUser: '当前用户',
+    ranges: { '90m': '90m', '24h': '24h', '7d': '7d', '30d': '30d' },
+    filters: {
+      platform: '平台', allPlatforms: '全部', group: '分组', allGroups: '全部', model: '模型', allModels: '全部',
+      empty: '暂无可选项', selectedCount: '{count} 项', labelValue: '{label}：{value}'
+    },
+    groupBy: {
+      label: '展示维度', platform: '平台', platformGroup: '平台 / 分组', platformModel: '平台 / 模型', platformGroupModel: '平台 / 分组 / 模型'
+    },
+    trendView: { label: '趋势视图', pulse: '色块矩阵', line: '折线图' },
+    healthMode: { label: '健康显示', overall: '综合', success: '错误率', ttft: '首 Token', cache: '缓存率' },
+    tabs: { aria: '明细维度', models: '模型', errors: '错误原因', users: '用户排行' },
+    metrics: {
+      rpm: 'RPM',
+      tpm: 'TPM',
+      tps: '每秒 Token',
+      rpmDetail: '每分钟请求数',
+      tpmDetail: '每分钟 Token 数',
+      tpsDetail: '由 TPM ÷ 60 换算',
+      errorRate: '错误率',
+      ttft: '首 Token',
+      ttftP50: '首 Token P50',
+      durationP50: '请求时长 P50',
+      cacheRate: '缓存率',
+      cacheDetail: '读缓存占比',
+      successRate: '成功率',
+      successRateValue: '成功率 {value}',
+      errorRateValue: '错误率 {value}',
+      rpmValue: 'RPM {value}',
+      tpmValue: 'TPM {value}',
+      tpsValue: '每秒 Token {value}',
+      ttftValue: '首 Token {value}',
+      durationValue: '请求时长 {value}',
+      cacheRateValue: '缓存率 {value}',
+    },
+    table: { platformModel: '平台 / 模型', rank: '排名', user: '用户' },
+    empty: { title: '没有可展示的数据', description: '尝试调整时间范围或筛选条件' },
+    bucket: { minutes: '{count} 分钟粒度', hours: '{count} 小时粒度', days: '{count} 天粒度' },
+    matrix: {
+      title: '可用性趋势', description: '每行是一种渠道组合，每个色块代表一个统计区间；悬停查看明细', wheelZoom: '在色块上滚轮放大（区间变窄、色块变宽）', wheelZoomX: '在色块上滚轮放大（区间变窄、色块变宽）', dimension: '渠道维度', emptyTitle: '当前筛选窗口没有矩阵数据', legendAria: '健康分数图例', bad: '差', good: '好', healthyLegend: '健康 (≥80)', warningLegend: '需关注 (50–79)', criticalLegend: '异常 (<50)', unknownLegend: '无流量 / 样本不足', noTraffic: '该区间无流量', noTrafficAt: '{time} · 无流量', scoreLine: '健康分 {score}', resetZoom: '重置缩放'
+    },
+    chart: {
+      title: '可用性趋势', description: '平滑趋势：错误率 · 首 Token P50 · 缓存率', emptyTitle: '当前筛选窗口没有趋势数据', errorLegend: '错误率（左轴 %）', cacheLegend: '缓存率（左轴 %）', ttftLegend: '首 Token P50（右轴）', errorDataset: '错误率趋势 %', cacheDataset: '缓存率趋势 %', ttftDataset: '首 Token 趋势 P50 (ms)', percentAxis: '比率 %', resetZoom: '重置缩放'
+    },
+    errorDetail: { http: 'HTTP {code}', upstream: '上游 {code}', noMessage: '无错误消息', empty: '仅展示分类占比（样本消息仅管理员可见）' },
+    errorCategories: {
+      content_policy: '内容策略', authentication: '认证失败', context_limit: '上下文超限', invalid_request: '请求格式', model_unsupported: '模型不支持', group_access: '分组权限', quota_or_balance: '额度或余额', account_pool_unavailable: '账号池不可用', rate_or_capacity: '限流或容量', timeout: '超时', transport_or_stream: '传输或流', upstream_forbidden: '上游拒绝', not_found: '资源不存在', client_cancelled: '客户端取消', upstream_5xx: '上游 5xx', internal: '内部错误', other: '其他'
+    },
+    rank: {
+      gold: '第 1 名 金',
+      silver: '第 2 名 银',
+      bronze: '第 3 名 铜',
+      place: '第 {n} 名',
+      unranked: '未上榜',
+    },
+    settings: {
+      title: 'V2 数据监控配置',
+      description:
+        '配置被动用量汇总维度（平台 / 模型 / 分组）与刷新频率。健康色与明细在用户端 /monitor 以比例、RPM/TPM 展示，不暴露绝对请求量。',
+      save: '保存',
+      loading: '加载中...',
+      loadFailed: 'V2 配置加载失败',
+      saveSuccess: 'V2 监控配置已保存',
+      saveFailed: 'V2 配置保存失败',
+      modeBanner:
+        '当前系统设置为 {mode}。V2 分钟聚合不会运行；此处配置可预先保存，切换到 {modeV2} 后立即生效。可在系统设置 → 功能开关调整。',
+      modeClosed: '渠道监控已关闭',
+      modeV1: 'V1 主动探测',
+      modeV2: 'V2 被动监控',
+      enableTitle: '启用 V2 汇总',
+      enableHint: '在系统模式为 V2 时生效；关闭后仅停止本配置的汇总，系统模式开关仍在「功能开关」',
+      refreshTitle: '汇总频率',
+      refreshHint: '影响矩阵时间粒度与刷新节奏',
+      refreshAria: '汇总频率',
+      platformsTitle: '平台与模型',
+      platformsHint: '留空 = 展示全部真实模型名；填写后仅名单内单独成行，其余归入「其他」',
+      modelsPlaceholder: '留空=全部真实模型；或填写主流模型名单（其余归其他）',
+      badgeAllModels: '全部模型',
+      badgeOther: '+ 其他',
+      groupsTitle: '监控分组',
+      groupsSelected: '已选择 {count} 个分组',
+      groupsAll: '全部分组',
+      groupsEmpty: '没有可选择的分组',
+      errorsTitle: '错误分类与忽略',
+      errorsHint:
+        '勾选「忽略」的类别不计入错误率与健康分，仍在错误原因列表中以灰色显示并标记忽略。未匹配的错误归入「其他」。',
+      ignoredSummary: '已忽略 {ignored} 类 · 计入错误率 {counted} 类',
+      healthTitle: '健康阈值',
+      healthHint: '控制用户端色块和整体评分。默认阈值较宽松，避免少量错误或低缓存率立即显示异常。',
+      fields: {
+        minimumSample: '最小样本数',
+        warningError: '错误率关注 %',
+        criticalError: '错误率异常 %',
+        targetTtft: 'TTFT 目标 ms',
+        warningTtft: 'TTFT 关注 ms',
+        criticalTtft: 'TTFT 异常 ms',
+        warningCache: '缓存率关注 %',
+        criticalCache: '缓存率异常 %',
+      },
+      namedModelsEmpty: '各平台模型列表为空：将展示全部真实模型名（不归入「其他」）。',
+      namedModelsCount: '将展示 {count} 个命名模型维度；名单外模型归入各平台「其他」。',
+      userContractTitle: '用户端展示约定',
+      userContract: {
+        health: '健康色三指标：错误率 60% + 首 Token P50 20% + 缓存率 20%（阈值可在上方配置）',
+        trend: '趋势可切换色块矩阵 / 折线图（错误率 · 缓存率 · 首 Token）',
+        latency: '延迟展示 AVG · P50 · P90；不展示绝对请求数 / 错误数',
+        models: '模型列表留空时展示真实模型名，不会全部归入「其他」',
+      },
+    },
+    admin: {
+      descriptionV1: '当前系统设置为 V1 主动探测：可管理监控项并立即检测；V2 聚合不会运行。',
+      descriptionV2: '当前系统设置为 V2 被动监控：配置聚合维度；V1 主动探测不会运行。',
+      tabAria: '监控管理',
+      tabV2: 'V2 数据监控配置',
+      tabV1Active: 'V1 主动探测',
+      tabV1History: 'V1 历史（当前模式未启用探测）',
+    },
+  },
+
+
+  modelPlaza: {
+    title: '模型广场',
+    description: '按分组展示二开展示单价。匿名仅能看到非专属分组。',
+    empty: '暂无可见分组',
+    loadFailed: '加载模型广场失败',
+    rate: '倍率',
+    columns: {
+      model: '模型',
+      displayInput: '展示输入',
+      displayOutput: '展示输出',
+      displayCache: '展示缓存读',
+      officialInput: '官方参考输入'
     }
   },
 
@@ -2746,6 +2915,10 @@ const zhBase = {
         descriptionPlaceholder: '请输入描述（可选）',
         rateMultiplierLabel: '费率倍数',
         rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+        profitControl: '利润门禁',
+        profitControlHint: '默认关闭。开启后，账号计费倍率必须不高于「分组倍率 × (1 − 最低利润 − 安全缓冲)」才会被派号。不改计费金额。当前作用于 OpenAI 兼容选号。',
+        profitMinMargin: '最低利润率',
+        profitSafetyBuffer: '安全缓冲',
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
@@ -2778,6 +2951,22 @@ const zhBase = {
         moveUp: '上移',
         moveDown: '下移'
       },
+      modelAllowlist: {
+        title: '模型白名单',
+        hint: '开启后，/v1/models 只展示白名单内的模型。网关请求准入默认关闭（group_model_allowlist_enforce=false）；条目支持精确模型 ID 与末尾 * 通配。',
+        selectedCount: '已选 {selected} / {total}',
+        selectAll: '全选',
+        invert: '反选',
+        loading: '加载模型候选中...',
+        empty: '暂无候选模型，可在下方手工添加条目',
+        moveUp: '上移',
+        moveDown: '下移',
+        addCustom: '添加条目',
+        addCustomPlaceholder: '例如 gpt-5.5-*',
+        addErrorEmpty: '请输入模型条目',
+        addErrorWildcard: '通配符 * 只能出现在条目末尾',
+        addErrorDuplicate: '该条目已存在'
+      },
       exclusiveObj: {
         yes: '是',
         no: '否'
@@ -2799,7 +2988,11 @@ const zhBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kimi: 'Kimi',
+        zhipu: '智谱',
+        deepseek: 'DeepSeek',
+        minimax: 'MiniMax'
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -3589,6 +3782,8 @@ const zhBase = {
       autoBanHint: '命中次数达到阈值后将禁用用户账号、刷新认证缓存并发送封禁通知邮件。',
       cyberPolicyExcludeBan: 'cyber_policy 不计入封号次数',
       cyberPolicyExcludeBanHint: '开启后，cyber_policy 拦截不再计入自动封号的违规次数：当次不判定封号，历史累计亦排除。风控日志与通知邮件照常。',
+      proxyId: '风控请求代理',
+      proxyIdHint: '填写已启用的代理 ID。留空或 0 表示直连；解析失败不会静默改走直连。',
       violationNotCounted: '未计入封号',
       banThreshold: '封禁触发次数',
       violationWindowHours: '累计窗口（小时）',
@@ -3740,6 +3935,55 @@ const zhBase = {
       },
     },
 
+    plugins: {
+      title: '插件管理',
+      description: '安装和管理独立运行的 OAuth 出站传输插件。API Key 流程不受影响。',
+      upload: '安装插件',
+      uploadHint: '仅接受 .s2plugin 包；默认要求可信发布者签名。',
+      runtimeNotice: '插件安装、启用、停用和配置由 Sub2API 宿主动态处理，通常不需要重启宿主实例。只有宿主版本或宿主配置本身变化时，才按部署方式执行重启。',
+      menuNotice: '系统设置中的“插件管理”开关仅控制侧边栏菜单显示，不会停止已经加载或正在运行的插件。',
+      empty: '尚未安装插件',
+      emptyHint: '选择本机的 .s2plugin 文件进行安装。Sub2API 不会自动下载第三方插件。',
+      configure: '配置',
+      enable: '启用',
+      disable: '停用',
+      test: '测试',
+      uninstall: '卸载',
+      rollout: 'OAuth 流量比例',
+      compatibility: '版本兼容性',
+      currentVersion: '当前 Sub2API',
+      requiredVersion: '要求范围',
+      recommendedVersion: '建议版本',
+      signature: '包签名',
+      trusted: '已验证',
+      unsigned: '未签名',
+      runtime: '运行状态',
+      healthy: '运行正常',
+      unhealthy: '未运行',
+      compatible: '兼容',
+      untested: '未验证版本',
+      incompatible: '不兼容',
+      enabled: '已启用',
+      disabled: '已停用',
+      error: '异常',
+      starting: '启动中',
+      configTitle: '{name} 配置',
+      loadingUI: '正在加载插件配置界面...',
+      uiUnavailable: '无法加载插件配置界面',
+      uploadSuccess: '插件安装成功，当前保持停用',
+      enableSuccess: '插件已启用',
+      disableSuccess: '插件已停用',
+      uninstallSuccess: '插件已卸载',
+      testSuccess: '插件测试通过',
+      confirmDisable: '确定停用此插件吗？新的 OAuth 请求会立即恢复 Sub2API 原有路径。',
+      confirmUninstall: '确定卸载此插件吗？插件必须先停用。此操作会移除安装文件和配置。',
+      confirmUntested: '该插件兼容当前版本范围，但未声明已测试当前 Sub2API 版本。确定承担风险并启用吗？',
+      fileRequired: '请选择 .s2plugin 文件',
+      bridgeRejected: '插件 UI 消息校验失败',
+      onlyOpenAI: '初期能力：仅 OpenAI OAuth 出站传输',
+      noAccountCoupling: '作用域为平台与账号类型，不修改账号数据，也不需要在账号页逐个开启。'
+    },
+
     // Channel Monitor
     channelMonitor: {
       title: '渠道监控',
@@ -3777,6 +4021,17 @@ const zhBase = {
         name: '名称',
         namePlaceholder: '输入监控名称',
         provider: '平台',
+        checkMode: '检测模式',
+        checkModeProbe: '探活',
+        checkModeProbeHint: '对上游发起 LLM 探测请求',
+        checkModeQuota: '配额',
+        checkModeQuotaHint: '仅读取关联账号用量，不消耗 LLM',
+        checkModeQuotaProbe: '探活 + 配额',
+        checkModeQuotaProbeHint: '探活同时挂载配额快照',
+        linkedAccount: '关联账号 ID',
+        linkedAccountPlaceholder: '输入账号 ID',
+        linkedAccountHint: '配额模式从该账号读取用量/余额',
+        linkedAccountRequired: '配额模式必须填写关联账号 ID',
         apiMode: 'OpenAI 协议',
         apiModeChatCompletions: 'OpenAI Compatible',
         apiModeChatCompletionsHint: '使用 /v1/chat/completions，携带 messages，兼容多数上游。',
@@ -5364,7 +5619,15 @@ const zhBase = {
             '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
-          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败',
+          agentIdentityAuth: '导入 Agent Identity',
+          agentIdentityDesc:
+            '粘贴 Codex Agent Identity auth.json。会保存 runtime/private_key，不会写入 OAuth access_token 或 refresh_token。sessionToken 导入路径保持不变。',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: '粘贴含 auth_mode=agentIdentity 与 agent_identity 的 JSON',
+          agentIdentityHint:
+            '走现有 Codex session 导入接口。不会把 sessionToken 写成 refresh_token。',
+          agentIdentityImportAndCreate: '导入 Agent Identity'
         },
         // Gemini specific
         gemini: {
@@ -6626,6 +6889,7 @@ const zhBase = {
         title: '错误详情',
         titleWithId: '错误 #{id}',
         noErrorSelected: '未选择错误。',
+        backToList: '返回列表',
         resolution: '已解决：',
         pinnedToOriginalAccountId: '固定到原 account_id',
         missingUpstreamRequestBody: '缺少上游请求体',
@@ -7209,6 +7473,22 @@ const zhBase = {
           enabledHint: '关闭后后台不再执行定时检测，已有数据保留。',
           defaultInterval: '默认检测间隔（秒）',
           defaultIntervalHint: '新建渠道监控时表单的默认值，可被单个渠道覆盖。范围 15 – 3600 秒。',
+          mode: '监控实现',
+          modeHint: 'V1 主动探测；V2 被动用量汇总。默认 V1。',
+          modeV1: 'V1 主动探测',
+          modeV2: 'V2 被动监控',
+          hideThroughput: '对用户隐藏 RPM/TPM',
+          hideThroughputHint: '默认开启。管理员仍可见完整吞吐。',
+          showQuota: '向用户展示配额快照',
+          showQuotaHint: '默认关闭。仅配额模式监控会产出快照。',
+          hideUserRanking: '隐藏用户排行',
+          hideUserRankingHint: '默认关闭（显示排行）。管理员始终可见。',
+        },
+        plugins: {
+          title: '插件管理',
+          description: '侧边栏显示插件管理入口。默认关闭。未签名包仍被安装器拒绝。',
+          enabled: '显示插件管理菜单',
+          enabledHint: '仅控制菜单可见性，不会停止已加载的插件。',
         },
         availableChannels: {
           title: '可用渠道',
@@ -7216,6 +7496,14 @@ const zhBase = {
           configureLink: '前往 渠道管理 > 渠道定价 配置模型价格',
           enabled: '启用可用渠道',
           enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+        },
+        modelPlaza: {
+          title: '模型广场',
+          description: '公开的分组展示价橱窗。展示单价走二开展示价链，不按 cost/tokens 推算。匿名只看非专属分组。',
+          enabled: '启用模型广场',
+          enabledHint: '关闭后入口隐藏，接口返回 404。',
+          requireAuth: '要求登录',
+          requireAuthHint: '开启后匿名无法访问广场接口。',
         },
         userErrorRequests: {
           title: '用户错误请求',
@@ -8984,6 +9272,8 @@ const zhBase = {
       deletePlan: '删除套餐',
       deletePlanConfirm: '确定要删除此套餐吗？',
       originalPrice: '原价',
+      planCurrency: '币种标签',
+      planCurrencyHint: '仅用于套餐标价展示，例如 USD / CNY。留空则沿用原来的 ¥ 展示。',
       price: '价格',
       subscriptionCnyPayPreview: 'CNY 通道实扣预览：{amount}',
       subscriptionCnyPayPreviewWithFee: '（含 {feeRate}% 手续费：{total}）',
@@ -9769,7 +10059,15 @@ const v117ZhPatch = {
             '支持 JSON、JSON 数组或逐行多个条目。会直接保存 JSON 里的 accessToken 和 sessionToken，不必当场连上 ChatGPT。匹配到同一用户且已有 refresh_token 的账号时会更新该号。',
           codexSessionImportAndCreate: '导入并创建账号',
           codexSessionEmpty: '请粘贴 ChatGPT session 或 Codex auth.json',
-          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败'
+          codexSessionImportFailed: '导入 ChatGPT session / Codex 会话失败',
+          agentIdentityAuth: '导入 Agent Identity',
+          agentIdentityDesc:
+            '粘贴 Codex Agent Identity auth.json。会保存 runtime/private_key，不会写入 OAuth access_token 或 refresh_token。sessionToken 导入路径保持不变。',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: '粘贴含 auth_mode=agentIdentity 与 agent_identity 的 JSON',
+          agentIdentityHint:
+            '走现有 Codex session 导入接口。不会把 sessionToken 写成 refresh_token。',
+          agentIdentityImportAndCreate: '导入 Agent Identity'
         },
         gemini: {
           refreshTokenAuth: 'Refresh Token 认证',

@@ -8,39 +8,81 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// defaultClientIPHeaderOrder matches service.DefaultClientIPHeaderCandidates and is
+// the production header scan order for GetClientIP (UPSYNC client-IP settings foundation).
+var defaultClientIPHeaderOrder = []string{
+	"CF-Connecting-IP",
+	"True-Client-IP",
+	"X-Real-IP",
+	"X-Forwarded-For",
+}
+
+// clientIPHeaderOrder is the active header scan list (mutable for tests / settings).
+var clientIPHeaderOrder = append([]string(nil), defaultClientIPHeaderOrder...)
+
+// SetClientIPHeaderOrder configures header candidates used by GetClientIP.
+// Empty/nil restores defaults. Names are normalized (trim, dedupe).
+func SetClientIPHeaderOrder(headers []string) {
+	clientIPHeaderOrder = normalizeClientIPHeaderOrder(headers)
+}
+
+// ClientIPHeaderOrder returns a copy of the active header scan list.
+func ClientIPHeaderOrder() []string {
+	return append([]string(nil), clientIPHeaderOrder...)
+}
+
+func normalizeClientIPHeaderOrder(in []string) []string {
+	if len(in) == 0 {
+		return append([]string(nil), defaultClientIPHeaderOrder...)
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, h := range in {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		key := strings.ToLower(h)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, h)
+	}
+	if len(out) == 0 {
+		return append([]string(nil), defaultClientIPHeaderOrder...)
+	}
+	return out
+}
+
 // GetClientIP 从 Gin Context 中提取客户端真实 IP 地址。
-// 按以下优先级检查 Header：
-// 1. CF-Connecting-IP (Cloudflare)
-// 2. X-Real-IP (Nginx)
-// 3. X-Forwarded-For (取第一个非私有 IP)
-// 4. c.ClientIP() (Gin 内置方法)
+// Scans configured header order (default: CF-Connecting-IP, True-Client-IP,
+// X-Real-IP, X-Forwarded-For), then falls back to c.ClientIP().
 func GetClientIP(c *gin.Context) string {
-	// 1. Cloudflare
-	if ip := c.GetHeader("CF-Connecting-IP"); ip != "" {
-		return normalizeIP(ip)
+	if c == nil {
+		return ""
 	}
-
-	// 2. Nginx X-Real-IP
-	if ip := c.GetHeader("X-Real-IP"); ip != "" {
-		return normalizeIP(ip)
-	}
-
-	// 3. X-Forwarded-For (多个 IP 时取第一个公网 IP)
-	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		for _, ip := range ips {
-			ip = strings.TrimSpace(ip)
-			if ip != "" && !isPrivateIP(ip) {
-				return normalizeIP(ip)
+	for _, header := range clientIPHeaderOrder {
+		raw := strings.TrimSpace(c.GetHeader(header))
+		if raw == "" {
+			continue
+		}
+		// X-Forwarded-For (and similar multi-value lists): first public IP, else first.
+		if strings.Contains(raw, ",") || strings.EqualFold(header, "X-Forwarded-For") {
+			ips := strings.Split(raw, ",")
+			for _, candidate := range ips {
+				candidate = strings.TrimSpace(candidate)
+				if candidate != "" && !isPrivateIP(candidate) {
+					return normalizeIP(candidate)
+				}
 			}
+			if len(ips) > 0 {
+				return normalizeIP(strings.TrimSpace(ips[0]))
+			}
+			continue
 		}
-		// 如果都是私有 IP，返回第一个
-		if len(ips) > 0 {
-			return normalizeIP(strings.TrimSpace(ips[0]))
-		}
+		return normalizeIP(raw)
 	}
-
-	// 4. Gin 内置方法
 	return normalizeIP(c.ClientIP())
 }
 

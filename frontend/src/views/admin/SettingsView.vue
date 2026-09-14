@@ -5190,6 +5190,91 @@
                 {{ t('admin.settings.features.channelMonitor.defaultIntervalHint') }}
               </p>
             </div>
+
+            <div v-if="form.channel_monitor_enabled">
+              <label class="input-label">{{ t('admin.settings.features.channelMonitor.mode') }}</label>
+              <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  class="rounded-lg border-2 px-3 py-2 text-left text-sm"
+                  :class="form.channel_monitor_mode === 'v1' ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300' : 'border-gray-200 text-gray-600 dark:border-dark-700 dark:text-gray-400'"
+                  @click="form.channel_monitor_mode = 'v1'"
+                >
+                  {{ t('admin.settings.features.channelMonitor.modeV1') }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-lg border-2 px-3 py-2 text-left text-sm"
+                  :class="form.channel_monitor_mode === 'v2' ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300' : 'border-gray-200 text-gray-600 dark:border-dark-700 dark:text-gray-400'"
+                  @click="form.channel_monitor_mode = 'v2'"
+                >
+                  {{ t('admin.settings.features.channelMonitor.modeV2') }}
+                </button>
+              </div>
+              <p class="mt-1 text-xs text-gray-400">
+                {{ t('admin.settings.features.channelMonitor.modeHint') }}
+              </p>
+            </div>
+
+            <div v-if="form.channel_monitor_enabled" class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.channelMonitor.hideThroughput') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.channelMonitor.hideThroughputHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.channel_monitor_hide_throughput" />
+            </div>
+
+            <div v-if="form.channel_monitor_enabled" class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.channelMonitor.showQuota') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.channelMonitor.showQuotaHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.channel_monitor_show_quota" />
+            </div>
+
+            <div v-if="form.channel_monitor_enabled" class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.channelMonitor.hideUserRanking') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.channelMonitor.hideUserRankingHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.channel_monitor_hide_user_ranking" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.plugins.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.plugins.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.plugins.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.plugins.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.plugin_management_enabled" />
+            </div>
           </div>
         </div>
 
@@ -5222,6 +5307,41 @@
                 </p>
               </div>
               <Toggle v-model="form.available_channels_enabled" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.modelPlaza.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.modelPlaza.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.modelPlaza.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.modelPlaza.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.model_plaza_enabled" />
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.modelPlaza.requireAuth') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.modelPlaza.requireAuthHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.model_plaza_require_auth" />
             </div>
           </div>
         </div>
@@ -7260,8 +7380,15 @@ const form = reactive<SettingsForm>({
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
+  channel_monitor_mode: 'v1',
+  channel_monitor_hide_throughput: true,
+  channel_monitor_show_quota: false,
+  channel_monitor_hide_user_ranking: false,
+  plugin_management_enabled: false,
   // Available Channels feature switch
   available_channels_enabled: false,
+  model_plaza_enabled: true,
+  model_plaza_require_auth: false,
   allow_user_view_error_requests: false,
   risk_control_enabled: false,
   cyber_session_block_enabled: false,
@@ -8448,8 +8575,15 @@ async function saveSettings() {
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:
         Number(form.channel_monitor_default_interval_seconds) || 60,
+      channel_monitor_mode: form.channel_monitor_mode === 'v2' ? 'v2' : 'v1',
+      channel_monitor_hide_throughput: form.channel_monitor_hide_throughput,
+      channel_monitor_show_quota: form.channel_monitor_show_quota,
+      channel_monitor_hide_user_ranking: form.channel_monitor_hide_user_ranking,
+      plugin_management_enabled: form.plugin_management_enabled,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
+      model_plaza_enabled: form.model_plaza_enabled,
+      model_plaza_require_auth: form.model_plaza_require_auth,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
       risk_control_enabled: form.risk_control_enabled,
       cyber_session_block_enabled: form.cyber_session_block_enabled,

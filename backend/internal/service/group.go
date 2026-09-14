@@ -19,6 +19,11 @@ type Group struct {
 	Description    string
 	Platform       string
 	RateMultiplier float64
+	// Profit control (default off). When enabled, OpenAI selectByLoadBalance
+	// filters token accounts after allow/deny/privacy/pair.
+	ProfitControlEnabled bool
+	ProfitMinMargin      float64
+	ProfitSafetyBuffer   float64
 	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier。详见 PeakMultiplierAt。
 	PeakRateEnabled    bool
@@ -72,6 +77,7 @@ type Group struct {
 	DefaultMappedModel          string
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
 	ModelsListConfig            GroupModelsListConfig
+	ModelAllowlist              GroupModelAllowlist
 
 	RPMLimit int
 
@@ -82,6 +88,18 @@ type Group struct {
 	AccountCount            int64
 	ActiveAccountCount      int64
 	RateLimitedAccountCount int64
+}
+
+// ProfitControlPolicyFromGroup builds the admission policy; zero values are off.
+func ProfitControlPolicyFromGroup(g *Group) ProfitControlPolicy {
+	if g == nil {
+		return DefaultProfitControlPolicy()
+	}
+	return ProfitControlPolicy{
+		Enabled:      g.ProfitControlEnabled,
+		MinMargin:    g.ProfitMinMargin,
+		SafetyBuffer: g.ProfitSafetyBuffer,
+	}
 }
 
 func (g *Group) IsActive() bool {

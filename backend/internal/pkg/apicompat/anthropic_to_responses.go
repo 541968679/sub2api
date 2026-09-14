@@ -263,7 +263,9 @@ func anthropicUserToResponses(raw json.RawMessage) ([]ResponsesInputItem, error)
 // anthropicAssistantToResponses handles an Anthropic assistant message.
 // Text content → assistant message with output_text parts.
 // tool_use blocks → function_call items.
-// thinking blocks → ignored (OpenAI doesn't accept them as input).
+// thinking blocks → reasoning items when the turn also carries tool_use so
+// Responses→Chat (pendingReasoning) can replay reasoning_content. DeepSeek
+// thinking mode 400s on multi-turn tool calls if that field is dropped.
 func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, error) {
 	// Try plain string.
 	var s string
@@ -282,6 +284,23 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 	}
 
 	var items []ResponsesInputItem
+	hasToolUse := false
+	for _, b := range blocks {
+		if b.Type == "tool_use" {
+			hasToolUse = true
+			break
+		}
+	}
+	if thinking := anthropicThinkingToReasoningContent(blocks, hasToolUse); thinking != "" {
+		summaryJSON, err := json.Marshal([]map[string]string{{
+			"type": "summary_text",
+			"text": thinking,
+		}})
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, ResponsesInputItem{Type: "reasoning", Content: summaryJSON})
+	}
 
 	// Text content → assistant message with output_text content parts.
 	text := extractAnthropicTextFromBlocks(blocks)
@@ -320,6 +339,33 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 // continuation expects that call_id to match the original tool_use id.
 func toResponsesCallID(id string) string {
 	return id
+}
+
+// anthropicThinkingToReasoningContent folds thinking blocks into reasoning
+// text. hasToolCalls keeps the scope identical to Responses→Chat
+// pendingReasoning: reasoning rides along with tool calls only.
+func anthropicThinkingToReasoningContent(blocks []AnthropicContentBlock, hasToolCalls bool) string {
+	if !hasToolCalls {
+		return ""
+	}
+	var parts []string
+	for _, b := range blocks {
+		if b.Type == "thinking" && b.Thinking != "" {
+			parts = append(parts, b.Thinking)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// AnthropicToChatCompletionsRequest converts an Anthropic Messages request
+// into a Chat Completions request by composing the existing Responses-anchored
+// bridges. Direct-bridge semantics stay equivalent without a second converter.
+func AnthropicToChatCompletionsRequest(req *AnthropicRequest) (*ChatCompletionsRequest, error) {
+	responsesReq, err := AnthropicToResponses(req)
+	if err != nil {
+		return nil, err
+	}
+	return ResponsesToChatCompletionsRequest(responsesReq)
 }
 
 // fromResponsesCallID reverses old prefixed IDs while preserving current IDs.

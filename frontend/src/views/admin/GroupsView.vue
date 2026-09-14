@@ -546,6 +546,55 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
+        <div class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitControl") }}</label>
+              <p class="input-hint">{{ t("admin.groups.form.profitControlHint") }}</p>
+            </div>
+            <button
+              type="button"
+              @click="createForm.profit_control_enabled = !createForm.profit_control_enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                createForm.profit_control_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  createForm.profit_control_enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="createForm.profit_control_enabled" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitMinMargin") }}</label>
+              <input
+                v-model.number="createForm.profit_min_margin"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitSafetyBuffer") }}</label>
+              <input
+                v-model.number="createForm.profit_safety_buffer"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+          </div>
+        </div>
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -766,6 +815,31 @@
               moveModelsListItem(createModelsListState, fromIndex, toIndex)
           "
         />
+        <GroupModelsListConfigPanel
+          i18n-prefix="admin.groups.modelAllowlist"
+          :state="createAllowlistState"
+          :loading="createModelsListLoading"
+          @toggle-enabled="createAllowlistState.enabled = !createAllowlistState.enabled"
+          @select-all="selectAllModelAllowlistItems(createAllowlistState)"
+          @invert-selection="invertModelAllowlistSelection(createAllowlistState)"
+          @toggle-item="toggleModelAllowlistItem(createAllowlistState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelAllowlistItem(createAllowlistState, fromIndex, toIndex)
+          "
+        />
+        <div v-if="createAllowlistState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="createAllowlistCustom"
+            type="text"
+            class="input flex-1"
+            :placeholder="t('admin.groups.modelAllowlist.addCustomPlaceholder')"
+            @keydown.enter.prevent="addCreateAllowlistCustom"
+          />
+          <button type="button" class="btn-secondary" @click="addCreateAllowlistCustom">
+            {{ t("admin.groups.modelAllowlist.addCustom") }}
+          </button>
+        </div>
           </div>
         </section>
 
@@ -1933,6 +2007,55 @@
             data-tour="group-form-multiplier"
           />
         </div>
+        <div class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitControl") }}</label>
+              <p class="input-hint">{{ t("admin.groups.form.profitControlHint") }}</p>
+            </div>
+            <button
+              type="button"
+              @click="editForm.profit_control_enabled = !editForm.profit_control_enabled"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                editForm.profit_control_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  editForm.profit_control_enabled ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="editForm.profit_control_enabled" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitMinMargin") }}</label>
+              <input
+                v-model.number="editForm.profit_min_margin"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t("admin.groups.form.profitSafetyBuffer") }}</label>
+              <input
+                v-model.number="editForm.profit_safety_buffer"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                class="input"
+              />
+            </div>
+          </div>
+        </div>
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -2159,6 +2282,31 @@
               moveModelsListItem(editModelsListState, fromIndex, toIndex)
           "
         />
+        <GroupModelsListConfigPanel
+          i18n-prefix="admin.groups.modelAllowlist"
+          :state="editAllowlistState"
+          :loading="editModelsListLoading"
+          @toggle-enabled="editAllowlistState.enabled = !editAllowlistState.enabled"
+          @select-all="selectAllModelAllowlistItems(editAllowlistState)"
+          @invert-selection="invertModelAllowlistSelection(editAllowlistState)"
+          @toggle-item="toggleModelAllowlistItem(editAllowlistState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelAllowlistItem(editAllowlistState, fromIndex, toIndex)
+          "
+        />
+        <div v-if="editAllowlistState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="editAllowlistCustom"
+            type="text"
+            class="input flex-1"
+            :placeholder="t('admin.groups.modelAllowlist.addCustomPlaceholder')"
+            @keydown.enter.prevent="addEditAllowlistCustom"
+          />
+          <button type="button" class="btn-secondary" @click="addEditAllowlistCustom">
+            {{ t("admin.groups.modelAllowlist.addCustom") }}
+          </button>
+        </div>
           </div>
         </section>
 
@@ -3324,6 +3472,18 @@ import {
   toggleModelsListItem,
 } from "./groupsModelsList";
 import {
+  addCustomModelAllowlistItem,
+  buildModelAllowlistConfig,
+  createModelAllowlistState,
+  invertModelAllowlistSelection,
+  moveModelAllowlistItem,
+  resetModelAllowlistState,
+  selectAllModelAllowlistItems,
+  setModelAllowlistCandidates,
+  toggleModelAllowlistItem,
+  type ModelAllowlistAddError,
+} from "./groupModelAllowlist";
+import {
   getImagePricePlaceholder,
   getVideoPricePlaceholder,
   supportsImagePricingPlatform,
@@ -3633,6 +3793,10 @@ const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const createModelsListState = reactive(createInitialModelsListState());
 const editModelsListState = reactive(createInitialModelsListState());
+const createAllowlistState = reactive(createModelAllowlistState());
+const editAllowlistState = reactive(createModelAllowlistState());
+const createAllowlistCustom = ref("");
+const editAllowlistCustom = ref("");
 const createModelsListLoading = ref(false);
 const editModelsListLoading = ref(false);
 let createModelsListCandidatesRequestID = 0;
@@ -3689,6 +3853,9 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  profit_control_enabled: false,
+  profit_min_margin: 0,
+  profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
 });
@@ -3930,6 +4097,41 @@ const parseModelAccessText = (value: string): string[] => {
 const modelAccessTextFromArray = (values?: string[] | null): string =>
   (values || []).join("\n");
 
+const allowlistAddErrorMessage = (code: ModelAllowlistAddError): string => {
+  switch (code) {
+    case "empty":
+      return t("admin.groups.modelAllowlist.addErrorEmpty");
+    case "invalid_wildcard":
+      return t("admin.groups.modelAllowlist.addErrorWildcard");
+    case "duplicate":
+      return t("admin.groups.modelAllowlist.addErrorDuplicate");
+  }
+};
+
+const addCreateAllowlistCustom = () => {
+  const err = addCustomModelAllowlistItem(
+    createAllowlistState,
+    createAllowlistCustom.value,
+  );
+  if (err) {
+    appStore.showError(allowlistAddErrorMessage(err));
+    return;
+  }
+  createAllowlistCustom.value = "";
+};
+
+const addEditAllowlistCustom = () => {
+  const err = addCustomModelAllowlistItem(
+    editAllowlistState,
+    editAllowlistCustom.value,
+  );
+  if (err) {
+    appStore.showError(allowlistAddErrorMessage(err));
+    return;
+  }
+  editAllowlistCustom.value = "";
+};
+
 const loadModelsListCandidates = async (
   mode: "create" | "edit",
   groupID: number,
@@ -3956,6 +4158,10 @@ const loadModelsListCandidates = async (
       return;
     }
     setModelsListCandidates(state, models);
+    setModelAllowlistCandidates(
+      mode === "create" ? createAllowlistState : editAllowlistState,
+      models,
+    );
   } catch (error) {
     if (!isCurrentRequest()) {
       return;
@@ -4045,6 +4251,9 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  profit_control_enabled: false,
+  profit_min_margin: 0,
+  profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
 });
@@ -4242,9 +4451,14 @@ const closeCreateModal = () => {
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.profit_control_enabled = false;
+  createForm.profit_min_margin = 0;
+  createForm.profit_safety_buffer = 0;
   createForm.blocked_models_text = "";
   createForm.allowed_models_text = "";
   resetModelsListState(createModelsListState);
+  resetModelAllowlistState(createAllowlistState);
+  createAllowlistCustom.value = "";
   createModelRoutingRules.value = [];
 };
 
@@ -4301,6 +4515,7 @@ const handleCreateGroup = async () => {
       blocked_models: parseModelAccessText(createForm.blocked_models_text),
       allowed_models: parseModelAccessText(createForm.allowed_models_text),
       models_list_config: buildModelsListConfig(createModelsListState),
+      model_allowlist: buildModelAllowlistConfig(createAllowlistState),
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -4399,6 +4614,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.profit_control_enabled = group.profit_control_enabled ?? false;
+  editForm.profit_min_margin = group.profit_min_margin ?? 0;
+  editForm.profit_safety_buffer = group.profit_safety_buffer ?? 0;
   editForm.blocked_models_text = modelAccessTextFromArray(
     group.blocked_models,
   );
@@ -4410,6 +4628,8 @@ const handleEdit = async (group: AdminGroup) => {
     group.model_routing,
   );
   resetModelsListState(editModelsListState, group.models_list_config);
+  resetModelAllowlistState(editAllowlistState, group.model_allowlist);
+  editAllowlistCustom.value = "";
   loadModelsListCandidates("edit", group.id, group.platform);
   editZone2Expanded.value = false;
   editZone3Expanded.value = false;
@@ -4429,6 +4649,8 @@ const closeEditModal = () => {
   editForm.allowed_models_text = "";
   resetMessagesDispatchFormState(editForm);
   resetModelsListState(editModelsListState);
+  resetModelAllowlistState(editAllowlistState);
+  editAllowlistCustom.value = "";
 };
 
 const handleUpdateGroup = async () => {
@@ -4468,6 +4690,7 @@ const handleUpdateGroup = async () => {
       blocked_models: parseModelAccessText(editForm.blocked_models_text),
       allowed_models: parseModelAccessText(editForm.allowed_models_text),
       models_list_config: buildModelsListConfig(editModelsListState),
+      model_allowlist: buildModelAllowlistConfig(editAllowlistState),
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -4611,6 +4834,7 @@ watch(
       createForm.require_privacy_set = false;
     }
     resetModelsListState(createModelsListState);
+    resetModelAllowlistState(createAllowlistState);
     if (showCreateModal.value) {
       loadModelsListCandidates("create", 0, newVal);
     }
@@ -4635,6 +4859,12 @@ watch(
         editModelsListState,
         newVal === editingGroup.value.platform
           ? editingGroup.value.models_list_config
+          : undefined,
+      );
+      resetModelAllowlistState(
+        editAllowlistState,
+        newVal === editingGroup.value.platform
+          ? editingGroup.value.model_allowlist
           : undefined,
       );
       loadModelsListCandidates("edit", editingGroup.value.id, newVal);

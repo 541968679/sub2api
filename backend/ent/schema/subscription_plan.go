@@ -47,6 +47,10 @@ func (SubscriptionPlan) Fields() []ent.Field {
 			Default(""),
 		field.Float("price").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}),
+		field.String("currency").
+			MaxLen(16).
+			Default("").
+			Comment("Display currency label for plan prices (e.g. USD, CNY); empty keeps historical UI"),
 		field.Float("original_price").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}).
 			Optional().

@@ -192,6 +192,55 @@ func codexUATrailerName(ua string) string {
 	return inner
 }
 
+// CodexCLIOriginator is the official Codex CLI default originator
+// (codex-rs DEFAULT_ORIGINATOR) and the target identity for load-shed normalization.
+const CodexCLIOriginator = "codex_cli_rs"
+
+// codexLoadShedOriginators lists originators that currently land in upstream
+// /backend-api/codex capacity load-shed buckets. Hits still return HTTP 200 but
+// immediately stream SSE event:error (code=server_is_overloaded) then
+// response.failed. Observed 2026-07-29: codex-tui is shed while codex_cli_rs is
+// not — originator is the discriminating factor, not User-Agent. The gateway
+// treats that error as a transient upstream fault and cools the account, so
+// outbound identity must be rewritten before dispatch.
+//
+// This set is a snapshot of upstream capacity policy, not a protocol constant.
+// Revise when upstream changes its buckets.
+var codexLoadShedOriginators = map[string]bool{
+	"codex-tui": true,
+}
+
+// IsCodexLoadShedOriginator reports whether originator is in a load-shed bucket.
+func IsCodexLoadShedOriginator(originator string) bool {
+	return codexLoadShedOriginators[normalizeCodexClientHeader(originator)]
+}
+
+// NormalizeCodexClientIdentityToCLI rewrites a load-shed official identity to
+// the Codex CLI identity. The UA leading name becomes codex_cli_rs and a trailing
+// "(name; version)" client-info group is stripped when it is itself an official
+// originator (real CLI UAs do not carry that group). Version / OS / arch /
+// terminal fingerprint segments are preserved. Inputs should already be paired
+// via PairCodexClientIdentity so originator and UA leading name stay consistent.
+func NormalizeCodexClientIdentityToCLI(originator, userAgent string) (string, string, bool) {
+	if !IsCodexLoadShedOriginator(originator) {
+		return originator, userAgent, false
+	}
+	ua := strings.TrimSpace(userAgent)
+	slash := strings.IndexByte(ua, '/')
+	if slash <= 0 {
+		return CodexCLIOriginator, ua, true
+	}
+	rest := ua[slash:]
+	// Only strip a trailing client-info group when it is an official originator
+	// trailer (e.g. "(codex-tui; 0.144.1)"), never OS/arch parentheses.
+	if trailer := codexUATrailerName(ua); trailer != "" && IsCodexOfficialClientOriginator(trailer) {
+		if open := strings.LastIndex(rest, "("); open > 0 {
+			rest = strings.TrimRight(rest[:open], " ")
+		}
+	}
+	return CodexCLIOriginator, CodexCLIOriginator + rest, true
+}
+
 var codexEngineVersionPattern = regexp.MustCompile(`^(\d+\.\d+\.\d+)`)
 
 func ParseCodexEngineVersion(userAgent string) (string, bool) {

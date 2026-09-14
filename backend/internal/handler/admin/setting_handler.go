@@ -333,6 +333,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AvailableChannelsEnabled:   settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+		ModelPlazaEnabled:          settings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:      settings.ModelPlazaRequireAuth,
+		ModelPlazaDescription:      settings.ModelPlazaDescription,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 	}
@@ -673,6 +676,9 @@ type UpdateSettingsRequest struct {
 
 	// Available Channels feature switch (user-facing)
 	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
+	ModelPlazaEnabled        *bool   `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth    *bool   `json:"model_plaza_require_auth"`
+	ModelPlazaDescription    *string `json:"model_plaza_description"`
 
 	AllowUserViewErrorRequests *bool `json:"allow_user_view_error_requests"`
 
@@ -1699,6 +1705,24 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AvailableChannelsEnabled
 		}(),
+		ModelPlazaEnabled: func() bool {
+			if req.ModelPlazaEnabled != nil {
+				return *req.ModelPlazaEnabled
+			}
+			return previousSettings.ModelPlazaEnabled
+		}(),
+		ModelPlazaRequireAuth: func() bool {
+			if req.ModelPlazaRequireAuth != nil {
+				return *req.ModelPlazaRequireAuth
+			}
+			return previousSettings.ModelPlazaRequireAuth
+		}(),
+		ModelPlazaDescription: func() string {
+			if req.ModelPlazaDescription != nil {
+				return *req.ModelPlazaDescription
+			}
+			return previousSettings.ModelPlazaDescription
+		}(),
 		AllowUserViewErrorRequests: func() bool {
 			if req.AllowUserViewErrorRequests != nil {
 				return *req.AllowUserViewErrorRequests
@@ -2043,6 +2067,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 
 		AvailableChannelsEnabled:   updatedSettings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests: updatedSettings.AllowUserViewErrorRequests,
+		ModelPlazaEnabled:          updatedSettings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:      updatedSettings.ModelPlazaRequireAuth,
+		ModelPlazaDescription:      updatedSettings.ModelPlazaDescription,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 
@@ -2513,6 +2540,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.AvailableChannelsEnabled != after.AvailableChannelsEnabled {
 		changed = append(changed, "available_channels_enabled")
+	}
+	if before.ModelPlazaEnabled != after.ModelPlazaEnabled {
+		changed = append(changed, "model_plaza_enabled")
+	}
+	if before.ModelPlazaRequireAuth != after.ModelPlazaRequireAuth {
+		changed = append(changed, "model_plaza_require_auth")
+	}
+	if before.ModelPlazaDescription != after.ModelPlazaDescription {
+		changed = append(changed, "model_plaza_description")
 	}
 	if before.AllowUserViewErrorRequests != after.AllowUserViewErrorRequests {
 		changed = append(changed, "allow_user_view_error_requests")

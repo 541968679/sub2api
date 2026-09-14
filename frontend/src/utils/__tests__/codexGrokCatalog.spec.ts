@@ -7,7 +7,7 @@ import {
 } from '@/utils/codexGrokCatalog'
 
 describe('codexGrokCatalog', () => {
-  it('builds a catalog entry for grok-4.5 with Codex-required ModelInfo fields', () => {
+  it('builds a catalog entry for grok-4.6 with Codex-required ModelInfo fields', () => {
     const raw = buildGrokCodexModelCatalogJson()
     const parsed = JSON.parse(raw)
     expect(parsed.models).toHaveLength(1)
@@ -30,7 +30,7 @@ describe('codexGrokCatalog', () => {
       baseUrl: 'https://example.com/v1',
       providerName: 'ZeroCode'
     })
-    expect(toml).toContain('model = "grok-4.5"')
+    expect(toml).toContain('model = "grok-4.6"')
     expect(toml).toContain('model_context_window = 1000000')
     expect(toml).toContain(`model_catalog_json = "${GROK_CODEX_CATALOG_FILENAME}"`)
     expect(toml).toContain('base_url = "https://example.com/v1"')

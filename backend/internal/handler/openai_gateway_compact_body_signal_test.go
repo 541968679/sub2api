@@ -57,6 +57,7 @@ func TestNormalizeOpenAIResponsesCompactRequest_RemoteV2StaysOnResponses(t *test
 
 	_, seedExists := c.Get(service.OpenAICompactSessionSeedKeyForTest())
 	require.False(t, seedExists)
+	require.True(t, service.IsOpenAINativeCompactionV2(c))
 }
 
 func TestNormalizeOpenAIResponsesCompactRequest_PathBasedNoDoubleSuffix(t *testing.T) {

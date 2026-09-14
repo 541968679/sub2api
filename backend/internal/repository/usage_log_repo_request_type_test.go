@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +77,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // user_agent
 			sqlmock.AnyArg(), // ip_address
 			log.ImageCount,
+			log.ImageInputTokens,
 			sqlmock.AnyArg(), // image_size
 			sqlmock.AnyArg(), // image_quality
 			log.VideoCount,
@@ -169,6 +171,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.ImageCount,
+			log.ImageInputTokens,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.VideoCount,
@@ -219,8 +222,31 @@ func TestBuildUsageLogBestEffortInsertQuery_IncludesRequestedModelColumn(t *test
 	require.Contains(t, query, "INSERT INTO usage_logs (")
 	require.Contains(t, query, "\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
 	require.Contains(t, query, "\n\t\t\trequest_id,\n\t\t\tmodel,\n\t\t\trequested_model,\n\t\t\tupstream_model,")
+	require.Contains(t, query, "upstream_request_id")
 	require.Len(t, args, len(prepared.args))
 	require.Equal(t, prepared.args[5], args[5])
+}
+
+func TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChangingActualCost(t *testing.T) {
+	id := "up-req-1"
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:            1,
+		APIKeyID:          2,
+		AccountID:         3,
+		RequestID:         "req-upstream-id",
+		Model:             "gpt-5",
+		ActualCost:        1.25,
+		UpstreamRequestID: &id,
+		CreatedAt:         time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC),
+	})
+	query, args := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
+	require.Contains(t, query, "upstream_request_id")
+	require.Equal(t, 1.25, prepared.args[22], "actual_cost argument position must not shift")
+	require.Contains(t, args, 1.25)
+	gotID, ok := prepared.args[len(prepared.args)-2].(sql.NullString)
+	require.True(t, ok)
+	require.True(t, gotID.Valid)
+	require.Equal(t, id, gotID.String)
 }
 
 func TestExecUsageLogInsertNoResult_PersistsRequestedModel(t *testing.T) {
@@ -274,10 +300,69 @@ func TestPrepareUsageLogInsert_LongContextSnapshot(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, true, prepared.args[49])
-	require.Equal(t, 272000, prepared.args[50])
-	require.Equal(t, 2.0, prepared.args[51])
-	require.Equal(t, 1.5, prepared.args[52])
+	require.Equal(t, true, prepared.args[50])
+	require.Equal(t, 272000, prepared.args[51])
+	require.Equal(t, 2.0, prepared.args[52])
+	require.Equal(t, 1.5, prepared.args[53])
+}
+
+func TestUsageLogRepositoryCreate_PersistsImageInputTokens(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	createdAt := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	log := &service.UsageLog{
+		UserID:           1,
+		APIKeyID:         2,
+		AccountID:        3,
+		RequestID:        "req-image-input-tokens",
+		Model:            "gpt-4o",
+		RequestedModel:   "gpt-4o",
+		InputTokens:      1000,
+		OutputTokens:     50,
+		CacheReadTokens:  200,
+		ImageInputTokens: 128,
+		TotalCost:        0.05,
+		ActualCost:       0.05,
+		RateMultiplier:   1.0,
+		BillingType:      service.BillingTypeBalance,
+		RequestType:      service.RequestTypeSync,
+		CreatedAt:        createdAt,
+	}
+	wantActualCost := log.ActualCost
+	wantCacheRead := log.CacheReadTokens
+
+	prepared := prepareUsageLogInsert(log)
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
+	require.Equal(t, 0, prepared.args[34])
+	require.Equal(t, 128, prepared.args[35])
+	require.Equal(t, 200, prepared.args[12])
+
+	mock.ExpectQuery("INSERT INTO usage_logs").
+		WithArgs(anySliceToDriverValues(prepared.args)...).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(501), createdAt))
+
+	inserted, err := repo.Create(context.Background(), log)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	require.Equal(t, int64(501), log.ID)
+	require.Equal(t, wantActualCost, log.ActualCost)
+	require.Equal(t, wantCacheRead, log.CacheReadTokens)
+	require.Equal(t, 128, log.ImageInputTokens)
+
+	batchQ, _ := buildUsageLogBatchInsertQuery(
+		[]string{usageLogBatchKey(log.RequestID, log.APIKeyID)},
+		map[string]usageLogInsertPrepared{usageLogBatchKey(log.RequestID, log.APIKeyID): prepared},
+	)
+	require.Contains(t, batchQ, "image_input_tokens")
+	require.Contains(t, batchQ, "true_first_token_ms")
+	bestQ, _ := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
+	require.Contains(t, bestQ, "image_input_tokens")
+	require.Contains(t, usageLogSelectColumns, "image_input_tokens")
+	require.Contains(t, usageLogSelectColumns, "true_first_token_ms")
+	require.NotContains(t, strings.ToUpper(batchQ), "DO UPDATE")
+
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCoalesceTrimmedString(t *testing.T) {
@@ -661,7 +746,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
-			0,
+			0,                // image_count
+			0,                // image_input_tokens
 			sql.NullString{},
 			sql.NullString{}, // image_quality
 			0,                // video_count
@@ -723,7 +809,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
-			0,
+			0,                // image_count
+			0,                // image_input_tokens
 			sql.NullString{},
 			sql.NullString{}, // image_quality
 			0,                // video_count
@@ -785,7 +872,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{}, // true_first_token_ms
 			sql.NullString{},
 			sql.NullString{},
-			0,
+			0,                // image_count
+			0,                // image_input_tokens
 			sql.NullString{},
 			sql.NullString{}, // image_quality
 			0,                // video_count
@@ -857,7 +945,8 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 		sql.NullInt64{}, // true_first_token_ms
 		sql.NullString{},
 		sql.NullString{},
-		0,
+		0,                // image_count
+		42,               // image_input_tokens
 		sql.NullString{},
 		sql.NullString{},
 		0,
@@ -890,4 +979,5 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 	require.Equal(t, 272000, log.LongContextInputThreshold)
 	require.Equal(t, 2.0, log.LongContextInputMultiplier)
 	require.Equal(t, 1.5, log.LongContextOutputMultiplier)
+	require.Equal(t, 42, log.ImageInputTokens)
 }

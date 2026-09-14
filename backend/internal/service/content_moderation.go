@@ -21,6 +21,7 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
@@ -165,6 +166,10 @@ type ContentModerationConfig struct {
 	// 当次不判定封号，且历史 cyber 行在 CountFlaggedByUserSince 中被排除。
 	// 默认 false（计入，与历史行为一致；旧配置 JSON 无此字段时反序列化为 false）。
 	CyberPolicyExcludeFromBanCount bool `json:"cyber_policy_exclude_from_ban_count"`
+	// ProxyID routes moderation API calls through an IP-management proxy server.
+	// nil = direct (default); set to a proxy id to use that server. Resolution failure
+	// is a moderation error and never silently falls back to direct (upstream #2646).
+	ProxyID *int64 `json:"proxy_id,omitempty"`
 }
 
 type ContentModerationConfigView struct {
@@ -199,6 +204,7 @@ type ContentModerationConfigView struct {
 	KeywordBlockingMode            string                          `json:"keyword_blocking_mode"`
 	ModelFilter                    ContentModerationModelFilter    `json:"model_filter"`
 	CyberPolicyExcludeFromBanCount bool                            `json:"cyber_policy_exclude_from_ban_count"`
+	ProxyID                        *int64                          `json:"proxy_id,omitempty"`
 }
 
 type ContentModerationAPIKeyStatus struct {
@@ -287,6 +293,7 @@ type UpdateContentModerationConfigInput struct {
 	KeywordBlockingMode            *string                       `json:"keyword_blocking_mode"`
 	ModelFilter                    *ContentModerationModelFilter `json:"model_filter"`
 	CyberPolicyExcludeFromBanCount *bool                         `json:"cyber_policy_exclude_from_ban_count"`
+	ProxyID                        *int64                        `json:"proxy_id,omitempty"`
 }
 
 type ContentModerationModelFilter struct {
@@ -550,6 +557,11 @@ type ContentModerationService struct {
 	lastCleanupDeletedNonHit atomic.Int64
 	keyHealthMu              sync.Mutex
 	keyHealth                map[string]*contentModerationKeyHealth
+	proxyRepo                ProxyRepository
+	proxyURLCacheMu          sync.Mutex
+	proxyURLCacheID          int64
+	proxyURLCacheURL         string
+	proxyURLCacheAt          time.Time
 }
 
 type contentModerationTask struct {
@@ -610,6 +622,15 @@ func NewContentModerationService(
 		go svc.cleanupWorker()
 	}
 	return svc
+}
+
+// SetProxyRepository enables routing moderation API calls through managed proxies.
+// Optional: when unset, ProxyID in config is rejected at call time if set.
+func (s *ContentModerationService) SetProxyRepository(proxyRepo ProxyRepository) {
+	if s == nil {
+		return
+	}
+	s.proxyRepo = proxyRepo
 }
 
 func (s *ContentModerationService) GetConfig(ctx context.Context) (*ContentModerationConfigView, error) {
@@ -699,6 +720,14 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.CyberPolicyExcludeFromBanCount != nil {
 		cfg.CyberPolicyExcludeFromBanCount = *input.CyberPolicyExcludeFromBanCount
+	}
+	if input.ProxyID != nil {
+		if *input.ProxyID <= 0 {
+			cfg.ProxyID = nil
+		} else {
+			id := *input.ProxyID
+			cfg.ProxyID = &id
+		}
 	}
 	if input.Thresholds != nil {
 		cfg.Thresholds = mergeContentModerationThresholds(ContentModerationDefaultThresholds(), *input.Thresholds)
@@ -1704,6 +1733,62 @@ func (s *ContentModerationService) callModeration(ctx context.Context, cfg *Cont
 	return nil, lastErr
 }
 
+// moderationHTTPClient returns the HTTP client for moderation API calls.
+// When ProxyID is set, resolves the proxy URL (cached ~60s) and never falls back to direct.
+func (s *ContentModerationService) moderationHTTPClient(ctx context.Context, cfg *ContentModerationConfig, timeout time.Duration) (*http.Client, error) {
+	if cfg == nil || cfg.ProxyID == nil || *cfg.ProxyID <= 0 {
+		if s != nil && s.httpClient != nil {
+			return s.httpClient, nil
+		}
+		return http.DefaultClient, nil
+	}
+	if s == nil || s.proxyRepo == nil {
+		return nil, fmt.Errorf("moderation proxy_id=%d configured but proxy repository is unavailable", *cfg.ProxyID)
+	}
+	proxyURL, err := s.resolveModerationProxyURL(ctx, *cfg.ProxyID)
+	if err != nil {
+		return nil, err
+	}
+	client, err := httpclient.GetClient(httpclient.Options{
+		ProxyURL: proxyURL,
+		Timeout:  timeout,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("moderation proxy client: %w", err)
+	}
+	return client, nil
+}
+
+func (s *ContentModerationService) resolveModerationProxyURL(ctx context.Context, proxyID int64) (string, error) {
+	const cacheTTL = 60 * time.Second
+	s.proxyURLCacheMu.Lock()
+	if s.proxyURLCacheID == proxyID && s.proxyURLCacheURL != "" && time.Since(s.proxyURLCacheAt) < cacheTTL {
+		url := s.proxyURLCacheURL
+		s.proxyURLCacheMu.Unlock()
+		return url, nil
+	}
+	s.proxyURLCacheMu.Unlock()
+
+	proxy, err := s.proxyRepo.GetByID(ctx, proxyID)
+	if err != nil {
+		return "", fmt.Errorf("moderation proxy %d: %w", proxyID, err)
+	}
+	if proxy == nil || !proxy.IsActive() {
+		return "", fmt.Errorf("moderation proxy %d is not active", proxyID)
+	}
+	proxyURL := strings.TrimSpace(proxy.URL())
+	if proxyURL == "" {
+		return "", fmt.Errorf("moderation proxy %d has empty URL", proxyID)
+	}
+
+	s.proxyURLCacheMu.Lock()
+	s.proxyURLCacheID = proxyID
+	s.proxyURLCacheURL = proxyURL
+	s.proxyURLCacheAt = time.Now()
+	s.proxyURLCacheMu.Unlock()
+	return proxyURL, nil
+}
+
 func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Context, cfg *ContentModerationConfig, apiKey string, input any, httpStatus *int) (*moderationAPIResult, error) {
 	base := strings.TrimRight(cfg.BaseURL, "/")
 	endpoint, err := url.JoinPath(base, "/v1/moderations")
@@ -1729,9 +1814,9 @@ func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Conte
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = http.DefaultClient
+	client, err := s.moderationHTTPClient(ctx, cfg, timeout)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -2264,6 +2349,7 @@ func (s *ContentModerationService) configView(cfg *ContentModerationConfig) *Con
 		KeywordBlockingMode:            cfg.KeywordBlockingMode,
 		ModelFilter:                    cloneContentModerationModelFilter(cfg.ModelFilter),
 		CyberPolicyExcludeFromBanCount: cfg.CyberPolicyExcludeFromBanCount,
+		ProxyID:                        cfg.ProxyID,
 	}
 }
 

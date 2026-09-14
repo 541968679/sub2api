@@ -9,11 +9,73 @@ import (
 // 渠道监控参数校验与归一化辅助函数。
 // 校验失败一律返回 channel_monitor_const.go 中预定义的 Err* 错误，错误信息不含具体 IP/hostname，避免泄露内网拓扑。
 
-// validateProvider 校验 provider 字符串。
-// 唯一来源于 providerAdapters：新增 provider 只需要在 channel_monitor_checker.go 注册 adapter。
+// validateProvider 校验 provider 字符串（探活 adapter 或配额-only 平台均可）。
 func validateProvider(p string) error {
-	if !isSupportedProvider(p) {
+	if !isSupportedMonitorProvider(p) {
 		return ErrChannelMonitorInvalidProvider
+	}
+	return nil
+}
+
+func isSupportedMonitorProvider(p string) bool {
+	switch strings.TrimSpace(p) {
+	case MonitorProviderOpenAI, MonitorProviderAnthropic, MonitorProviderGemini,
+		MonitorProviderGrok, MonitorProviderAntigravity, MonitorProviderKimi,
+		MonitorProviderZhipu, MonitorProviderDeepseek, MonitorProviderMiniMax:
+		return true
+	default:
+		return false
+	}
+}
+
+func monitorCheckModeUsesQuota(mode string) bool {
+	switch defaultCheckMode(mode) {
+	case MonitorCheckModeQuota, MonitorCheckModeQuotaProbe:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateCheckMode(provider, mode string) error {
+	mode = defaultCheckMode(mode)
+	if provider == MonitorProviderAntigravity && mode != MonitorCheckModeQuota {
+		return ErrChannelMonitorInvalidCheckMode
+	}
+	switch mode {
+	case MonitorCheckModeProbe, MonitorCheckModeQuota, MonitorCheckModeQuotaProbe:
+		return nil
+	default:
+		return ErrChannelMonitorInvalidCheckMode
+	}
+}
+
+func normalizeMonitorPrimaryModel(mode, primary string) string {
+	primary = strings.TrimSpace(primary)
+	if primary != "" {
+		return primary
+	}
+	if defaultCheckMode(mode) == MonitorCheckModeQuota {
+		return "quota"
+	}
+	return ""
+}
+
+func validateMonitorModeFields(m *ChannelMonitor) error {
+	if m == nil {
+		return nil
+	}
+	mode := defaultCheckMode(m.CheckMode)
+	if err := validateCheckMode(m.Provider, mode); err != nil {
+		return err
+	}
+	if monitorCheckModeUsesQuota(mode) && (m.AccountID == nil || *m.AccountID <= 0) {
+		return ErrChannelMonitorAccountRequired
+	}
+	if mode != MonitorCheckModeQuota && strings.TrimSpace(m.Endpoint) != "" {
+		if err := validateEndpoint(m.Endpoint); err != nil {
+			return err
+		}
 	}
 	return nil
 }

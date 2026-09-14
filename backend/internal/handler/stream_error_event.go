@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/gin-gonic/gin"
@@ -16,13 +17,16 @@ type responsesFailedError struct {
 	Message string `json:"message"`
 }
 
+// CreatedAt is always emitted: strict clients treat it as required and abort
+// with `missing field 'created_at'` when it is absent.
 type responsesFailedBody struct {
-	ID     string               `json:"id"`
-	Object string               `json:"object"`
-	Model  string               `json:"model,omitempty"`
-	Status string               `json:"status"`
-	Output []any                `json:"output"`
-	Error  responsesFailedError `json:"error"`
+	ID        string               `json:"id"`
+	Object    string               `json:"object"`
+	CreatedAt int64                `json:"created_at"`
+	Model     string               `json:"model,omitempty"`
+	Status    string               `json:"status"`
+	Output    []any                `json:"output"`
+	Error     responsesFailedError `json:"error"`
 }
 
 type responsesFailedEvent struct {
@@ -39,11 +43,12 @@ func writeResponsesFailedSSE(c *gin.Context, errType, message string) bool {
 	payload, err := json.Marshal(responsesFailedEvent{
 		Type: "response.failed",
 		Response: responsesFailedBody{
-			ID:     synthesizeResponseID(c),
-			Object: "response",
-			Model:  requestModel(c),
-			Status: "failed",
-			Output: []any{},
+			ID:        synthesizeResponseID(c),
+			Object:    "response",
+			CreatedAt: time.Now().Unix(),
+			Model:     requestModel(c),
+			Status:    "failed",
+			Output:    []any{},
 			Error: responsesFailedError{
 				Code:    mapResponsesErrorCode(errType),
 				Message: message,

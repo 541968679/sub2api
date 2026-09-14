@@ -46,6 +46,7 @@ func ProvideAdminHandlers(
 	contentModerationHandler *admin.ContentModerationHandler,
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
+	pluginHandler *admin.PluginHandler,
 	smartSchedule *service.UserSmartScheduleService,
 	qualityMaintenance *service.AccountQualityMaintenanceService,
 	settingService *service.SettingService,
@@ -96,6 +97,7 @@ func ProvideAdminHandlers(
 		ContentModeration:      contentModerationHandler,
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
+		Plugin:                 pluginHandler,
 	}
 }
 
@@ -130,6 +132,7 @@ func ProvideHandlers(
 	subscriptionHandler *SubscriptionHandler,
 	announcementHandler *AnnouncementHandler,
 	channelMonitorUserHandler *ChannelMonitorUserHandler,
+	channelMonitorV2Handler *ChannelMonitorV2Handler,
 	imageChannelMonitorUserHandler *ImageChannelMonitorUserHandler,
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
@@ -144,6 +147,7 @@ func ProvideHandlers(
 	redeemPageUserHandler *RedeemPageHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	batchImageHandler *BatchImageHandler,
+	modelPlazaHandler *ModelPlazaHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -157,6 +161,7 @@ func ProvideHandlers(
 		Subscription:            subscriptionHandler,
 		Announcement:            announcementHandler,
 		ChannelMonitor:          channelMonitorUserHandler,
+		ChannelMonitorV2:        channelMonitorV2Handler,
 		ImageChannelMonitorUser: imageChannelMonitorUserHandler,
 		Admin:                   adminHandlers,
 		Gateway:                 gatewayHandler,
@@ -171,6 +176,7 @@ func ProvideHandlers(
 		RedeemPage:              redeemPageUserHandler,
 		AvailableChannel:        availableChannelHandler,
 		BatchImage:              batchImageHandler,
+		ModelPlaza:              modelPlazaHandler,
 	}
 }
 
@@ -184,6 +190,7 @@ var ProviderSet = wire.NewSet(
 	NewSubscriptionHandler,
 	NewAnnouncementHandler,
 	NewChannelMonitorUserHandler,
+	NewChannelMonitorV2Handler,
 	NewImageChannelMonitorUserHandler,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
@@ -195,6 +202,7 @@ var ProviderSet = wire.NewSet(
 	NewTutorialPageHandler,
 	NewAvailableChannelHandler,
 	NewBatchImageHandler,
+	NewModelPlazaHandler,
 	admin.NewDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
@@ -231,6 +239,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewRedeemPageAdminHandler,
 	NewRedeemPageHandler,
 	admin.NewChannelMonitorHandler,
+	admin.NewPluginHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,

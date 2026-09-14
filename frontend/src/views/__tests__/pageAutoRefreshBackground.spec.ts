@@ -17,7 +17,7 @@ describe('page auto-refresh keeps running in background tabs', () => {
   })
 
   it('pauses channel-status refresh only while a reload is in flight', () => {
-    const source = readView('user/ChannelStatusView.vue')
+    const source = readView('user/ChannelStatusV1View.vue')
     expect(source).toContain('shouldPause: () => loading.value')
     expect(source).not.toContain('document.hidden')
   })

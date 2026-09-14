@@ -43,6 +43,16 @@ const (
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformGrok        = domain.PlatformGrok
+	PlatformKimi        = domain.PlatformKimi
+	PlatformZhipu       = domain.PlatformZhipu
+	PlatformDeepseek    = domain.PlatformDeepseek
+	PlatformMiniMax     = domain.PlatformMiniMax
+	PlatformComposite   = domain.PlatformComposite
+)
+
+const (
+	AccountModePayG   = domain.AccountModePayG
+	AccountModeCoding = domain.AccountModeCoding
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -54,6 +64,10 @@ var AllowedQuotaPlatforms = []string{
 	PlatformGemini,
 	PlatformAntigravity,
 	PlatformGrok,
+	PlatformKimi,
+	PlatformZhipu,
+	PlatformDeepseek,
+	PlatformMiniMax,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
@@ -67,10 +81,32 @@ func IsAllowedQuotaPlatform(s string) bool {
 }
 
 func normalizeOpenAICompatiblePlatform(platform string) string {
-	if platform == PlatformGrok {
+	switch platform {
+	case PlatformGrok:
 		return PlatformGrok
+	case PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
+		return platform
+	default:
+		return PlatformOpenAI
 	}
-	return PlatformOpenAI
+}
+
+const (
+	DefaultKimiPayGBaseURL    = "https://api.moonshot.cn/v1"
+	DefaultKimiCodingBaseURL  = "https://api.kimi.com/coding/v1"
+	DefaultZhipuPayGBaseURL   = "https://open.bigmodel.cn/api/paas/v4"
+	DefaultZhipuCodingBaseURL = "https://open.bigmodel.cn/api/coding/paas/v4"
+	DefaultDeepseekBaseURL    = "https://api.deepseek.com"
+	DefaultMiniMaxBaseURL     = "https://api.minimaxi.com/v1"
+)
+
+func IsCNProviderPlatform(platform string) bool {
+	switch platform {
+	case PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
+		return true
+	default:
+		return false
+	}
 }
 
 // Account type constants
@@ -357,11 +393,28 @@ const (
 	// SettingKeyChannelMonitorDefaultIntervalSeconds controls the default interval (seconds)
 	// pre-filled when creating a new channel monitor from the admin UI. Range: [15, 3600].
 	SettingKeyChannelMonitorDefaultIntervalSeconds = "channel_monitor_default_interval_seconds"
+	SettingKeyChannelMonitorMode                   = "channel_monitor_mode"
+	SettingKeyChannelMonitorHideThroughput         = "channel_monitor_hide_throughput"
+	SettingKeyChannelMonitorShowQuota              = "channel_monitor_show_quota"
+	SettingKeyChannelMonitorHideUserRanking        = "channel_monitor_hide_user_ranking"
 
 	// SettingKeyAvailableChannelsEnabled is a DB-backed soft switch for the "Available Channels"
 	// user-facing aggregate view. When false: user endpoint returns an empty list and the
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
+
+	// Model plaza showcase (public /model-plaza). Default on in this overlay.
+	SettingKeyModelPlazaEnabled     = "model_plaza_enabled"
+	SettingKeyModelPlazaRequireAuth = "model_plaza_require_auth"
+	SettingKeyModelPlazaDescription = "model_plaza_description"
+
+	// SettingKeyPluginManagementEnabled controls sidebar visibility only.
+	// Default off. Unsigned plugin packages are still rejected by installer config.
+	SettingKeyPluginManagementEnabled = "plugin_management_enabled"
+
+	// SettingKeyGroupModelAllowlistEnforce gates gateway request admission
+	// for group model allowlists. Missing/false = not enforced.
+	SettingKeyGroupModelAllowlistEnforce = "group_model_allowlist_enforce"
 
 	// SettingKeyAllowUserViewErrorRequests controls whether end users can view
 	// their own failed requests. Defaults to false.

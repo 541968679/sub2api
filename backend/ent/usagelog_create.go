@@ -533,6 +533,20 @@ func (_c *UsageLogCreate) SetNillableImageCount(v *int) *UsageLogCreate {
 	return _c
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (_c *UsageLogCreate) SetImageInputTokens(v int) *UsageLogCreate {
+	_c.mutation.SetImageInputTokens(v)
+	return _c
+}
+
+// SetNillableImageInputTokens sets the "image_input_tokens" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableImageInputTokens(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetImageInputTokens(*v)
+	}
+	return _c
+}
+
 // SetImageSize sets the "image_size" field.
 func (_c *UsageLogCreate) SetImageSize(v string) *UsageLogCreate {
 	_c.mutation.SetImageSize(v)
@@ -679,6 +693,34 @@ func (_c *UsageLogCreate) SetNillableCreatedAt(v *time.Time) *UsageLogCreate {
 	return _c
 }
 
+// SetTrueCost sets the "true_cost" field.
+func (_c *UsageLogCreate) SetTrueCost(v float64) *UsageLogCreate {
+	_c.mutation.SetTrueCost(v)
+	return _c
+}
+
+// SetNillableTrueCost sets the "true_cost" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableTrueCost(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetTrueCost(*v)
+	}
+	return _c
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (_c *UsageLogCreate) SetTrueCostRate(v float64) *UsageLogCreate {
+	_c.mutation.SetTrueCostRate(v)
+	return _c
+}
+
+// SetNillableTrueCostRate sets the "true_cost_rate" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableTrueCostRate(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetTrueCostRate(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *UsageLogCreate) SetUser(v *User) *UsageLogCreate {
 	return _c.SetUserID(v.ID)
@@ -807,6 +849,10 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultImageCount
 		_c.mutation.SetImageCount(v)
 	}
+	if _, ok := _c.mutation.ImageInputTokens(); !ok {
+		v := usagelog.DefaultImageInputTokens
+		_c.mutation.SetImageInputTokens(v)
+	}
 	if _, ok := _c.mutation.VideoCount(); !ok {
 		v := usagelog.DefaultVideoCount
 		_c.mutation.SetVideoCount(v)
@@ -933,6 +979,9 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.ImageCount(); !ok {
 		return &ValidationError{Name: "image_count", err: errors.New(`ent: missing required field "UsageLog.image_count"`)}
+	}
+	if _, ok := _c.mutation.ImageInputTokens(); !ok {
+		return &ValidationError{Name: "image_input_tokens", err: errors.New(`ent: missing required field "UsageLog.image_input_tokens"`)}
 	}
 	if v, ok := _c.mutation.ImageSize(); ok {
 		if err := usagelog.ImageSizeValidator(v); err != nil {
@@ -1145,6 +1194,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldImageCount, field.TypeInt, value)
 		_node.ImageCount = value
 	}
+	if value, ok := _c.mutation.ImageInputTokens(); ok {
+		_spec.SetField(usagelog.FieldImageInputTokens, field.TypeInt, value)
+		_node.ImageInputTokens = value
+	}
 	if value, ok := _c.mutation.ImageSize(); ok {
 		_spec.SetField(usagelog.FieldImageSize, field.TypeString, value)
 		_node.ImageSize = &value
@@ -1188,6 +1241,14 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelog.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.TrueCost(); ok {
+		_spec.SetField(usagelog.FieldTrueCost, field.TypeFloat64, value)
+		_node.TrueCost = &value
+	}
+	if value, ok := _c.mutation.TrueCostRate(); ok {
+		_spec.SetField(usagelog.FieldTrueCostRate, field.TypeFloat64, value)
+		_node.TrueCostRate = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -2034,6 +2095,24 @@ func (u *UsageLogUpsert) AddImageCount(v int) *UsageLogUpsert {
 	return u
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (u *UsageLogUpsert) SetImageInputTokens(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldImageInputTokens, v)
+	return u
+}
+
+// UpdateImageInputTokens sets the "image_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateImageInputTokens() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldImageInputTokens)
+	return u
+}
+
+// AddImageInputTokens adds v to the "image_input_tokens" field.
+func (u *UsageLogUpsert) AddImageInputTokens(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldImageInputTokens, v)
+	return u
+}
+
 // SetImageSize sets the "image_size" field.
 func (u *UsageLogUpsert) SetImageSize(v string) *UsageLogUpsert {
 	u.Set(usagelog.FieldImageSize, v)
@@ -2211,6 +2290,54 @@ func (u *UsageLogUpsert) SetCacheTTLOverridden(v bool) *UsageLogUpsert {
 // UpdateCacheTTLOverridden sets the "cache_ttl_overridden" field to the value that was provided on create.
 func (u *UsageLogUpsert) UpdateCacheTTLOverridden() *UsageLogUpsert {
 	u.SetExcluded(usagelog.FieldCacheTTLOverridden)
+	return u
+}
+
+// SetTrueCost sets the "true_cost" field.
+func (u *UsageLogUpsert) SetTrueCost(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldTrueCost, v)
+	return u
+}
+
+// UpdateTrueCost sets the "true_cost" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTrueCost() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTrueCost)
+	return u
+}
+
+// AddTrueCost adds v to the "true_cost" field.
+func (u *UsageLogUpsert) AddTrueCost(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldTrueCost, v)
+	return u
+}
+
+// ClearTrueCost clears the value of the "true_cost" field.
+func (u *UsageLogUpsert) ClearTrueCost() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTrueCost)
+	return u
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (u *UsageLogUpsert) SetTrueCostRate(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldTrueCostRate, v)
+	return u
+}
+
+// UpdateTrueCostRate sets the "true_cost_rate" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTrueCostRate() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTrueCostRate)
+	return u
+}
+
+// AddTrueCostRate adds v to the "true_cost_rate" field.
+func (u *UsageLogUpsert) AddTrueCostRate(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldTrueCostRate, v)
+	return u
+}
+
+// ClearTrueCostRate clears the value of the "true_cost_rate" field.
+func (u *UsageLogUpsert) ClearTrueCostRate() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTrueCostRate)
 	return u
 }
 
@@ -3085,6 +3212,27 @@ func (u *UsageLogUpsertOne) UpdateImageCount() *UsageLogUpsertOne {
 	})
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (u *UsageLogUpsertOne) SetImageInputTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetImageInputTokens(v)
+	})
+}
+
+// AddImageInputTokens adds v to the "image_input_tokens" field.
+func (u *UsageLogUpsertOne) AddImageInputTokens(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddImageInputTokens(v)
+	})
+}
+
+// UpdateImageInputTokens sets the "image_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateImageInputTokens() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateImageInputTokens()
+	})
+}
+
 // SetImageSize sets the "image_size" field.
 func (u *UsageLogUpsertOne) SetImageSize(v string) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -3292,6 +3440,62 @@ func (u *UsageLogUpsertOne) SetCacheTTLOverridden(v bool) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateCacheTTLOverridden() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
+	})
+}
+
+// SetTrueCost sets the "true_cost" field.
+func (u *UsageLogUpsertOne) SetTrueCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueCost(v)
+	})
+}
+
+// AddTrueCost adds v to the "true_cost" field.
+func (u *UsageLogUpsertOne) AddTrueCost(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueCost(v)
+	})
+}
+
+// UpdateTrueCost sets the "true_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTrueCost() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueCost()
+	})
+}
+
+// ClearTrueCost clears the value of the "true_cost" field.
+func (u *UsageLogUpsertOne) ClearTrueCost() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueCost()
+	})
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (u *UsageLogUpsertOne) SetTrueCostRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueCostRate(v)
+	})
+}
+
+// AddTrueCostRate adds v to the "true_cost_rate" field.
+func (u *UsageLogUpsertOne) AddTrueCostRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueCostRate(v)
+	})
+}
+
+// UpdateTrueCostRate sets the "true_cost_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTrueCostRate() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueCostRate()
+	})
+}
+
+// ClearTrueCostRate clears the value of the "true_cost_rate" field.
+func (u *UsageLogUpsertOne) ClearTrueCostRate() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueCostRate()
 	})
 }
 
@@ -4332,6 +4536,27 @@ func (u *UsageLogUpsertBulk) UpdateImageCount() *UsageLogUpsertBulk {
 	})
 }
 
+// SetImageInputTokens sets the "image_input_tokens" field.
+func (u *UsageLogUpsertBulk) SetImageInputTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetImageInputTokens(v)
+	})
+}
+
+// AddImageInputTokens adds v to the "image_input_tokens" field.
+func (u *UsageLogUpsertBulk) AddImageInputTokens(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddImageInputTokens(v)
+	})
+}
+
+// UpdateImageInputTokens sets the "image_input_tokens" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateImageInputTokens() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateImageInputTokens()
+	})
+}
+
 // SetImageSize sets the "image_size" field.
 func (u *UsageLogUpsertBulk) SetImageSize(v string) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
@@ -4539,6 +4764,62 @@ func (u *UsageLogUpsertBulk) SetCacheTTLOverridden(v bool) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateCacheTTLOverridden() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
+	})
+}
+
+// SetTrueCost sets the "true_cost" field.
+func (u *UsageLogUpsertBulk) SetTrueCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueCost(v)
+	})
+}
+
+// AddTrueCost adds v to the "true_cost" field.
+func (u *UsageLogUpsertBulk) AddTrueCost(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueCost(v)
+	})
+}
+
+// UpdateTrueCost sets the "true_cost" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTrueCost() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueCost()
+	})
+}
+
+// ClearTrueCost clears the value of the "true_cost" field.
+func (u *UsageLogUpsertBulk) ClearTrueCost() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueCost()
+	})
+}
+
+// SetTrueCostRate sets the "true_cost_rate" field.
+func (u *UsageLogUpsertBulk) SetTrueCostRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueCostRate(v)
+	})
+}
+
+// AddTrueCostRate adds v to the "true_cost_rate" field.
+func (u *UsageLogUpsertBulk) AddTrueCostRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueCostRate(v)
+	})
+}
+
+// UpdateTrueCostRate sets the "true_cost_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTrueCostRate() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueCostRate()
+	})
+}
+
+// ClearTrueCostRate clears the value of the "true_cost_rate" field.
+func (u *UsageLogUpsertBulk) ClearTrueCostRate() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueCostRate()
 	})
 }
 

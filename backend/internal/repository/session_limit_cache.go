@@ -224,6 +224,13 @@ func (c *sessionLimitCache) RegisterSession(ctx context.Context, accountID int64
 	return result == 1, nil
 }
 
+func (c *sessionLimitCache) UnregisterSession(ctx context.Context, accountID int64, sessionUUID string) error {
+	if c == nil || c.rdb == nil || sessionUUID == "" {
+		return nil
+	}
+	return c.rdb.ZRem(ctx, sessionLimitKey(accountID), sessionUUID).Err()
+}
+
 // RefreshSession 刷新会话时间戳
 func (c *sessionLimitCache) RefreshSession(ctx context.Context, accountID int64, sessionUUID string, idleTimeout time.Duration) error {
 	if sessionUUID == "" {

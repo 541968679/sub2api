@@ -491,6 +491,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					action := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, failoverErr)
 					switch action {
 					case FailoverContinue:
+						h.gatewayService.ReleaseAccountSession(context.Background(), account, sessionKey)
 						continue
 					case FailoverExhausted:
 						h.handleFailoverExhausted(c, fs.LastFailoverErr, service.PlatformGemini, streamStarted)
@@ -891,6 +892,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					action := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, failoverErr)
 					switch action {
 					case FailoverContinue:
+						h.gatewayService.ReleaseAccountSession(context.Background(), account, sessionKey)
 						continue
 					case FailoverExhausted:
 						h.handleFailoverExhausted(c, fs.LastFailoverErr, account.Platform, streamStarted)
@@ -1005,6 +1007,16 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
 		platform = forcedPlatform
+	}
+
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
+		var availableModels []string
+		if h.gatewayService != nil {
+			availableModels = h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
+		}
+		source := modelListingSource(platform, availableModels, defaultModelIDsForPlatform(platform))
+		writeModelsListForPlatform(c, platform, apiKey.Group.ModelAllowlist.FilterForListing(source))
+		return
 	}
 
 	if discoveryModelIDs, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
@@ -1214,6 +1226,44 @@ func customModelsListAllowsModel(availablePatterns []string, model string) bool 
 	return false
 }
 
+func modelListingSource(platform string, availableModels, fallbackModels []string) []string {
+	if len(availableModels) == 0 {
+		return fallbackModels
+	}
+	if platform == service.PlatformAnthropic {
+		return mergeModelIDs(availableModels, fallbackModels)
+	}
+	return availableModels
+}
+
+func mergeModelIDs(primary, secondary []string) []string {
+	if len(primary) == 0 {
+		return secondary
+	}
+	if len(secondary) == 0 {
+		return primary
+	}
+	seen := make(map[string]struct{}, len(primary)+len(secondary))
+	out := make([]string, 0, len(primary)+len(secondary))
+	add := func(values []string) {
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			key := strings.ToLower(value)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, value)
+		}
+	}
+	add(primary)
+	add(secondary)
+	return out
+}
+
 func defaultModelIDsForPlatform(platform string) []string {
 	if ids, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
 		return ids
@@ -1241,6 +1291,9 @@ func defaultModelIDsForPlatform(platform string) []string {
 
 func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
 	modelIDs, _ := service.GatewayModelDiscoveryIDsForPlatform(service.PlatformAntigravity)
+	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
+		modelIDs = apiKey.Group.ModelAllowlist.FilterForListing(modelIDs)
+	}
 	writeAntigravityModelsList(c, modelIDs)
 }
 
@@ -1849,6 +1902,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	if err := h.gatewayService.ForwardCountTokens(c.Request.Context(), c, account, parsedReq); err != nil {
 		reqLog.Error("gateway.count_tokens_forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 		// 错误响应已在 ForwardCountTokens 中处理
+		h.gatewayService.ReleaseAccountSession(context.Background(), account, sessionHash)
 		return
 	}
 }

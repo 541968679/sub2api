@@ -383,6 +383,7 @@ const enBase = {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    modelPlaza: 'Model Plaza',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     modelConfig: 'Model Config',
@@ -412,6 +413,7 @@ const enBase = {
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
+    plugins: 'Plugins',
     imageChannelMonitor: 'Image Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
@@ -914,13 +916,13 @@ const enBase = {
         note: 'Save the file as ~/.grok/config.toml, then run grok inspect and select sub2api-grok from /model.',
         noteWindows: 'Save the file as %USERPROFILE%\\.grok\\config.toml, then run grok inspect and select sub2api-grok from /model.',
         codexDescription:
-          'Write the following Codex files under ~/.codex. They include model_context_window and model-catalog-grok.json so Codex does not warn “Model metadata for grok-4.5 not found”.',
+          'Write the following Codex files under ~/.codex. They include model_context_window and model-catalog-grok.json so Codex does not warn “Model metadata for grok-4.6 not found”.',
         codexConfigTomlHint:
           'Place this at the top of config.toml. model_catalog_json uses a relative filename that Codex resolves from ~/.codex.',
         codexCatalogHint:
           'Save next to config.toml. CCS one-click import does not write a catalog; if you still see a metadata warning after CCS import, add this file and restart Codex.',
         codexNote:
-          'Fully quit and restart Codex after saving. CCS import only sets model=grok-4.5 and does not generate a catalog—use these files to complete metadata.',
+          'Fully quit and restart Codex after saving. CCS import only sets model=grok-4.6 and does not generate a catalog—use these files to complete metadata.',
         codexNoteWindows:
           'Press Win+R, open %userprofile%\\.codex, write all three files, then fully quit and restart Codex.'
       },
@@ -948,7 +950,7 @@ const enBase = {
     ccSwitchImportLaunched:
       'CC-Switch import launched. If nothing opened, install CC-Switch first or use "Use Key" to configure manually.',
     ccsGrokCodexMetadataHint:
-      'Grok was imported as Codex (model=grok-4.5). CCS does not write a model catalog; if you see “Model metadata for grok-4.5 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
+      'Grok was imported as Codex (model=grok-4.6). CCS does not write a model catalog; if you see “Model metadata for grok-4.6 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
     ccsClientSelect: {
       title: 'Select Client',
       description: 'Please select the client type to import to CC-Switch:',
@@ -1297,7 +1299,18 @@ const enBase = {
     providers: {
       openai: 'OpenAI',
       anthropic: 'Anthropic',
-      gemini: 'Gemini'
+      gemini: 'Gemini',
+      grok: 'Grok',
+      antigravity: 'Antigravity',
+      kimi: 'Kimi',
+      zhipu: 'Zhipu',
+      deepseek: 'DeepSeek',
+      minimax: 'MiniMax'
+    },
+    checkMode: {
+      probe: 'Probe',
+      quota: 'Quota',
+      quota_probe: 'Probe + quota'
     },
     extraModelsHeader: 'Extra Models',
     extraModelsEmpty: 'No extra models',
@@ -1369,6 +1382,167 @@ const enBase = {
     empty: {
       title: 'No channels available',
       description: 'No monitored channels have been configured yet.'
+    }
+  },
+
+  channelMonitorV2: {
+    title: 'Channel Monitor',
+    updating: 'Updating data',
+    updatedTo: 'Updated to {time}',
+    partialCoverage: 'Partial historical coverage',
+    bootstrap: {
+      title: 'Building historical monitor data',
+      description:
+        'On first enable, passive aggregation silently fills the 90m, 24h, 7d, and 30d windows in the background. All ranges become complete once this finishes.',
+      progress: '{percent}% complete',
+      working: 'Aggregating in the background…',
+    },
+    timeRange: 'Time range',
+    clearFilters: 'Reset',
+    refreshingFilters: 'Filters changed; refreshing matrix, trend, and details…',
+    switchingData: 'Switching filtered data…',
+    summaryAria: 'Selected range summary',
+    loadFailed: 'Failed to load channel monitor',
+    detailLoadFailed: 'Failed to load channel monitor details',
+    otherModels: 'Other models',
+    ignored: 'Ignored',
+    currentUser: 'Current user',
+    ranges: { '90m': '90m', '24h': '24h', '7d': '7d', '30d': '30d' },
+    filters: {
+      platform: 'Platform', allPlatforms: 'All', group: 'Group', allGroups: 'All', model: 'Model', allModels: 'All',
+      empty: 'No options', selectedCount: '{count}', labelValue: '{label}: {value}'
+    },
+    groupBy: {
+      label: 'Group by', platform: 'Platform', platformGroup: 'Platform / Group', platformModel: 'Platform / Model', platformGroupModel: 'Platform / Group / Model'
+    },
+    trendView: { label: 'Trend view', pulse: 'Pulse matrix', line: 'Line chart' },
+    healthMode: { label: 'Health display', overall: 'Overall', success: 'Error rate', ttft: 'First token', cache: 'Cache rate' },
+    tabs: { aria: 'Detail dimension', models: 'Models', errors: 'Error reasons', users: 'User ranking' },
+    metrics: {
+      rpm: 'RPM',
+      tpm: 'TPM',
+      tps: 'Tokens/s',
+      rpmDetail: 'Requests per minute',
+      tpmDetail: 'Tokens per minute',
+      tpsDetail: 'Derived as TPM ÷ 60',
+      errorRate: 'Error rate',
+      ttft: 'First token',
+      ttftP50: 'First token P50',
+      durationP50: 'Duration P50',
+      cacheRate: 'Cache rate',
+      cacheDetail: 'Read cache share',
+      successRate: 'Success rate',
+      successRateValue: 'Success rate {value}',
+      errorRateValue: 'Error rate {value}',
+      rpmValue: 'RPM {value}',
+      tpmValue: 'TPM {value}',
+      tpsValue: 'Tokens/s {value}',
+      ttftValue: 'First token {value}',
+      durationValue: 'Duration {value}',
+      cacheRateValue: 'Cache rate {value}',
+    },
+    table: { platformModel: 'Platform / Model', rank: 'Rank', user: 'User' },
+    empty: { title: 'No data to display', description: 'Try changing the time range or filters' },
+    bucket: { minutes: '{count}-minute buckets', hours: '{count}-hour buckets', days: '{count}-day buckets' },
+    matrix: {
+      title: 'Availability trend', description: 'Each row is a channel dimension and each block is an aggregate interval; hover for details', wheelZoom: 'Scroll over blocks to zoom in (narrower range, wider blocks)', wheelZoomX: 'Scroll over blocks to zoom in (narrower range, wider blocks)', dimension: 'Channel dimension', emptyTitle: 'No matrix data for the selected window', legendAria: 'Health score legend', bad: 'Bad', good: 'Good', healthyLegend: 'Healthy (≥80)', warningLegend: 'Watch (50–79)', criticalLegend: 'Critical (<50)', unknownLegend: 'No traffic / insufficient samples', noTraffic: 'No traffic in this interval', noTrafficAt: '{time} · no traffic', scoreLine: 'Health score {score}', resetZoom: 'Reset zoom'
+    },
+    chart: {
+      title: 'Availability trend', description: 'Smoothed trend: error rate · first token P50 · cache rate', emptyTitle: 'No trend data for the selected window', errorLegend: 'Error rate (left axis %)', cacheLegend: 'Cache rate (left axis %)', ttftLegend: 'First token P50 (right axis)', errorDataset: 'Error rate trend %', cacheDataset: 'Cache rate trend %', ttftDataset: 'First token trend P50 (ms)', percentAxis: 'Rate %', resetZoom: 'Reset zoom'
+    },
+    errorDetail: { http: 'HTTP {code}', upstream: 'Upstream {code}', noMessage: 'No error message', empty: 'Category rates only (sample messages are admin-only)' },
+    errorCategories: {
+      content_policy: 'Content policy', authentication: 'Authentication', context_limit: 'Context limit', invalid_request: 'Invalid request', model_unsupported: 'Unsupported model', group_access: 'Group access', quota_or_balance: 'Quota or balance', account_pool_unavailable: 'Account pool unavailable', rate_or_capacity: 'Rate or capacity', timeout: 'Timeout', transport_or_stream: 'Transport or stream', upstream_forbidden: 'Upstream forbidden', not_found: 'Not found', client_cancelled: 'Client cancelled', upstream_5xx: 'Upstream 5xx', internal: 'Internal', other: 'Other'
+    },
+    rank: {
+      gold: 'Rank 1 gold',
+      silver: 'Rank 2 silver',
+      bronze: 'Rank 3 bronze',
+      place: 'Rank {n}',
+      unranked: 'Unranked',
+    },
+    settings: {
+      title: 'V2 data monitor config',
+      description:
+        'Configure passive usage aggregation dimensions (platform / model / group) and refresh cadence. Health colors and details on the user /monitor page show rates, RPM, and TPM — not absolute request volume.',
+      save: 'Save',
+      loading: 'Loading…',
+      loadFailed: 'Failed to load V2 config',
+      saveSuccess: 'V2 monitor config saved',
+      saveFailed: 'Failed to save V2 config',
+      modeBanner:
+        'System mode is currently {mode}. V2 minute aggregation will not run; this config can be prepared now and takes effect after switching to {modeV2}. Change mode under System Settings → Feature switches.',
+      modeClosed: 'Channel monitor disabled',
+      modeV1: 'V1 active probes',
+      modeV2: 'V2 passive monitoring',
+      enableTitle: 'Enable V2 aggregation',
+      enableHint:
+        'Applies when system mode is V2. Turning this off only stops this config’s aggregation; the system mode switch remains under Feature switches.',
+      refreshTitle: 'Aggregation interval',
+      refreshHint: 'Affects matrix time granularity and refresh cadence',
+      refreshAria: 'Aggregation interval',
+      platformsTitle: 'Platforms and models',
+      platformsHint:
+        'Leave empty = show all real model names; when filled, only listed models get their own rows and the rest roll into “Other”',
+      modelsPlaceholder: 'Empty = all real models; or list popular models (rest → Other)',
+      badgeAllModels: 'All models',
+      badgeOther: '+ Other',
+      groupsTitle: 'Monitored groups',
+      groupsSelected: '{count} groups selected',
+      groupsAll: 'All groups',
+      groupsEmpty: 'No groups available',
+      errorsTitle: 'Error categories and ignores',
+      errorsHint:
+        'Checked “ignore” categories are excluded from error rate and health score, but still appear greyed in the error breakdown. Unmatched errors roll into “Other”.',
+      ignoredSummary: 'Ignored {ignored} categories · counted in error rate {counted} categories',
+      healthTitle: 'Health thresholds',
+      healthHint:
+        'Controls user-facing color bands and overall score. Defaults are tolerant so small error rates or low cache do not immediately show as unhealthy.',
+      fields: {
+        minimumSample: 'Minimum samples',
+        warningError: 'Error rate watch %',
+        criticalError: 'Error rate critical %',
+        targetTtft: 'TTFT target ms',
+        warningTtft: 'TTFT watch ms',
+        criticalTtft: 'TTFT critical ms',
+        warningCache: 'Cache rate watch %',
+        criticalCache: 'Cache rate critical %',
+      },
+      namedModelsEmpty: 'Platform model lists are empty: every real model name will be shown (not folded into “Other”).',
+      namedModelsCount: 'Showing {count} named model dimensions; unlisted models fold into per-platform “Other”.',
+      userContractTitle: 'User-facing display contract',
+      userContract: {
+        health: 'Health color weights: error rate 60% + first-token P50 20% + cache rate 20% (thresholds configurable above)',
+        trend: 'Trend can switch between pulse matrix and line chart (error · cache · first token)',
+        latency: 'Latency shows AVG · P50 · P90; absolute request / error counts are not shown',
+        models: 'Empty model lists show real names and never dump everything into “Other”',
+      },
+    },
+    admin: {
+      descriptionV1:
+        'System mode is V1 active probes: manage probe monitors and run checks now; V2 aggregation does not run.',
+      descriptionV2:
+        'System mode is V2 passive monitoring: configure aggregation dimensions; V1 active probes do not run.',
+      tabAria: 'Monitor management',
+      tabV2: 'V2 data monitor config',
+      tabV1Active: 'V1 active probes',
+      tabV1History: 'V1 history (probes not active in current mode)',
+    },
+  },
+
+
+  modelPlaza: {
+    title: 'Model Plaza',
+    description: 'Group-scoped display prices. Anonymous visitors see only non-exclusive groups.',
+    empty: 'No visible groups',
+    loadFailed: 'Failed to load model plaza',
+    rate: 'Rate',
+    columns: {
+      model: 'Model',
+      displayInput: 'Display input',
+      displayOutput: 'Display output',
+      displayCache: 'Display cache read',
+      officialInput: 'Official input'
     }
   },
 
@@ -2889,6 +3063,10 @@ const enBase = {
         rateMultiplier: 'Rate Multiplier',
         status: 'Status',
         exclusive: 'Exclusive Group',
+        profitControl: 'Profit gate',
+        profitControlHint: 'Off by default. When enabled, an account is scheduled only if its billing multiplier is at or below group rate × (1 − min margin − safety buffer). Billing amounts are unchanged. Currently applies to OpenAI-compatible scheduling.',
+        profitMinMargin: 'Minimum margin',
+        profitSafetyBuffer: 'Safety buffer',
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
@@ -2911,6 +3089,22 @@ const enBase = {
         empty: 'No model candidates available',
         moveUp: 'Move up',
         moveDown: 'Move down'
+      },
+      modelAllowlist: {
+        title: 'Model allowlist',
+        hint: 'When enabled, /v1/models only shows allowlisted models. Gateway request admission stays off unless group_model_allowlist_enforce=true. Entries may be exact IDs or trailing * wildcards.',
+        selectedCount: '{selected} / {total} selected',
+        selectAll: 'Select all',
+        invert: 'Invert',
+        loading: 'Loading model candidates...',
+        empty: 'No model candidates. You can add a custom entry below.',
+        moveUp: 'Move up',
+        moveDown: 'Move down',
+        addCustom: 'Add entry',
+        addCustomPlaceholder: 'e.g. gpt-5.5-*',
+        addErrorEmpty: 'Enter a model entry',
+        addErrorWildcard: 'Wildcard * is only allowed at the end of an entry',
+        addErrorDuplicate: 'That entry already exists'
       },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
@@ -2971,7 +3165,11 @@ const enBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kimi: 'Kimi',
+        zhipu: 'Zhipu',
+        deepseek: 'DeepSeek',
+        minimax: 'MiniMax'
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -3712,6 +3910,8 @@ const enBase = {
       autoBanHint: 'Disable the user, invalidate auth cache, and send a ban notice after the hit threshold is reached.',
       cyberPolicyExcludeBan: 'Exclude Cyber Policy Hits from Ban Count',
       cyberPolicyExcludeBanHint: 'When enabled, cyber_policy hits no longer count toward auto-ban violations: no ban judgment on the hit itself, and history rows are excluded from the rolling count. Logs and notice emails are unaffected.',
+      proxyId: 'Moderation proxy',
+      proxyIdHint: 'Managed proxy ID for moderation API calls. Leave empty or 0 for direct; resolution failure never silently falls back to direct.',
       violationNotCounted: 'Not counted',
       banThreshold: 'Ban Threshold',
       violationWindowHours: 'Count Window (hours)',
@@ -3863,6 +4063,55 @@ const enBase = {
       },
     },
 
+    plugins: {
+      title: 'Plugin Management',
+      description: 'Install and manage isolated OAuth outbound transport plugins. API Key flows are unchanged.',
+      upload: 'Install plugin',
+      uploadHint: 'Only .s2plugin packages are accepted; trusted publisher signatures are required by default.',
+      runtimeNotice: 'Plugin installation, enable/disable, and configuration are handled dynamically by the Sub2API host and normally do not require a host restart. Restart only when the host version or host configuration changes according to your deployment process.',
+      menuNotice: 'The Plugin Management switch in System Settings controls only sidebar visibility; it does not stop loaded or running plugins.',
+      empty: 'No plugins installed',
+      emptyHint: 'Select a local .s2plugin package. Sub2API never downloads third-party plugins automatically.',
+      configure: 'Configure',
+      enable: 'Enable',
+      disable: 'Disable',
+      test: 'Test',
+      uninstall: 'Uninstall',
+      rollout: 'OAuth traffic percentage',
+      compatibility: 'Version compatibility',
+      currentVersion: 'Current Sub2API',
+      requiredVersion: 'Required range',
+      recommendedVersion: 'Recommended version',
+      signature: 'Package signature',
+      trusted: 'Verified',
+      unsigned: 'Unsigned',
+      runtime: 'Runtime',
+      healthy: 'Healthy',
+      unhealthy: 'Not running',
+      compatible: 'Compatible',
+      untested: 'Untested version',
+      incompatible: 'Incompatible',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      error: 'Error',
+      starting: 'Starting',
+      configTitle: '{name} configuration',
+      loadingUI: 'Loading plugin configuration UI...',
+      uiUnavailable: 'Unable to load the plugin configuration UI',
+      uploadSuccess: 'Plugin installed and kept disabled',
+      enableSuccess: 'Plugin enabled',
+      disableSuccess: 'Plugin disabled',
+      uninstallSuccess: 'Plugin uninstalled',
+      testSuccess: 'Plugin test passed',
+      confirmDisable: 'Disable this plugin? New OAuth requests immediately return to the built-in Sub2API path.',
+      confirmUninstall: 'Uninstall this plugin? It must be disabled first. Installed files and configuration will be removed.',
+      confirmUntested: 'This plugin is compatible but has not declared the current Sub2API version as tested. Enable it anyway?',
+      fileRequired: 'Select a .s2plugin file',
+      bridgeRejected: 'Plugin UI message validation failed',
+      onlyOpenAI: 'Initial capability: OpenAI OAuth outbound transport only',
+      noAccountCoupling: 'The scope is platform and account type. Account records are not changed and no per-account toggle is required.'
+    },
+
     // Channel Monitor
     channelMonitor: {
       title: 'Channel Monitor',
@@ -3900,6 +4149,17 @@ const enBase = {
         name: 'Name',
         namePlaceholder: 'Enter monitor name',
         provider: 'Platform',
+        checkMode: 'Check mode',
+        checkModeProbe: 'Probe',
+        checkModeProbeHint: 'Send an LLM health-check request upstream',
+        checkModeQuota: 'Quota',
+        checkModeQuotaHint: 'Read linked-account usage only; no LLM cost',
+        checkModeQuotaProbe: 'Probe + quota',
+        checkModeQuotaProbeHint: 'Probe and attach a quota snapshot',
+        linkedAccount: 'Linked account ID',
+        linkedAccountPlaceholder: 'Enter account ID',
+        linkedAccountHint: 'Quota mode reads usage/balance from this account',
+        linkedAccountRequired: 'Quota mode requires a linked account ID',
         apiMode: 'OpenAI protocol',
         apiModeChatCompletions: 'OpenAI Compatible',
         apiModeChatCompletionsHint: 'Use /v1/chat/completions with messages; works for most compatible providers.',
@@ -5664,7 +5924,15 @@ const enBase = {
             'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
-          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials',
+          agentIdentityAuth: 'Import Agent Identity',
+          agentIdentityDesc:
+            'Paste a Codex Agent Identity auth.json. Runtime and private key are stored; OAuth access_token and refresh_token are not. The sessionToken import path is unchanged.',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: 'Paste JSON with auth_mode=agentIdentity and agent_identity',
+          agentIdentityHint:
+            'Uses the existing Codex session import API. sessionToken is never saved as a refresh_token.',
+          agentIdentityImportAndCreate: 'Import Agent Identity'
         },
         // Gemini specific
 	        gemini: {
@@ -7011,6 +7279,7 @@ const enBase = {
         title: 'Error Detail',
         titleWithId: 'Error #{id}',
         noErrorSelected: 'No error selected.',
+        backToList: 'Back to List',
         resolution: 'Resolved:',
         pinnedToOriginalAccountId: 'Pinned to original account_id',
         missingUpstreamRequestBody: 'Missing upstream request body',
@@ -7593,6 +7862,22 @@ const enBase = {
           enabledHint: 'Disabling stops background checks; existing history is preserved.',
           defaultInterval: 'Default check interval (seconds)',
           defaultIntervalHint: 'Pre-fills the interval when creating a new monitor; each monitor can override it. Range 15 – 3600.',
+          mode: 'Monitor implementation',
+          modeHint: 'V1 active probes; V2 passive usage aggregation. Default V1.',
+          modeV1: 'V1 active probes',
+          modeV2: 'V2 passive monitoring',
+          hideThroughput: 'Hide RPM/TPM from users',
+          hideThroughputHint: 'On by default. Admins still see full throughput.',
+          showQuota: 'Show quota snapshots to users',
+          showQuotaHint: 'Off by default. Only quota-mode monitors produce snapshots.',
+          hideUserRanking: 'Hide user ranking',
+          hideUserRankingHint: 'Off by default (ranking visible). Admins always see it.',
+        },
+        plugins: {
+          title: 'Plugin management',
+          description: 'Show the plugin management sidebar entry. Default off. Unsigned packages are still rejected.',
+          enabled: 'Show plugin management menu',
+          enabledHint: 'Controls menu visibility only; does not stop loaded plugins.',
         },
         availableChannels: {
           title: 'Available Channels',
@@ -7600,6 +7885,14 @@ const enBase = {
           configureLink: 'Configure model pricing in Channel Management > Channel Pricing',
           enabled: 'Enable Available Channels',
           enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
+        },
+        modelPlaza: {
+          title: 'Model Plaza',
+          description: 'Public group-scoped display-price showcase. Prices use the fork display chain, never cost/tokens. Anonymous visitors see only non-exclusive groups.',
+          enabled: 'Enable Model Plaza',
+          enabledHint: 'When off, the menu is hidden and the endpoint returns 404.',
+          requireAuth: 'Require sign-in',
+          requireAuthHint: 'When on, anonymous callers cannot load the plaza API.',
         },
         userErrorRequests: {
           title: 'User Error Requests',
@@ -9362,6 +9655,8 @@ const enBase = {
       deletePlan: 'Delete Plan',
       deletePlanConfirm: 'Are you sure you want to delete this plan?',
       originalPrice: 'Original Price',
+      planCurrency: 'Currency label',
+      planCurrencyHint: 'Display-only plan price label such as USD or CNY. Leave empty to keep the historical ¥ prefix.',
       price: 'Price',
       subscriptionCnyPayPreview: 'CNY channel charge preview: {amount}',
       subscriptionCnyPayPreviewWithFee: '({feeRate}% fee included: {total})',
@@ -9717,7 +10012,15 @@ const phase0LocalePatch = {
             'JSON, JSON arrays, and mixed line input are supported. accessToken and sessionToken from the JSON are stored directly; ChatGPT does not need to be reachable at import time. A matching user that already has a refresh_token is updated in place.',
           codexSessionImportAndCreate: 'Import and create account',
           codexSessionEmpty: 'Please paste a ChatGPT session or Codex auth.json',
-          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials'
+          codexSessionImportFailed: 'Failed to import ChatGPT session / Codex credentials',
+          agentIdentityAuth: 'Import Agent Identity',
+          agentIdentityDesc:
+            'Paste a Codex Agent Identity auth.json. Runtime and private key are stored; OAuth access_token and refresh_token are not. The sessionToken import path is unchanged.',
+          agentIdentityInputLabel: 'Agent Identity auth.json',
+          agentIdentityPlaceholder: 'Paste JSON with auth_mode=agentIdentity and agent_identity',
+          agentIdentityHint:
+            'Uses the existing Codex session import API. sessionToken is never saved as a refresh_token.',
+          agentIdentityImportAndCreate: 'Import Agent Identity'
         },
         grok: {
           failedToGenerateUrl: 'Failed to generate Grok auth URL',

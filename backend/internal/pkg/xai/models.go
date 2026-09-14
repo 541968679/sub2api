@@ -1,5 +1,11 @@
 package xai
 
+import "strings"
+
+// DefaultTextModel is the built-in fallback for empty model fields and Grok
+// text aliases (e.g. "grok", "grok-latest").
+const DefaultTextModel = "grok-4.6"
+
 // Model describes an xAI model in OpenAI-compatible /models shape.
 type Model struct {
 	ID          string `json:"id"`
@@ -10,6 +16,7 @@ type Model struct {
 }
 
 var defaultModels = []Model{
+	{ID: "grok-4.6", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.6"},
 	{ID: "grok-4.5", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.5"},
 	{ID: "grok-4.3", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.3"},
 	{ID: "grok-build-0.1", Object: "model", OwnedBy: "xai", DisplayName: "Grok Build 0.1"},
@@ -45,8 +52,10 @@ func DefaultModelMapping() map[string]string {
 	for _, model := range defaultModels {
 		mapping[model.ID] = model.ID
 	}
-	mapping["grok"] = "grok-4.5"
-	mapping["grok-latest"] = "grok-4.5"
+	mapping["grok"] = DefaultTextModel
+	mapping["grok-latest"] = DefaultTextModel
+	mapping["grok-4.6"] = "grok-4.6"
+	mapping["grok-4.6-latest"] = "grok-4.6"
 	mapping["grok-4.5-latest"] = "grok-4.5"
 	mapping["grok-build"] = "grok-build-0.1"
 	mapping["grok-build-latest"] = "grok-4.5"
@@ -55,4 +64,31 @@ func DefaultModelMapping() map[string]string {
 	mapping["grok-4.20-reasoning"] = "grok-4.20-0309-reasoning"
 	mapping["grok-4.20-non-reasoning"] = "grok-4.20-0309-non-reasoning"
 	return mapping
+}
+
+// StripGrokProviderPrefix drops a leading provider prefix (xai/, x-ai/).
+func StripGrokProviderPrefix(model string) string {
+	model = strings.TrimSpace(model)
+	if slash := strings.LastIndex(model, "/"); slash >= 0 {
+		return strings.TrimSpace(model[slash+1:])
+	}
+	return model
+}
+
+// ResolveGrokTextResponsesModelID maps client aliases onto canonical Grok
+// text model IDs. Empty input resolves to DefaultTextModel.
+func ResolveGrokTextResponsesModelID(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return DefaultTextModel
+	}
+	mapping := DefaultModelMapping()
+	if mapped, ok := mapping[id]; ok && strings.TrimSpace(mapped) != "" {
+		return mapped
+	}
+	lower := strings.ToLower(id)
+	if mapped, ok := mapping[lower]; ok && strings.TrimSpace(mapped) != "" {
+		return mapped
+	}
+	return id
 }

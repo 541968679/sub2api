@@ -19,6 +19,7 @@ import (
 
 const (
 	openAIAccountScheduleLayerPreviousResponse = "previous_response_id"
+	openAIAccountScheduleLayerGuardianParent   = "guardian_parent"
 	openAIAccountScheduleLayerSessionSticky    = "session_hash"
 	openAIAccountScheduleLayerLoadBalance      = "load_balance"
 	openAIAdvancedSchedulerSettingKey          = "openai_advanced_scheduler_enabled"
@@ -60,6 +61,7 @@ type OpenAIAccountScheduleRequest struct {
 	Platform                     string
 	SessionHash                  string
 	StickyAccountID              int64
+	GuardianParentAccountID      int64
 	StickyPreviousAccountID      int64
 	StickyWeighted               bool
 	SubscriptionPriority         bool
@@ -337,6 +339,23 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			if req.SessionHash != "" {
 				_ = s.service.BindStickySession(ctx, req.GroupID, req.SessionHash, selection.Account.ID)
 			}
+			return selection, decision, nil
+		}
+	}
+
+	if req.GuardianParentAccountID > 0 {
+		parentReq := req
+		parentReq.StickyAccountID = req.GuardianParentAccountID
+		parentReq.PreserveStickyBinding = true
+		selection, _, _, err := s.selectBySessionHash(ctx, parentReq)
+		if err != nil {
+			return nil, decision, err
+		}
+		if selection != nil && selection.Account != nil {
+			decision.Layer = openAIAccountScheduleLayerGuardianParent
+			decision.StickySessionHit = true
+			decision.SelectedAccountID = selection.Account.ID
+			decision.SelectedAccountType = selection.Account.Type
 			return selection, decision, nil
 		}
 	}
@@ -955,6 +974,27 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	loadReq = pairLoadReq
 	if len(filtered) == 0 {
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
+	}
+
+	if schedGroup != nil {
+		policy := ProfitControlPolicyFromGroup(schedGroup)
+		if policy.Enabled {
+			downstream := schedGroup.RateMultiplier
+			if downstream <= 0 {
+				downstream = 1
+			}
+			filtered = FilterAccountsByProfitControl(filtered, downstream, policy)
+			loadReq = loadReq[:0]
+			for _, candidate := range filtered {
+				loadReq = append(loadReq, AccountWithConcurrency{
+					ID:             candidate.ID,
+					MaxConcurrency: candidate.EffectiveLoadFactor(),
+				})
+			}
+			if len(filtered) == 0 {
+				return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
+			}
+		}
 	}
 
 	loadMap := map[int64]*AccountLoadInfo{}
@@ -1881,13 +1921,50 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		platform = normalizeOpenAICompatiblePlatform(platformOverride[0])
 	}
 	decision := OpenAIAccountScheduleDecision{}
+	preserveGuardianParentBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash)
+	guardianParentAccountID := int64(0)
+	if strings.TrimSpace(previousResponseID) == "" {
+		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)
+	}
 	scheduler := s.getOpenAIAccountScheduler(ctx)
 	if scheduler == nil {
+		if guardianParentAccountID > 0 {
+			fallbackScheduler := &defaultOpenAIAccountScheduler{service: s, stats: newOpenAIAccountRuntimeStats()}
+			selection, _, _, err := fallbackScheduler.selectBySessionHash(ctx, OpenAIAccountScheduleRequest{
+				GroupID:                      groupID,
+				Platform:                     platform,
+				SessionHash:                  sessionHash,
+				StickyAccountID:              guardianParentAccountID,
+				PreserveStickyBinding:        true,
+				RequestedModel:               requestedModel,
+				RequiredTransport:            requiredTransport,
+				RequiredCapability:           requiredCapability,
+				RequiredImageCapability:      requiredImageCapability,
+				RequireCompact:               requireCompact,
+				RequireClaudeGPTBridge:       requireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: requireGrokOpenAIGroupAccess,
+				ExcludedIDs:                  excludedIDs,
+			})
+			if err != nil {
+				return nil, decision, err
+			}
+			if selection != nil && selection.Account != nil {
+				decision.Layer = openAIAccountScheduleLayerGuardianParent
+				decision.StickySessionHit = true
+				decision.SelectedAccountID = selection.Account.ID
+				decision.SelectedAccountType = selection.Account.Type
+				return selection, decision, nil
+			}
+		}
 		decision.Layer = openAIAccountScheduleLayerLoadBalance
+		legacySessionHash := sessionHash
+		if preserveGuardianParentBinding {
+			legacySessionHash = ""
+		}
 		if requiredTransport == OpenAIUpstreamTransportAny || requiredTransport == OpenAIUpstreamTransportHTTPSSE {
 			effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 			for {
-				selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
+				selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, legacySessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
 					Platform:                     platform,
 					RequestedModel:               requestedModel,
 					RequireCompact:               requireCompact,
@@ -1918,7 +1995,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 
 		effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 		for {
-			selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
+			selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, legacySessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
 				Platform:                     platform,
 				RequestedModel:               requestedModel,
 				RequireCompact:               requireCompact,
@@ -1972,9 +2049,11 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		Platform:                     platform,
 		SessionHash:                  sessionHash,
 		StickyAccountID:              stickyAccountID,
+		GuardianParentAccountID:      guardianParentAccountID,
 		StickyPreviousAccountID:      stickyPreviousAccountID,
 		StickyWeighted:               stickyWeighted,
 		SubscriptionPriority:         subscriptionPriority,
+		PreserveStickyBinding:        preserveGuardianParentBinding,
 		PreviousResponseID:           previousResponseID,
 		PreviousResponseCanMove:      previousResponseCanMove,
 		RequestedModel:               requestedModel,
