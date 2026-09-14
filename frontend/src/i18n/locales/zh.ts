@@ -366,9 +366,9 @@ const zhBase = {
   nav: {
     dashboard: '仪表盘',
     announcements: '公告',
-    apiKeys: 'API 密钥',
+    apiKeys: 'API接入',
     usage: '使用记录',
-    modelPricing: '模型定价',
+    modelPricing: '计费规则',
     pageContent: '页面内容',
     redeem: '兑换',
     affiliate: '邀请返利',
@@ -779,13 +779,13 @@ const zhBase = {
     topUpHint: '充值余额，按量计费',
     viewTutorial: '查看教程',
     viewTutorialHint: 'Claude Code / Codex 接入指南',
-    getApiKey: '获取 API Key',
+    getApiKey: 'API接入',
     getApiKeyHint: '创建密钥，接入 AI 工具',
-    agentEntryEyebrow: '代理合作',
+    viewPricing: '计费规则',
+    viewPricingHint: '查看模型价格与分组倍率',
     becomeAgent: '成为代理',
     becomeAgentHint: '低价生成 API Key 和订阅兑换码，分销给客户赚取差价。',
     becomeAgentAction: '立即申请',
-    viewPricing: '模型定价',
     quickStart: '快速开始指南',
     quickStartHint: '了解如何配置和使用 API 密钥',
     tutorial: '详细教程',
@@ -808,9 +808,9 @@ const zhBase = {
     subscription: '订阅'
   },
 
-  // API Keys
+  // API Keys / API接入
   keys: {
-    title: 'API 密钥',
+    title: 'API接入',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
     endpoints: {
@@ -9279,7 +9279,7 @@ const v117ZhPatch = {
     },
   },
   pricing: {
-    title: '模型定价',
+    title: '计费规则',
     description: '计费说明、精选模型价格，以及你可用分组的倍率',
     billingExplainerTitle: '计费说明',
     introTitle: '我们的计费方式',

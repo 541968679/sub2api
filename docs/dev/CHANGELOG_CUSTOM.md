@@ -1,3 +1,24 @@
+## 2026-09-14 - feat(frontend): nav focus on billing rules and API access
+
+### What
+- Rename user nav/page titles: 模型定价→计费规则, API密钥→API接入 (zh/en).
+- Sidebar order prioritizes 充值/订阅, 计费规则, API接入; demote 成为代理 and remove HOT/agent highlight styles.
+- Dashboard quick actions: three primary cards (purchase / billing rules / API access); agent moved to secondary compact row.
+
+### Why
+Make recharge, billing rules, and API access the obvious user paths; stop over-emphasizing affiliate/agent entry.
+
+### Verification
+- Vitest: UserDashboardQuickActions + PricingView
+- Browser check on /dashboard sidebar + quick actions
+
+### Affected files
+`frontend/src/components/layout/AppSidebar.vue`,
+`frontend/src/components/user/dashboard/UserDashboardQuickActions.vue`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+`frontend/src/router/index.ts`,
+this changelog.
+
 ## 2026-09-14 - feat(frontend): pricing page dual tables (model prices + group rates)
 
 ### What

@@ -367,9 +367,9 @@ const enBase = {
   nav: {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
-    apiKeys: 'API Keys',
+    apiKeys: 'API Access',
     usage: 'Usage',
-    modelPricing: 'Model Pricing',
+    modelPricing: 'Billing Rules',
     pageContent: 'Page Content',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
@@ -783,13 +783,13 @@ const enBase = {
     topUpHint: 'Recharge balance, pay-as-you-go',
     viewTutorial: 'View Tutorial',
     viewTutorialHint: 'Claude Code / Codex setup guide',
-    getApiKey: 'Get API Key',
+    getApiKey: 'API Access',
     getApiKeyHint: 'Create a key and connect AI tools',
-    agentEntryEyebrow: 'Agent program',
+    viewPricing: 'Billing Rules',
+    viewPricingHint: 'Model prices and group rates',
     becomeAgent: 'Become an Agent',
     becomeAgentHint: 'Generate API keys and subscription codes at agent pricing, then resell them for margin.',
     becomeAgentAction: 'Apply now',
-    viewPricing: 'Model Pricing',
     quickStart: 'Quick Start Guide',
     quickStartHint: 'Learn how to set up and use your API keys',
     tutorial: 'Detailed Tutorial',
@@ -812,9 +812,9 @@ const enBase = {
     subscription: 'Sub'
   },
 
-  // API Keys
+  // API Keys / API Access
   keys: {
-    title: 'API Keys',
+    title: 'API Access',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
     endpoints: {
@@ -1021,9 +1021,9 @@ const enBase = {
     },
   },
 
-  // Model Pricing Page (user-facing)
+  // Billing Rules page (user-facing)
   pricing: {
-    title: 'Model Pricing',
+    title: 'Billing Rules',
     description: 'Billing explanation, curated model prices, and rates for your available groups.',
     billingExplainerTitle: 'Billing Explanation',
     introTitle: 'Our Pricing Model',

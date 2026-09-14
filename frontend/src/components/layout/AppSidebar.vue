@@ -83,8 +83,7 @@
               class="sidebar-link mb-1"
               :class="{
                 'sidebar-link-active': isActive(item.path),
-                'sidebar-link-collapsed': sidebarCollapsed,
-                'sidebar-link-agent': item.path === '/distribution'
+                'sidebar-link-collapsed': sidebarCollapsed
               }"
               :title="sidebarCollapsed ? item.label : undefined"
               :id="
@@ -123,8 +122,7 @@
             class="sidebar-link mb-1"
             :class="{
               'sidebar-link-active': !item.external && isActive(item.path),
-              'sidebar-link-collapsed': sidebarCollapsed,
-              'sidebar-link-agent': item.path === '/distribution'
+              'sidebar-link-collapsed': sidebarCollapsed
             }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
@@ -150,8 +148,7 @@
             class="sidebar-link mb-1"
             :class="{
               'sidebar-link-active': !item.external && isActive(item.path),
-              'sidebar-link-collapsed': sidebarCollapsed,
-              'sidebar-link-agent': item.path === '/distribution'
+              'sidebar-link-collapsed': sidebarCollapsed
             }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
@@ -735,20 +732,22 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
   items.push(
+    // Primary user destinations first: recharge, billing rules, API access
+    { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/pricing', label: t('nav.modelPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
+    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     ...(tutorialUrl.value
       ? [{ path: '/tutorial', label: t('nav.tutorial'), icon: BookIcon, external: tutorialUrl.value }]
       : []),
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/distribution', label: t('nav.distribution'), icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/pricing', label: t('nav.modelPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
+    // Agent / affiliate kept lower so they are not the visual focus
+    { path: '/distribution', label: t('nav.distribution'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
@@ -1047,86 +1046,6 @@ onBeforeUnmount(() => {
   padding-right: 0.875rem;
 }
 
-.sidebar-link-agent {
-  position: relative;
-  isolation: isolate;
-  color: rgb(146 64 14);
-  background:
-    linear-gradient(135deg, rgba(254, 243, 199, 0.92), rgba(209, 250, 229, 0.86));
-  box-shadow:
-    inset 0 0 0 1px rgba(245, 158, 11, 0.34),
-    0 8px 22px rgba(245, 158, 11, 0.14);
-}
-
-.sidebar-link-agent::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  z-index: -1;
-  border-radius: 0.7rem;
-  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.72) 45%, transparent 72%);
-  transform: translateX(-130%);
-  animation: sidebar-agent-shine 3.6s ease-in-out infinite;
-}
-
-.sidebar-link-agent::after {
-  content: 'HOT';
-  margin-left: auto;
-  flex-shrink: 0;
-  border-radius: 9999px;
-  padding: 0.0625rem 0.375rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: rgb(120 53 15);
-  background: rgba(254, 215, 170, 0.95);
-}
-
-.sidebar-link-agent.sidebar-link-collapsed::after {
-  display: none;
-}
-
-.sidebar-link-agent:hover,
-.sidebar-link-agent.sidebar-link-active {
-  color: rgb(15 118 110);
-  background:
-    linear-gradient(135deg, rgba(254, 215, 170, 0.95), rgba(167, 243, 208, 0.92));
-  box-shadow:
-    inset 0 0 0 1px rgba(16, 185, 129, 0.38),
-    0 10px 26px rgba(16, 185, 129, 0.18);
-}
-
-.dark .sidebar-link-agent {
-  color: rgb(253 230 138);
-  background:
-    linear-gradient(135deg, rgba(120, 53, 15, 0.34), rgba(6, 78, 59, 0.34));
-  box-shadow:
-    inset 0 0 0 1px rgba(245, 158, 11, 0.26),
-    0 8px 22px rgba(245, 158, 11, 0.12);
-}
-
-.dark .sidebar-link-agent:hover,
-.dark .sidebar-link-agent.sidebar-link-active {
-  color: rgb(167 243 208);
-  background:
-    linear-gradient(135deg, rgba(146, 64, 14, 0.44), rgba(20, 83, 45, 0.44));
-}
-
-.dark .sidebar-link-agent::after {
-  color: rgb(254 243 199);
-  background: rgba(180, 83, 9, 0.72);
-}
-
-@keyframes sidebar-agent-shine {
-  0%,
-  52% {
-    transform: translateX(-130%);
-  }
-  78%,
-  100% {
-    transform: translateX(130%);
-  }
-}
 
 .sidebar-section-title {
   position: relative;
