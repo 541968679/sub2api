@@ -1,3 +1,30 @@
+## 2026-09-14 - feat(frontend): pricing page dual tables (model prices + group rates)
+
+### What
+- User `/pricing` layout: one top「计费说明」block (intro + education Markdown), then left **模型价格** + right **分组倍率** (UI copy avoids「展示」wording).
+- Left card uses platform tabs over curated `show_on_pricing_page` prices (empty state when none).
+- Right card loads `GET /groups/available` and shows name / platform / `rate_multiplier` as 倍率 (no personal `/groups/rates` overlay).
+- zh/en i18n + Vitest coverage for tabs / groups error isolation / empty groups.
+
+### Why
+Make display unit prices and group display rates immediately readable on one page instead of stacked long markdown + model-only table.
+
+### Verification
+- `pnpm --dir frontend` Vitest: `PricingView.spec.ts` 3/3 pass
+- Playwright against `http://127.0.0.1:15174/pricing` (admin login): billing + dual tables + 3 group rows; local curated models empty so no platform tabs
+- Dev Control `ensure`: `api2sub` backend+frontend serving from this checkout
+
+### Affected files
+`frontend/src/views/user/PricingView.vue`,
+`frontend/src/views/user/__tests__/PricingView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/tasks/09-14-user-pricing-dual-tables/*`,
+this changelog.
+
+### Follow-up
+- Default billing copy rewritten to the formula explanation (百万 token 单价 × token 数量 × 分组倍率 × 1 人民币/1 美元); education default cleared; group-rate footer hint removed.
+
 ## 2026-09-07 - deploy: production v0.1.287
 
 ### What

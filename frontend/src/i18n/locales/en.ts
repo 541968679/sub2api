@@ -1024,15 +1024,21 @@ const enBase = {
   // Model Pricing Page (user-facing)
   pricing: {
     title: 'Model Pricing',
-    description: 'How we price models, how our model compares to common alternatives, and the display price for every exposed model.',
+    description: 'Billing explanation, curated model prices, and rates for your available groups.',
+    billingExplainerTitle: 'Billing Explanation',
     introTitle: 'Our Pricing Model',
     educationTitle: 'Pricing Models Explained',
-    tableTitle: 'Model Price Reference',
+    modelTableTitle: 'Model Prices',
+    tableTitle: 'Model Prices',
+    groupTableTitle: 'Group Rates',
+    platformTabsLabel: 'Platform',
     modelsSuffix: 'models',
     cnyBanner: '1 USD = ¥{rate}',
-    unitHint: '1 MTok = one million tokens. ¥ is the actual CNY charge at the current rate; the $ value in parentheses is the underlying USD price.',
+    unitHint: '1 MTok = one million tokens. ¥ is shown at the current rate when configured; the $ value in parentheses is the underlying USD price.',
     perRequestUnit: 'request',
     emptyState: 'No models have been exposed on this page yet.',
+    groupsEmpty: 'No available groups.',
+    groupsLoadFailed: 'Failed to load group rates.',
     columns: {
       model: 'Model',
       billingMode: 'Billing',
@@ -1040,6 +1046,11 @@ const enBase = {
       outputPrice: 'Output / MTok',
       cacheReadPrice: 'Cache Read / MTok',
       multiplier: 'Multiplier'
+    },
+    groupColumns: {
+      name: 'Group',
+      platform: 'Platform',
+      displayRate: 'Rate'
     },
     billingMode: {
       perToken: 'Per token',

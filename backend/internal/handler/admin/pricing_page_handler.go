@@ -23,22 +23,15 @@ const (
 // return identical fallbacks — the admin editor needs the default value
 // pre-filled so admins can tweak it instead of starting from a blank page.
 const (
-	DefaultPricingPageIntro = `## 本站计价模式
+	DefaultPricingPageIntro = "一条请求的最终消费 = 百万 token 单价 × token 数量 × 分组倍率 × 1 人民币 / 1 美元\n\n" +
+		"**百万 token 单价**：与官方一样。例如 Opus 4.8 的百万输入 token 单价是 5 美元，百万输出 token 单价是 25 美元。\n\n" +
+		"**token 数量**：例如一条请求输入 token 是 2 万，输出是 5 千。\n\n" +
+		"**分组倍率**：例如分组倍率是 0.5。\n\n" +
+		"那么最终消耗就是：\n\n" +
+		"(5×2/100×0.5)+(25×0.5/100×0.5)=0.1125 人民币"
 
-我们按 **原厂真实 Token 计价**：每个模型的输入、输出、缓存读取单价都与上游（Anthropic / OpenAI / Google 等）官方价格一致，不加价、不打包、不隐藏倍率。
-
-每一次调用的花费都能在「使用记录」里逐条还原——看得见每一 Token，算得清每一分钱。`
-
-	DefaultPricingPageEducation = `## 几种常见计价模式对比
-
-| 模式 | 描述 | 问题 |
-|------|------|------|
-| **按次计费** | 不管请求多大，每次固定扣一个单位 | 短请求亏，长请求白嫖；平台为了不亏必须把单价定得很高 |
-| **统一 Token 价** | 所有模型用同一个假 Token 单价 | 便宜模型被拉贵、昂贵模型被藏起来；用户永远不知道真实成本 |
-| **包月不限量** | 预付费换"无限" | 实际限流、降智、偷偷换小模型；到头来你根本不知道自己在用什么 |
-| **本站：按原厂 Token 计价** | 与官方单价完全一致，按消耗扣费 | —— |
-
-**我们的目标**：让你像用官方 API 一样透明地消费，同时享受多账号聚合、统一鉴权、自动故障转移带来的便利。`
+	// Education section retired; keep the key for admin compatibility but default empty.
+	DefaultPricingPageEducation = ""
 )
 
 // PricingPageHandler 管理员编辑用户「模型计价」页面文案的处理器。
