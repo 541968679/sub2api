@@ -1,3 +1,12 @@
+## 2026-09-15 - release: 0.1.288 user-level OpenAI wait timeout + billing nav
+
+### What
+- Ship user-level OpenAI header-wait / first-useful-frame timeout on the smart-schedule parameter panel as `v0.1.288`.
+- Also ships the user pricing-page formula billing copy and the billing-rules / API-access nav reorder.
+
+### Why
+Admins can override wait-timeout per user without changing the site-wide 90s/30s default; user-facing billing paths are easier to find.
+
 ## 2026-09-15 - feat(schedule): user-level OpenAI header/first-frame wait timeout
 
 ### What
