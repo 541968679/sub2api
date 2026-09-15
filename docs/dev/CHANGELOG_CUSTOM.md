@@ -1,3 +1,12 @@
+## 2026-09-15 - deploy: production v0.1.288
+
+### What
+- Released and deployed `v0.1.288` (`64aaecfcc`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.288`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:19e56249271d21dc7fb71f11dc84a8c946cbe96daa37eb5b52b521247f7083ed`. Rollback is `v0.1.287` digest `sha256:4b1ba478682aed55b29d4356875193ea4156843cac2d5ad508b53e41e3004a52`.
+
+### Why
+Ship user-level OpenAI header/first-useful-frame wait timeout on smart schedule, plus billing-rules/API-access nav and formula pricing copy.
+
 ## 2026-09-15 - release: 0.1.288 user-level OpenAI wait timeout + billing nav
 
 ### What
