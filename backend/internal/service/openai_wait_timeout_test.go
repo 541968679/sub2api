@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -93,6 +94,46 @@ func (r *openaiWaitTimeoutSettingRepo) GetAll(_ context.Context) (map[string]str
 func (r *openaiWaitTimeoutSettingRepo) Delete(_ context.Context, key string) error {
 	delete(r.data, key)
 	return nil
+}
+
+func TestMergeOpenAIWaitTimeoutSettings(t *testing.T) {
+	t.Parallel()
+	site := OpenAIWaitTimeoutSettings{HeaderWaitSeconds: 90, FirstUsefulFrameSeconds: 30}
+
+	inherited := mergeOpenAIWaitTimeoutSettings(site, nil, nil)
+	require.Equal(t, 90, inherited.HeaderWaitSeconds)
+	require.Equal(t, 30, inherited.FirstUsefulFrameSeconds)
+
+	zero := 0
+	frame := 12
+	merged := mergeOpenAIWaitTimeoutSettings(site, &zero, &frame)
+	require.Equal(t, 0, merged.HeaderWaitSeconds)
+	require.Equal(t, 12, merged.FirstUsefulFrameSeconds)
+
+	onlyHeader := 120
+	partial := mergeOpenAIWaitTimeoutSettings(site, &onlyHeader, nil)
+	require.Equal(t, 120, partial.HeaderWaitSeconds)
+	require.Equal(t, 30, partial.FirstUsefulFrameSeconds)
+}
+
+func TestOpenAIWaitTimeoutSettingsForAccount_UserOverride(t *testing.T) {
+	header := 60
+	svc := &OpenAIGatewayService{
+		smartScheduleCache: &memorySmartLookup{bundle: &UserSmartScheduleBundle{
+			HeaderWaitSeconds: &header,
+		}},
+	}
+	openAIWaitTimeoutSettingsOverride = &OpenAIWaitTimeoutSettings{HeaderWaitSeconds: 90, FirstUsefulFrameSeconds: 30}
+	t.Cleanup(func() { openAIWaitTimeoutSettingsOverride = nil })
+
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(7))
+	got := svc.openAIWaitTimeoutSettingsForAccount(ctx, &Account{Platform: PlatformOpenAI})
+	require.Equal(t, 60, got.HeaderWaitSeconds)
+	require.Equal(t, 30, got.FirstUsefulFrameSeconds)
+
+	got = svc.openAIWaitTimeoutSettingsForAccount(ctx, &Account{Platform: PlatformGrok})
+	require.Equal(t, 0, got.HeaderWaitSeconds)
+	require.Equal(t, 0, got.FirstUsefulFrameSeconds)
 }
 
 func TestNormalizeOpenAIWaitTimeoutSettings(t *testing.T) {

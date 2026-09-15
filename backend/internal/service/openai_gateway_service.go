@@ -4503,7 +4503,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			}
 		}
 	}()
-	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(ctx, account).FirstUsefulFrameDuration())
 	defer stopOpenAIWaitTimer(firstFrameTimer)
 	firstFrameStartedAt := time.Now()
 	usefulFrameSeen := false
@@ -5450,7 +5450,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	if keepaliveTicker != nil {
 		keepaliveCh = keepaliveTicker.C
 	}
-	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(ctx, account).FirstUsefulFrameDuration())
 	defer stopOpenAIWaitTimer(firstFrameTimer)
 	firstFrameStartedAt := time.Now()
 	usefulFrameSeen := false

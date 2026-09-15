@@ -789,7 +789,9 @@ type cachedSmartSchedulePolicy struct {
 }
 
 type cachedSmartScheduleBundle struct {
-	Policies map[string]cachedSmartSchedulePolicy `json:"policies"`
+	Policies                map[string]cachedSmartSchedulePolicy `json:"policies"`
+	HeaderWaitSeconds       *int                                 `json:"header_wait_seconds,omitempty"`
+	FirstUsefulFrameSeconds *int                                 `json:"first_useful_frame_seconds,omitempty"`
 }
 
 func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cachedSmartScheduleBundle {
@@ -797,6 +799,8 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 	if bundle == nil {
 		return out
 	}
+	out.HeaderWaitSeconds = bundle.HeaderWaitSeconds
+	out.FirstUsefulFrameSeconds = bundle.FirstUsefulFrameSeconds
 	for platform, policy := range bundle.Policies {
 		if policy == nil {
 			continue
@@ -834,7 +838,11 @@ func cachedSmartScheduleBundleFrom(bundle *service.UserSmartScheduleBundle) cach
 }
 
 func (b cachedSmartScheduleBundle) toBundle() *service.UserSmartScheduleBundle {
-	out := &service.UserSmartScheduleBundle{Policies: map[string]*service.SmartSchedulePlatformPolicy{}}
+	out := &service.UserSmartScheduleBundle{
+		Policies:                map[string]*service.SmartSchedulePlatformPolicy{},
+		HeaderWaitSeconds:       b.HeaderWaitSeconds,
+		FirstUsefulFrameSeconds: b.FirstUsefulFrameSeconds,
+	}
 	for platform, row := range b.Policies {
 		policy := &service.SmartSchedulePlatformPolicy{
 			Enabled:                        row.Enabled,

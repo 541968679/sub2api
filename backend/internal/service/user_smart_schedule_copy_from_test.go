@@ -234,6 +234,30 @@ func TestUserSmartScheduleService_CopyFromUser(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, "SMART_SCHEDULE_COPY_INVALID", infraerrors.Reason(err))
 	})
+
+	t.Run("thresholds copies wait timeout; pool does not", func(t *testing.T) {
+		t.Parallel()
+		repo, svc, _ := newCopyFromUserFixture()
+		repo.byUser[16].HeaderWaitSeconds = intPtr(75)
+		repo.byUser[16].FirstUsefulFrameSeconds = intPtr(0)
+		repo.byUser[99].HeaderWaitSeconds = intPtr(40)
+		preview, err := svc.PreviewCopyFromUser(ctx, 99, PlatformAnthropic, 16)
+		require.NoError(t, err)
+
+		unchanged, err := svc.CopyFromUser(ctx, 99, PlatformAnthropic, 16, preview.SourceRevision, SmartScheduleCopySlices{Pool: true})
+		require.NoError(t, err)
+		require.NotNil(t, unchanged.HeaderWaitSeconds)
+		require.Equal(t, 40, *unchanged.HeaderWaitSeconds)
+
+		preview, err = svc.PreviewCopyFromUser(ctx, 99, PlatformAnthropic, 16)
+		require.NoError(t, err)
+		copied, err := svc.CopyFromUser(ctx, 99, PlatformAnthropic, 16, preview.SourceRevision, SmartScheduleCopySlices{Thresholds: true})
+		require.NoError(t, err)
+		require.NotNil(t, copied.HeaderWaitSeconds)
+		require.Equal(t, 75, *copied.HeaderWaitSeconds)
+		require.NotNil(t, copied.FirstUsefulFrameSeconds)
+		require.Equal(t, 0, *copied.FirstUsefulFrameSeconds)
+	})
 }
 
 func newCopyFromUserFixture() (*stubSmartRepo, *UserSmartScheduleService, *copyFromUserCacheRecorder) {

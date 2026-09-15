@@ -697,7 +697,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	var finalResponse *apicompat.ResponsesResponse
 	acc := apicompat.NewBufferedResponseAccumulator()
 
-	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(ginRequestContext(c), account).FirstUsefulFrameDuration())
 	defer stopOpenAIWaitTimer(firstFrameTimer)
 	firstFrameStartedAt := time.Now()
 	usefulFrameSeen := false
@@ -894,7 +894,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
-	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(ginRequestContext(c), account).FirstUsefulFrameDuration())
 	defer stopOpenAIWaitTimer(firstFrameTimer)
 	firstFrameStartedAt := time.Now()
 	usefulFrameSeen := false

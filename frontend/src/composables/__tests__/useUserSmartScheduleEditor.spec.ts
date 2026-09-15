@@ -681,6 +681,64 @@ describe('useUserSmartScheduleEditor loadAll', () => {
     expect(w.vm.currentDraft.probeConcurrencyMode).toBe('follow_n')
   })
 
+  it('loads user-level wait timeout once and sends it on save from any tab', async () => {
+    apiMocks.getSmartSchedule.mockResolvedValue({
+      user_id: 99,
+      header_wait_seconds: 120,
+      first_useful_frame_seconds: 0,
+      default_platform: 'openai',
+      platforms: {
+        anthropic: emptyPlatform(),
+        openai: {
+          ...emptyPlatform(),
+          enabled: true,
+          accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+        },
+        gemini: emptyPlatform(),
+        antigravity: emptyPlatform(),
+        grok: emptyPlatform()
+      }
+    })
+    apiMocks.updateSmartSchedule.mockImplementation(
+      (_userId: number, _platform: string, body: Record<string, unknown>) =>
+        Promise.resolve({
+          user_id: 99,
+          header_wait_seconds: body.header_wait_seconds ?? null,
+          first_useful_frame_seconds: body.first_useful_frame_seconds ?? null,
+          default_platform: 'anthropic',
+          platforms: {
+            anthropic: emptyPlatform(),
+            openai: {
+              ...emptyPlatform(),
+              enabled: true,
+              accounts: [{ account_id: 21, platform: 'openai', max_concurrency: 2 }]
+            },
+            gemini: emptyPlatform(),
+            antigravity: emptyPlatform(),
+            grok: emptyPlatform()
+          }
+        })
+    )
+    const w = mountEditor()
+    await flushPromises()
+    expect(w.vm.headerWaitSeconds).toBe(120)
+    expect(w.vm.firstUsefulFrameSeconds).toBe(0)
+    w.vm.activePlatform = 'anthropic'
+    await flushPromises()
+    expect(w.vm.headerWaitSeconds).toBe(120)
+    w.vm.headerWaitSeconds = 45
+    await w.vm.onSave()
+    await flushPromises()
+    expect(apiMocks.updateSmartSchedule).toHaveBeenCalledWith(
+      99,
+      'anthropic',
+      expect.objectContaining({
+        header_wait_seconds: 45,
+        first_useful_frame_seconds: 0
+      })
+    )
+  })
+
   it('hydrates both N from quality_window_n when sample columns are absent', async () => {
     apiMocks.getSmartSchedule.mockResolvedValue({
       user_id: 99,

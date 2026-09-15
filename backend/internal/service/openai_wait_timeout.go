@@ -84,11 +84,41 @@ func (s *OpenAIGatewayService) openAIWaitTimeoutSettings() OpenAIWaitTimeoutSett
 	return s.settingService.GetOpenAIWaitTimeoutSettingsCached(context.Background())
 }
 
-func (s *OpenAIGatewayService) openAIWaitTimeoutSettingsForAccount(account *Account) OpenAIWaitTimeoutSettings {
+func mergeOpenAIWaitTimeoutSettings(site OpenAIWaitTimeoutSettings, headerWait, firstFrame *int) OpenAIWaitTimeoutSettings {
+	out := site
+	if headerWait != nil {
+		out.HeaderWaitSeconds = *headerWait
+	}
+	if firstFrame != nil {
+		out.FirstUsefulFrameSeconds = *firstFrame
+	}
+	return out
+}
+
+func ginRequestContext(c *gin.Context) context.Context {
+	if c != nil && c.Request != nil {
+		return c.Request.Context()
+	}
+	return context.Background()
+}
+
+func (s *OpenAIGatewayService) openAIWaitTimeoutSettingsForAccount(ctx context.Context, account *Account) OpenAIWaitTimeoutSettings {
 	if account != nil && strings.EqualFold(strings.TrimSpace(account.Platform), PlatformGrok) {
 		return OpenAIWaitTimeoutSettings{}
 	}
-	return s.openAIWaitTimeoutSettings()
+	site := s.openAIWaitTimeoutSettings()
+	if s == nil || s.smartScheduleCache == nil {
+		return site
+	}
+	userID := scheduleUserIDFromContext(ctx, 0)
+	if userID <= 0 {
+		return site
+	}
+	bundle := s.smartScheduleCache.Lookup(ctx, userID)
+	if bundle == nil {
+		return site
+	}
+	return mergeOpenAIWaitTimeoutSettings(site, bundle.HeaderWaitSeconds, bundle.FirstUsefulFrameSeconds)
 }
 
 func beginOpenAIWaitTimer(d time.Duration) (*time.Timer, <-chan time.Time) {
@@ -281,7 +311,7 @@ func (s *OpenAIGatewayService) doOpenAIUpstreamWithHeaderWait(
 		accountID = account.ID
 		concurrency = account.Concurrency
 	}
-	wait := s.openAIWaitTimeoutSettingsForAccount(account).HeaderWaitDuration()
+	wait := s.openAIWaitTimeoutSettingsForAccount(ctx, account).HeaderWaitDuration()
 	if wait <= 0 || req == nil {
 		return s.httpUpstream.Do(req, proxyURL, accountID, concurrency)
 	}

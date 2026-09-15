@@ -2613,6 +2613,12 @@ const enBase = {
         windowNSuccess: 'Success window size',
         windowNSuccessHint: 'Last success/failure completions for this user × this account. Same value is the window length and the open-judgment floor (1–100, default 10). Under-full windows do not cool on success rate. Probe follow-window uses this. At launch this starts equal to the user’s current window size.',
         thresholdMsGroup: 'Threshold (ms)',
+        headerWaitSeconds: 'Header-wait timeout (seconds)',
+        headerWaitSecondsHint:
+          'Empty inherits the site-wide setting. 0 turns this gate off. A positive number overrides for this user (10–600). Applies to this user’s OpenAI HTTP (including OpenAI accounts in an Antigravity pool). Native Grok is skipped.',
+        firstUsefulFrameSeconds: 'First-useful-frame timeout (seconds)',
+        firstUsefulFrameSecondsHint:
+          'Empty inherits the site-wide setting. 0 turns this gate off. A positive number overrides for this user (5–300). Starts after headers arrive; waits for useful output (not response.created).',
         probePhaseGroup: 'Probe phase',
         probeLatencyV2Off: 'Off',
         probeLatencyV2On: 'v2',

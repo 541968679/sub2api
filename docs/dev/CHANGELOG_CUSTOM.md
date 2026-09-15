@@ -1,3 +1,34 @@
+## 2026-09-15 - feat(schedule): user-level OpenAI header/first-frame wait timeout
+
+### What
+- Add nullable `users.openai_header_wait_seconds` and `users.openai_first_useful_frame_seconds` (empty/NULL inherits site settings; `0` disables that gate; a positive number overrides this user).
+- Smart-schedule parameter panel shows the same pair on every platform tab; save goes through the existing PUT.
+- Hot path merges the user override from the smart-schedule Redis bundle onto site `openai_wait_timeout_settings`. Grok stays skipped.
+- Copy-from-user copies these seconds only with the existing「质量门槛和冷却」slice (still default unchecked). Copy-from-platform does not change them.
+
+### Why
+Let admins tune OpenAI header-wait / first-useful-frame timeout per user without changing the site-wide default.
+
+### Verification
+- Backend unit tests: merge/override/Grok, Put omit/null/0/invalid, CopyFromUser thresholds on/off, CopyPlatform unchanged
+- Frontend Vitest: editor load/save/tab, UserSmartScheduleView fields, copy dialog thresholds default false
+
+### Affected files
+`backend/migrations/221_user_openai_wait_timeout.sql`,
+`backend/ent/schema/user.go`,
+`backend/internal/service/openai_wait_timeout.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_copy_from.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+this changelog.
+
 ## 2026-09-14 - feat(frontend): nav focus on billing rules and API access
 
 ### What

@@ -69,6 +69,11 @@ func (r *userSmartScheduleRepository) ListByUser(ctx context.Context, userID int
 	}); err != nil {
 		return nil, err
 	}
+	if err := overlayUserOpenAIWaitTimeout(ctx, client, []int64{userID}, map[int64]*service.UserSmartScheduleBundle{
+		userID: bundle,
+	}); err != nil {
+		return nil, err
+	}
 	return bundle, nil
 }
 
@@ -120,6 +125,9 @@ func (r *userSmartScheduleRepository) ListByUsers(ctx context.Context, userIDs [
 		return nil, err
 	}
 	if err := overlaySmartScheduleProbeLatencyV2(ctx, client, userIDs, out); err != nil {
+		return nil, err
+	}
+	if err := overlayUserOpenAIWaitTimeout(ctx, client, userIDs, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -224,6 +232,9 @@ func (r *userSmartScheduleRepository) replacePlatform(ctx context.Context, userI
 			return err
 		}
 		if err := writeSmartScheduleProbeLatencyV2(txCtx, client, userID, platform, policy.ProbeLatencyV2); err != nil {
+			return err
+		}
+		if err := writeUserOpenAIWaitTimeout(txCtx, client, userID, policy); err != nil {
 			return err
 		}
 		return nil
@@ -963,4 +974,90 @@ func overlaySmartScheduleProbeLatencyV2(
 func isUndefinedColumnError(err error) bool {
 	var pqErr *pq.Error
 	return errors.As(err, &pqErr) && pqErr.Code == "42703"
+}
+
+func overlayUserOpenAIWaitTimeout(
+	ctx context.Context,
+	client *dbent.Client,
+	userIDs []int64,
+	bundles map[int64]*service.UserSmartScheduleBundle,
+) error {
+	if client == nil || len(userIDs) == 0 || len(bundles) == 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+		SELECT id, openai_header_wait_seconds, openai_first_useful_frame_seconds
+		FROM users
+		WHERE id = ANY($1)
+	`, pq.Array(userIDs))
+	if err != nil {
+		if isUndefinedColumnError(err) {
+			return nil
+		}
+		return fmt.Errorf("overlay user openai wait timeout: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var userID int64
+		var header, frame sql.NullInt64
+		if err := rows.Scan(&userID, &header, &frame); err != nil {
+			return fmt.Errorf("scan user openai wait timeout: %w", err)
+		}
+		bundle := bundles[userID]
+		if bundle == nil {
+			continue
+		}
+		if header.Valid {
+			n := int(header.Int64)
+			bundle.HeaderWaitSeconds = &n
+		} else {
+			bundle.HeaderWaitSeconds = nil
+		}
+		if frame.Valid {
+			n := int(frame.Int64)
+			bundle.FirstUsefulFrameSeconds = &n
+		} else {
+			bundle.FirstUsefulFrameSeconds = nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("overlay user openai wait timeout: %w", err)
+	}
+	return nil
+}
+
+func writeUserOpenAIWaitTimeout(ctx context.Context, client *dbent.Client, userID int64, policy service.SmartSchedulePlatformWrite) error {
+	if client == nil || userID <= 0 {
+		return nil
+	}
+	if policy.HeaderWaitSeconds.Set {
+		if err := execUserOpenAIWaitTimeoutColumn(ctx, client, userID, "openai_header_wait_seconds", policy.HeaderWaitSeconds.Value); err != nil {
+			return err
+		}
+	}
+	if policy.FirstUsefulFrameSeconds.Set {
+		if err := execUserOpenAIWaitTimeoutColumn(ctx, client, userID, "openai_first_useful_frame_seconds", policy.FirstUsefulFrameSeconds.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func execUserOpenAIWaitTimeoutColumn(ctx context.Context, client *dbent.Client, userID int64, column string, value *int) error {
+	if column != "openai_header_wait_seconds" && column != "openai_first_useful_frame_seconds" {
+		return fmt.Errorf("write user openai wait timeout: unknown column")
+	}
+	var err error
+	if value == nil {
+		_, err = client.ExecContext(ctx, "UPDATE users SET "+column+" = NULL WHERE id = $1", userID)
+	} else {
+		_, err = client.ExecContext(ctx, "UPDATE users SET "+column+" = $1 WHERE id = $2", *value, userID)
+	}
+	if err != nil {
+		if isUndefinedColumnError(err) {
+			return nil
+		}
+		return fmt.Errorf("write user openai wait timeout: %w", err)
+	}
+	return nil
 }

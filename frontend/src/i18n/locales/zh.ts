@@ -2466,6 +2466,12 @@ const zhBase = {
         windowNSuccess: '成功率窗口条数',
         windowNSuccessHint: '该用户×该账号最近成功/失败完成样本条数，同时是窗长和开判门槛。范围 1–100，默认 10。未满窗不因成功率冷却。考察并发可跟随此项。上线时先等于该用户当前窗口条数。',
         thresholdMsGroup: '门槛毫秒',
+        headerWaitSeconds: '等头超时（秒）',
+        headerWaitSecondsHint:
+          '空=继承全站。0 关闭该闸。正数覆盖该用户（10–600）。只对这个用户的 OpenAI HTTP 生效（含 AG 池里的 OpenAI 账号）。Grok 原生跳过。',
+        firstUsefulFrameSeconds: '首有效帧超时（秒）',
+        firstUsefulFrameSecondsHint:
+          '空=继承全站。0 关闭该闸。正数覆盖该用户（5–300）。头到达后等到有效输出（非 response.created）。',
         probePhaseGroup: '考察期',
         probeLatencyV2Off: '关',
         probeLatencyV2On: 'v2',
