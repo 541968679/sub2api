@@ -1,3 +1,20 @@
+## 2026-09-17 - fix: frontend typecheck for CN platforms and plaza
+
+### What
+- Fill GroupPlatform/Provider records, PublicSettings plaza defaults, settings Toggle booleans, and `groups.getAllIncludingInactive` so `vue-tsc` / Release frontend build pass.
+
+### Why
+v0.1.289 Release failed at `pnpm run build` (vue-tsc) after overlay merge.
+
+### Affected files
+`frontend/src/components/admin/monitor/MonitorTemplateManagerDialog.vue`,
+`frontend/src/components/common/GroupSelector.vue`,
+`frontend/src/components/user/monitor/ProviderIcon.vue`,
+`frontend/src/stores/app.ts`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/api/admin/groups.ts`,
+this changelog.
+
 ## 2026-09-16 - release: 0.1.289 isolation 0.2.4 A-tier overlay onto main
 
 ### What

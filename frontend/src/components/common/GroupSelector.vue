@@ -190,7 +190,11 @@ const PLATFORM_I18N: Record<GroupPlatform, string> = {
   openai: 'admin.groups.platforms.openai',
   gemini: 'admin.groups.platforms.gemini',
   antigravity: 'admin.groups.platforms.antigravity',
-  grok: 'admin.groups.platforms.grok'
+  grok: 'admin.groups.platforms.grok',
+  kimi: 'admin.groups.platforms.kimi',
+  zhipu: 'admin.groups.platforms.zhipu',
+  deepseek: 'admin.groups.platforms.deepseek',
+  minimax: 'admin.groups.platforms.minimax',
 }
 
 const platformLabel = (platform: GroupPlatform) => t(PLATFORM_I18N[platform] || platform)

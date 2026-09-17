@@ -67,6 +67,22 @@ export async function getByPlatform(platform: GroupPlatform): Promise<AdminGroup
   return getAll(platform)
 }
 
+/** List every group, including inactive, for admin pickers (e.g. channel-monitor v2). */
+export async function getAllIncludingInactive(): Promise<AdminGroup[]> {
+  const pageSize = 100
+  const out: AdminGroup[] = []
+  let page = 1
+  for (;;) {
+    const res = await list(page, pageSize)
+    out.push(...res.items)
+    if (out.length >= res.total || res.items.length < pageSize) {
+      break
+    }
+    page += 1
+  }
+  return out
+}
+
 /**
  * Get group by ID
  * @param id - Group ID
@@ -327,6 +343,7 @@ export async function getCapacitySummary(): Promise<
 export const groupsAPI = {
   list,
   getAll,
+  getAllIncludingInactive,
   getByPlatform,
   getById,
   getModelsListCandidates,

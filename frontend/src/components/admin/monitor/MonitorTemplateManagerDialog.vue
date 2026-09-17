@@ -282,6 +282,12 @@ const countByProvider = computed<Record<Provider, number>>(() => {
     anthropic: 0,
     openai: 0,
     gemini: 0,
+    grok: 0,
+    antigravity: 0,
+    kimi: 0,
+    zhipu: 0,
+    deepseek: 0,
+    minimax: 0,
   }
   for (const t of templates.value) out[t.provider]++
   return out
