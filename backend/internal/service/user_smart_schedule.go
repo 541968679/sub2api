@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -164,9 +166,40 @@ func (p *SmartSchedulePlatformPolicy) ProbeInFlightCap(memberCap int) int {
 	return ProbeInFlightCap(p.ProbeDesiredConcurrency(), memberCap)
 }
 
+// OptionalInt distinguishes JSON omit vs null vs a number.
+// Unmarshal not called → Set=false (do not write). null → Set=true, Value=nil (inherit).
+type OptionalInt struct {
+	Set   bool
+	Value *int
+}
+
+func (o *OptionalInt) UnmarshalJSON(data []byte) error {
+	if o == nil {
+		return nil
+	}
+	o.Set = true
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		o.Value = nil
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(trimmed, &n); err != nil {
+		return err
+	}
+	o.Value = &n
+	return nil
+}
+
+func OptionalIntFromPtr(v *int) OptionalInt {
+	return OptionalInt{Set: true, Value: v}
+}
+
 // UserSmartScheduleBundle is the cached per-user map of platform policies.
 type UserSmartScheduleBundle struct {
-	Policies map[string]*SmartSchedulePlatformPolicy `json:"policies"`
+	Policies                   map[string]*SmartSchedulePlatformPolicy `json:"policies"`
+	HeaderWaitSeconds          *int                                    `json:"header_wait_seconds,omitempty"`
+	FirstUsefulFrameSeconds    *int                                    `json:"first_useful_frame_seconds,omitempty"`
 }
 
 func (b *UserSmartScheduleBundle) Policy(platform string) *SmartSchedulePlatformPolicy {
@@ -335,6 +368,8 @@ type SmartSchedulePlatformWrite struct {
 	QualitySchedMaxSlowInWindow    *int
 	QualitySchedMaxConsecutiveSlow *int
 	ProbeLatencyV2                 bool
+	HeaderWaitSeconds              OptionalInt
+	FirstUsefulFrameSeconds        OptionalInt
 	Accounts                       []SmartScheduleAccountMember
 }
 
@@ -365,9 +400,11 @@ type SmartSchedulePlatformView struct {
 
 // UserSmartScheduleView is GET /admin/users/:id/smart-schedule.
 type UserSmartScheduleView struct {
-	UserID          int64                                `json:"user_id"`
-	DefaultPlatform string                               `json:"default_platform,omitempty"`
-	Platforms       map[string]SmartSchedulePlatformView `json:"platforms"`
+	UserID                    int64                                `json:"user_id"`
+	HeaderWaitSeconds         *int                                 `json:"header_wait_seconds"`
+	FirstUsefulFrameSeconds   *int                                 `json:"first_useful_frame_seconds"`
+	DefaultPlatform           string                               `json:"default_platform,omitempty"`
+	Platforms                 map[string]SmartSchedulePlatformView `json:"platforms"`
 }
 
 const (

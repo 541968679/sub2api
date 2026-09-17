@@ -102,6 +102,20 @@ export type SmartScheduleAddScope = 'apikey' | 'oauth' | 'all'
 
 const CANDIDATE_PAGE_SIZE = 1000
 
+function waitTimeoutFromView(value: number | null | undefined): number | '' {
+  return value == null || !Number.isFinite(Number(value)) ? '' : Number(value)
+}
+
+function waitTimeoutWriteValue(value: number | '' | null | undefined): number | null {
+  if (value === '' || value == null) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function snapshotWaitTimeout(header: number | '', frame: number | ''): string {
+  return JSON.stringify({ header, frame })
+}
+
 function snapshotDraft(draft: SmartSchedulePlatformDraft | undefined): string {
   const row = draft ?? emptySmartScheduleDraft()
   return JSON.stringify({
@@ -361,16 +375,36 @@ export function useUserSmartScheduleEditor(
     for (const platform of SMART_SCHEDULE_PLATFORMS) {
       captureSnapshot(platform)
     }
+    captureWaitTimeoutSnapshot()
   }
 
   function isPlatformDirty(platform: SmartSchedulePlatform): boolean {
     return snapshotDraft(drafts[platform]) !== (savedSnapshots[platform] ?? snapshotDraft(emptySmartScheduleDraft()))
   }
 
+  const headerWaitSeconds = ref<number | ''>('')
+  const firstUsefulFrameSeconds = ref<number | ''>('')
+  const savedWaitTimeoutSnapshot = ref(snapshotWaitTimeout('', ''))
+
+  function captureWaitTimeoutSnapshot() {
+    savedWaitTimeoutSnapshot.value = snapshotWaitTimeout(headerWaitSeconds.value, firstUsefulFrameSeconds.value)
+  }
+
+  function isWaitTimeoutDirty(): boolean {
+    return snapshotWaitTimeout(headerWaitSeconds.value, firstUsefulFrameSeconds.value) !== savedWaitTimeoutSnapshot.value
+  }
+
+  function applyWaitTimeoutFromView(view: UserSmartScheduleView) {
+    headerWaitSeconds.value = waitTimeoutFromView(view.header_wait_seconds)
+    firstUsefulFrameSeconds.value = waitTimeoutFromView(view.first_useful_frame_seconds)
+    captureWaitTimeoutSnapshot()
+  }
+
   function applyView(view: UserSmartScheduleView) {
     for (const platform of SMART_SCHEDULE_PLATFORMS) {
       drafts[platform] = viewToDraft(view.platforms?.[platform])
     }
+    applyWaitTimeoutFromView(view)
     captureAllSnapshots()
   }
 
@@ -1015,6 +1049,9 @@ export function useUserSmartScheduleEditor(
             applyPlatformView(platform, view)
           }
         }
+        if (!isWaitTimeoutDirty()) {
+          applyWaitTimeoutFromView(view)
+        }
       } else {
         applyView(view)
       }
@@ -1077,6 +1114,8 @@ export function useUserSmartScheduleEditor(
       cooldown_minutes: draft.cooldownMinutes || 15,
       soft_cooldown: Boolean(draft.softCooldown),
       probe_latency_v2: Boolean(draft.probeLatencyV2),
+      header_wait_seconds: waitTimeoutWriteValue(headerWaitSeconds.value),
+      first_useful_frame_seconds: waitTimeoutWriteValue(firstUsefulFrameSeconds.value),
       accounts: draft.accounts.map((item) => ({
         account_id: item.account_id,
         platform: activePlatform.value,
@@ -1140,6 +1179,7 @@ export function useUserSmartScheduleEditor(
       const payload = buildWrite(nextEnabled)
       const view = await adminAPI.users.updateSmartSchedule(userId.value, activePlatform.value, payload)
       applyPlatformView(activePlatform.value, view)
+      applyWaitTimeoutFromView(view)
       applyWrittenWindowN(activePlatform.value, payload)
       applyWrittenSoftCooldown(activePlatform.value, payload)
       applyWrittenProbeLatencyV2(activePlatform.value, payload)
@@ -1182,6 +1222,7 @@ export function useUserSmartScheduleEditor(
         copyFromPlatform.value
       )
       applyPlatformView(activePlatform.value, view)
+      applyWaitTimeoutFromView(view)
       copyFromPlatform.value = ''
       await loadPoolDetails()
       appStore.showSuccess(t('admin.users.smartSchedule.copySuccess'))
@@ -1194,6 +1235,9 @@ export function useUserSmartScheduleEditor(
 
   function discardCurrentDraft() {
     drafts[activePlatform.value] = draftFromSavedSnapshot(savedSnapshots[activePlatform.value])
+    const saved = JSON.parse(savedWaitTimeoutSnapshot.value) as { header: number | ''; frame: number | '' }
+    headerWaitSeconds.value = saved.header
+    firstUsefulFrameSeconds.value = saved.frame
   }
 
   async function onCopyFromUser(payload: {
@@ -1202,7 +1246,7 @@ export function useUserSmartScheduleEditor(
     slices: SmartScheduleCopySlices
   }) {
     if (!userId.value) return false
-    if (isPlatformDirty(activePlatform.value)) {
+    if (isPlatformDirty(activePlatform.value) || isWaitTimeoutDirty()) {
       appStore.showError(t('admin.users.smartSchedule.copyFromUserDirty'))
       return false
     }
@@ -1214,6 +1258,7 @@ export function useUserSmartScheduleEditor(
         payload
       )
       applyPlatformView(activePlatform.value, view)
+      applyWaitTimeoutFromView(view)
       await loadPoolDetails()
       appStore.showSuccess(t('admin.users.smartSchedule.copyFromUserSuccess'))
       return true
@@ -1335,7 +1380,7 @@ export function useUserSmartScheduleEditor(
     }
   }
 
-  const isDirty = computed(() => isPlatformDirty(activePlatform.value))
+  const isDirty = computed(() => isPlatformDirty(activePlatform.value) || isWaitTimeoutDirty())
 
   watch(
     userId,
@@ -1393,6 +1438,8 @@ export function useUserSmartScheduleEditor(
     pairQualityById,
     currentDraft,
     currentSavedDraft,
+    headerWaitSeconds,
+    firstUsefulFrameSeconds,
     otherPlatforms,
     addableAccounts,
     addableSchedulingApi,

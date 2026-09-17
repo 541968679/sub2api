@@ -29,6 +29,8 @@ type putSmartScheduleRequest struct {
 	ProbeLatencyV2                 bool                                 `json:"probe_latency_v2"`
 	ProbeConcurrencyMode           string                               `json:"probe_concurrency_mode"`
 	ProbeConcurrency               *int                                 `json:"probe_concurrency"`
+	HeaderWaitSeconds              service.OptionalInt                  `json:"header_wait_seconds"`
+	FirstUsefulFrameSeconds        service.OptionalInt                  `json:"first_useful_frame_seconds"`
 	Accounts                       []service.SmartScheduleAccountMember `json:"accounts"`
 }
 
@@ -183,6 +185,8 @@ func (h *UserHandler) UpdateUserSmartSchedule(c *gin.Context) {
 		ProbeLatencyV2:                 req.ProbeLatencyV2,
 		ProbeConcurrencyMode:           req.ProbeConcurrencyMode,
 		ProbeConcurrency:               req.ProbeConcurrency,
+		HeaderWaitSeconds:              req.HeaderWaitSeconds,
+		FirstUsefulFrameSeconds:        req.FirstUsefulFrameSeconds,
 		Accounts:                       req.Accounts,
 	})
 	if err != nil {

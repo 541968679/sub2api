@@ -56,6 +56,8 @@ func (s *UserSmartScheduleService) CopyFromUser(ctx context.Context, targetID in
 	write := platformViewToWrite(snapshot.target)
 	if slices.Thresholds {
 		copySmartScheduleThresholds(snapshot.source, &write)
+		write.HeaderWaitSeconds = OptionalIntFromPtr(snapshot.sourceHeaderWait)
+		write.FirstUsefulFrameSeconds = OptionalIntFromPtr(snapshot.sourceFirstFrame)
 	}
 	if slices.Pool {
 		write.Accounts = copyPoolMembersFromSource(snapshot.sourceMembers, slices.Concurrency, slices.SortOrder)
@@ -95,12 +97,14 @@ func (s *UserSmartScheduleService) CopyFromUser(ctx context.Context, targetID in
 }
 
 type copyFromSnapshot struct {
-	source        SmartSchedulePlatformView
-	target        SmartSchedulePlatformView
-	sourceMembers []SmartScheduleAccountMember
-	targetMembers []SmartScheduleAccountMember
-	skipped       int
-	revision      string
+	source            SmartSchedulePlatformView
+	target            SmartSchedulePlatformView
+	sourceMembers     []SmartScheduleAccountMember
+	targetMembers     []SmartScheduleAccountMember
+	sourceHeaderWait  *int
+	sourceFirstFrame  *int
+	skipped           int
+	revision          string
 }
 
 func (s *UserSmartScheduleService) loadCopyFromSnapshot(ctx context.Context, targetID int64, platform string, sourceID int64) (*copyFromSnapshot, error) {
@@ -131,12 +135,14 @@ func (s *UserSmartScheduleService) loadCopyFromSnapshot(ctx context.Context, tar
 	}
 	source.Accounts = sourceMembers
 	return &copyFromSnapshot{
-		source:        source,
-		target:        target,
-		sourceMembers: sourceMembers,
-		targetMembers: targetMembers,
-		skipped:       skipped,
-		revision:      smartScheduleCopyRevision(source, sourceMembers),
+		source:           source,
+		target:           target,
+		sourceMembers:    sourceMembers,
+		targetMembers:    targetMembers,
+		sourceHeaderWait: sourceView.HeaderWaitSeconds,
+		sourceFirstFrame: sourceView.FirstUsefulFrameSeconds,
+		skipped:          skipped,
+		revision:         smartScheduleCopyRevision(source, sourceMembers),
 	}, nil
 }
 

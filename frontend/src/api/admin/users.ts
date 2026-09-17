@@ -461,6 +461,8 @@ export interface SmartSchedulePlatformView {
 
 export interface UserSmartScheduleView {
   user_id: number
+  header_wait_seconds?: number | null
+  first_useful_frame_seconds?: number | null
   default_platform?: SmartSchedulePlatform
   platforms: Record<string, SmartSchedulePlatformView>
 }
@@ -493,6 +495,8 @@ export interface SmartSchedulePlatformWrite {
   cooldown_minutes: number
   soft_cooldown?: boolean
   probe_latency_v2?: boolean
+  header_wait_seconds?: number | null
+  first_useful_frame_seconds?: number | null
   accounts: SmartScheduleAccountMember[]
 }
 

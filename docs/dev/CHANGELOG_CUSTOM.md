@@ -1,15 +1,75 @@
-## 2026-09-14 - merge: sync/main-1 0.2.4 A-tier overlay onto main a8fb83591
+## 2026-09-16 - merge: delivery branch catch-up to isolation 0.1.288
 
 ### What
-- New branch merge/sync-main-1-024 from occupied main 8fb83591, merged isolation sync/main-1 cb9749442.
-- Keeps main user pricing-page dual tables and nav (计费规则 / API接入 first). Keeps isolation overlay: CN platforms, plaza, plugins, allowlist (enforce off), Agent Identity stacked on sessionToken, channel-monitor v2.
-- Does **not** take isolation uncommitted SQL 196-220 checksum copies, nor occupied uncommitted CreateAccountModal/gateway WIP. VERSION stays **0.1.287**. Not pushed, not merged to live main.
+- merge/sync-main-1-024 now includes isolation sync/main-1 after folding occupied main 0.1.288 (user-level wait timeout). Wait-timeout SQL is **250**, not 221.
 
 ### Why
-Deliver the isolation overlay without replacing the running occupied checkout.
+Keep the delivery branch equal to isolation overlay + current main before switching product line.
 
 ### Affected files
-merge of sync/main-1 into main; this changelog.
+this changelog (merge).
+
+## 2026-09-16 - merge: main 0.1.288 into isolation sync/main-1
+
+### What
+- Fold occupied main 9a33fc1eb (user-level OpenAI wait timeout + 0.1.288) into sync/main-1.
+- Remap main SQL 221_user_openai_wait_timeout.sql to **250** because isolation already uses 221 for subscription_plan_currency. Forbidden dual-meaning 221 avoided.
+- VERSION becomes **0.1.288**. Overlay A-tier features stay.
+
+### Why
+Catch isolation up to current main before switching the product line.
+
+### Affected files
+ackend/migrations/250_user_openai_wait_timeout.sql, wait-timeout / smart-schedule overlay from main, this changelog.
+
+## 2026-09-15 - deploy: production v0.1.288
+
+### What
+- Released and deployed `v0.1.288` (`64aaecfcc`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.288`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:19e56249271d21dc7fb71f11dc84a8c946cbe96daa37eb5b52b521247f7083ed`. Rollback is `v0.1.287` digest `sha256:4b1ba478682aed55b29d4356875193ea4156843cac2d5ad508b53e41e3004a52`.
+
+### Why
+Ship user-level OpenAI header/first-useful-frame wait timeout on smart schedule, plus billing-rules/API-access nav and formula pricing copy.
+
+## 2026-09-15 - release: 0.1.288 user-level OpenAI wait timeout + billing nav
+
+### What
+- Ship user-level OpenAI header-wait / first-useful-frame timeout on the smart-schedule parameter panel as `v0.1.288`.
+- Also ships the user pricing-page formula billing copy and the billing-rules / API-access nav reorder.
+
+### Why
+Admins can override wait-timeout per user without changing the site-wide 90s/30s default; user-facing billing paths are easier to find.
+
+## 2026-09-15 - feat(schedule): user-level OpenAI header/first-frame wait timeout
+
+### What
+- Add nullable `users.openai_header_wait_seconds` and `users.openai_first_useful_frame_seconds` (empty/NULL inherits site settings; `0` disables that gate; a positive number overrides this user).
+- Smart-schedule parameter panel shows the same pair on every platform tab; save goes through the existing PUT.
+- Hot path merges the user override from the smart-schedule Redis bundle onto site `openai_wait_timeout_settings`. Grok stays skipped.
+- Copy-from-user copies these seconds only with the existing「质量门槛和冷却」slice (still default unchecked). Copy-from-platform does not change them.
+
+### Why
+Let admins tune OpenAI header-wait / first-useful-frame timeout per user without changing the site-wide default.
+
+### Verification
+- Backend unit tests: merge/override/Grok, Put omit/null/0/invalid, CopyFromUser thresholds on/off, CopyPlatform unchanged
+- Frontend Vitest: editor load/save/tab, UserSmartScheduleView fields, copy dialog thresholds default false
+
+### Affected files
+`backend/migrations/250_user_openai_wait_timeout.sql`,
+`backend/ent/schema/user.go`,
+`backend/internal/service/openai_wait_timeout.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_copy_from.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+this changelog.
 
 ## 2026-09-14 - feat(frontend): nav focus on billing rules and API access
 

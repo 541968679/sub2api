@@ -725,12 +725,32 @@ func overlayExistingSmartScheduleWindows(write, normalized SmartSchedulePlatform
 	return normalized
 }
 
+func validateOpenAIWaitTimeoutOverride(opt OptionalInt, min, max int, name string) error {
+	if !opt.Set || opt.Value == nil {
+		return nil
+	}
+	n := *opt.Value
+	if n == 0 {
+		return nil
+	}
+	if n < min || n > max {
+		return infraerrors.BadRequest("SMART_SCHEDULE_INVALID_WAIT_TIMEOUT", name+" must be 0 or in the allowed range")
+	}
+	return nil
+}
+
 func normalizeSmartScheduleWrite(write SmartSchedulePlatformWrite) (SmartSchedulePlatformWrite, error) {
 	if write.CooldownMinutes <= 0 {
 		write.CooldownMinutes = DefaultSmartScheduleCooldownMinutes
 	}
 	if write.CooldownMinutes < MinSmartScheduleCooldownMinutes || write.CooldownMinutes > MaxSmartScheduleCooldownMinutes {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_COOLDOWN", "cooldown_minutes must be between 1 and 1440")
+	}
+	if err := validateOpenAIWaitTimeoutOverride(write.HeaderWaitSeconds, OpenAIHeaderWaitSecondsMin, OpenAIHeaderWaitSecondsMax, "header_wait_seconds"); err != nil {
+		return SmartSchedulePlatformWrite{}, err
+	}
+	if err := validateOpenAIWaitTimeoutOverride(write.FirstUsefulFrameSeconds, OpenAIFirstUsefulFrameSecondsMin, OpenAIFirstUsefulFrameSecondsMax, "first_useful_frame_seconds"); err != nil {
+		return SmartSchedulePlatformWrite{}, err
 	}
 	if write.QualityMaxP50TTFTMs != nil && *write.QualityMaxP50TTFTMs < 1 {
 		return SmartSchedulePlatformWrite{}, infraerrors.BadRequest("SMART_SCHEDULE_INVALID_QUALITY", "quality_max_p50_ttft_ms must be >= 1")
@@ -1451,6 +1471,10 @@ func bundleToView(userID int64, bundle *UserSmartScheduleBundle) *UserSmartSched
 	view := &UserSmartScheduleView{
 		UserID:    userID,
 		Platforms: make(map[string]SmartSchedulePlatformView, len(AllowedQuotaPlatforms)),
+	}
+	if bundle != nil {
+		view.HeaderWaitSeconds = bundle.HeaderWaitSeconds
+		view.FirstUsefulFrameSeconds = bundle.FirstUsefulFrameSeconds
 	}
 	for _, platform := range AllowedQuotaPlatforms {
 		policy := (*SmartSchedulePlatformPolicy)(nil)

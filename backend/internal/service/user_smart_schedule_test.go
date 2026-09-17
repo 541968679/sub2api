@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"sync"
@@ -446,6 +447,12 @@ func (s *stubSmartRepo) applyWriteLocked(userID int64, platform string, policy S
 		}
 	}
 	target.Policies[platform] = next
+	if policy.HeaderWaitSeconds.Set {
+		target.HeaderWaitSeconds = cloneIntPtr(policy.HeaderWaitSeconds.Value)
+	}
+	if policy.FirstUsefulFrameSeconds.Set {
+		target.FirstUsefulFrameSeconds = cloneIntPtr(policy.FirstUsefulFrameSeconds.Value)
+	}
 }
 
 func (s *stubSmartRepo) ensureBundleLocked(userID int64) *UserSmartScheduleBundle {
@@ -585,11 +592,21 @@ func (s *stubSmartRepo) UpdateSortOrders(_ context.Context, _ int64, platform st
 	return nil
 }
 
+func cloneIntPtr(v *int) *int {
+	if v == nil {
+		return nil
+	}
+	n := *v
+	return &n
+}
+
 func cloneSmartBundle(in *UserSmartScheduleBundle) *UserSmartScheduleBundle {
 	out := &UserSmartScheduleBundle{Policies: map[string]*SmartSchedulePlatformPolicy{}}
 	if in == nil {
 		return out
 	}
+	out.HeaderWaitSeconds = cloneIntPtr(in.HeaderWaitSeconds)
+	out.FirstUsefulFrameSeconds = cloneIntPtr(in.FirstUsefulFrameSeconds)
 	for platform, policy := range in.Policies {
 		if policy == nil {
 			continue
@@ -636,6 +653,76 @@ func (s *stubSmartAccountRepo) GetByIDs(_ context.Context, ids []int64) ([]*Acco
 	return out, nil
 }
 
+func TestOptionalIntUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+	var omitted OptionalInt
+	require.False(t, omitted.Set)
+
+	var n OptionalInt
+	require.NoError(t, json.Unmarshal([]byte("null"), &n))
+	require.True(t, n.Set)
+	require.Nil(t, n.Value)
+
+	var z OptionalInt
+	require.NoError(t, json.Unmarshal([]byte("0"), &z))
+	require.True(t, z.Set)
+	require.NotNil(t, z.Value)
+	require.Equal(t, 0, *z.Value)
+
+	var pos OptionalInt
+	require.NoError(t, json.Unmarshal([]byte("120"), &pos))
+	require.True(t, pos.Set)
+	require.Equal(t, 120, *pos.Value)
+}
+
+func TestPutPlatform_UserOpenAIWaitTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	accounts := &stubSmartAccountRepo{accounts: []*Account{{ID: 11, Platform: PlatformAnthropic}}}
+	svc := NewUserSmartScheduleService(&stubSmartRepo{}, nil, accounts, nil, nil)
+
+	_, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:             true,
+		CooldownMinutes:     15,
+		Accounts:            []SmartScheduleAccountMember{{AccountID: 11, Platform: PlatformAnthropic}},
+		HeaderWaitSeconds:   OptionalIntFromPtr(intPtr(3)),
+		FirstUsefulFrameSeconds: OptionalIntFromPtr(intPtr(10)),
+	})
+	require.Error(t, err)
+	require.Equal(t, "SMART_SCHEDULE_INVALID_WAIT_TIMEOUT", infraerrors.Reason(err))
+
+	view, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:                 true,
+		CooldownMinutes:         15,
+		Accounts:                []SmartScheduleAccountMember{{AccountID: 11, Platform: PlatformAnthropic}},
+		HeaderWaitSeconds:       OptionalIntFromPtr(intPtr(120)),
+		FirstUsefulFrameSeconds: OptionalIntFromPtr(intPtr(0)),
+	})
+	require.NoError(t, err)
+	require.Equal(t, 120, *view.HeaderWaitSeconds)
+	require.Equal(t, 0, *view.FirstUsefulFrameSeconds)
+
+	kept, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:         true,
+		CooldownMinutes: 15,
+		Accounts:        []SmartScheduleAccountMember{{AccountID: 11, Platform: PlatformAnthropic}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 120, *kept.HeaderWaitSeconds)
+	require.Equal(t, 0, *kept.FirstUsefulFrameSeconds)
+
+	cleared, err := svc.PutPlatform(ctx, 16, PlatformAnthropic, SmartSchedulePlatformWrite{
+		Enabled:                 true,
+		CooldownMinutes:         15,
+		Accounts:                []SmartScheduleAccountMember{{AccountID: 11, Platform: PlatformAnthropic}},
+		HeaderWaitSeconds:       OptionalIntFromPtr(nil),
+		FirstUsefulFrameSeconds: OptionalIntFromPtr(nil),
+	})
+	require.NoError(t, err)
+	require.Nil(t, cleared.HeaderWaitSeconds)
+	require.Nil(t, cleared.FirstUsefulFrameSeconds)
+}
+
 func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -679,6 +766,7 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		t.Parallel()
 		localRepo := &stubSmartRepo{bundle: smartBundle(PlatformAnthropic, enabledSmartPolicy(11, 3, intPtr(800)))}
 		localRepo.bundle.Policies[PlatformAnthropic].QualityMinSuccessRate = float64Ptr(0.9)
+		localRepo.bundle.HeaderWaitSeconds = intPtr(45)
 		localRepo.bundle.Policies[PlatformOpenAI] = &SmartSchedulePlatformPolicy{
 			Enabled:         false,
 			CooldownMinutes: 15,
@@ -688,6 +776,8 @@ func TestUserSmartScheduleService_EmptyPoolAndCopy(t *testing.T) {
 		local := NewUserSmartScheduleService(localRepo, nil, accounts, nil, nil)
 		view, err := local.CopyPlatform(ctx, 16, PlatformOpenAI, PlatformAnthropic)
 		require.NoError(t, err)
+		require.NotNil(t, view.HeaderWaitSeconds)
+		require.Equal(t, 45, *view.HeaderWaitSeconds)
 		dest := view.Platforms[PlatformOpenAI]
 		require.True(t, dest.Enabled)
 		require.Equal(t, 800, *dest.QualityMaxP50TTFTMs)
