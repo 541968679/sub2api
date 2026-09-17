@@ -1,3 +1,15 @@
+## 2026-09-17 - deploy: production v0.1.290
+
+### What
+- Released and deployed `v0.1.290` (`1810fe722`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.290`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:eafa1f502aa96e33804f44fceda9f780c5f14f6f2c73afefc24e2b3b1bb874e6`. Rollback is `v0.1.289` digest `sha256:470ae539f97c014b4532c3fe02ccf6b6dca2495a1ce0e95ce1df0ad451827368`.
+
+### Why
+Ship CCS import picker (group-account upstream `/v1/models` union) and domestic model catalog work onto the product line.
+
+### Affected files
+this changelog, `docs/dev/DEPLOYMENT.md`.
+
 ## 2026-09-17 - release: 0.1.290 CCS import picker and domestic model catalogs
 
 ### What
