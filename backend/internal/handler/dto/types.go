@@ -150,6 +150,9 @@ type Group struct {
 	ProfitMinMargin      float64 `json:"profit_min_margin"`
 	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
 
+	CcsImportModelPickerEnabled bool   `json:"ccs_import_model_picker_enabled"`
+	CcsImportDefaultModel       string `json:"ccs_import_default_model"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

@@ -1029,6 +1029,74 @@
       </template>
     </BaseDialog>
 
+    <BaseDialog
+      :show="showCcsModelPicker"
+      :title="t('keys.ccsModelPicker.title')"
+      width="wide"
+      @close="closeCcsModelPicker"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          {{ t('keys.ccsModelPicker.description') }}
+        </p>
+        <div>
+          <label class="input-label">{{ t('keys.ccsModelPicker.modelLabel') }}</label>
+          <input
+            v-model="ccsSelectedModel"
+            type="text"
+            class="input w-full"
+            :disabled="ccsModelsLoading"
+            :placeholder="t('keys.ccsModelPicker.searchPlaceholder')"
+            autocomplete="off"
+          />
+          <ul
+            class="mt-3 max-h-[min(70vh,32rem)] min-h-[20rem] overflow-auto rounded-lg border border-gray-200 bg-white py-1 dark:border-dark-600 dark:bg-dark-900"
+          >
+            <li
+              v-if="ccsModelsLoading"
+              class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
+            >
+              {{ t('keys.ccsModelPicker.loading') }}
+            </li>
+            <template v-else>
+              <li
+                v-for="id in ccsFilteredModelIds"
+                :key="id"
+                class="cursor-pointer px-3 py-2.5 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
+                :class="id === ccsSelectedModel.trim() ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300' : ''"
+                @mousedown.prevent="pickCcsModel(id)"
+              >
+                {{ id }}
+              </li>
+              <li
+                v-if="ccsFilteredModelIds.length === 0"
+                class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
+              >
+                {{ t('keys.ccsModelPicker.empty') }}
+              </li>
+            </template>
+          </ul>
+          <p v-if="ccsModelsLoadFailed" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+            {{ t('keys.ccsModelPicker.loadFailed') }}
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button @click="closeCcsModelPicker" class="btn btn-secondary">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            class="btn btn-primary"
+            :disabled="!ccsSelectedModel"
+            @click="confirmCcsModelPicker"
+          >
+            {{ t('keys.ccsModelPicker.confirm') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- Group Selector Dropdown (Teleported to body to avoid overflow clipping) -->
     <Teleport to="body">
       <div
@@ -1135,6 +1203,8 @@ import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
   launchCcSwitchImportDeeplink,
+  filterCcsImportModelIDs,
+  shouldShowCcsCodexModelPicker,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
 
@@ -1292,6 +1362,12 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
+const showCcsModelPicker = ref(false)
+const pendingCcsClientType = ref<CcSwitchClientType>('codex')
+const ccsSelectedModel = ref('')
+const ccsModelIds = ref<string[]>([])
+const ccsModelsLoading = ref(false)
+const ccsModelsLoadFailed = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 
@@ -1336,6 +1412,17 @@ const ccsClientOptions = computed<CcsClientOption[]>(() => {
     }
   ]
 })
+const ccsFilteredModelIds = computed(() => {
+  const query = ccsSelectedModel.value.trim()
+  if (!query || ccsModelIds.value.some((id) => id === query)) {
+    return ccsModelIds.value
+  }
+  return filterCcsImportModelIDs(ccsModelIds.value, query)
+})
+
+const pickCcsModel = (id: string) => {
+  ccsSelectedModel.value = id
+}
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
@@ -1908,10 +1995,19 @@ const importToCcswitch = (row: ApiKey) => {
   }
 
   // openai/grok → Codex; gemini → Gemini (see resolveCcSwitchImportConfig)
-  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'codex')
+  const clientType: CcSwitchClientType = platform === 'gemini' ? 'gemini' : 'codex'
+  if (shouldShowCcsCodexModelPicker(row.group?.ccs_import_model_picker_enabled, clientType)) {
+    openCcsModelPicker(row, clientType)
+    return
+  }
+  executeCcsImport(row, clientType)
 }
 
-const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
+const executeCcsImport = (
+  row: ApiKey,
+  clientType: CcSwitchClientType,
+  selectedCodexModel?: string
+) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
 
@@ -1932,6 +2028,7 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
     }
   })`
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const pickedModel = selectedCodexModel?.trim()
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,
     platform,
@@ -1940,8 +2037,8 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
     apiKey: row.key,
     usageScript,
     modelOptions: {
-      openaiCodexModel: publicSettings.value?.ccs_import_codex_model,
-      anthropicCodexModel: publicSettings.value?.ccs_import_anthropic_codex_model
+      openaiCodexModel: pickedModel || publicSettings.value?.ccs_import_codex_model,
+      anthropicCodexModel: pickedModel || publicSettings.value?.ccs_import_anthropic_codex_model
     }
   })
 
@@ -1965,16 +2062,65 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
 }
 
 const handleCcsClientSelect = (clientType: CcSwitchClientType) => {
-  if (pendingCcsRow.value) {
-    executeCcsImport(pendingCcsRow.value, clientType)
-  }
+  const row = pendingCcsRow.value
   showCcsClientSelect.value = false
+  if (!row) {
+    pendingCcsRow.value = null
+    return
+  }
+  if (shouldShowCcsCodexModelPicker(row.group?.ccs_import_model_picker_enabled, clientType)) {
+    openCcsModelPicker(row, clientType)
+    return
+  }
   pendingCcsRow.value = null
+  executeCcsImport(row, clientType)
 }
 
 const closeCcsClientSelect = () => {
   showCcsClientSelect.value = false
   pendingCcsRow.value = null
+}
+
+const openCcsModelPicker = async (row: ApiKey, clientType: CcSwitchClientType) => {
+  pendingCcsRow.value = row
+  pendingCcsClientType.value = clientType
+  const defaultModel = row.group?.ccs_import_default_model?.trim() || ''
+  ccsSelectedModel.value = defaultModel
+  ccsModelIds.value = defaultModel ? [defaultModel] : []
+  ccsModelsLoading.value = true
+  ccsModelsLoadFailed.value = false
+  showCcsModelPicker.value = true
+  try {
+    const models = await keysAPI.listCcsImportModels(row.id)
+    if (models.length > 0) {
+      ccsModelIds.value = models
+    }
+    if (!ccsSelectedModel.value && ccsModelIds.value.length > 0) {
+      ccsSelectedModel.value = ccsModelIds.value[0]
+    }
+  } catch {
+    ccsModelsLoadFailed.value = true
+  } finally {
+    ccsModelsLoading.value = false
+  }
+}
+
+const confirmCcsModelPicker = () => {
+  const row = pendingCcsRow.value
+  const model = ccsSelectedModel.value.trim()
+  if (!row || !model) return
+  const clientType = pendingCcsClientType.value
+  closeCcsModelPicker()
+  executeCcsImport(row, clientType, model)
+}
+
+const closeCcsModelPicker = () => {
+  showCcsModelPicker.value = false
+  pendingCcsRow.value = null
+  ccsSelectedModel.value = ''
+  ccsModelIds.value = []
+  ccsModelsLoading.value = false
+  ccsModelsLoadFailed.value = false
 }
 
 function formatResetTime(resetAt: string | null): string {

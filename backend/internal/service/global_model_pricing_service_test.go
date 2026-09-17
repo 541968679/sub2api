@@ -433,6 +433,77 @@ func TestGlobalModelPricingListHiddenModels(t *testing.T) {
 	require.Nil(t, findModelPricingListItem(hiddenResult.Items, "zz-visible"))
 }
 
+func TestGlobalModelPricingListSeedsDomesticCodingModels(t *testing.T) {
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gpt-5.4": {LiteLLMProvider: PlatformOpenAI, InputCostPerToken: 1},
+	}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	searchResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "glm-5.3", "", "")
+	require.NoError(t, err)
+	glm := findModelPricingListItem(searchResult.Items, "glm-5.3")
+	require.NotNil(t, glm)
+	require.Equal(t, PlatformOpenAI, glm.Provider)
+	require.Equal(t, PricingSourceFallback, glm.EffectiveSource)
+	require.Nil(t, glm.LiteLLMPrices)
+
+	openAIResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "kimi-k2.5", PlatformOpenAI, "")
+	require.NoError(t, err)
+	kimi := findModelPricingListItem(openAIResult.Items, "kimi-k2.5")
+	require.NotNil(t, kimi)
+	require.Equal(t, PlatformOpenAI, kimi.Provider)
+
+	anthropicResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "glm-5.3", PlatformAnthropic, "")
+	require.NoError(t, err)
+	require.Nil(t, findModelPricingListItem(anthropicResult.Items, "glm-5.3"))
+
+	deepseekResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "deepseek-v4", PlatformOpenAI, "")
+	require.NoError(t, err)
+	require.NotNil(t, findModelPricingListItem(deepseekResult.Items, "deepseek-v4-pro"))
+	require.NotNil(t, findModelPricingListItem(deepseekResult.Items, "deepseek-v4-flash"))
+
+	minimaxResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "minimax-m2.5", PlatformOpenAI, "")
+	require.NoError(t, err)
+	require.NotNil(t, findModelPricingListItem(minimaxResult.Items, "MiniMax-M2.5"))
+}
+
+func TestGlobalModelPricingListCoercesLiteLLMDomesticProvidersToOpenAI(t *testing.T) {
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"kimi-k2.5": {
+			LiteLLMProvider:    "moonshot",
+			InputCostPerToken:  1e-6,
+			OutputCostPerToken: 2e-6,
+		},
+		"deepseek-v4-pro": {
+			LiteLLMProvider:    "deepseek",
+			InputCostPerToken:  3e-7,
+			OutputCostPerToken: 4e-7,
+		},
+	}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	kimiResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "kimi-k2.5", PlatformOpenAI, "")
+	require.NoError(t, err)
+	kimi := findModelPricingListItem(kimiResult.Items, "kimi-k2.5")
+	require.NotNil(t, kimi)
+	require.Equal(t, PlatformOpenAI, kimi.Provider)
+	require.Equal(t, PricingSourceLiteLLM, kimi.EffectiveSource)
+	require.NotNil(t, kimi.LiteLLMPrices)
+
+	deepseekResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "deepseek-v4-pro", PlatformOpenAI, "")
+	require.NoError(t, err)
+	deepseek := findModelPricingListItem(deepseekResult.Items, "deepseek-v4-pro")
+	require.NotNil(t, deepseek)
+	require.Equal(t, PlatformOpenAI, deepseek.Provider)
+	require.Equal(t, PricingSourceLiteLLM, deepseek.EffectiveSource)
+}
+
 func findModelPricingListItem(items []ModelPricingListItem, model string) *ModelPricingListItem {
 	for i := range items {
 		if strings.EqualFold(items[i].Model, model) {

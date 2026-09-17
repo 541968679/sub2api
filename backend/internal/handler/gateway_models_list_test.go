@@ -66,7 +66,25 @@ func TestGatewayHandlerModels_OpenAICuratedListCanBeNarrowedByCustomList(t *test
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5"}, ids)
+	require.Equal(t, []string{"gpt-image-2", "gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5"}, ids)
+}
+
+func TestGatewayHandlerModels_OpenAICustomListKeepsDomesticModelIDs(t *testing.T) {
+	groupID := int64(1)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformOpenAI,
+			ModelsListConfig: service.GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{"glm-5.3", "kimi-k2.5", "deepseek-v4-flash"},
+			},
+		},
+	}
+
+	ids := runGatewayModelsForTest(t, apiKey)
+	require.Equal(t, []string{"glm-5.3", "kimi-k2.5", "deepseek-v4-flash"}, ids)
 }
 
 func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels(t *testing.T) {

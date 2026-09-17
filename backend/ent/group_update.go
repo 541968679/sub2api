@@ -920,6 +920,34 @@ func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetCcsImportModelPickerEnabled sets the "ccs_import_model_picker_enabled" field.
+func (_u *GroupUpdate) SetCcsImportModelPickerEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetCcsImportModelPickerEnabled(v)
+	return _u
+}
+
+// SetNillableCcsImportModelPickerEnabled sets the "ccs_import_model_picker_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableCcsImportModelPickerEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetCcsImportModelPickerEnabled(*v)
+	}
+	return _u
+}
+
+// SetCcsImportDefaultModel sets the "ccs_import_default_model" field.
+func (_u *GroupUpdate) SetCcsImportDefaultModel(v string) *GroupUpdate {
+	_u.mutation.SetCcsImportDefaultModel(v)
+	return _u
+}
+
+// SetNillableCcsImportDefaultModel sets the "ccs_import_default_model" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableCcsImportDefaultModel(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetCcsImportDefaultModel(*v)
+	}
+	return _u
+}
+
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
 func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
 	_u.mutation.SetMessagesDispatchModelConfig(v)
@@ -1293,6 +1321,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CcsImportDefaultModel(); ok {
+		if err := group.CcsImportDefaultModelValidator(v); err != nil {
+			return &ValidationError{Name: "ccs_import_default_model", err: fmt.Errorf(`ent: validator failed for field "Group.ccs_import_default_model": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1564,6 +1597,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.DefaultMappedModel(); ok {
 		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CcsImportModelPickerEnabled(); ok {
+		_spec.SetField(group.FieldCcsImportModelPickerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.CcsImportDefaultModel(); ok {
+		_spec.SetField(group.FieldCcsImportDefaultModel, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
 		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
@@ -2791,6 +2830,34 @@ func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateO
 	return _u
 }
 
+// SetCcsImportModelPickerEnabled sets the "ccs_import_model_picker_enabled" field.
+func (_u *GroupUpdateOne) SetCcsImportModelPickerEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetCcsImportModelPickerEnabled(v)
+	return _u
+}
+
+// SetNillableCcsImportModelPickerEnabled sets the "ccs_import_model_picker_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableCcsImportModelPickerEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetCcsImportModelPickerEnabled(*v)
+	}
+	return _u
+}
+
+// SetCcsImportDefaultModel sets the "ccs_import_default_model" field.
+func (_u *GroupUpdateOne) SetCcsImportDefaultModel(v string) *GroupUpdateOne {
+	_u.mutation.SetCcsImportDefaultModel(v)
+	return _u
+}
+
+// SetNillableCcsImportDefaultModel sets the "ccs_import_default_model" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableCcsImportDefaultModel(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetCcsImportDefaultModel(*v)
+	}
+	return _u
+}
+
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
 func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
 	_u.mutation.SetMessagesDispatchModelConfig(v)
@@ -3177,6 +3244,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CcsImportDefaultModel(); ok {
+		if err := group.CcsImportDefaultModelValidator(v); err != nil {
+			return &ValidationError{Name: "ccs_import_default_model", err: fmt.Errorf(`ent: validator failed for field "Group.ccs_import_default_model": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -3465,6 +3537,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.DefaultMappedModel(); ok {
 		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CcsImportModelPickerEnabled(); ok {
+		_spec.SetField(group.FieldCcsImportModelPickerEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.CcsImportDefaultModel(); ok {
+		_spec.SetField(group.FieldCcsImportDefaultModel, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
 		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)

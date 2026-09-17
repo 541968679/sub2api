@@ -1021,8 +1021,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	if discoveryModelIDs, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
 		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
-			selectedModels := service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
-			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, selectedModels)
+			// Custom list is the display source of truth (order preserved), including
+			// IDs that are not in the platform curated catalog (e.g. glm-5.3 on an
+			// OpenAI-platform domestic group). Expand only upgrades stale full-default lists.
+			discoveryModelIDs = service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
 		}
 		writeModelsListForPlatform(c, platform, discoveryModelIDs)
 		return
@@ -1271,6 +1273,11 @@ func defaultModelIDsForPlatform(platform string) []string {
 	switch platform {
 	case service.PlatformOpenAI:
 		return openai.DefaultModelIDs()
+	case service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek, service.PlatformMiniMax:
+		if ids := service.DefaultModelIDsForCNPlatform(platform); len(ids) > 0 {
+			return ids
+		}
+		return service.CNCodingModelIDsForOpenAIGroupAccess()
 	case service.PlatformGemini:
 		ids := make([]string, 0, len(geminicli.DefaultModels))
 		for _, model := range geminicli.DefaultModels {

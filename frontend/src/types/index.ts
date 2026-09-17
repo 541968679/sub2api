@@ -763,6 +763,8 @@ export interface Group {
   model_allowlist?: ModelAllowlistConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
+  ccs_import_model_picker_enabled?: boolean
+  ccs_import_default_model?: string
   created_at: string
   updated_at: string
 }
@@ -890,6 +892,8 @@ export interface CreateGroupRequest {
   model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+  ccs_import_model_picker_enabled?: boolean
+  ccs_import_default_model?: string
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -931,6 +935,8 @@ export interface UpdateGroupRequest {
   model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+  ccs_import_model_picker_enabled?: boolean
+  ccs_import_default_model?: string
   copy_accounts_from_group_ids?: number[]
 }
 

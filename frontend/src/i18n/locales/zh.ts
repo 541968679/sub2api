@@ -962,6 +962,16 @@ const zhBase = {
       codex: 'Codex',
       codexDesc: '导入为 Codex 配置（OpenAI 协议接入）'
     },
+    ccsModelPicker: {
+      title: '选择导入模型',
+      description: '写入 CCS Codex 的 model。列表是该分组下所有账号上游 GET /v1/models 的并集，可输入筛选或填写其他 ID。',
+      modelLabel: '模型',
+      searchPlaceholder: '输入筛选或自定义模型 ID',
+      loading: '正在拉取分组账号的上游 /v1/models…',
+      loadFailed: '部分或全部账号的上游 /v1/models 未能加载，仍可输入或使用分组默认模型导入。',
+      confirm: '导入',
+      empty: '没有匹配的模型，可直接输入 ID'
+    },
     // 配额和有效期
     quotaLimit: '额度限制',
     quotaAmount: '额度金额 (USD)',
@@ -2945,6 +2955,16 @@ const zhBase = {
         allowed: '允许模型',
         blockedHint: '每行一个模型或末尾通配符模式，也可用逗号分隔。',
         allowedHint: '留空则不启用白名单过滤。'
+      },
+      ccsImport: {
+        title: 'CCS Codex 导入选模型',
+        enable: '导入 CCS 时弹出模型选择',
+        hint: '默认关闭。打开后，该分组密钥导入 CCS（Codex）会先选 model=。仅影响 Codex 导入，不写入 CCS 模型映射。',
+        defaultModel: '导入默认模型',
+        defaultModelHint: '弹窗预填此模型。打开开关时必填。',
+        defaultModelRequired: '已开启 CCS 导入选模型时，必须填写默认模型',
+        presetGpt: '最新 GPT',
+        presetGlm: 'GLM 5.3'
       },
       modelsList: {
         title: '/v1/models 自定义列表',

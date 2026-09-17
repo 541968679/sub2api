@@ -90,9 +90,11 @@ const antigravityModels = [
 
 // 智谱 GLM
 const zhipuModels = [
+  'glm-5.3', 'glm-5.3-flash', 'glm-5.2', 'glm-5.1', 'glm-5',
+  'glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5', 'glm-4.5-air',
   'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
   'glm-4-air', 'glm-4-airx', 'glm-4-long', 'glm-4-flash',
-  'glm-4v-plus', 'glm-4.5', 'glm-4.6',
+  'glm-4v-plus',
   'glm-3-turbo', 'glm-4-alltools',
   'chatglm_turbo', 'chatglm_pro', 'chatglm_std', 'chatglm_lite',
   'cogview-3', 'cogvideo'
@@ -111,8 +113,9 @@ const qwenModels = [
 
 // DeepSeek
 const deepseekModels = [
+  'deepseek-v4-pro', 'deepseek-v4-flash',
   'deepseek-chat', 'deepseek-coder', 'deepseek-reasoner',
-  'deepseek-v3', 'deepseek-v3-0324',
+  'deepseek-v3.2', 'deepseek-v3.1', 'deepseek-v3', 'deepseek-v3-0324',
   'deepseek-r1', 'deepseek-r1-0528',
   'deepseek-r1-distill-qwen-32b', 'deepseek-r1-distill-qwen-14b', 'deepseek-r1-distill-qwen-7b',
   'deepseek-r1-distill-llama-70b', 'deepseek-r1-distill-llama-8b'
@@ -166,8 +169,9 @@ const yiModels = [
 
 // Moonshot/Kimi
 const moonshotModels = [
-  'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k',
-  'kimi-latest'
+  'kimi-k3', 'kimi-k2.6', 'kimi-k2.5', 'kimi-k2-thinking', 'kimi-k2',
+  'kimi-latest',
+  'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'
 ]
 
 // 字节跳动 豆包
@@ -181,6 +185,7 @@ const doubaoModels = [
 
 // MiniMax
 const minimaxModels = [
+  'MiniMax-M2.5', 'MiniMax-M2.1', 'MiniMax-M2', 'MiniMax-M1', 'MiniMax-M3',
   'abab6.5-chat', 'abab6.5s-chat', 'abab6.5s-chat-pro',
   'abab6-chat',
   'abab5.5-chat', 'abab5.5s-chat'
@@ -240,6 +245,11 @@ const allModelsList: string[] = [
 
 // 转换为下拉选项格式
 export const allModels = allModelsList.map(m => ({ value: m, label: m }))
+
+/** Latest domestic coding models used as CCS import picker fallback. */
+export const CN_CODING_MODEL_IDS: string[] = Array.from(
+  new Set([...zhipuModels, ...moonshotModels, ...deepseekModels, ...minimaxModels])
+)
 
 // =====================
 // 预设映射
@@ -567,6 +577,8 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'antigravity': return antigravityModels
     case 'zhipu': return zhipuModels
     case 'qwen': return qwenModels
+    case 'kimi':
+    case 'moonshot': return moonshotModels
     case 'deepseek': return deepseekModels
     case 'mistral': return mistralModels
     case 'meta': return metaModels
@@ -574,7 +586,6 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'xai': return xaiModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
-    case 'moonshot': return moonshotModels
     case 'doubao': return doubaoModels
     case 'minimax': return minimaxModels
     case 'baidu': return baiduModels

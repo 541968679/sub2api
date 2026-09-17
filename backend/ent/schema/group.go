@@ -201,6 +201,13 @@ func (Group) Fields() []ent.Field {
 			MaxLen(100).
 			Default("").
 			Comment("Default mapped model ID"),
+		field.Bool("ccs_import_model_picker_enabled").
+			Default(false).
+			Comment("When true, user CCS Codex import shows a model picker"),
+		field.String("ccs_import_default_model").
+			MaxLen(100).
+			Default("").
+			Comment("Default Codex model for CCS import when the picker is enabled"),
 		field.JSON("messages_dispatch_model_config", domain.OpenAIMessagesDispatchModelConfig{}).
 			Default(domain.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).

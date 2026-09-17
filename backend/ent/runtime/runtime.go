@@ -1212,24 +1212,34 @@ func init() {
 	group.DefaultDefaultMappedModel = groupDescDefaultMappedModel.Default.(string)
 	// group.DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	group.DefaultMappedModelValidator = groupDescDefaultMappedModel.Validators[0].(func(string) error)
+	// groupDescCcsImportModelPickerEnabled is the schema descriptor for ccs_import_model_picker_enabled field.
+	groupDescCcsImportModelPickerEnabled := groupFields[45].Descriptor()
+	// group.DefaultCcsImportModelPickerEnabled holds the default value on creation for the ccs_import_model_picker_enabled field.
+	group.DefaultCcsImportModelPickerEnabled = groupDescCcsImportModelPickerEnabled.Default.(bool)
+	// groupDescCcsImportDefaultModel is the schema descriptor for ccs_import_default_model field.
+	groupDescCcsImportDefaultModel := groupFields[46].Descriptor()
+	// group.DefaultCcsImportDefaultModel holds the default value on creation for the ccs_import_default_model field.
+	group.DefaultCcsImportDefaultModel = groupDescCcsImportDefaultModel.Default.(string)
+	// group.CcsImportDefaultModelValidator is a validator for the "ccs_import_default_model" field. It is called by the builders before save.
+	group.CcsImportDefaultModelValidator = groupDescCcsImportDefaultModel.Validators[0].(func(string) error)
 	// groupDescMessagesDispatchModelConfig is the schema descriptor for messages_dispatch_model_config field.
-	groupDescMessagesDispatchModelConfig := groupFields[45].Descriptor()
+	groupDescMessagesDispatchModelConfig := groupFields[47].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
 	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
 	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
-	groupDescModelsListConfig := groupFields[46].Descriptor()
+	groupDescModelsListConfig := groupFields[48].Descriptor()
 	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
 	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[47].Descriptor()
+	groupDescRpmLimit := groupFields[49].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescBlockedModels is the schema descriptor for blocked_models field.
-	groupDescBlockedModels := groupFields[48].Descriptor()
+	groupDescBlockedModels := groupFields[50].Descriptor()
 	// group.DefaultBlockedModels holds the default value on creation for the blocked_models field.
 	group.DefaultBlockedModels = groupDescBlockedModels.Default.([]string)
 	// groupDescAllowedModels is the schema descriptor for allowed_models field.
-	groupDescAllowedModels := groupFields[49].Descriptor()
+	groupDescAllowedModels := groupFields[51].Descriptor()
 	// group.DefaultAllowedModels holds the default value on creation for the allowed_models field.
 	group.DefaultAllowedModels = groupDescAllowedModels.Default.([]string)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()

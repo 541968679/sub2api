@@ -179,6 +179,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 
 	// 4. 合并到统一列表
 	modelSet := make(map[string]bool)
+	seedSet := modelPricingListSeedSet()
 	var items []ModelPricingListItem
 
 	for _, entry := range litellmModels {
@@ -215,6 +216,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 				item.EffectiveSource = PricingSourceGlobal
 			}
 		}
+		item.Provider = coerceDomesticCodingPricingProvider(item.Provider, modelLower, seedSet)
 
 		items = append(items, item)
 	}
@@ -237,6 +239,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		if gp.Enabled {
 			item.EffectiveSource = PricingSourceGlobal
 		}
+		item.Provider = coerceDomesticCodingPricingProvider(item.Provider, modelLower, seedSet)
 		items = append(items, item)
 	}
 
@@ -265,6 +268,25 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 				EffectiveSource:      PricingSourceFallback,
 			})
 		}
+	}
+
+	// Domestic coding IDs (glm-5.3 / kimi-k2.5 / deepseek-v4 / MiniMax-M2.x, …)
+	// are used on OpenAI-platform groups but are absent from LiteLLM. Stub them
+	// so admin 模型配置 search can find them and attach a global override. Do not
+	// write prices here — that would change stored billing.
+	for _, seedID := range ModelPricingListSeedIDs() {
+		modelLower := strings.ToLower(seedID)
+		if modelSet[modelLower] {
+			continue
+		}
+		modelSet[modelLower] = true
+		items = append(items, ModelPricingListItem{
+			Model:                seedID,
+			Provider:             PlatformOpenAI,
+			ChannelOverrideCount: channelOverrideCounts[modelLower],
+			UserOverrideCount:    userOverrideCounts[modelLower],
+			EffectiveSource:      PricingSourceFallback,
+		})
 	}
 
 	// 基于平台默认映射构造徽标索引。徽标含义是"此模型名在平台级模型映射里扮演
@@ -895,6 +917,28 @@ func itemHasMappingEntry(item ModelPricingListItem) bool {
 // 前端传入的是统一的大类名（anthropic/openai/gemini/antigravity），而 LiteLLM JSON
 // 里实际值会带后缀（如 vertex_ai-language-models、text-completion-openai），严格相等
 // 匹配会漏掉大量模型。平台默认映射命中时也算匹配，保证映射模型在对应供应商下可见。
+func modelPricingListSeedSet() map[string]struct{} {
+	ids := ModelPricingListSeedIDs()
+	out := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		out[strings.ToLower(id)] = struct{}{}
+	}
+	return out
+}
+
+// coerceDomesticCodingPricingProvider maps LiteLLM CN providers (moonshot /
+// deepseek / minimax / …) onto openai for seed IDs so the OpenAI tab can find
+// them. A saved first-class override provider is left alone.
+func coerceDomesticCodingPricingProvider(provider, modelLower string, seedSet map[string]struct{}) string {
+	if normalizeProviderForBillingHint(provider) != "" {
+		return provider
+	}
+	if _, ok := seedSet[modelLower]; ok {
+		return PlatformOpenAI
+	}
+	return provider
+}
+
 func providerMatches(item ModelPricingListItem, providerLower string, platformDefaultModelSet map[string]bool) bool {
 	itemProvider := strings.ToLower(item.Provider)
 	if platformDefaultModelSet != nil && platformDefaultModelSet[strings.ToLower(item.Model)] {

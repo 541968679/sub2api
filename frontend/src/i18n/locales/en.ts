@@ -961,6 +961,16 @@ const enBase = {
       codex: 'Codex',
       codexDesc: 'Import as Codex configuration (OpenAI protocol)',
     },
+    ccsModelPicker: {
+      title: 'Choose import model',
+      description: 'Written to the CCS Codex model field. Options are the union of upstream GET /v1/models from every account in this group. Type to filter or enter another ID.',
+      modelLabel: 'Model',
+      searchPlaceholder: 'Type to filter or enter a model ID',
+      loading: 'Fetching upstream /v1/models from group accounts…',
+      loadFailed: 'Could not load some account /v1/models lists. You can still type an ID or import the group default.',
+      confirm: 'Import',
+      empty: 'No matching models — you can type an ID'
+    },
     // Getting started guide
     guide: {
       title: 'Quick Tutorial',
@@ -3084,6 +3094,16 @@ const enBase = {
         allowed: 'Allowed Models',
         blockedHint: 'One model or trailing-wildcard pattern per line, or comma-separated.',
         allowedHint: 'Leave empty to disable whitelist filtering.'
+      },
+      ccsImport: {
+        title: 'CCS Codex import model picker',
+        enable: 'Ask for a model when importing to CCS',
+        hint: 'Off by default. When on, Codex CCS import for this group shows a model picker. It only sets model=; it does not write CCS model mappings.',
+        defaultModel: 'Default import model',
+        defaultModelHint: 'Pre-selected in the picker. Required when the switch is on.',
+        defaultModelRequired: 'Default import model is required when the CCS model picker is enabled',
+        presetGpt: 'Latest GPT',
+        presetGlm: 'GLM 5.3'
       },
       modelsList: {
         title: 'Custom /v1/models List',

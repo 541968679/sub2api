@@ -24847,6 +24847,8 @@ type GroupMutation struct {
 	require_oauth_only                      *bool
 	require_privacy_set                     *bool
 	default_mapped_model                    *string
+	ccs_import_model_picker_enabled         *bool
+	ccs_import_default_model                *string
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
 	rpm_limit                               *int
@@ -27367,6 +27369,78 @@ func (m *GroupMutation) ResetDefaultMappedModel() {
 	m.default_mapped_model = nil
 }
 
+// SetCcsImportModelPickerEnabled sets the "ccs_import_model_picker_enabled" field.
+func (m *GroupMutation) SetCcsImportModelPickerEnabled(b bool) {
+	m.ccs_import_model_picker_enabled = &b
+}
+
+// CcsImportModelPickerEnabled returns the value of the "ccs_import_model_picker_enabled" field in the mutation.
+func (m *GroupMutation) CcsImportModelPickerEnabled() (r bool, exists bool) {
+	v := m.ccs_import_model_picker_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCcsImportModelPickerEnabled returns the old "ccs_import_model_picker_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldCcsImportModelPickerEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCcsImportModelPickerEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCcsImportModelPickerEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCcsImportModelPickerEnabled: %w", err)
+	}
+	return oldValue.CcsImportModelPickerEnabled, nil
+}
+
+// ResetCcsImportModelPickerEnabled resets all changes to the "ccs_import_model_picker_enabled" field.
+func (m *GroupMutation) ResetCcsImportModelPickerEnabled() {
+	m.ccs_import_model_picker_enabled = nil
+}
+
+// SetCcsImportDefaultModel sets the "ccs_import_default_model" field.
+func (m *GroupMutation) SetCcsImportDefaultModel(s string) {
+	m.ccs_import_default_model = &s
+}
+
+// CcsImportDefaultModel returns the value of the "ccs_import_default_model" field in the mutation.
+func (m *GroupMutation) CcsImportDefaultModel() (r string, exists bool) {
+	v := m.ccs_import_default_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCcsImportDefaultModel returns the old "ccs_import_default_model" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldCcsImportDefaultModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCcsImportDefaultModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCcsImportDefaultModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCcsImportDefaultModel: %w", err)
+	}
+	return oldValue.CcsImportDefaultModel, nil
+}
+
+// ResetCcsImportDefaultModel resets all changes to the "ccs_import_default_model" field.
+func (m *GroupMutation) ResetCcsImportDefaultModel() {
+	m.ccs_import_default_model = nil
+}
+
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
 func (m *GroupMutation) SetMessagesDispatchModelConfig(damdmc domain.OpenAIMessagesDispatchModelConfig) {
 	m.messages_dispatch_model_config = &damdmc
@@ -28100,6 +28174,12 @@ func (m *GroupMutation) Fields() []string {
 	if m.default_mapped_model != nil {
 		fields = append(fields, group.FieldDefaultMappedModel)
 	}
+	if m.ccs_import_model_picker_enabled != nil {
+		fields = append(fields, group.FieldCcsImportModelPickerEnabled)
+	}
+	if m.ccs_import_default_model != nil {
+		fields = append(fields, group.FieldCcsImportDefaultModel)
+	}
 	if m.messages_dispatch_model_config != nil {
 		fields = append(fields, group.FieldMessagesDispatchModelConfig)
 	}
@@ -28219,6 +28299,10 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.RequirePrivacySet()
 	case group.FieldDefaultMappedModel:
 		return m.DefaultMappedModel()
+	case group.FieldCcsImportModelPickerEnabled:
+		return m.CcsImportModelPickerEnabled()
+	case group.FieldCcsImportDefaultModel:
+		return m.CcsImportDefaultModel()
 	case group.FieldMessagesDispatchModelConfig:
 		return m.MessagesDispatchModelConfig()
 	case group.FieldModelsListConfig:
@@ -28334,6 +28418,10 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldRequirePrivacySet(ctx)
 	case group.FieldDefaultMappedModel:
 		return m.OldDefaultMappedModel(ctx)
+	case group.FieldCcsImportModelPickerEnabled:
+		return m.OldCcsImportModelPickerEnabled(ctx)
+	case group.FieldCcsImportDefaultModel:
+		return m.OldCcsImportDefaultModel(ctx)
 	case group.FieldMessagesDispatchModelConfig:
 		return m.OldMessagesDispatchModelConfig(ctx)
 	case group.FieldModelsListConfig:
@@ -28688,6 +28776,20 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDefaultMappedModel(v)
+		return nil
+	case group.FieldCcsImportModelPickerEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCcsImportModelPickerEnabled(v)
+		return nil
+	case group.FieldCcsImportDefaultModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCcsImportDefaultModel(v)
 		return nil
 	case group.FieldMessagesDispatchModelConfig:
 		v, ok := value.(domain.OpenAIMessagesDispatchModelConfig)
@@ -29288,6 +29390,12 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldDefaultMappedModel:
 		m.ResetDefaultMappedModel()
+		return nil
+	case group.FieldCcsImportModelPickerEnabled:
+		m.ResetCcsImportModelPickerEnabled()
+		return nil
+	case group.FieldCcsImportDefaultModel:
+		m.ResetCcsImportDefaultModel()
 		return nil
 	case group.FieldMessagesDispatchModelConfig:
 		m.ResetMessagesDispatchModelConfig()

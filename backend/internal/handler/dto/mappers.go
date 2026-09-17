@@ -218,6 +218,8 @@ func groupFromServiceBase(g *service.Group) Group {
 		ProfitControlEnabled:            g.ProfitControlEnabled,
 		ProfitMinMargin:                 g.ProfitMinMargin,
 		ProfitSafetyBuffer:              g.ProfitSafetyBuffer,
+		CcsImportModelPickerEnabled:     g.CcsImportModelPickerEnabled,
+		CcsImportDefaultModel:           g.CcsImportDefaultModel,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

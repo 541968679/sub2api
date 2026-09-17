@@ -51,6 +51,38 @@ models before the broad legacy `gpt-5 -> gpt-5.4` fallback. This covers compact,
 date-suffixed, `openai/...`, and reasoning-effort variants such as
 `gpt-5.6-terra-high`.
 
+## CCS Import Picker List (2026-09-17)
+
+User Keys → 导入 CCS (Codex) model picker is the **union of live upstream
+`GET /v1/models` from every active account in the key's group**.
+
+`GET /api/v1/keys/:id/ccs-import-models` calls the same
+`FetchUpstreamSupportedModels` path as the admin “sync upstream /v1/models”
+button, in parallel, then pins `ccs_import_default_model` first. Shadow
+accounts are skipped. A failed account does not drop the others. This is not
+`model_mapping`, not the group custom catalog, and not OpenAIDisplaySeed.
+
+The UI is a type-in field (filter or custom ID).
+
+## Model Config Pricing List Seed (2026-09-17)
+
+Admin 模型配置 → 模型定价 search is `ListAllModels` = LiteLLM exact keys ∪ global
+overrides ∪ platform-default-mapping stubs ∪ the domestic coding seed
+(`ModelPricingListSeedIDs` in `cn_models.go`). IDs such as `glm-5.3`,
+`kimi-k2.5`, `deepseek-v4-pro`, and `MiniMax-M2.5` are not in the LiteLLM JSON,
+so they must be stubbed or search returns empty.
+
+- Stub provider is `openai` (domestic groups stay on that platform). They appear
+  on All and OpenAI tabs, not Anthropic/Gemini/Antigravity.
+- Seed IDs that already exist in LiteLLM under `moonshot` / `deepseek` /
+  `minimax` keep LiteLLM prices, but the list provider is coerced to `openai`
+  so the OpenAI tab search still hits them.
+- Stubs carry `effective_source=fallback` and no LiteLLM prices. Admins set a
+  global override; do not invent billing prices in the seed.
+- The 模型目录 tab is add-by-ID, not a searchable LiteLLM catalog. Do not put
+  these IDs into `OpenAIDisplaySeed` — that would change default `/v1/models`
+  for every OpenAI group.
+
 ## Model Config UI Provider Editing (2026-07-03)
 
 The admin model configuration page must treat provider as an editable platform

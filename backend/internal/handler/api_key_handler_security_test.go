@@ -45,6 +45,36 @@ func TestAPIKeyHandlerGetByIDReturnsNotFoundForForeignKey(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "API key not found")
 }
 
+func TestAPIKeyHandlerListCcsImportModelsReturnsNotFoundForForeignKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	apiKeyService := service.NewAPIKeyService(
+		&apiKeySecurityHandlerRepo{key: &service.APIKey{
+			ID:     123,
+			UserID: 99,
+			Key:    "sk-foreign",
+			Name:   "foreign",
+		}},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	handler := NewAPIKeyHandler(apiKeyService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/keys/123/ccs-import-models", nil)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "123"}}
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
+
+	handler.ListCcsImportModels(c)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 type apiKeySecurityHandlerRepo struct {
 	service.APIKeyRepository
 	key *service.APIKey

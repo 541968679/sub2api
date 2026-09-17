@@ -1,3 +1,182 @@
+## 2026-09-17 - release: 0.1.290 CCS import picker and domestic model catalogs
+
+### What
+- OpenAI-group opt-in CCS Codex import model picker. The dropdown is the union of live upstream `GET /v1/models` from every active account in the group; default model is pinned; type-to-filter in a wide dialog.
+- Domestic coding IDs on whitelist / OpenAI-group `/v1/models` extras; CN and Grok API-key upstream sync.
+- Admin 模型配置 search finds `glm-5.3` / `kimi-k2.5` / `deepseek-v4` / `MiniMax-M2.x`.
+- Migration `251_group_ccs_import_model_picker.sql`.
+
+### Why
+Ship the verified CCS import + domestic model list work past production `v0.1.289`.
+
+### Affected files
+this changelog, `backend/cmd/server/VERSION`, and the files in the 2026-09-17 CCS / CN catalog entries below.
+
+## 2026-09-17 - fix: CCS import picker is the union of group accounts' upstream /v1/models
+
+### What
+- CCS Codex import picker lists the union of live upstream `GET /v1/models` from every active account in the group (same fetch as admin sync-upstream).
+- No `model_mapping`, no custom catalog, no “current-generation” compact, no OpenAI display seed.
+- Group default model is still pinned first. One account failing does not hide the others.
+
+### Why
+The picker kept showing mapping keys / compacted GPT IDs. The intended list is each group account’s real upstream `/v1/models`.
+
+### Affected files
+`backend/internal/service/ccs_import_picker.go`,
+`backend/internal/service/ccs_import_picker_test.go`,
+`backend/internal/service/api_key_service.go`,
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
+## 2026-09-17 - fix: CCS import picker keeps full account mapping IDs
+
+### What
+- Stop filtering the CCS picker to “current-generation” IDs. The list is the group’s schedulable account `model_mapping` keys (plus an enabled custom `/v1/models` list), with the group default pinned first.
+- Family fallback (`glm-5.3` / `glm-5.3-flash`) is only used when both sources are empty.
+
+### Why
+Compacting to glm-5.3 / gpt-6 / kimi-k2.5 hid the group’s real GPT whitelist and left two rows.
+
+### Affected files
+`backend/internal/service/ccs_import_picker.go`,
+`backend/internal/service/ccs_import_picker_test.go`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
+## 2026-09-17 - fix: CCS import picker dialog is large enough to scan the list
+
+### What
+- CCS Codex import dialog uses the wide layout and an always-visible model list (~70vh) instead of a narrow modal plus a clipped `max-h-56` overlay.
+
+### Why
+The previous popup only showed a handful of rows, so the type-to-filter list was unusable.
+
+### Affected files
+`frontend/src/views/user/KeysView.vue`,
+this changelog.
+
+## 2026-09-17 - fix: CCS import picker list is short, account-based, and typeable
+
+### What
+- CCS Codex import picker no longer dumps the full domestic whitelist or the stock GPT `/v1/models` catalog.
+- Options come from the group's schedulable account `model_mapping` keys (current-generation IDs), then a compact custom list, then a short family fallback from the group default (`glm-5.3` → `glm-5.3` / `glm-5.3-flash`).
+- The picker is a type-in field: filter the list or enter an ID that is not listed.
+- New user API `GET /api/v1/keys/:id/ccs-import-models`.
+
+### Why
+The previous dropdown was a long mix of old GLM/Kimi/DeepSeek/MiniMax IDs and did not match the group's real upstream mappings. It also could not be typed to filter.
+
+### Affected files
+`backend/internal/service/ccs_import_picker.go`,
+`backend/internal/service/ccs_import_picker_test.go`,
+`backend/internal/service/api_key_service.go`,
+`backend/internal/service/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`backend/internal/handler/api_key_handler.go`,
+`backend/internal/server/routes/user.go`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`frontend/src/api/keys.ts`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
+## 2026-09-17 - fix: admin 模型配置 search finds domestic coding models
+
+### What
+- Admin model-pricing list stubs `glm-5.3` / `kimi-k2.5` / `deepseek-v4-*` / `MiniMax-M2.x` (and the rest of the CN coding seed) when LiteLLM has no row.
+- Stubs use provider `openai` so the OpenAI tab and search both hit them. No invented LiteLLM prices.
+- Seed IDs already in LiteLLM as `moonshot` / `deepseek` / `minimax` keep those prices but list as `openai`, otherwise the OpenAI tab hides them.
+- Frontend provider inference maps glm/kimi/moonshot/deepseek/minimax IDs to OpenAI so detail/quick-edit does not fall through to Antigravity.
+
+### Why
+模型配置 search is LiteLLM + global overrides + mapping stubs. The new domestic IDs were only on whitelist / `/v1/models` candidates, so the pricing page search returned empty.
+
+### Affected files
+`backend/internal/service/cn_models.go`,
+`backend/internal/service/cn_models_test.go`,
+`backend/internal/service/global_model_pricing_service.go`,
+`backend/internal/service/global_model_pricing_service_test.go`,
+`frontend/src/components/admin/model-pricing/modelPricingOptions.ts`,
+`frontend/src/components/admin/model-pricing/__tests__/modelPricingOptions.spec.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
+## 2026-09-17 - fix: domestic model catalogs, /v1/models extras, and upstream sync
+
+### What
+- OpenAI-group custom `/v1/models` lists keep extra IDs such as `glm-5.3` instead of intersecting them away against the GPT catalog.
+- OpenAI group models-list candidates now include domestic coding IDs (same extra-candidate pattern as Grok).
+- Account "sync upstream /v1/models" works for Kimi / Zhipu / DeepSeek / MiniMax / Grok API-key accounts, not only openai/anthropic/gemini/antigravity.
+- Account whitelist catalogs add current GLM 5.x, Kimi K2/K3, DeepSeek V4, MiniMax M2.x IDs; `kimi` maps to the Moonshot list.
+- CCS import picker falls back to those domestic IDs when `/v1/models` is still the stock GPT catalog.
+
+### Why
+Domestic OpenAI groups and CN-platform accounts were still showing GPT/Claude seed lists, and the live upstream sync button was hidden for CN platforms.
+
+### Affected files
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/gateway_models_list_test.go`,
+`backend/internal/service/cn_models.go`,
+`backend/internal/service/cn_models_test.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/upstream_models.go`,
+`backend/internal/service/upstream_models_test.go`,
+`frontend/src/composables/useModelWhitelist.ts`,
+`frontend/src/composables/__tests__/useModelWhitelist.spec.ts`,
+`frontend/src/components/account/ModelWhitelistSelector.vue`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`frontend/src/views/user/KeysView.vue`,
+this changelog.
+
+## 2026-09-17 - feat: optional CCS Codex import model picker on OpenAI groups
+
+### What
+- Add group switch `ccs_import_model_picker_enabled` (default off) and `ccs_import_default_model`.
+- When on, user CCS Codex import shows a picker prefilled with the group default; options come from that key's `GET /v1/models`.
+- Admin OpenAI group form: switch + presets `gpt-6-astra` / `glm-5.3`. Switch on requires a default model.
+- Groups with the switch off keep one-click CCS import using site `ccs_import_codex_model`.
+
+### Why
+Domestic OpenAI groups were imported as GPT defaults. CCS deeplink cannot write model catalogs; picking `model=` at import is the workable fix.
+
+### Affected files
+`backend/migrations/251_group_ccs_import_model_picker.sql`,
+`backend/ent/schema/group.go`,
+`backend/ent/group.go`,
+`backend/ent/group/group.go`,
+`backend/ent/group_create.go`,
+`backend/ent/group_update.go`,
+`backend/ent/mutation.go`,
+`backend/ent/migrate/schema.go`,
+`backend/ent/runtime/runtime.go`,
+`backend/internal/service/group.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/admin_service_group_test.go`,
+`backend/internal/repository/group_repo.go`,
+`backend/internal/repository/api_key_repo.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`backend/internal/handler/admin/group_handler.go`,
+`frontend/src/types/index.ts`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`frontend/src/views/admin/GroupsView.vue`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-17 - deploy: production v0.1.289
 
 ### What

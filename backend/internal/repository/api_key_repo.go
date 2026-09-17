@@ -939,6 +939,8 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		RequireOAuthOnly:                g.RequireOauthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,
 		DefaultMappedModel:              g.DefaultMappedModel,
+		CcsImportModelPickerEnabled:     g.CcsImportModelPickerEnabled,
+		CcsImportDefaultModel:           g.CcsImportDefaultModel,
 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
 		ModelsListConfig:                g.ModelsListConfig,
 		RPMLimit:                        g.RpmLimit,

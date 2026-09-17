@@ -131,13 +131,19 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
   return update(id, { status })
 }
 
+export async function listCcsImportModels(id: number): Promise<string[]> {
+  const { data } = await apiClient.get<{ models: string[] }>(`/keys/${id}/ccs-import-models`)
+  return Array.isArray(data?.models) ? data.models.filter((id) => typeof id === 'string' && id.trim()) : []
+}
+
 export const keysAPI = {
   list,
   getById,
   create,
   update,
   delete: deleteKey,
-  toggleStatus
+  toggleStatus,
+  listCcsImportModels
 }
 
 export default keysAPI

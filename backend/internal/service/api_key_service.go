@@ -211,6 +211,8 @@ type APIKeyService struct {
 	cache                 APIKeyCache
 	rateLimitCacheInvalid RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
 	concurrencyService    *ConcurrencyService
+	accountRepo           AccountRepository     // optional: group accounts for CCS import picker
+	upstreamModelsFetcher UpstreamModelsFetcher // optional: live GET /v1/models per account
 	cfg                   *config.Config
 	authCacheL1           *ristretto.Cache
 	authCfg               apiKeyAuthCacheConfig
@@ -246,6 +248,16 @@ func NewAPIKeyService(
 // Called after construction (e.g. in wire) to avoid circular dependencies.
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {
 	s.rateLimitCacheInvalid = inv
+}
+
+// SetAccountRepo sets the optional account repository used by the CCS import picker.
+func (s *APIKeyService) SetAccountRepo(repo AccountRepository) {
+	s.accountRepo = repo
+}
+
+// SetUpstreamModelsFetcher sets the live upstream /v1/models client for CCS import.
+func (s *APIKeyService) SetUpstreamModelsFetcher(fetcher UpstreamModelsFetcher) {
+	s.upstreamModelsFetcher = fetcher
 }
 
 func (s *APIKeyService) SetConcurrencyService(concurrencyService *ConcurrencyService) {
@@ -616,6 +628,34 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 		apiKey.CurrentConcurrency = s.currentConcurrencyForAPIKey(ctx, apiKey.ID)
 	}
 	return apiKey, nil
+}
+
+// ListCcsImportModels returns CCS Codex import picker IDs for a key the caller
+// owns. The list is the union of live upstream GET /v1/models from every
+// active account in the key's group.
+func (s *APIKeyService) ListCcsImportModels(ctx context.Context, userID, keyID int64) ([]string, error) {
+	apiKey, err := s.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+	if apiKey == nil || apiKey.UserID != userID {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	var accounts []Account
+	if s.accountRepo != nil && apiKey.GroupID != nil {
+		accounts, err = s.accountRepo.ListByGroup(ctx, *apiKey.GroupID)
+		if err != nil {
+			return nil, fmt.Errorf("list group accounts: %w", err)
+		}
+	}
+
+	defaultModel := ""
+	if apiKey.Group != nil {
+		defaultModel = apiKey.Group.CcsImportDefaultModel
+	}
+	ids := CollectGroupAccountUpstreamModelIDs(ctx, s.upstreamModelsFetcher, accounts)
+	return mergeCcsImportPickerOptions(defaultModel, ids), nil
 }
 
 // GetByKey 根据Key字符串获取API Key（用于认证）

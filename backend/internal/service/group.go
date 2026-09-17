@@ -75,6 +75,8 @@ type Group struct {
 	RequireOAuthOnly            bool
 	RequirePrivacySet           bool
 	DefaultMappedModel          string
+	CcsImportModelPickerEnabled bool
+	CcsImportDefaultModel       string
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
 	ModelsListConfig            GroupModelsListConfig
 	ModelAllowlist              GroupModelAllowlist

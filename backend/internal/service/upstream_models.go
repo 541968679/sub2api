@@ -131,7 +131,7 @@ func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, acc
 	switch {
 	case account.Platform == PlatformAntigravity:
 		return s.buildAntigravityAPIKeyModelsRequest(ctx, account)
-	case account.IsOpenAI():
+	case account.IsOpenAICompatible():
 		return s.buildOpenAIUpstreamModelsRequest(ctx, account)
 	case account.IsGemini():
 		return s.buildGeminiUpstreamModelsRequest(ctx, account)
@@ -254,17 +254,23 @@ func (s *AccountTestService) buildAntigravityAPIKeyModelsRequest(ctx context.Con
 }
 
 func (s *AccountTestService) buildOpenAIUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
-	if account.Type != AccountTypeAPIKey {
+	if account.Type != AccountTypeAPIKey && account.Type != AccountTypeUpstream {
 		return nil, newUpstreamModelSyncUnsupportedError(
-			fmt.Sprintf("Unsupported OpenAI account type for upstream model sync: %s", account.Type), nil,
+			fmt.Sprintf("Unsupported OpenAI-compatible account type for upstream model sync: %s", account.Type), nil,
 		)
 	}
 	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
 	if apiKey == "" {
-		return nil, newUpstreamModelSyncConfigError("No OpenAI API key is available", nil)
+		apiKey = strings.TrimSpace(account.GetCredential("api_key"))
+	}
+	if apiKey == "" {
+		return nil, newUpstreamModelSyncConfigError("No API key is available", nil)
 	}
 
 	baseURL := account.GetOpenAIBaseURL()
+	if strings.TrimSpace(baseURL) == "" && account.IsGrok() {
+		baseURL = account.GetGrokBaseURL()
+	}
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = "https://api.openai.com"
 	}

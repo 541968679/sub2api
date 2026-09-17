@@ -184,6 +184,8 @@ type CreateGroupRequest struct {
 	RequireOAuthOnly            bool                                      `json:"require_oauth_only"`
 	RequirePrivacySet           bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          string                                    `json:"default_mapped_model"`
+	CcsImportModelPickerEnabled bool                                      `json:"ccs_import_model_picker_enabled"`
+	CcsImportDefaultModel       string                                    `json:"ccs_import_default_model"`
 	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
 	ModelAllowlist              service.GroupModelAllowlist               `json:"model_allowlist"`
@@ -245,6 +247,8 @@ type UpdateGroupRequest struct {
 	RequireOAuthOnly            *bool                                      `json:"require_oauth_only"`
 	RequirePrivacySet           *bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          *string                                    `json:"default_mapped_model"`
+	CcsImportModelPickerEnabled *bool                                      `json:"ccs_import_model_picker_enabled"`
+	CcsImportDefaultModel       *string                                    `json:"ccs_import_default_model"`
 	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
 	ModelAllowlist              *service.GroupModelAllowlist               `json:"model_allowlist"`
@@ -414,6 +418,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		RequireOAuthOnly:                req.RequireOAuthOnly,
 		RequirePrivacySet:               req.RequirePrivacySet,
 		DefaultMappedModel:              req.DefaultMappedModel,
+		CcsImportModelPickerEnabled:     req.CcsImportModelPickerEnabled,
+		CcsImportDefaultModel:           req.CcsImportDefaultModel,
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		ModelAllowlist:                  req.ModelAllowlist,
@@ -493,6 +499,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		RequireOAuthOnly:                req.RequireOAuthOnly,
 		RequirePrivacySet:               req.RequirePrivacySet,
 		DefaultMappedModel:              req.DefaultMappedModel,
+		CcsImportModelPickerEnabled:     req.CcsImportModelPickerEnabled,
+		CcsImportDefaultModel:           req.CcsImportDefaultModel,
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		ModelAllowlist:                  req.ModelAllowlist,

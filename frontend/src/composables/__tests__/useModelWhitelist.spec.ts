@@ -18,6 +18,16 @@ import {
 } from '../useModelWhitelist'
 
 describe('useModelWhitelist', () => {
+  it('kimi/zhipu/deepseek/minimax 列表包含当前国产主力模型', () => {
+    expect(getModelsByPlatform('kimi')).toContain('kimi-k2.5')
+    expect(getModelsByPlatform('kimi')).toContain('kimi-k3')
+    expect(getModelsByPlatform('zhipu')).toContain('glm-5.3')
+    expect(getModelsByPlatform('zhipu')).toContain('glm-4.7')
+    expect(getModelsByPlatform('deepseek')).toContain('deepseek-v4-flash')
+    expect(getModelsByPlatform('deepseek')).toContain('deepseek-v4-pro')
+    expect(getModelsByPlatform('minimax')).toContain('MiniMax-M2.5')
+  })
+
   it('openai 模型列表包含 GPT-5.4 官方快照', () => {
     const models = getModelsByPlatform('openai')
 

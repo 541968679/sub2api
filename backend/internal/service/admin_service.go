@@ -294,6 +294,8 @@ type CreateGroupInput struct {
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch       bool
 	DefaultMappedModel          string
+	CcsImportModelPickerEnabled bool
+	CcsImportDefaultModel       string
 	RequireOAuthOnly            bool
 	RequirePrivacySet           bool
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
@@ -355,6 +357,8 @@ type UpdateGroupInput struct {
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch       *bool
 	DefaultMappedModel          *string
+	CcsImportModelPickerEnabled *bool
+	CcsImportDefaultModel       *string
 	RequireOAuthOnly            *bool
 	RequirePrivacySet           *bool
 	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
@@ -1777,6 +1781,7 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		// canonical grok-4.5, plus other Grok text IDs for operators).
 		if platform == PlatformOpenAI {
 			candidates = MergeModelIDsPreferFirst(candidates, GrokTextModelIDsForOpenAIGroupAccess())
+			candidates = MergeModelIDsPreferFirst(candidates, CNCodingModelIDsForOpenAIGroupAccess())
 		}
 		return normalizeModelsListCandidates(candidates), nil
 	}
@@ -1806,6 +1811,11 @@ func defaultModelsListCandidatesForPlatform(platform string) []string {
 	switch platform {
 	case PlatformOpenAI:
 		return openai.DefaultModelIDs()
+	case PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
+		if ids := DefaultModelIDsForCNPlatform(platform); len(ids) > 0 {
+			return ids
+		}
+		return CNCodingModelIDsForOpenAIGroupAccess()
 	case PlatformGemini:
 		ids := make([]string, 0, len(geminicli.DefaultModels))
 		for _, model := range geminicli.DefaultModels {
@@ -1842,9 +1852,20 @@ func normalizeModelsListCandidates(values []string) []string {
 	return out
 }
 
+func validateCcsImportModelPicker(enabled bool, defaultModel string) error {
+	if enabled && strings.TrimSpace(defaultModel) == "" {
+		return errors.New("ccs_import_default_model is required when ccs_import_model_picker_enabled is true")
+	}
+	return nil
+}
+
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
 	if input.RateMultiplier <= 0 {
 		return nil, errors.New("rate_multiplier must be > 0")
+	}
+	ccsImportDefaultModel := strings.TrimSpace(input.CcsImportDefaultModel)
+	if err := validateCcsImportModelPicker(input.CcsImportModelPickerEnabled, ccsImportDefaultModel); err != nil {
+		return nil, err
 	}
 	allowlist, err := normalizeGroupModelAllowlist(input.ModelAllowlist)
 	if err != nil {
@@ -2005,6 +2026,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		RequireOAuthOnly:                input.RequireOAuthOnly,
 		RequirePrivacySet:               input.RequirePrivacySet,
 		DefaultMappedModel:              input.DefaultMappedModel,
+		CcsImportModelPickerEnabled:     input.CcsImportModelPickerEnabled,
+		CcsImportDefaultModel:           ccsImportDefaultModel,
 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
 		ModelAllowlist:                  allowlist,
@@ -2326,6 +2349,15 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.DefaultMappedModel != nil {
 		group.DefaultMappedModel = *input.DefaultMappedModel
+	}
+	if input.CcsImportModelPickerEnabled != nil {
+		group.CcsImportModelPickerEnabled = *input.CcsImportModelPickerEnabled
+	}
+	if input.CcsImportDefaultModel != nil {
+		group.CcsImportDefaultModel = strings.TrimSpace(*input.CcsImportDefaultModel)
+	}
+	if err := validateCcsImportModelPicker(group.CcsImportModelPickerEnabled, group.CcsImportDefaultModel); err != nil {
+		return nil, err
 	}
 	if input.MessagesDispatchModelConfig != nil {
 		group.MessagesDispatchModelConfig = normalizeOpenAIMessagesDispatchModelConfig(*input.MessagesDispatchModelConfig)

@@ -33,7 +33,12 @@ export function inferModelPricingProvider(model?: string | null): ModelPricingPr
     value.startsWith('o1') ||
     value.startsWith('o3') ||
     value.startsWith('o4') ||
-    value.startsWith('chatgpt-')
+    value.startsWith('chatgpt-') ||
+    value.startsWith('glm-') ||
+    value.startsWith('kimi-') ||
+    value.startsWith('moonshot-') ||
+    value.startsWith('deepseek-') ||
+    value.startsWith('minimax-')
   ) {
     return 'openai'
   }

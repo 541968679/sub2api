@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  CCS_IMPORT_PRESET_GLM,
+  CCS_IMPORT_PRESET_GPT,
   GROK_CC_SWITCH_CODEX_MODEL,
   buildCcSwitchImportDeeplink,
   launchCcSwitchImportDeeplink,
-  resolveCcSwitchImportConfig
+  mergeCcsImportModelOptions,
+  parseGatewayModelsList,
+  resolveCcSwitchImportConfig,
+  compactCcsImportModelIDs,
+  filterCcsImportModelIDs,
+  resolveCcsImportPickerIDs,
+  shouldShowCcsCodexModelPicker
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
@@ -54,6 +62,83 @@ describe('ccswitchImport utils', () => {
     expect(params.get('model')).toBe(GROK_CC_SWITCH_CODEX_MODEL)
     expect(params.get('model')).not.toBe('claude-sonnet-4-5')
     expect(atob(params.get('usageScript') || '')).toBe(baseInput.usageScript)
+  })
+
+  it('exposes CCS import presets gpt-6-astra and glm-5.3', () => {
+    expect(CCS_IMPORT_PRESET_GPT).toBe('gpt-6-astra')
+    expect(CCS_IMPORT_PRESET_GLM).toBe('glm-5.3')
+  })
+
+  it('only shows the Codex model picker when the group switch is on', () => {
+    expect(shouldShowCcsCodexModelPicker(true, 'codex')).toBe(true)
+    expect(shouldShowCcsCodexModelPicker(false, 'codex')).toBe(false)
+    expect(shouldShowCcsCodexModelPicker(true, 'claude')).toBe(false)
+    expect(shouldShowCcsCodexModelPicker(undefined, 'codex')).toBe(false)
+  })
+
+  it('pins a missing default model at the top of /v1/models options', () => {
+    expect(mergeCcsImportModelOptions('glm-5.3', ['gpt-6-astra', 'gpt-5.4'])).toEqual([
+      'glm-5.3',
+      'gpt-6-astra',
+      'gpt-5.4'
+    ])
+    expect(mergeCcsImportModelOptions('gpt-6-astra', ['gpt-6-astra', 'gpt-5.4'])).toEqual([
+      'gpt-6-astra',
+      'gpt-5.4'
+    ])
+  })
+
+  it('ignores the stock GPT catalog and uses the default-model family', () => {
+    expect(
+      resolveCcsImportPickerIDs({
+        defaultModel: 'glm-5.3',
+        fetchedIDs: ['gpt-6-astra', 'gpt-5.4', 'grok-4.5']
+      })
+    ).toEqual(['glm-5.3', 'glm-5.3-flash'])
+  })
+
+  it('keeps a mixed custom /v1/models list without dropping older IDs', () => {
+    expect(
+      resolveCcsImportPickerIDs({
+        defaultModel: 'glm-5.3',
+        fetchedIDs: ['glm-5.3', 'glm-4.7', 'kimi-k2.5', 'chatglm_turbo']
+      })
+    ).toEqual(['glm-5.3', 'glm-4.7', 'kimi-k2.5', 'chatglm_turbo'])
+  })
+
+  it('prefers account mapping keys over a GPT catalog and keeps mapped IDs', () => {
+    expect(
+      resolveCcsImportPickerIDs({
+        defaultModel: 'glm-5.3',
+        fetchedIDs: ['gpt-6-astra', 'gpt-5.4'],
+        accountIDs: ['glm-5.3', 'glm-5.3-flash', 'glm-4.7']
+      })
+    ).toEqual(['glm-5.3', 'glm-5.3-flash', 'glm-4.7'])
+  })
+
+  it('keeps legacy account IDs when they are the only mapped models', () => {
+    expect(
+      resolveCcsImportPickerIDs({
+        defaultModel: 'glm-4.7',
+        accountIDs: ['glm-4.7']
+      })
+    ).toEqual(['glm-4.7'])
+  })
+
+  it('filters picker IDs by typed query', () => {
+    expect(filterCcsImportModelIDs(['glm-5.3', 'glm-5.3-flash', 'kimi-k2.5'], 'k2')).toEqual([
+      'kimi-k2.5'
+    ])
+    expect(compactCcsImportModelIDs(['glm-5.3', 'glm-4.7'])).toEqual(['glm-5.3'])
+  })
+
+  it('parses GET /v1/models data[].id values', () => {
+    expect(
+      parseGatewayModelsList({
+        object: 'list',
+        data: [{ id: 'glm-5.3' }, { id: ' gpt-6-astra ' }, { object: 'model' }]
+      })
+    ).toEqual(['glm-5.3', 'gpt-6-astra'])
   })
 
   it('uses admin OpenAI Codex model for OpenAI imports when set', () => {

@@ -112,6 +112,10 @@ const (
 	FieldRequirePrivacySet = "require_privacy_set"
 	// FieldDefaultMappedModel holds the string denoting the default_mapped_model field in the database.
 	FieldDefaultMappedModel = "default_mapped_model"
+	// FieldCcsImportModelPickerEnabled holds the string denoting the ccs_import_model_picker_enabled field in the database.
+	FieldCcsImportModelPickerEnabled = "ccs_import_model_picker_enabled"
+	// FieldCcsImportDefaultModel holds the string denoting the ccs_import_default_model field in the database.
+	FieldCcsImportDefaultModel = "ccs_import_default_model"
 	// FieldMessagesDispatchModelConfig holds the string denoting the messages_dispatch_model_config field in the database.
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
@@ -245,6 +249,8 @@ var Columns = []string{
 	FieldRequireOauthOnly,
 	FieldRequirePrivacySet,
 	FieldDefaultMappedModel,
+	FieldCcsImportModelPickerEnabled,
+	FieldCcsImportDefaultModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldRpmLimit,
@@ -359,6 +365,12 @@ var (
 	DefaultDefaultMappedModel string
 	// DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	DefaultMappedModelValidator func(string) error
+	// DefaultCcsImportModelPickerEnabled holds the default value on creation for the "ccs_import_model_picker_enabled" field.
+	DefaultCcsImportModelPickerEnabled bool
+	// DefaultCcsImportDefaultModel holds the default value on creation for the "ccs_import_default_model" field.
+	DefaultCcsImportDefaultModel string
+	// CcsImportDefaultModelValidator is a validator for the "ccs_import_default_model" field. It is called by the builders before save.
+	CcsImportDefaultModelValidator func(string) error
 	// DefaultMessagesDispatchModelConfig holds the default value on creation for the "messages_dispatch_model_config" field.
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
@@ -607,6 +619,16 @@ func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
 // ByDefaultMappedModel orders the results by the default_mapped_model field.
 func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
+}
+
+// ByCcsImportModelPickerEnabled orders the results by the ccs_import_model_picker_enabled field.
+func ByCcsImportModelPickerEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCcsImportModelPickerEnabled, opts...).ToFunc()
+}
+
+// ByCcsImportDefaultModel orders the results by the ccs_import_default_model field.
+func ByCcsImportDefaultModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCcsImportDefaultModel, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

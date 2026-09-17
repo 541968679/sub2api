@@ -1047,3 +1047,80 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsAntigravity(t *tes
 	require.NotNil(t, repo.updated)
 	require.Equal(t, fallbackID, *repo.updated.FallbackGroupIDOnInvalidRequest)
 }
+
+func TestAdminService_CreateGroup_CcsImportPickerRequiresDefaultModel(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                        "cn-oai",
+		Platform:                    PlatformOpenAI,
+		RateMultiplier:              1.0,
+		CcsImportModelPickerEnabled: true,
+		CcsImportDefaultModel:       "   ",
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.created)
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                        "cn-oai",
+		Platform:                    PlatformOpenAI,
+		RateMultiplier:              1.0,
+		CcsImportModelPickerEnabled: true,
+		CcsImportDefaultModel:       " glm-5.3 ",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.True(t, repo.created.CcsImportModelPickerEnabled)
+	require.Equal(t, "glm-5.3", repo.created.CcsImportDefaultModel)
+}
+
+func TestAdminService_CreateGroup_CcsImportPickerDisabledAllowsEmptyDefault(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "gpt-oai",
+		Platform:       PlatformOpenAI,
+		RateMultiplier: 1.0,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.False(t, repo.created.CcsImportModelPickerEnabled)
+	require.Equal(t, "", repo.created.CcsImportDefaultModel)
+}
+
+func TestAdminService_UpdateGroup_CcsImportPickerRequiresDefaultModel(t *testing.T) {
+	existing := &Group{
+		ID:               1,
+		Name:             "cn-oai",
+		Platform:         PlatformOpenAI,
+		RateMultiplier:   1.0,
+		Status:           StatusActive,
+		SubscriptionType: SubscriptionTypeStandard,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existing}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	enabled := true
+	empty := " "
+	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+		CcsImportModelPickerEnabled: &enabled,
+		CcsImportDefaultModel:       &empty,
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.updated)
+
+	model := "glm-5.3"
+	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+		CcsImportModelPickerEnabled: &enabled,
+		CcsImportDefaultModel:       &model,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.True(t, repo.updated.CcsImportModelPickerEnabled)
+	require.Equal(t, "glm-5.3", repo.updated.CcsImportDefaultModel)
+}

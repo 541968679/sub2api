@@ -815,6 +815,73 @@
               moveModelsListItem(createModelsListState, fromIndex, toIndex)
           "
         />
+        <div
+          v-if="createForm.platform === 'openai'"
+          class="border-t pt-4"
+          data-testid="create-ccs-import-picker"
+        >
+          <label class="mb-2 block font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.ccsImport.title") }}
+          </label>
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.ccsImport.enable")
+            }}</label>
+            <button
+              type="button"
+              data-testid="create-ccs-import-picker-toggle"
+              class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="
+                createForm.ccs_import_model_picker_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600'
+              "
+              @click="
+                createForm.ccs_import_model_picker_enabled =
+                  !createForm.ccs_import_model_picker_enabled
+              "
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="
+                  createForm.ccs_import_model_picker_enabled
+                    ? 'translate-x-6'
+                    : 'translate-x-1'
+                "
+              />
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.ccsImport.hint") }}
+          </p>
+          <div v-if="createForm.ccs_import_model_picker_enabled" class="mt-3 space-y-2">
+            <label class="input-label">{{ t("admin.groups.ccsImport.defaultModel") }}</label>
+            <input
+              v-model="createForm.ccs_import_default_model"
+              type="text"
+              class="input"
+              data-testid="create-ccs-import-default-model"
+              :placeholder="CCS_IMPORT_PRESET_GLM"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="createForm.ccs_import_default_model = CCS_IMPORT_PRESET_GPT"
+              >
+                {{ t("admin.groups.ccsImport.presetGpt") }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="createForm.ccs_import_default_model = CCS_IMPORT_PRESET_GLM"
+              >
+                {{ t("admin.groups.ccsImport.presetGlm") }}
+              </button>
+            </div>
+            <p class="input-hint">{{ t("admin.groups.ccsImport.defaultModelHint") }}</p>
+          </div>
+        </div>
         <GroupModelsListConfigPanel
           i18n-prefix="admin.groups.modelAllowlist"
           :state="createAllowlistState"
@@ -2282,6 +2349,73 @@
               moveModelsListItem(editModelsListState, fromIndex, toIndex)
           "
         />
+        <div
+          v-if="editForm.platform === 'openai'"
+          class="border-t pt-4"
+          data-testid="edit-ccs-import-picker"
+        >
+          <label class="mb-2 block font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.ccsImport.title") }}
+          </label>
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.ccsImport.enable")
+            }}</label>
+            <button
+              type="button"
+              data-testid="edit-ccs-import-picker-toggle"
+              class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+              :class="
+                editForm.ccs_import_model_picker_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 dark:bg-dark-600'
+              "
+              @click="
+                editForm.ccs_import_model_picker_enabled =
+                  !editForm.ccs_import_model_picker_enabled
+              "
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="
+                  editForm.ccs_import_model_picker_enabled
+                    ? 'translate-x-6'
+                    : 'translate-x-1'
+                "
+              />
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.ccsImport.hint") }}
+          </p>
+          <div v-if="editForm.ccs_import_model_picker_enabled" class="mt-3 space-y-2">
+            <label class="input-label">{{ t("admin.groups.ccsImport.defaultModel") }}</label>
+            <input
+              v-model="editForm.ccs_import_default_model"
+              type="text"
+              class="input"
+              data-testid="edit-ccs-import-default-model"
+              :placeholder="CCS_IMPORT_PRESET_GLM"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="editForm.ccs_import_default_model = CCS_IMPORT_PRESET_GPT"
+              >
+                {{ t("admin.groups.ccsImport.presetGpt") }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="editForm.ccs_import_default_model = CCS_IMPORT_PRESET_GLM"
+              >
+                {{ t("admin.groups.ccsImport.presetGlm") }}
+              </button>
+            </div>
+            <p class="input-hint">{{ t("admin.groups.ccsImport.defaultModelHint") }}</p>
+          </div>
+        </div>
         <GroupModelsListConfigPanel
           i18n-prefix="admin.groups.modelAllowlist"
           :state="editAllowlistState"
@@ -3435,6 +3569,10 @@ import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
 import type { AdminGroup, GroupPlatform, SubscriptionType } from "@/types";
+import {
+  CCS_IMPORT_PRESET_GLM,
+  CCS_IMPORT_PRESET_GPT,
+} from "@/utils/ccswitchImport";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
@@ -3858,6 +3996,8 @@ const createForm = reactive({
   profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
+  ccs_import_model_picker_enabled: false,
+  ccs_import_default_model: "",
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -4256,6 +4396,8 @@ const editForm = reactive({
   profit_safety_buffer: 0,
   blocked_models_text: "",
   allowed_models_text: "",
+  ccs_import_model_picker_enabled: false,
+  ccs_import_default_model: "",
 });
 
 // 根据分组类型返回不同的删除确认消息
@@ -4456,6 +4598,8 @@ const closeCreateModal = () => {
   createForm.profit_safety_buffer = 0;
   createForm.blocked_models_text = "";
   createForm.allowed_models_text = "";
+  createForm.ccs_import_model_picker_enabled = false;
+  createForm.ccs_import_default_model = "";
   resetModelsListState(createModelsListState);
   resetModelAllowlistState(createAllowlistState);
   createAllowlistCustom.value = "";
@@ -4489,6 +4633,17 @@ const normalizeRateMultiplier = (value: number | string | null | undefined): num
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  if (createForm.platform !== "openai") {
+    createForm.ccs_import_model_picker_enabled = false;
+  }
+  if (
+    createForm.platform === "openai" &&
+    createForm.ccs_import_model_picker_enabled &&
+    !createForm.ccs_import_default_model.trim()
+  ) {
+    appStore.showError(t("admin.groups.ccsImport.defaultModelRequired"));
     return;
   }
   if (createForm.batch_image_hold_multiplier < createForm.batch_image_discount_multiplier) {
@@ -4617,6 +4772,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.profit_control_enabled = group.profit_control_enabled ?? false;
   editForm.profit_min_margin = group.profit_min_margin ?? 0;
   editForm.profit_safety_buffer = group.profit_safety_buffer ?? 0;
+  editForm.ccs_import_model_picker_enabled =
+    group.ccs_import_model_picker_enabled ?? false;
+  editForm.ccs_import_default_model = group.ccs_import_default_model ?? "";
   editForm.blocked_models_text = modelAccessTextFromArray(
     group.blocked_models,
   );
@@ -4657,6 +4815,14 @@ const handleUpdateGroup = async () => {
   if (!editingGroup.value) return;
   if (!editForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  if (
+    editForm.platform === "openai" &&
+    editForm.ccs_import_model_picker_enabled &&
+    !editForm.ccs_import_default_model.trim()
+  ) {
+    appStore.showError(t("admin.groups.ccsImport.defaultModelRequired"));
     return;
   }
   if (editForm.batch_image_hold_multiplier < editForm.batch_image_discount_multiplier) {
