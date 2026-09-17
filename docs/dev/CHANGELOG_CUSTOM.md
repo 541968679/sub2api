@@ -1,3 +1,15 @@
+## 2026-09-16 - release: 0.1.289 isolation 0.2.4 A-tier overlay onto main
+
+### What
+- Bump VERSION to **0.1.289** so production is not reused as `0.1.288` (already deployed).
+- Ships isolation `sync/main-1` overlay onto `main`: CN first-class platforms, model plaza (fork display prices), Grok 4.6, channel-monitor v2, plugins default-off, group allowlist enforce default-off, Agent Identity stacked on sessionToken, gateway compact/failover overlays. Billing overlays stay skipped. Wait-timeout SQL is **250**.
+
+### Why
+Official switch from the isolation rehearsal onto the product line; GHCR/deploy must use a new version number.
+
+### Affected files
+`backend/cmd/server/VERSION`, this changelog.
+
 ## 2026-09-16 - merge: delivery branch catch-up to isolation 0.1.288
 
 ### What
