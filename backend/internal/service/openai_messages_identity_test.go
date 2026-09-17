@@ -17,6 +17,8 @@ func TestForwardAsAnthropicOAuthRestoresCodexIdentityHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	const tuiUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
+	// load-shed originator codex-tui is rewritten to CLI while keeping version/OS/terminal.
+	const tuiNormalizedUA = "codex_cli_rs/9.9.9 (Mac OS X 14.0; arm64) iTerm"
 	tests := []struct {
 		name           string
 		userAgent      string
@@ -25,11 +27,11 @@ func TestForwardAsAnthropicOAuthRestoresCodexIdentityHeaders(t *testing.T) {
 		wantOriginator string
 	}{
 		{
-			name:           "official user agent is preserved and paired",
+			name:           "load-shed official user agent is paired then normalized to CLI",
 			userAgent:      tuiUA,
 			originator:     "opencode",
-			wantUserAgent:  tuiUA,
-			wantOriginator: "codex-tui",
+			wantUserAgent:  tuiNormalizedUA,
+			wantOriginator: "codex_cli_rs",
 		},
 		{
 			name:           "third party user agent falls back to bundled Codex identity",

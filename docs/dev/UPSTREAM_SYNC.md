@@ -25,7 +25,67 @@ P0 会动、也是后窗会动的共享文件（standing 未 fold 当前 main �
 - `backend/internal/service/token_refresher.go`
 
 顺序：`main` 上做 P0 → 发版（另授权）→ standing 下一次动作 = fold 该 `main` → 未来窗才评估 Agent Identity。禁止副本先叠上游账号导入再 fold。
+## 当前状态（2026-09-09 sync/main-1 预演）
 
+| 项 | 值 |
+|----|----|
+| 占用 checkout | 保持 `main` `00bc18c5a` / VERSION **0.1.287** |
+| 预演分支 | `sync/main-1` worktree `E:\\cursor project\\api2sub-main-1`，未合真正 main、未 push |
+| 合入 | `sync/upstream-standing-20260821` 窗 1 P1–P5 + 窗 2 T0–T3 |
+| SQL | main `212–220` 原义保留；窗 1 三份改号 **221/222/223** |
+| `--base` | `00bc18c5a` |
+| 合真正 main | **仍锁** |
+
+
+## 当前状态（2026-08-23 standing，窗 2 T0–T3）
+
+| 项 | 值 |
+|----|----|
+| 本仓 `main` | 占用 checkout 保持 `main` `6fa10b136` / VERSION **0.1.252** |
+| 常驻同步分支 | `sync/upstream-standing-20260821`（worktree `E:\cursor project\api2sub-upstream-standing-20260821`，未合回真正 `main`、未 push） |
+| branch-point / `--base` | `6fa10b136` |
+| 窗 2 已叠 | **T0** fold occupied `6fa10b136`；**T1** `b228b93e9` 终态前读失败换号；**T2** `76a13a5a8` SSE overload 529；**T3** `40c26f343` 空 capabilities |
+| 窗 2 未叠 | 其余已确认 A/B（N-cap / N-pool / N-team / N-sticky / N-id / N-proto / N-img / N-ops / N-guard / N-compact / N-dash）；C 只入目录 |
+| 冻结天花板 | 上游 `d45135d87` / VERSION **0.1.179**。本窗 **不是** 0.1.179 全量等价 |
+| 窗 1 SQL | 仍为 `212` / `213` / `214`。本窗 **无新 SQL** |
+| 已合入的 large baseline | 仍是上游 `v0.1.152` / `b73d8c3ef` |
+| pending eval window | 仍从 `fbfdcef81` 起，天花板 `d45135d87`；只收口到已叠的 T0–T3 |
+| 合真正 `main` | **仍锁**。T0–T3 做完 ≠ 可合 main |
+| 水位 JSON | [UPSTREAM_BASE.json](./UPSTREAM_BASE.json) |
+| 代码状态 | 窗 1 P1–P5 + fold 的 AG/unpooled/Ops 原文仍在；再叠 T0 真终态立刻回 JSON + T1 终态前换号 + T2 SSE 529 + T3 空 capabilities |
+
+## 2026-08-23 - Window 2 T0–T3 on standing replica
+
+- **T0**: merged occupied `main` `6fa10b136` into the replica (main→copy only). Responses true-terminal now returns Chat Completions JSON immediately.
+- **T1**: overlay of upstream `b228b93e9`. Pre-terminal unexpected EOF / H2 reset → failover. Client cancel and oversized lines do not switch accounts. Messages buffered reads stay raw errors. Official S2 / no-terminal H2/180s / Raw `usable()` unchanged.
+- **T2**: overlay of upstream `76a13a5a8` on `gateway_service.go` (this fork has no `gateway_forward.go`). Pre-output Anthropic SSE `overloaded_error` uses semantic 529; post-output keeps 403.
+- **T3**: overlay of upstream `40c26f343`. Empty `openai_capabilities` (`{}` / `[]` / `[]string{}`) matches unset. Explicit `chat_completions:false` still excludes. Image extra gate unchanged.
+- **Not stacked**: remaining freeze-range A/B, any C theme, old N1–N13.
+- **SQL / VERSION**: no new migration. Fork VERSION stays **0.1.252**, not 0.1.179.
+- **Not done**: merge isolation branch onto real `main`, `git push`, deploy, window 3.
+
+## 2026-08-22 standing fold (superseded status table)
+
+Previous status after folding `1b3965a71` is below; `--base` is now `6fa10b136`.
+
+## 2026-08-22 - Fold occupied main 0.1.252 into standing replica
+
+- **Merged**: occupied `main` `1b3965a71` (VERSION **0.1.252**) into `sync/upstream-standing-20260821`.
+- **SQL remap**: window-1 `210/211/212` → `212/213/214` before merge. `main` `210_ops_attention_alert` / `211_user_smart_schedule_account_pk` kept.
+- **Overlay**: AG pool isolation + unpooled cheapest + Ops raw error + schedule-error whitelist default-empty + pin + PnL refresh, plus window-1 image tokens / default-off profit-control / `response.failed`→429.
+- **`--base`**: now `1b3965a71`. Pending eval still starts at `fbfdcef81`.
+- **Not done**: fold back onto occupied `main`, `git push`, deploy, window-2 triage. Did not merge `upstream/main` or rebase catchup.
+
+## 2026-08-21 - Fine-port catchup window-1 onto 0.1.247
+
+- **Branch**: `sync/upstream-standing-20260821` from `7f054bc3e`.
+- **Patch source**: `7feb1549f` hunk overlay only. Did not merge `sync/upstream-catchup-20260814`, `sync/upstream-v0152-to-v0170`, or `upstream/main`.
+- **P1**: Codex load-shed originator rewrite (`codex-tui` → `codex_cli_rs`) + disable switch (zero-value = ON); Claude Code security-monitor classifier without billing block.
+- **P2**: configurable client-IP header order / `True-Client-IP`; moderation proxy fail-closed; plan currency; `response.failed` rate_limit → 429 failover.
+- **P3/P4** (prior on this branch): `image_input_tokens` + profit-control default off after pair-full filter.
+- **P5**: security-audit process default Off; ModeOff/Observe/Blocking merges onto existing moderation decision.
+- **Fork-local kept**: display billing / `actual_cost` / real `cache_read` / pair / smart-schedule / `true_first_token_ms` / `true_cost`.
+- **Pushed/deployed**: no.
 ## 2026-07-27 - Selective sync of Responses item-ID sanitization
 
 - **Local baseline**: `b39f5fe01`.

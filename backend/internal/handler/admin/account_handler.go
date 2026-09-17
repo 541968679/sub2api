@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
@@ -67,6 +68,7 @@ type AccountHandler struct {
 	qualityMaintenance      *service.AccountQualityMaintenanceService
 	smartSchedule           *service.UserSmartScheduleService
 	publicSchedule          *service.PublicScheduleQualityService
+	cfg                     *config.Config
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -267,6 +269,9 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	if account == nil {
 		return item
 	}
+	if h.cfg != nil && h.cfg.RunMode == config.RunModeSimple {
+		sanitizeSimpleModeAccountDTO(item.Account)
+	}
 
 	if h.concurrencyService != nil {
 		if counts, err := h.concurrencyService.GetAccountConcurrencyBatch(ctx, []int64{account.ID}); err == nil {
@@ -303,6 +308,47 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 	h.enrichShadowParents(ctx, []AccountWithConcurrency{item})
 
 	return item
+}
+
+func sanitizeSimpleModeAccountDTO(account *dto.Account) {
+	if account == nil {
+		return
+	}
+	keep := map[int64]struct{}{}
+	var groups []*dto.Group
+	for _, g := range account.Groups {
+		if g == nil || g.Platform == service.PlatformComposite {
+			continue
+		}
+		keep[g.ID] = struct{}{}
+		groups = append(groups, &dto.Group{ID: g.ID, Name: g.Name, Platform: g.Platform, Status: g.Status})
+	}
+	account.Groups = groups
+	var ids []int64
+	for _, id := range account.GroupIDs {
+		if _, ok := keep[id]; ok {
+			ids = append(ids, id)
+		}
+	}
+	account.GroupIDs = ids
+	var bindings []dto.AccountGroup
+	for _, ag := range account.AccountGroups {
+		if _, ok := keep[ag.GroupID]; !ok {
+			continue
+		}
+		var nested *dto.Group
+		if ag.Group != nil {
+			nested = &dto.Group{ID: ag.Group.ID, Name: ag.Group.Name, Platform: ag.Group.Platform, Status: ag.Group.Status}
+		}
+		bindings = append(bindings, dto.AccountGroup{
+			AccountID: ag.AccountID,
+			GroupID:   ag.GroupID,
+			Priority:  ag.Priority,
+			CreatedAt: ag.CreatedAt,
+			Group:     nested,
+		})
+	}
+	account.AccountGroups = bindings
 }
 
 // scoreOpenAIAccountSchedulerPool 对池内 OpenAI 账号计算调度分数快照。
@@ -713,6 +759,9 @@ func (h *AccountHandler) List(c *gin.Context) {
 			SchedulerScore:     schedulerScores[acc.ID],
 			SchedulerScores:    schedulerGroupScores[acc.ID],
 		}
+		if h.cfg != nil && h.cfg.RunMode == config.RunModeSimple {
+			sanitizeSimpleModeAccountDTO(item.Account)
+		}
 
 		// 添加窗口费用（仅当启用时）
 		if windowCosts != nil {
@@ -762,7 +811,8 @@ func applyAccountListLiteProjection(items []AccountWithConcurrency) {
 		if items[i].Account == nil {
 			continue
 		}
-		items[i].Account.ScheduleUsers = nil
+		items[i].Account.AccountGroups = nil
+		items[i].Account.Groups = nil
 		items[i].Account.Credentials = liteAccountCredentials(items[i].Account.Credentials)
 	}
 }
@@ -1833,6 +1883,13 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 	}
 
 	executeAdminIdempotentJSON(c, "admin.accounts.batch_create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		if h.cfg != nil && h.cfg.RunMode == config.RunModeSimple {
+			for _, item := range req.Accounts {
+				if err := h.adminService.ValidateAccountGroupBindings(ctx, item.GroupIDs); err != nil {
+					return nil, err
+				}
+			}
+		}
 		success := 0
 		failed := 0
 		results := make([]gin.H, 0, len(req.Accounts))

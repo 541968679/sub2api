@@ -162,7 +162,14 @@ func isAllowedHost(host string, allowlist []string) bool {
 	return false
 }
 
+// IsBlockedHost reports whether host is localhost, a .localhost name, or a
+// loopback / private / link-local / unspecified IP literal.
+func IsBlockedHost(host string) bool {
+	return isBlockedHost(host)
+}
+
 func isBlockedHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true
 	}

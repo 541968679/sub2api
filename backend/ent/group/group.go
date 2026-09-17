@@ -28,6 +28,12 @@ const (
 	FieldDescription = "description"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
+	// FieldProfitControlEnabled holds the string denoting the profit_control_enabled field in the database.
+	FieldProfitControlEnabled = "profit_control_enabled"
+	// FieldProfitMinMargin holds the string denoting the profit_min_margin field in the database.
+	FieldProfitMinMargin = "profit_min_margin"
+	// FieldProfitSafetyBuffer holds the string denoting the profit_safety_buffer field in the database.
+	FieldProfitSafetyBuffer = "profit_safety_buffer"
 	// FieldPeakRateEnabled holds the string denoting the peak_rate_enabled field in the database.
 	FieldPeakRateEnabled = "peak_rate_enabled"
 	// FieldPeakStart holds the string denoting the peak_start field in the database.
@@ -197,6 +203,9 @@ var Columns = []string{
 	FieldName,
 	FieldDescription,
 	FieldRateMultiplier,
+	FieldProfitControlEnabled,
+	FieldProfitMinMargin,
+	FieldProfitSafetyBuffer,
 	FieldPeakRateEnabled,
 	FieldPeakStart,
 	FieldPeakEnd,
@@ -280,6 +289,12 @@ var (
 	NameValidator func(string) error
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// DefaultProfitControlEnabled holds the default value on creation for the "profit_control_enabled" field.
+	DefaultProfitControlEnabled bool
+	// DefaultProfitMinMargin holds the default value on creation for the "profit_min_margin" field.
+	DefaultProfitMinMargin float64
+	// DefaultProfitSafetyBuffer holds the default value on creation for the "profit_safety_buffer" field.
+	DefaultProfitSafetyBuffer float64
 	// DefaultPeakRateEnabled holds the default value on creation for the "peak_rate_enabled" field.
 	DefaultPeakRateEnabled bool
 	// DefaultPeakStart holds the default value on creation for the "peak_start" field.
@@ -392,6 +407,21 @@ func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 // ByRateMultiplier orders the results by the rate_multiplier field.
 func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateMultiplier, opts...).ToFunc()
+}
+
+// ByProfitControlEnabled orders the results by the profit_control_enabled field.
+func ByProfitControlEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitControlEnabled, opts...).ToFunc()
+}
+
+// ByProfitMinMargin orders the results by the profit_min_margin field.
+func ByProfitMinMargin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitMinMargin, opts...).ToFunc()
+}
+
+// ByProfitSafetyBuffer orders the results by the profit_safety_buffer field.
+func ByProfitSafetyBuffer(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProfitSafetyBuffer, opts...).ToFunc()
 }
 
 // ByPeakRateEnabled orders the results by the peak_rate_enabled field.

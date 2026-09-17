@@ -35,6 +35,7 @@ import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import distributionAdminAPI from './distribution'
 import riskControlAPI from './riskControl'
+import pluginsAPI from './plugins'
 
 /**
  * Unified admin API object for convenient access
@@ -71,7 +72,8 @@ export const adminAPI = {
   payment: adminPaymentAPI,
   affiliates: affiliatesAPI,
   distribution: distributionAdminAPI,
-  riskControl: riskControlAPI
+  riskControl: riskControlAPI,
+  plugins: pluginsAPI
 }
 
 export {
@@ -106,8 +108,14 @@ export {
   adminPaymentAPI,
   affiliatesAPI,
   distributionAdminAPI,
-  riskControlAPI
+  riskControlAPI,
+  pluginsAPI
 }
+
+export type {
+  PluginInstallation,
+  PluginUISession,
+} from './plugins'
 
 export default adminAPI
 

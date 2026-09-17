@@ -70,6 +70,27 @@ func TestClampGrokReasoningEffortValue(t *testing.T) {
 	require.Equal(t, "high", clampGrokReasoningEffortValue("ultra"))
 }
 
+func TestClampGrokReasoningEffortValue_PreservesXHighForGrok46(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "xhigh", clampGrokReasoningEffortValueForModel("xhigh", "grok-4.6"))
+	require.Equal(t, "xhigh", clampGrokReasoningEffortValueForModel("extra-high", "grok-4.6-latest"))
+	require.Equal(t, "xhigh", clampGrokReasoningEffortValueForModel("xhigh", "xai/grok-4.6"))
+	require.Equal(t, "high", clampGrokReasoningEffortValueForModel("xhigh", "grok-4.5"))
+	require.Equal(t, "high", clampGrokReasoningEffortValueForModel("max", "grok-4.6"))
+}
+
+func TestPatchGrokResponsesBodyPreservesXHighForGrok46(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"input":"hi","reasoning":{"effort":"xhigh"}}`)
+	patched, err := patchGrokResponsesBody(body, "grok-4.6")
+	require.NoError(t, err)
+	require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning.effort").String())
+
+	patched, err = patchGrokResponsesBody([]byte(`{"input":"hi","reasoning_effort":"xhigh"}`), "grok-4.6-latest")
+	require.NoError(t, err)
+	require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning_effort").String())
+}
+
 func TestPatchGrokResponsesBodySanitizesComposerReasoningParameters(t *testing.T) {
 	t.Parallel()
 

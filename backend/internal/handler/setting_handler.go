@@ -82,9 +82,17 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
+		ChannelMonitorMode:                   settings.ChannelMonitorMode,
+		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
+		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
 
 		AvailableChannelsEnabled:   settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+		ModelPlazaEnabled:          settings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:      settings.ModelPlazaRequireAuth,
+		ModelPlazaDescription:      settings.ModelPlazaDescription,
+		PluginManagementEnabled:    settings.PluginManagementEnabled,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 

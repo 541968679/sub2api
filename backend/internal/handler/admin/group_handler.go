@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -20,6 +21,7 @@ type GroupHandler struct {
 	adminService         service.AdminService
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
+	cfg                  *config.Config
 }
 
 type optionalLimitField struct {
@@ -72,19 +74,74 @@ func (f optionalLimitField) ToServiceInput() *float64 {
 }
 
 // NewGroupHandler creates a new admin group handler
+type CompositeRouteRequest struct {
+	PublicModel    string `json:"public_model" binding:"required"`
+	MatchType      string `json:"match_type" binding:"omitempty,oneof=exact prefix"`
+	TargetPlatform string `json:"target_platform" binding:"required,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek minimax"`
+	UpstreamModel  string `json:"upstream_model"`
+	Endpoint       string `json:"endpoint" binding:"omitempty,oneof=any messages count_tokens responses chat_completions embeddings images gemini"`
+	Priority       int    `json:"priority"`
+	Enabled        *bool  `json:"enabled"`
+	Notes          string `json:"notes"`
+}
+
 func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
+	return NewGroupHandlerWithConfig(adminService, dashboardService, groupCapacityService, nil)
+}
+
+func NewGroupHandlerWithConfig(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, cfg *config.Config) *GroupHandler {
 	return &GroupHandler{
 		adminService:         adminService,
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
+		cfg:                  cfg,
 	}
+}
+
+func (h *GroupHandler) simpleMode() bool {
+	return h != nil && h.cfg != nil && h.cfg.RunMode == config.RunModeSimple
+}
+
+func sanitizeSimpleModeCreateGroup(input *service.CreateGroupInput) {
+	if input == nil {
+		return
+	}
+	input.RateMultiplier = 1
+	input.IsExclusive = false
+	input.SubscriptionType = service.SubscriptionTypeStandard
+	input.DailyLimitUSD = nil
+	input.WeeklyLimitUSD = nil
+	input.MonthlyLimitUSD = nil
+	input.AllowImageGeneration = false
+	input.AllowBatchImageGeneration = false
+	input.VideoPrice720P = nil
+	input.WebSearchPricePerCall = nil
+	input.RPMLimit = 0
+}
+
+func sanitizeSimpleModeUpdateGroup(input *service.UpdateGroupInput) {
+	if input == nil {
+		return
+	}
+	one := 1.0
+	input.RateMultiplier = &one
+	excl := false
+	input.IsExclusive = &excl
+	input.SubscriptionType = service.SubscriptionTypeStandard
+	input.DailyLimitUSD = nil
+	input.AllowImageGeneration = &excl
+	input.AllowBatchImageGeneration = &excl
+	input.VideoPrice720P = nil
+	input.WebSearchPricePerCall = nil
+	zero := 0
+	input.RPMLimit = &zero
 }
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
 	Name               string             `json:"name" binding:"required"`
 	Description        string             `json:"description"`
-	Platform           string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
+	Platform           string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek minimax"`
 	RateMultiplier     float64            `json:"rate_multiplier"`
 	PeakRateEnabled    bool               `json:"peak_rate_enabled"`
 	PeakStart          string             `json:"peak_start"`
@@ -129,8 +186,13 @@ type CreateGroupRequest struct {
 	DefaultMappedModel          string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
+	ModelAllowlist              service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
+	// Profit control (default off)
+	ProfitControlEnabled bool    `json:"profit_control_enabled"`
+	ProfitMinMargin      float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -139,7 +201,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name               string             `json:"name"`
 	Description        string             `json:"description"`
-	Platform           string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
+	Platform           string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kimi zhipu deepseek minimax"`
 	RateMultiplier     *float64           `json:"rate_multiplier"`
 	PeakRateEnabled    *bool              `json:"peak_rate_enabled"`
 	PeakStart          *string            `json:"peak_start"`
@@ -185,8 +247,13 @@ type UpdateGroupRequest struct {
 	DefaultMappedModel          *string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
+	ModelAllowlist              *service.GroupModelAllowlist               `json:"model_allowlist"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
+	// Profit control; nil means leave unchanged
+	ProfitControlEnabled *bool    `json:"profit_control_enabled"`
+	ProfitMinMargin      *float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer   *float64 `json:"profit_safety_buffer"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -305,7 +372,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
+	createInput := &service.CreateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
 		Platform:                        req.Platform,
@@ -349,9 +416,17 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		DefaultMappedModel:              req.DefaultMappedModel,
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
+		ModelAllowlist:                  req.ModelAllowlist,
 		RPMLimit:                        req.RPMLimit,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
-	})
+	}
+	if h.simpleMode() {
+		sanitizeSimpleModeCreateGroup(createInput)
+	}
+	group, err := h.adminService.CreateGroup(c.Request.Context(), createInput)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -375,7 +450,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		return
 	}
 
-	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, &service.UpdateGroupInput{
+	updateInput := &service.UpdateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
 		Platform:                        req.Platform,
@@ -420,9 +495,17 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		DefaultMappedModel:              req.DefaultMappedModel,
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
+		ModelAllowlist:                  req.ModelAllowlist,
 		RPMLimit:                        req.RPMLimit,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
-	})
+	}
+	if h.simpleMode() {
+		sanitizeSimpleModeUpdateGroup(updateInput)
+	}
+	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, updateInput)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

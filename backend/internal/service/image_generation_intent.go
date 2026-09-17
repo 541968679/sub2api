@@ -86,6 +86,23 @@ func OpenAIImageGenerationIntentFromContext(ctx context.Context) bool {
 	return ok && enabled
 }
 
+// WithOpenAIImagesEndpoint marks a request that entered via /v1/images/*.
+func WithOpenAIImagesEndpoint(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, ctxkey.OpenAIImagesEndpoint, true)
+}
+
+// OpenAIImagesEndpointFromContext reports whether the request came from /v1/images/*.
+func OpenAIImagesEndpointFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, ok := ctx.Value(ctxkey.OpenAIImagesEndpoint).(bool)
+	return ok && enabled
+}
+
 func normalizeImageGenerationEndpoint(endpoint string) string {
 	endpoint = strings.TrimSpace(strings.ToLower(endpoint))
 	if endpoint == "" {

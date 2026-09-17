@@ -104,6 +104,18 @@
                 t('admin.accounts.oauth.openai.codexSessionAuth')
               }}</span>
             </label>
+            <label v-if="showAgentIdentityOption" class="flex cursor-pointer items-center gap-2">
+              <input
+                v-model="inputMethod"
+                type="radio"
+                value="agent_identity"
+                data-testid="oauth-method-agent-identity"
+                class="text-blue-600 focus:ring-blue-500"
+              />
+              <span class="text-sm text-blue-900 dark:text-blue-200">{{
+                t('admin.accounts.oauth.openai.agentIdentityAuth')
+              }}</span>
+            </label>
           </div>
         </div>
 
@@ -219,6 +231,42 @@
               @click="handleImportCodexPAT"
             >
               {{ loading ? t('admin.accounts.oauth.openai.validating') : t('admin.accounts.oauth.openai.codexPatImportAndCreate') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="inputMethod === 'agent_identity'" class="space-y-4">
+          <div class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80">
+            <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
+              {{ t('admin.accounts.oauth.openai.agentIdentityDesc') }}
+            </p>
+            <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <Icon name="key" size="sm" class="text-blue-500" />
+              {{ t('admin.accounts.oauth.openai.agentIdentityInputLabel') }}
+            </label>
+            <textarea
+              v-model="agentIdentityInput"
+              data-testid="agent-identity-input"
+              rows="6"
+              class="input w-full resize-y font-mono text-sm"
+              :placeholder="t('admin.accounts.oauth.openai.agentIdentityPlaceholder')"
+              spellcheck="false"
+            ></textarea>
+            <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              {{ t('admin.accounts.oauth.openai.agentIdentityHint') }}
+            </p>
+            <button
+              type="button"
+              data-testid="agent-identity-submit"
+              class="btn btn-primary mt-4 w-full"
+              :disabled="loading || !agentIdentityInput.trim()"
+              @click="handleImportAgentIdentity"
+            >
+              {{
+                loading
+                  ? t('admin.accounts.oauth.openai.validating')
+                  : t('admin.accounts.oauth.openai.agentIdentityImportAndCreate')
+              }}
             </button>
           </div>
         </div>
@@ -662,6 +710,7 @@ interface Props {
   showAccessTokenOption?: boolean
   showCodexPatOption?: boolean
   showCodexSessionImportOption?: boolean
+  showAgentIdentityOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
 }
@@ -682,6 +731,7 @@ const props = withDefaults(defineProps<Props>(), {
   showAccessTokenOption: false,
   showCodexPatOption: false,
   showCodexSessionImportOption: false,
+  showAgentIdentityOption: false,
   platform: 'anthropic',
   showProjectId: true
 })
@@ -737,6 +787,7 @@ const authCodeInput = ref('')
 const sessionKeyInput = ref('')
 const refreshTokenInput = ref('')
 const sessionTokenInput = ref('')
+const agentIdentityInput = ref('')
 const codexSessionInput = ref('')
 const codexPATInput = ref('')
 const showHelpDialog = ref(false)
@@ -848,6 +899,12 @@ const handleImportCodexSession = () => {
   }
 }
 
+const handleImportAgentIdentity = () => {
+  if (agentIdentityInput.value.trim()) {
+    emit('import-codex-session', agentIdentityInput.value.trim())
+  }
+}
+
 // Expose methods and state
 defineExpose({
   authCode: authCodeInput,
@@ -868,6 +925,7 @@ defineExpose({
     sessionTokenInput.value = ''
     codexSessionInput.value = ''
     codexPATInput.value = ''
+    agentIdentityInput.value = ''
     inputMethod.value = 'manual'
     showHelpDialog.value = false
   }

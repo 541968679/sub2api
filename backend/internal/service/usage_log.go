@@ -102,7 +102,10 @@ type UsageLog struct {
 	APIKeyID  int64
 	AccountID int64
 	RequestID string
-	Model     string
+	// UpstreamRequestID is the identifier from the account-configured upstream
+	// response header. Nil when unconfigured, empty, or WS turns.
+	UpstreamRequestID *string
+	Model             string
 	// RequestedModel is the client-requested model name recorded for stable user/admin display.
 	// Empty should be treated as Model for backward compatibility with historical rows.
 	RequestedModel string
@@ -185,6 +188,7 @@ type UsageLog struct {
 
 	// 图片生成字段
 	ImageCount           int
+	ImageInputTokens     int
 	ImageSize            *string
 	ImageQuality         *string
 	MediaType            *string

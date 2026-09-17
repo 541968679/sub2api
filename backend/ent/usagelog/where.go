@@ -250,6 +250,11 @@ func ImageCount(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldImageCount, v))
 }
 
+// ImageInputTokens applies equality check predicate on the "image_input_tokens" field. It's identical to ImageInputTokensEQ.
+func ImageInputTokens(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldImageInputTokens, v))
+}
+
 // ImageSize applies equality check predicate on the "image_size" field. It's identical to ImageSizeEQ.
 func ImageSize(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldImageSize, v))
@@ -298,6 +303,16 @@ func CacheTTLOverridden(v bool) predicate.UsageLog {
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCreatedAt, v))
+}
+
+// TrueCost applies equality check predicate on the "true_cost" field. It's identical to TrueCostEQ.
+func TrueCost(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueCost, v))
+}
+
+// TrueCostRate applies equality check predicate on the "true_cost_rate" field. It's identical to TrueCostRateEQ.
+func TrueCostRate(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueCostRate, v))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.
@@ -2095,6 +2110,46 @@ func ImageCountLTE(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldImageCount, v))
 }
 
+// ImageInputTokensEQ applies the EQ predicate on the "image_input_tokens" field.
+func ImageInputTokensEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldImageInputTokens, v))
+}
+
+// ImageInputTokensNEQ applies the NEQ predicate on the "image_input_tokens" field.
+func ImageInputTokensNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldImageInputTokens, v))
+}
+
+// ImageInputTokensIn applies the In predicate on the "image_input_tokens" field.
+func ImageInputTokensIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldImageInputTokens, vs...))
+}
+
+// ImageInputTokensNotIn applies the NotIn predicate on the "image_input_tokens" field.
+func ImageInputTokensNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldImageInputTokens, vs...))
+}
+
+// ImageInputTokensGT applies the GT predicate on the "image_input_tokens" field.
+func ImageInputTokensGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldImageInputTokens, v))
+}
+
+// ImageInputTokensGTE applies the GTE predicate on the "image_input_tokens" field.
+func ImageInputTokensGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldImageInputTokens, v))
+}
+
+// ImageInputTokensLT applies the LT predicate on the "image_input_tokens" field.
+func ImageInputTokensLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldImageInputTokens, v))
+}
+
+// ImageInputTokensLTE applies the LTE predicate on the "image_input_tokens" field.
+func ImageInputTokensLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldImageInputTokens, v))
+}
+
 // ImageSizeEQ applies the EQ predicate on the "image_size" field.
 func ImageSizeEQ(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldImageSize, v))
@@ -2693,6 +2748,106 @@ func CreatedAtLT(v time.Time) predicate.UsageLog {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// TrueCostEQ applies the EQ predicate on the "true_cost" field.
+func TrueCostEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueCost, v))
+}
+
+// TrueCostNEQ applies the NEQ predicate on the "true_cost" field.
+func TrueCostNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldTrueCost, v))
+}
+
+// TrueCostIn applies the In predicate on the "true_cost" field.
+func TrueCostIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldTrueCost, vs...))
+}
+
+// TrueCostNotIn applies the NotIn predicate on the "true_cost" field.
+func TrueCostNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldTrueCost, vs...))
+}
+
+// TrueCostGT applies the GT predicate on the "true_cost" field.
+func TrueCostGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldTrueCost, v))
+}
+
+// TrueCostGTE applies the GTE predicate on the "true_cost" field.
+func TrueCostGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldTrueCost, v))
+}
+
+// TrueCostLT applies the LT predicate on the "true_cost" field.
+func TrueCostLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldTrueCost, v))
+}
+
+// TrueCostLTE applies the LTE predicate on the "true_cost" field.
+func TrueCostLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldTrueCost, v))
+}
+
+// TrueCostIsNil applies the IsNil predicate on the "true_cost" field.
+func TrueCostIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldTrueCost))
+}
+
+// TrueCostNotNil applies the NotNil predicate on the "true_cost" field.
+func TrueCostNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldTrueCost))
+}
+
+// TrueCostRateEQ applies the EQ predicate on the "true_cost_rate" field.
+func TrueCostRateEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueCostRate, v))
+}
+
+// TrueCostRateNEQ applies the NEQ predicate on the "true_cost_rate" field.
+func TrueCostRateNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldTrueCostRate, v))
+}
+
+// TrueCostRateIn applies the In predicate on the "true_cost_rate" field.
+func TrueCostRateIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldTrueCostRate, vs...))
+}
+
+// TrueCostRateNotIn applies the NotIn predicate on the "true_cost_rate" field.
+func TrueCostRateNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldTrueCostRate, vs...))
+}
+
+// TrueCostRateGT applies the GT predicate on the "true_cost_rate" field.
+func TrueCostRateGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldTrueCostRate, v))
+}
+
+// TrueCostRateGTE applies the GTE predicate on the "true_cost_rate" field.
+func TrueCostRateGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldTrueCostRate, v))
+}
+
+// TrueCostRateLT applies the LT predicate on the "true_cost_rate" field.
+func TrueCostRateLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldTrueCostRate, v))
+}
+
+// TrueCostRateLTE applies the LTE predicate on the "true_cost_rate" field.
+func TrueCostRateLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldTrueCostRate, v))
+}
+
+// TrueCostRateIsNil applies the IsNil predicate on the "true_cost_rate" field.
+func TrueCostRateIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldTrueCostRate))
+}
+
+// TrueCostRateNotNil applies the NotNil predicate on the "true_cost_rate" field.
+func TrueCostRateNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldTrueCostRate))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

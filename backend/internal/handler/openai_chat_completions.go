@@ -185,7 +185,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					}
 				}
 				if err != nil {
-					cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, routingModelForDiagnosis, reqModel)
+					cls := classifySelectionFailureError(err, classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, routingModelForDiagnosis, reqModel))
 					if !cls.ModelNotFound {
 						markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					}
@@ -202,7 +202,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			cls := classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel)
+			cls := classifySelectionFailureError(err, classifyOpenAICompatibleNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel))
 			if !cls.ModelNotFound {
 				markOpsRoutingCapacityLimited(c)
 			}

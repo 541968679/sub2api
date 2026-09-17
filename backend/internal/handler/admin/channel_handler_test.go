@@ -3,10 +3,14 @@
 package admin
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -415,4 +419,36 @@ func TestPricingRequestToService_NilPriceFields(t *testing.T) {
 	require.Nil(t, r.CacheReadPrice)
 	require.Nil(t, r.ImageOutputPrice)
 	require.Nil(t, r.PerRequestPrice)
+}
+
+func setupModelDefaultPricingRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := &ChannelHandler{billingService: service.NewBillingService(nil, nil)}
+	router.GET("/channels/model-pricing", h.GetModelDefaultPricing)
+	return router
+}
+
+func TestGetModelDefaultPricing_ReturnsFable51CacheTTLs(t *testing.T) {
+	router := setupModelDefaultPricingRouter()
+	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?model=claude-fable-5-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Data struct {
+			Found                        bool     `json:"found"`
+			CacheWritePrice              float64  `json:"cache_write_price"`
+			CacheWrite1hPrice            *float64 `json:"cache_write_1h_price"`
+			MaxReasoningEffortMultiplier *float64 `json:"max_reasoning_effort_multiplier"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.True(t, body.Data.Found)
+	require.InDelta(t, 12.5e-6, body.Data.CacheWritePrice, 1e-12)
+	require.NotNil(t, body.Data.CacheWrite1hPrice)
+	require.InDelta(t, 20e-6, *body.Data.CacheWrite1hPrice, 1e-12)
+	require.NotNil(t, body.Data.MaxReasoningEffortMultiplier)
+	require.Equal(t, 3.0, *body.Data.MaxReasoningEffortMultiplier)
 }

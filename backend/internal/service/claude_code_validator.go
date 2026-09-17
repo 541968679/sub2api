@@ -48,9 +48,31 @@ var claudeCodeSystemPrompts = []string{
 }
 
 const (
+	// These markers identify Claude Code's official security-monitor classifier
+	// request without coupling validation to every wording change in the prompt.
+	claudeCodeSecurityMonitorPromptPrefix = "You are a security monitor for autonomous AI coding agents."
+	claudeCodeSecurityMonitorPromptMinLen = 10_000
+
+	// claudeCodeBillingHeaderPrefix is injected by real Claude Code CLI requests
+	// (including some helper sub-requests without identity prose). Fixed format is
+	// more stable than identity prose. See gateway_billing_block.go.
 	claudeCodeBillingHeaderPrefix = "x-anthropic-billing-header"
-	claudeCodeEntrypointMarker    = "cc_entrypoint="
+	// claudeCodeEntrypointMarker identifies billing blocks with entrypoint attribution.
+	claudeCodeEntrypointMarker = "cc_entrypoint="
 )
+
+// claudeCodeSecurityMonitorMarkers plus the fixed prefix and length floor identify
+// the security-monitor classifier prompt; all markers must hit.
+var claudeCodeSecurityMonitorMarkers = []string{
+	"## Threat Model",
+	"- `<transcript>`:",
+	"## HARD BLOCK",
+	"## SOFT BLOCK",
+	"## Classification Process",
+	"## Output Format",
+	"<block>yes</block>",
+	"<block>no</block>",
+}
 
 // NewClaudeCodeValidator 创建验证器实例
 func NewClaudeCodeValidator() *ClaudeCodeValidator {
@@ -159,6 +181,12 @@ func (v *ClaudeCodeValidator) hasClaudeCodeSystemPrompt(body map[string]any) boo
 		return false
 	}
 
+	// Auto-mode security-monitor classifier: may ship without billing block and
+	// with extra session-context system entries (real CLI 2.1.220+).
+	if isClaudeCodeSecurityMonitorPrompt(systemEntries) {
+		return true
+	}
+
 	// 检查每个 system entry
 	for _, entry := range systemEntries {
 		entryMap, ok := entry.(map[string]any)
@@ -184,6 +212,45 @@ func (v *ClaudeCodeValidator) hasClaudeCodeSystemPrompt(body map[string]any) boo
 	}
 
 	return false
+}
+
+// isClaudeCodeSecurityMonitorPrompt recognizes Claude Code auto-mode security
+// monitor classifier requests. Real CLI (observed 2.1.220) appends a separate
+// session-context system block after the monitor prompt, so entry count is not
+// controlled by the server — scan every entry instead of requiring exactly one.
+func isClaudeCodeSecurityMonitorPrompt(systemEntries []any) bool {
+	for _, raw := range systemEntries {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		entryType, ok := entry["type"].(string)
+		if !ok || entryType != "text" {
+			continue
+		}
+
+		text, ok := entry["text"].(string)
+		if !ok || len(text) < claudeCodeSecurityMonitorPromptMinLen ||
+			!strings.HasPrefix(text, claudeCodeSecurityMonitorPromptPrefix) {
+			continue
+		}
+
+		if hasAllClaudeCodeSecurityMonitorMarkers(text) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasAllClaudeCodeSecurityMonitorMarkers(text string) bool {
+	for _, marker := range claudeCodeSecurityMonitorMarkers {
+		if !strings.Contains(text, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 // bestSimilarityScore 计算文本与所有 Claude Code 模板的最佳相似度

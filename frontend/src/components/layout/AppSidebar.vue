@@ -717,8 +717,10 @@ const BookIcon = {
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
+const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
@@ -745,6 +747,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       ? [{ path: '/tutorial', label: t('nav.tutorial'), icon: BookIcon, external: tutorialUrl.value }]
       : []),
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/model-plaza', label: t('nav.modelPlaza'), icon: PriceTagIcon, featureFlag: flagModelPlaza },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     // Agent / affiliate kept lower so they are not the visual focus
     { path: '/distribution', label: t('nav.distribution'), icon: CreditCardIcon, hideInSimpleMode: true },
@@ -793,7 +796,8 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
-    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
+    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
+    { path: '/admin/plugins', label: t('nav.plugins'), icon: ServerIcon, featureFlag: flagPluginManagement },
     {
       path: '/admin/channels',
       label: t('nav.channelManagement'),

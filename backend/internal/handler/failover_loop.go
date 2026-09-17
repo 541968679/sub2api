@@ -51,6 +51,55 @@ type FailoverState struct {
 }
 
 // NewFailoverState 创建 failover 状态
+func sameAccountRetryAllowed(failoverErr *service.UpstreamFailoverError, retryCount, retryLimit int) bool {
+	if failoverErr == nil || !failoverErr.RetryableOnSameAccount {
+		return false
+	}
+	if !sameAccountRetryDeadlineAllows(failoverErr) {
+		return false
+	}
+	if failoverErr.SameAccountRetryMax > 0 {
+		if retryLimit <= 0 {
+			return false
+		}
+		if failoverErr.SameAccountRetryMax < retryLimit {
+			retryLimit = failoverErr.SameAccountRetryMax
+		}
+		return retryCount < retryLimit
+	}
+	if !failoverErr.SameAccountRetryDeadline.IsZero() {
+		return true
+	}
+	return retryLimit > 0 && retryCount < retryLimit
+}
+
+func sameAccountRetryDeadlineAllows(failoverErr *service.UpstreamFailoverError) bool {
+	return failoverErr == nil || failoverErr.SameAccountRetryDeadline.IsZero() || time.Now().Before(failoverErr.SameAccountRetryDeadline)
+}
+
+func effectiveSameAccountRetryLimit(failoverErr *service.UpstreamFailoverError, account *service.Account) int {
+	limit := maxSameAccountRetries
+	if account != nil && account.IsPoolMode() {
+		limit = account.GetPoolModeRetryCount()
+	}
+	if failoverErr != nil && failoverErr.SameAccountRetryMax > 0 {
+		if limit <= 0 {
+			return 0
+		}
+		if failoverErr.SameAccountRetryMax < limit {
+			return failoverErr.SameAccountRetryMax
+		}
+	}
+	return limit
+}
+
+func sameAccountRetryDelayFor(failoverErr *service.UpstreamFailoverError, _ int64) time.Duration {
+	if failoverErr != nil && failoverErr.SameAccountRetryDelay > 0 {
+		return failoverErr.SameAccountRetryDelay
+	}
+	return sameAccountRetryDelay
+}
+
 func NewFailoverState(maxSwitches int, hasBoundSession bool) *FailoverState {
 	return &FailoverState{
 		MaxSwitches:           maxSwitches,
@@ -77,7 +126,7 @@ func (s *FailoverState) HandleFailoverError(
 	}
 
 	// 同账号重试：对 RetryableOnSameAccount 的临时性错误，先在同一账号上重试
-	if failoverErr.RetryableOnSameAccount && s.SameAccountRetryCount[accountID] < maxSameAccountRetries {
+	if sameAccountRetryAllowed(failoverErr, s.SameAccountRetryCount[accountID], maxSameAccountRetries) {
 		s.SameAccountRetryCount[accountID]++
 		logger.FromContext(ctx).Warn("gateway.failover_same_account_retry",
 			zap.Int64("account_id", accountID),
@@ -85,7 +134,7 @@ func (s *FailoverState) HandleFailoverError(
 			zap.Int("same_account_retry_count", s.SameAccountRetryCount[accountID]),
 			zap.Int("same_account_retry_max", maxSameAccountRetries),
 		)
-		if !sleepWithContext(ctx, sameAccountRetryDelay) {
+		if !sleepWithContext(ctx, sameAccountRetryDelayFor(failoverErr, accountID)) {
 			return FailoverCanceled
 		}
 		return FailoverContinue

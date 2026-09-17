@@ -40,7 +40,7 @@ func (UserPlatformQuota) Fields() []ent.Field {
 			NotEmpty().
 			Validate(func(s string) error {
 				switch s {
-				case "anthropic", "openai", "gemini", "antigravity", "grok":
+				case "anthropic", "openai", "gemini", "antigravity", "grok", "kimi", "zhipu", "deepseek", "minimax":
 					return nil
 				default:
 					return fmt.Errorf("platform %q is not allowed", s)

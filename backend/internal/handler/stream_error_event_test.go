@@ -79,6 +79,19 @@ func TestOpenAIHandleStreamingAwareError_ResponsesStreamingIncludesModelAndReque
 	assert.Equal(t, "gpt-5.5", resp["model"])
 }
 
+func TestOpenAIHandleStreamingAwareError_ResponsesStreamingCarriesCreatedAt(t *testing.T) {
+	c, w := newGinContextForEndpoint(t, EndpointResponses)
+	h := &OpenAIGatewayHandler{}
+	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "boom", true)
+
+	resp, _ := parseResponsesFailedSSE(t, w.Body.String())
+	raw, ok := resp["created_at"]
+	assert.True(t, ok, "response.failed 必须带 created_at")
+	createdAt, ok := raw.(float64)
+	assert.True(t, ok, "created_at 必须是数字，得到 %T", raw)
+	assert.Greater(t, int64(createdAt), int64(0), "created_at 必须是有效的 unix 时间戳")
+}
+
 func TestOpenAIHandleStreamingAwareError_ChatCompletionsStreamingKeepsLegacy(t *testing.T) {
 	c, w := newGinContextForEndpoint(t, EndpointChatCompletions)
 	h := &OpenAIGatewayHandler{}

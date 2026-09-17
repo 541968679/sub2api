@@ -345,6 +345,30 @@ func (u *UserSmartScheduleAccountUpsert) ClearMaxConcurrency() *UserSmartSchedul
 	return u
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsert) SetSortOrder(v int) *UserSmartScheduleAccountUpsert {
+	u.Set(usersmartscheduleaccount.FieldSortOrder, v)
+	return u
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *UserSmartScheduleAccountUpsert) UpdateSortOrder() *UserSmartScheduleAccountUpsert {
+	u.SetExcluded(usersmartscheduleaccount.FieldSortOrder)
+	return u
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsert) AddSortOrder(v int) *UserSmartScheduleAccountUpsert {
+	u.Add(usersmartscheduleaccount.FieldSortOrder, v)
+	return u
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsert) ClearSortOrder() *UserSmartScheduleAccountUpsert {
+	u.SetNull(usersmartscheduleaccount.FieldSortOrder)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -457,6 +481,34 @@ func (u *UserSmartScheduleAccountUpsertOne) UpdateMaxConcurrency() *UserSmartSch
 func (u *UserSmartScheduleAccountUpsertOne) ClearMaxConcurrency() *UserSmartScheduleAccountUpsertOne {
 	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
 		s.ClearMaxConcurrency()
+	})
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertOne) SetSortOrder(v int) *UserSmartScheduleAccountUpsertOne {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertOne) AddSortOrder(v int) *UserSmartScheduleAccountUpsertOne {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *UserSmartScheduleAccountUpsertOne) UpdateSortOrder() *UserSmartScheduleAccountUpsertOne {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.UpdateSortOrder()
+	})
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertOne) ClearSortOrder() *UserSmartScheduleAccountUpsertOne {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.ClearSortOrder()
 	})
 }
 
@@ -715,6 +767,34 @@ func (u *UserSmartScheduleAccountUpsertBulk) UpdateMaxConcurrency() *UserSmartSc
 func (u *UserSmartScheduleAccountUpsertBulk) ClearMaxConcurrency() *UserSmartScheduleAccountUpsertBulk {
 	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
 		s.ClearMaxConcurrency()
+	})
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertBulk) SetSortOrder(v int) *UserSmartScheduleAccountUpsertBulk {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertBulk) AddSortOrder(v int) *UserSmartScheduleAccountUpsertBulk {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *UserSmartScheduleAccountUpsertBulk) UpdateSortOrder() *UserSmartScheduleAccountUpsertBulk {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.UpdateSortOrder()
+	})
+}
+
+// ClearSortOrder clears the value of the "sort_order" field.
+func (u *UserSmartScheduleAccountUpsertBulk) ClearSortOrder() *UserSmartScheduleAccountUpsertBulk {
+	return u.Update(func(s *UserSmartScheduleAccountUpsert) {
+		s.ClearSortOrder()
 	})
 }
 

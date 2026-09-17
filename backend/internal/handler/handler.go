@@ -42,6 +42,7 @@ type AdminHandlers struct {
 	ContentModeration      *admin.ContentModerationHandler
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
+	Plugin                 *admin.PluginHandler
 }
 
 type Handlers struct {
@@ -54,6 +55,7 @@ type Handlers struct {
 	Subscription            *SubscriptionHandler
 	Announcement            *AnnouncementHandler
 	ChannelMonitor          *ChannelMonitorUserHandler
+	ChannelMonitorV2        *ChannelMonitorV2Handler
 	ImageChannelMonitorUser *ImageChannelMonitorUserHandler
 	Admin                   *AdminHandlers
 	Gateway                 *GatewayHandler
@@ -68,6 +70,7 @@ type Handlers struct {
 	RedeemPage              *RedeemPageHandler
 	AvailableChannel        *AvailableChannelHandler
 	BatchImage              *BatchImageHandler
+	ModelPlaza              *ModelPlazaHandler
 }
 
 type BuildInfo struct {

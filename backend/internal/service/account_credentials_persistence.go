@@ -73,6 +73,19 @@ var oauthSecretCredentialKeys = []string{
 	"expires_at",
 	"auth_mode",
 	"openai_auth_mode",
+	"agent_runtime_id",
+	"agent_private_key",
+	"task_id",
+}
+
+func IsSensitiveCredentialKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "access_token", "refresh_token", "id_token", "chatgpt_session_token",
+		"agent_private_key", "api_key", "session_key", "cookie":
+		return true
+	default:
+		return false
+	}
 }
 
 func credentialMapString(creds map[string]any, key string) string {

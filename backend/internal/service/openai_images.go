@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -43,6 +44,16 @@ const (
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
 )
+
+// openAIImagesResponsesMainModelValue selects the Responses driver independently
+// of the image_generation tool model. An environment override lets operators
+// recover from upstream model retirement without rebuilding the gateway.
+func openAIImagesResponsesMainModelValue() string {
+	if model := strings.TrimSpace(os.Getenv("SUB2API_IMAGES_MAIN_MODEL")); model != "" {
+		return model
+	}
+	return openAIImagesResponsesMainModel
+}
 
 type OpenAIImagesCapability string
 
@@ -575,6 +586,7 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	ctx = WithOpenAIImagesEndpoint(ctx)
 	switch account.Type {
 	case AccountTypeAPIKey:
 		return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)
@@ -641,13 +653,26 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if imageTrace != nil {
 		imageTrace.LogAt(c, "upstream_request_start", upstreamStart, 0, "")
 	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := s.doOpenAIUpstream(upstreamReq, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(upstreamCtx, c, account, err, false)
 	}
 	if imageTrace != nil {
 		imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
+	if !parsed.Stream && ImagesURLToB64JSONEnabled(account) && resp.Body != nil {
+		limit := resolveUpstreamResponseReadLimit(s.cfg)
+		if limit <= 0 {
+			limit = 2 << 20
+		}
+		bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, limit))
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		bodyBytes = s.backfillOpenAIImagesB64JSON(upstreamCtx, account, parsed, bodyBytes)
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
@@ -675,7 +700,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
 			}
 		}
-		return s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account)
+		return s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account, requestModel)
 	}
 	defer func() { _ = resp.Body.Close() }()
 

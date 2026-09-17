@@ -79,6 +79,15 @@ func (c StubConcurrencyCache) CleanupExpiredAccountSlots(_ context.Context, _ in
 func (c StubConcurrencyCache) ClearAccountSlots(_ context.Context, _ int64) error {
 	return nil
 }
+func (c StubConcurrencyCache) AcquireAccountUserSlot(_ context.Context, _ int64, _ int64, _ int, _ string) (bool, error) {
+	return true, nil
+}
+func (c StubConcurrencyCache) ReleaseAccountUserSlot(_ context.Context, _ int64, _ int64, _ string) error {
+	return nil
+}
+func (c StubConcurrencyCache) GetAccountUserConcurrencyBatch(_ context.Context, _ []int64, _ int64) (map[int64]int, error) {
+	return map[int64]int{}, nil
+}
 func (c StubConcurrencyCache) CleanupExpiredAccountSlotKeys(_ context.Context) error {
 	return nil
 }
@@ -128,6 +137,9 @@ func (c StubSessionLimitCache) RegisterSession(_ context.Context, _ int64, _ str
 	return true, nil
 }
 func (c StubSessionLimitCache) RefreshSession(_ context.Context, _ int64, _ string, _ time.Duration) error {
+	return nil
+}
+func (c StubSessionLimitCache) UnregisterSession(_ context.Context, _ int64, _ string) error {
 	return nil
 }
 func (c StubSessionLimitCache) GetActiveSessionCount(_ context.Context, _ int64) (int, error) {

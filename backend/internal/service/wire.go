@@ -645,8 +645,26 @@ func ProvideOpsService(
 }
 
 // ProvideSettingService wires SettingService with group reader and proxy repo.
+// ProvideContentModerationService wires content moderation with the managed proxy repo
+// so ProxyID can route API calls. Missing repo + configured ProxyID is a hard error.
+func ProvideContentModerationService(
+	settingRepo SettingRepository,
+	repo ContentModerationRepository,
+	hashCache ContentModerationHashCache,
+	groupRepo GroupRepository,
+	userRepo UserRepository,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	emailService *EmailService,
+	proxyRepo ProxyRepository,
+) *ContentModerationService {
+	svc := NewContentModerationService(settingRepo, repo, hashCache, groupRepo, userRepo, authCacheInvalidator, emailService)
+	svc.SetProxyRepository(proxyRepo)
+	return svc
+}
+
 func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
+	ApplyClientIPHeaderSettings(nil)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
 	domain.GetPlatformDefaultMappingBillingObjectOverride = func(platform string) map[string]string {
@@ -729,6 +747,7 @@ var ProviderSet = wire.NewSet(
 	NewUsageService,
 	NewDashboardService,
 	ProvidePricingService,
+	NewModelPlazaService,
 	ProvideBillingService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,
@@ -769,7 +788,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpsCleanupService,
 	ProvideOpsScheduledReportService,
 	NewEmailService,
-	NewContentModerationService,
+	ProvideContentModerationService,
 	ProvideEmailQueueService,
 	NewTurnstileService,
 	ProvideSubscriptionService,
@@ -819,6 +838,9 @@ var ProviderSet = wire.NewSet(
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
+	ProvideChannelMonitorV2Service,
+	ProvideChannelMonitorV2Aggregator,
+	NewPluginManager,
 	ProvideImageChannelMonitorService,
 	ProvideImageChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
@@ -864,8 +886,23 @@ func ProvidePaymentOrderExpiryService(paymentSvc *PaymentService, lockCache Lead
 func ProvideChannelMonitorService(
 	repo ChannelMonitorRepository,
 	encryptor SecretEncryptor,
+	settingService *SettingService,
 ) *ChannelMonitorService {
-	return NewChannelMonitorService(repo, encryptor)
+	svc := NewChannelMonitorService(repo, encryptor)
+	svc.SetRuntimeReader(settingService)
+	return svc
+}
+
+func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingService *SettingService) *ChannelMonitorV2Service {
+	svc := NewChannelMonitorV2Service(repo)
+	svc.SetRuntimeReader(settingService)
+	return svc
+}
+
+func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.DB, settingService *SettingService) *ChannelMonitorV2Aggregator {
+	agg := NewChannelMonitorV2Aggregator(repo, db, settingService)
+	agg.Start()
+	return agg
 }
 
 // ProvideChannelMonitorRunner 创建并启动渠道监控调度器。

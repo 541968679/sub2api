@@ -614,10 +614,10 @@ default = "sub2api-grok"
 web_search = "sub2api-grok"
 
 [model."sub2api-grok"]
-model = "grok-4.5"
+model = "grok-4.6"
 base_url = "${baseUrl}"
-name = "Grok 4.5 via Sub2API"
-description = "Grok 4.5 through a Sub2API Grok group"
+name = "Grok 4.6 via Sub2API"
+description = "Grok 4.6 through a Sub2API Grok group"
 api_key = "${apiKey}"
 api_backend = "responses"
 context_window = 1000000
@@ -1169,6 +1169,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const grokModels = {
+    'grok-4.6': {
+      name: 'Grok 4.6',
+      limit: { context: 1000000, output: 128000 }
+    },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 1000000, output: 128000 }

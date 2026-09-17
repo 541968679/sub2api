@@ -285,7 +285,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			)
 		}
 	}
-	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, upstreamStream, promptCacheKey, false)
+	upstreamCtx := ctx
+	cancelUpstream := func() {}
+	if clientStream {
+		upstreamCtx, cancelUpstream = context.WithCancel(ctx)
+	}
+	defer cancelUpstream()
+	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, upstreamStream, promptCacheKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
@@ -304,7 +310,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		cancelUpstream()
+		_ = resp.Body.Close()
+	}()
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
@@ -327,14 +336,16 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 				Message:            upstreamMsg,
 				Detail:             upstreamDetail,
 			})
-			if s.rateLimitService != nil {
-				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+			if account.Platform != PlatformGrok {
+				s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
-			return nil, &UpstreamFailoverError{
-				StatusCode:             resp.StatusCode,
-				ResponseBody:           respBody,
-				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
-			}
+			return nil, newOpenAIUpstreamFailoverError(
+				resp.StatusCode,
+				resp.Header,
+				respBody,
+				upstreamMsg,
+				account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
+			)
 		}
 		return s.handleChatCompletionsErrorResponse(resp, c, account)
 	}
@@ -529,6 +540,53 @@ func (s *OpenAIGatewayService) handleChatBufferedReadError(
 		return s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, err.Error())
 	}
 	return nil
+}
+
+// newOpenAICompatBufferedReadFailoverError maps a pre-terminal Chat buffered
+// read failure onto UpstreamFailoverError. Client cancel, oversized lines,
+// and body-too-large stay as the original error so they do not switch accounts.
+// This is the Chat CC overlay of upstream b228b93e9; Messages keeps raw errors.
+func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
+	c *gin.Context,
+	account *Account,
+	resp *http.Response,
+	requestID string,
+	err error,
+) error {
+	if err == nil || errors.Is(err, bufio.ErrTooLong) {
+		return err
+	}
+	var requestContext context.Context
+	if c != nil && c.Request != nil {
+		requestContext = c.Request.Context()
+	}
+	if !shouldClassifyOpenAIUpstreamStreamReadError(err, requestContext) {
+		return err
+	}
+
+	logger.L().Warn("openai chat_completions buffered: read error",
+		zap.Error(err),
+		zap.String("request_id", requestID),
+		zap.Int64("account_id", account.ID),
+	)
+	classifiedErr := newOpenAIUpstreamStreamReadError(err)
+	code, message, ok := OpenAIUpstreamStreamReadErrorDetails(classifiedErr)
+	if !ok {
+		return err
+	}
+	payload, _ := json.Marshal(gin.H{
+		"error": gin.H{
+			"type":    "upstream_error",
+			"code":    code,
+			"message": message,
+		},
+	})
+	failoverErr := s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
+	failoverErr.ResponseBody = payload
+	if resp != nil {
+		failoverErr.ResponseHeaders = resp.Header
+	}
+	return failoverErr
 }
 
 // finishChatCompletionsFromResponsesResponse converts a terminal Responses
@@ -754,8 +812,8 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				return finish()
 			}
 		}
-		if failover := s.handleChatBufferedReadError(c, account, requestID, scanner.Err()); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
-			return nil, failover
+		if err := scanner.Err(); err != nil && !chatBufferedHasUsableTerminal(finalResponse) {
+			return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, err)
 		}
 		return finish()
 	}
@@ -805,10 +863,10 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				return finish()
 			}
 			if ev.err != nil {
-				if failover := s.handleChatBufferedReadError(c, account, requestID, ev.err); failover != nil && !chatBufferedHasUsableTerminal(finalResponse) {
-					return nil, failover
+				if chatBufferedHasUsableTerminal(finalResponse) {
+					return finish()
 				}
-				return finish()
+				return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, ev.err)
 			}
 			if processLine(ev.line) {
 				return finish()
@@ -908,16 +966,21 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	}
 
 	resultWithUsage := func() *OpenAIForwardResult {
+		headers := http.Header{}
+		if resp != nil {
+			headers = resp.Header.Clone()
+		}
 		return &OpenAIForwardResult{
-			RequestID:     requestID,
-			ResponseID:    responseID,
-			Usage:         usage,
-			Model:         originalModel,
-			BillingModel:  billingModel,
-			UpstreamModel: upstreamModel,
-			Stream:        true,
-			Duration:      time.Since(startTime),
-			FirstTokenMs:  firstTokenMs,
+			RequestID:       requestID,
+			ResponseID:      responseID,
+			Usage:           usage,
+			Model:           originalModel,
+			BillingModel:    billingModel,
+			UpstreamModel:   upstreamModel,
+			Stream:          true,
+			ResponseHeaders: headers,
+			Duration:        time.Since(startTime),
+			FirstTokenMs:    firstTokenMs,
 		}
 	}
 
@@ -1035,7 +1098,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		if len(chunks) > 0 {
 			c.Writer.Flush()
 		}
-		return false
+		return isTerminalEvent
 	}
 
 	finalizeStream := func() (*OpenAIForwardResult, error) {
@@ -1077,7 +1140,10 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				continue
 			}
 			if processDataLine(line[6:]) {
-				return resultWithUsage(), terminalErr
+				if terminalErr != nil {
+					return resultWithUsage(), terminalErr
+				}
+				return finalizeStream()
 			}
 		}
 		handleScanErr(scanner.Err())
@@ -1136,7 +1202,10 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				continue
 			}
 			if processDataLine(line[6:]) {
-				return resultWithUsage(), terminalErr
+				if terminalErr != nil {
+					return resultWithUsage(), terminalErr
+				}
+				return finalizeStream()
 			}
 
 		case <-firstFrameCh:

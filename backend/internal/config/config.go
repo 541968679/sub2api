@@ -90,6 +90,18 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+}
+
+// PluginConfig controls admin-uploaded local process plugins.
+// Default: no bundled plugins; unsigned packages are rejected.
+type PluginConfig struct {
+	DataDir              string            `mapstructure:"data_dir"`
+	AllowUnsigned        bool              `mapstructure:"allow_unsigned"`
+	TrustedPublishers    map[string]string `mapstructure:"trusted_publishers"`
+	MaxUploadBytes       int64             `mapstructure:"max_upload_bytes"`
+	MaxUncompressedBytes int64             `mapstructure:"max_uncompressed_bytes"`
+	StartTimeoutSeconds  int               `mapstructure:"start_timeout_seconds"`
 }
 
 type LogConfig struct {
@@ -651,6 +663,16 @@ type GatewayConfig struct {
 	// ForceCodexCLI: 强制将 OpenAI `/v1/responses` 请求按 Codex CLI 处理。
 	// 用于网关未透传/改写 User-Agent 时的兼容兜底（默认关闭，避免影响其他客户端）。
 	ForceCodexCLI bool `mapstructure:"force_codex_cli"`
+	// DisableCodexOriginatorNormalization turns off rewriting load-shed Codex
+	// originators (e.g. codex-tui) to the official CLI identity. Upstream
+	// /backend-api/codex capacity-sheds by originator; hits return
+	// server_is_overloaded and cool accounts.
+	//
+	// Inverted naming keeps the zero value safe: this flag is published as a
+	// process snapshot, so hand-built Config (tests/tools) without viper must
+	// default to normalization ON. Set true only if upstream retargets buckets
+	// so normalization would itself land in a shed bucket.
+	DisableCodexOriginatorNormalization bool `mapstructure:"disable_codex_originator_normalization"`
 	// CodexImageGenerationBridgeEnabled: 为 Codex `/v1/responses` 自动注入 image_generation 工具和桥接指令。
 	// 默认关闭；账号级 `extra.codex_image_generation_bridge` 可覆盖该全局值。
 	CodexImageGenerationBridgeEnabled bool `mapstructure:"codex_image_generation_bridge_enabled"`
@@ -672,6 +694,10 @@ type GatewayConfig struct {
 	AnthropicBridgeAutoCompactInputBytes int `mapstructure:"anthropic_bridge_auto_compact_input_bytes"`
 	// AnthropicBridgeAutoCompactTimeoutSeconds bounds the internal compact request.
 	AnthropicBridgeAutoCompactTimeoutSeconds int `mapstructure:"anthropic_bridge_auto_compact_timeout_seconds"`
+	// OpenAICompactModel is the process-wide compact fallback model used when
+	// an explicit /responses/compact or native compaction request cannot use
+	// the client-requested model. Empty disables the global fallback.
+	OpenAICompactModel string `mapstructure:"openai_compact_model"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// OpenAIScheduler: OpenAI account scheduler behavior controls.
@@ -1495,6 +1521,12 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 
 func setDefaults() {
 	viper.SetDefault("run_mode", RunModeStandard)
+	viper.SetDefault("plugins.data_dir", "")
+	viper.SetDefault("plugins.allow_unsigned", false)
+	viper.SetDefault("plugins.trusted_publishers", map[string]string{})
+	viper.SetDefault("plugins.max_upload_bytes", int64(128*1024*1024))
+	viper.SetDefault("plugins.max_uncompressed_bytes", int64(256*1024*1024))
+	viper.SetDefault("plugins.start_timeout_seconds", 15)
 
 	// Server
 	viper.SetDefault("server.host", "0.0.0.0")
@@ -1817,6 +1849,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.max_account_switches", 10)
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
 	viper.SetDefault("gateway.force_codex_cli", false)
+	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
 	// Claude→GPT bridge pre-generation compact for oversized history (opt-in).

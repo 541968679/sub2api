@@ -383,8 +383,16 @@ export interface PublicSettings {
   balance_low_notify_recharge_url?: string
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
+  channel_monitor_mode?: string
+  channel_monitor_hide_throughput?: boolean
+  channel_monitor_show_quota?: boolean
+  channel_monitor_hide_user_ranking?: boolean
+  plugin_management_enabled?: boolean
   available_channels_enabled: boolean
   allow_user_view_error_requests: boolean
+  model_plaza_enabled: boolean
+  model_plaza_require_auth: boolean
+  model_plaza_description?: string
   affiliate_enabled: boolean
   risk_control_enabled: boolean
 }
@@ -686,7 +694,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax'
 
 export type SubscriptionType = 'standard' | 'subscription'
 
@@ -702,6 +710,11 @@ export interface ModelsListConfig {
   models: string[]
 }
 
+export interface ModelAllowlistConfig {
+  enabled: boolean
+  models: string[]
+}
+
 export interface Group {
   id: number
   name: string
@@ -713,6 +726,9 @@ export interface Group {
 	peak_end: string
 	peak_rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
+  profit_control_enabled?: boolean
+  profit_min_margin?: number
+  profit_safety_buffer?: number
   is_exclusive: boolean
   status: 'active' | 'inactive'
   subscription_type: SubscriptionType
@@ -744,6 +760,7 @@ export interface Group {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
@@ -763,6 +780,7 @@ export interface AdminGroup extends Group {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
 
   // 分组下账号数量（仅管理员可见）
   account_count?: number
@@ -869,6 +887,7 @@ export interface CreateGroupRequest {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -909,6 +928,7 @@ export interface UpdateGroupRequest {
   blocked_models?: string[]
   allowed_models?: string[]
   models_list_config?: ModelsListConfig
+  model_allowlist?: ModelAllowlistConfig
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]
@@ -916,7 +936,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
