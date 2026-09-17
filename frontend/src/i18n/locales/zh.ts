@@ -366,9 +366,9 @@ const zhBase = {
   nav: {
     dashboard: '仪表盘',
     announcements: '公告',
-    apiKeys: 'API 密钥',
+    apiKeys: 'API接入',
     usage: '使用记录',
-    modelPricing: '模型定价',
+    modelPricing: '计费规则',
     pageContent: '页面内容',
     redeem: '兑换',
     affiliate: '邀请返利',
@@ -781,13 +781,13 @@ const zhBase = {
     topUpHint: '充值余额，按量计费',
     viewTutorial: '查看教程',
     viewTutorialHint: 'Claude Code / Codex 接入指南',
-    getApiKey: '获取 API Key',
+    getApiKey: 'API接入',
     getApiKeyHint: '创建密钥，接入 AI 工具',
-    agentEntryEyebrow: '代理合作',
+    viewPricing: '计费规则',
+    viewPricingHint: '查看模型价格与分组倍率',
     becomeAgent: '成为代理',
     becomeAgentHint: '低价生成 API Key 和订阅兑换码，分销给客户赚取差价。',
     becomeAgentAction: '立即申请',
-    viewPricing: '模型定价',
     quickStart: '快速开始指南',
     quickStartHint: '了解如何配置和使用 API 密钥',
     tutorial: '详细教程',
@@ -810,9 +810,9 @@ const zhBase = {
     subscription: '订阅'
   },
 
-  // API Keys
+  // API Keys / API接入
   keys: {
-    title: 'API 密钥',
+    title: 'API接入',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
     endpoints: {
@@ -2635,6 +2635,12 @@ const zhBase = {
         windowNSuccess: '成功率窗口条数',
         windowNSuccessHint: '该用户×该账号最近成功/失败完成样本条数，同时是窗长和开判门槛。范围 1–100，默认 10。未满窗不因成功率冷却。考察并发可跟随此项。上线时先等于该用户当前窗口条数。',
         thresholdMsGroup: '门槛毫秒',
+        headerWaitSeconds: '等头超时（秒）',
+        headerWaitSecondsHint:
+          '空=继承全站。0 关闭该闸。正数覆盖该用户（10–600）。只对这个用户的 OpenAI HTTP 生效（含 AG 池里的 OpenAI 账号）。Grok 原生跳过。',
+        firstUsefulFrameSeconds: '首有效帧超时（秒）',
+        firstUsefulFrameSecondsHint:
+          '空=继承全站。0 关闭该闸。正数覆盖该用户（5–300）。头到达后等到有效输出（非 response.created）。',
         probePhaseGroup: '考察期',
         probeLatencyV2Off: '关',
         probeLatencyV2On: 'v2',
@@ -9569,23 +9575,34 @@ const v117ZhPatch = {
     },
   },
   pricing: {
-    title: '模型定价',
-    description: '查看可用模型、计费方式和展示倍率',
+    title: '计费规则',
+    description: '计费说明、精选模型价格，以及你可用分组的倍率',
+    billingExplainerTitle: '计费说明',
     introTitle: '我们的计费方式',
     educationTitle: '计费模式说明',
+    modelTableTitle: '模型价格',
     tableTitle: '模型价格',
+    groupTableTitle: '分组倍率',
+    platformTabsLabel: '平台',
     modelsSuffix: '个模型',
     emptyState: '暂无可展示的模型',
-    cnyBanner: '当前按人民币充值，余额以 USD 额度展示',
-    unitHint: 'Token 价格单位为美元 / 百万 Token',
-    perRequestUnit: '美元 / 次',
+    groupsEmpty: '暂无可用分组',
+    groupsLoadFailed: '分组倍率加载失败',
+    cnyBanner: '1 USD = ¥{rate}',
+    unitHint: '1 MTok = 一百万 Token。有汇率时优先显示人民币，括号内为美元原价。',
+    perRequestUnit: '次',
     columns: {
       model: '模型',
       billingMode: '计费方式',
-      inputPrice: '输入价格',
-      outputPrice: '输出价格',
-      cacheReadPrice: '缓存读取',
+      inputPrice: '输入 / MTok',
+      outputPrice: '输出 / MTok',
+      cacheReadPrice: '缓存读取 / MTok',
       multiplier: '倍率'
+    },
+    groupColumns: {
+      name: '分组',
+      platform: '平台',
+      displayRate: '倍率'
     },
     billingMode: {
       perToken: '按 Token',

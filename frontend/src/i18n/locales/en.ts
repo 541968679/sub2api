@@ -367,9 +367,9 @@ const enBase = {
   nav: {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
-    apiKeys: 'API Keys',
+    apiKeys: 'API Access',
     usage: 'Usage',
-    modelPricing: 'Model Pricing',
+    modelPricing: 'Billing Rules',
     pageContent: 'Page Content',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
@@ -785,13 +785,13 @@ const enBase = {
     topUpHint: 'Recharge balance, pay-as-you-go',
     viewTutorial: 'View Tutorial',
     viewTutorialHint: 'Claude Code / Codex setup guide',
-    getApiKey: 'Get API Key',
+    getApiKey: 'API Access',
     getApiKeyHint: 'Create a key and connect AI tools',
-    agentEntryEyebrow: 'Agent program',
+    viewPricing: 'Billing Rules',
+    viewPricingHint: 'Model prices and group rates',
     becomeAgent: 'Become an Agent',
     becomeAgentHint: 'Generate API keys and subscription codes at agent pricing, then resell them for margin.',
     becomeAgentAction: 'Apply now',
-    viewPricing: 'Model Pricing',
     quickStart: 'Quick Start Guide',
     quickStartHint: 'Learn how to set up and use your API keys',
     tutorial: 'Detailed Tutorial',
@@ -814,9 +814,9 @@ const enBase = {
     subscription: 'Sub'
   },
 
-  // API Keys
+  // API Keys / API Access
   keys: {
-    title: 'API Keys',
+    title: 'API Access',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
     endpoints: {
@@ -1023,18 +1023,24 @@ const enBase = {
     },
   },
 
-  // Model Pricing Page (user-facing)
+  // Billing Rules page (user-facing)
   pricing: {
-    title: 'Model Pricing',
-    description: 'How we price models, how our model compares to common alternatives, and the display price for every exposed model.',
+    title: 'Billing Rules',
+    description: 'Billing explanation, curated model prices, and rates for your available groups.',
+    billingExplainerTitle: 'Billing Explanation',
     introTitle: 'Our Pricing Model',
     educationTitle: 'Pricing Models Explained',
-    tableTitle: 'Model Price Reference',
+    modelTableTitle: 'Model Prices',
+    tableTitle: 'Model Prices',
+    groupTableTitle: 'Group Rates',
+    platformTabsLabel: 'Platform',
     modelsSuffix: 'models',
     cnyBanner: '1 USD = ¥{rate}',
-    unitHint: '1 MTok = one million tokens. ¥ is the actual CNY charge at the current rate; the $ value in parentheses is the underlying USD price.',
+    unitHint: '1 MTok = one million tokens. ¥ is shown at the current rate when configured; the $ value in parentheses is the underlying USD price.',
     perRequestUnit: 'request',
     emptyState: 'No models have been exposed on this page yet.',
+    groupsEmpty: 'No available groups.',
+    groupsLoadFailed: 'Failed to load group rates.',
     columns: {
       model: 'Model',
       billingMode: 'Billing',
@@ -1042,6 +1048,11 @@ const enBase = {
       outputPrice: 'Output / MTok',
       cacheReadPrice: 'Cache Read / MTok',
       multiplier: 'Multiplier'
+    },
+    groupColumns: {
+      name: 'Group',
+      platform: 'Platform',
+      displayRate: 'Rate'
     },
     billingMode: {
       perToken: 'Per token',
@@ -2776,6 +2787,12 @@ const enBase = {
         windowNSuccess: 'Success window size',
         windowNSuccessHint: 'Last success/failure completions for this user × this account. Same value is the window length and the open-judgment floor (1–100, default 10). Under-full windows do not cool on success rate. Probe follow-window uses this. At launch this starts equal to the user’s current window size.',
         thresholdMsGroup: 'Threshold (ms)',
+        headerWaitSeconds: 'Header-wait timeout (seconds)',
+        headerWaitSecondsHint:
+          'Empty inherits the site-wide setting. 0 turns this gate off. A positive number overrides for this user (10–600). Applies to this user’s OpenAI HTTP (including OpenAI accounts in an Antigravity pool). Native Grok is skipped.',
+        firstUsefulFrameSeconds: 'First-useful-frame timeout (seconds)',
+        firstUsefulFrameSecondsHint:
+          'Empty inherits the site-wide setting. 0 turns this gate off. A positive number overrides for this user (5–300). Starts after headers arrive; waits for useful output (not response.created).',
         probePhaseGroup: 'Probe phase',
         probeLatencyV2Off: 'Off',
         probeLatencyV2On: 'v2',

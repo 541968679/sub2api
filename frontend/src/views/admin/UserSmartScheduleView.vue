@@ -174,6 +174,48 @@
               </div>
 
               <div
+                class="rounded-lg border border-gray-200 px-2 py-1 dark:border-dark-600"
+                data-testid="smart-schedule-wait-timeout-group"
+              >
+                <p class="mb-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                  {{ t('admin.settings.openaiWaitTimeout.title') }}
+                </p>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                  <label class="flex min-w-0 items-center gap-1">
+                    <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                      {{ t('admin.users.smartSchedule.headerWaitSeconds') }}
+                      <HelpTooltip :content="t('admin.users.smartSchedule.headerWaitSecondsHint')" width-class="w-80" />
+                    </span>
+                    <input
+                      v-model.number="headerWaitSeconds"
+                      type="number"
+                      min="0"
+                      max="600"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-header-wait"
+                    />
+                  </label>
+                  <label class="flex min-w-0 items-center gap-1">
+                    <span class="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-500">
+                      {{ t('admin.users.smartSchedule.firstUsefulFrameSeconds') }}
+                      <HelpTooltip
+                        :content="t('admin.users.smartSchedule.firstUsefulFrameSecondsHint')"
+                        width-class="w-80"
+                      />
+                    </span>
+                    <input
+                      v-model.number="firstUsefulFrameSeconds"
+                      type="number"
+                      min="0"
+                      max="300"
+                      class="input min-w-0 flex-1 !px-2 !py-1"
+                      data-testid="smart-schedule-first-useful-frame"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div
                 class="grid grid-cols-1 gap-1.5 md:grid-cols-2"
                 data-testid="smart-schedule-phase-groups"
               >
@@ -1301,6 +1343,8 @@ const {
   pairQualityById,
   currentDraft,
   currentSavedDraft,
+  headerWaitSeconds,
+  firstUsefulFrameSeconds,
   otherPlatforms,
   addableAccounts,
   addableSchedulingApi,

@@ -139,6 +139,14 @@ func (User) Fields() []ent.Field {
 		field.Int("quality_window_n").
 			Optional().
 			Nillable(),
+		// User override for OpenAI header-wait seconds (NULL = inherit site settings; 0 = disable).
+		field.Int("openai_header_wait_seconds").
+			Optional().
+			Nillable(),
+		// User override for OpenAI first-useful-frame seconds (NULL = inherit site settings; 0 = disable).
+		field.Int("openai_first_useful_frame_seconds").
+			Optional().
+			Nillable(),
 	}
 }
 

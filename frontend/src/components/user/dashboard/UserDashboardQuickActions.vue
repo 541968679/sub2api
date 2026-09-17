@@ -4,17 +4,15 @@
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
     </div>
     <div class="p-4 space-y-3">
-      <!-- Row 1: Primary actions (large cards).
-           Column count follows visible cards so a fresh/empty install
-           (payment off + no tutorial URL) does not leave a single card
-           stranded in a 3-column grid. -->
+      <!-- Primary: 充值/订阅 · 计费规则 · API接入 -->
       <div :class="primaryGridClass">
-        <!-- 充值/订阅 -->
         <button
           v-if="showTopUp"
-          @click="router.push('/purchase')"
+          type="button"
           class="primary-card group"
+          data-test="dashboard-primary-purchase"
           style="--card-from: #fef3c7; --card-to: #ffedd5; --card-from-dark: rgba(245,158,11,0.12); --card-to-dark: rgba(234,88,12,0.12); --card-border: rgba(245,158,11,0.3); --card-border-dark: rgba(245,158,11,0.2);"
+          @click="router.push('/purchase')"
         >
           <div class="primary-card-icon bg-gradient-to-br from-amber-400 to-orange-500">
             <svg class="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -25,27 +23,30 @@
           <p class="primary-card-desc">{{ t('dashboard.topUpHint') }}</p>
         </button>
 
-        <!-- 查看教程（外部飞书教程，仅在后台配置了链接时显示） -->
         <button
-          v-if="tutorialUrl"
-          @click="openTutorial"
+          v-if="showPricing"
+          type="button"
           class="primary-card group"
-          style="--card-from: #ede9fe; --card-to: #e0e7ff; --card-from-dark: rgba(99,102,241,0.12); --card-to-dark: rgba(79,70,229,0.12); --card-border: rgba(99,102,241,0.3); --card-border-dark: rgba(99,102,241,0.2);"
+          data-test="dashboard-primary-pricing"
+          style="--card-from: #ffe4e6; --card-to: #fce7f3; --card-from-dark: rgba(244,63,94,0.12); --card-to-dark: rgba(236,72,153,0.12); --card-border: rgba(244,63,94,0.28); --card-border-dark: rgba(244,63,94,0.2);"
+          @click="router.push('/pricing')"
         >
-          <div class="primary-card-icon bg-gradient-to-br from-violet-400 to-indigo-500">
+          <div class="primary-card-icon bg-gradient-to-br from-rose-400 to-pink-500">
             <svg class="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
             </svg>
           </div>
-          <p class="primary-card-title">{{ t('dashboard.viewTutorial') }}</p>
-          <p class="primary-card-desc">{{ t('dashboard.viewTutorialHint') }}</p>
+          <p class="primary-card-title">{{ t('dashboard.viewPricing') }}</p>
+          <p class="primary-card-desc">{{ t('dashboard.viewPricingHint') }}</p>
         </button>
 
-        <!-- 获取 API Key -->
         <button
-          @click="router.push('/keys')"
+          type="button"
           class="primary-card group"
+          data-test="dashboard-primary-keys"
           style="--card-from: #dbeafe; --card-to: #e0f2fe; --card-from-dark: rgba(59,130,246,0.12); --card-to-dark: rgba(14,165,233,0.12); --card-border: rgba(59,130,246,0.3); --card-border-dark: rgba(59,130,246,0.2);"
+          @click="router.push('/keys')"
         >
           <div class="primary-card-icon bg-gradient-to-br from-blue-400 to-sky-500">
             <svg class="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -57,46 +58,54 @@
         </button>
       </div>
 
-      <button @click="router.push('/distribution')" class="agent-card group">
-        <div class="agent-card-glow"></div>
-        <div class="agent-card-content">
-          <div class="agent-card-icon">
-            <svg class="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3.5-7.5h7M5.25 5.25h13.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5z" />
-            </svg>
-          </div>
-          <div class="min-w-0 flex-1 text-left">
-            <p class="agent-card-eyebrow">{{ t('dashboard.agentEntryEyebrow') }}</p>
-            <p class="agent-card-title">{{ t('dashboard.becomeAgent') }}</p>
-            <p class="agent-card-desc">{{ t('dashboard.becomeAgentHint') }}</p>
-          </div>
-          <span class="agent-card-cta">{{ t('dashboard.becomeAgentAction') }}</span>
-        </div>
-      </button>
-
-      <!-- Row 2: Secondary actions (compact) -->
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <button @click="router.push('/usage')" class="secondary-card group">
+      <!-- Secondary: compact utilities; agent is intentionally not highlighted -->
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button type="button" class="secondary-card group" @click="router.push('/usage')">
           <div class="secondary-card-icon bg-emerald-100 dark:bg-emerald-900/30">
             <Icon name="chart" size="md" class="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span class="secondary-card-title">{{ t('dashboard.viewUsage') }}</span>
         </button>
 
-        <button @click="router.push('/redeem')" class="secondary-card group">
+        <button
+          v-if="showRedeem"
+          type="button"
+          class="secondary-card group"
+          @click="router.push('/redeem')"
+        >
           <div class="secondary-card-icon bg-amber-100 dark:bg-amber-900/30">
             <Icon name="gift" size="md" class="text-amber-600 dark:text-amber-400" />
           </div>
           <span class="secondary-card-title">{{ t('dashboard.redeemCode') }}</span>
         </button>
 
-        <button @click="router.push('/pricing')" class="secondary-card group">
-          <div class="secondary-card-icon bg-rose-100 dark:bg-rose-900/30">
-            <svg class="h-5 w-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+        <button
+          v-if="tutorialUrl"
+          type="button"
+          class="secondary-card group"
+          @click="openTutorial"
+        >
+          <div class="secondary-card-icon bg-violet-100 dark:bg-violet-900/30">
+            <svg class="h-5 w-5 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
           </div>
-          <span class="secondary-card-title">{{ t('dashboard.viewPricing') }}</span>
+          <span class="secondary-card-title">{{ t('dashboard.viewTutorial') }}</span>
+        </button>
+
+        <button
+          v-if="showAgent"
+          type="button"
+          class="secondary-card group"
+          data-test="dashboard-secondary-agent"
+          @click="router.push('/distribution')"
+        >
+          <div class="secondary-card-icon bg-teal-100 dark:bg-teal-900/30">
+            <svg class="h-5 w-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+            </svg>
+          </div>
+          <span class="secondary-card-title">{{ t('dashboard.becomeAgent') }}</span>
         </button>
       </div>
 
@@ -113,22 +122,26 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import Icon from '@/components/icons/Icon.vue'
+
 const router = useRouter()
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
-const showTopUp = computed(() => appStore.cachedPublicSettings?.payment_enabled && !authStore.isSimpleMode)
-// External (Feishu) tutorial link; the tutorial card shows only when an admin has configured it.
+
+const showTopUp = computed(() => !!appStore.cachedPublicSettings?.payment_enabled && !authStore.isSimpleMode)
+const showPricing = computed(() => !authStore.isSimpleMode)
+const showRedeem = computed(() => !authStore.isSimpleMode)
+const showAgent = computed(() => !authStore.isSimpleMode)
 const tutorialUrl = computed(() => appStore.tutorialUrl || appStore.cachedPublicSettings?.tutorial_url || '')
-/** Visible primary cards: top-up (optional) + tutorial (optional) + API key (always). */
+
 const primaryCardCount = computed(() => {
-  let n = 1 // getApiKey always present
+  let n = 1 // API access always
   if (showTopUp.value) n += 1
-  if (tutorialUrl.value) n += 1
+  if (showPricing.value) n += 1
   return n
 })
+
 const primaryGridClass = computed(() => {
-  // 1 card: single column full width; 2: half/half; 3: classic three-up.
   switch (primaryCardCount.value) {
     case 1:
       return 'grid grid-cols-1 gap-3'
@@ -138,164 +151,13 @@ const primaryGridClass = computed(() => {
       return 'grid grid-cols-1 gap-3 sm:grid-cols-3'
   }
 })
+
 const openTutorial = () => {
   if (tutorialUrl.value) window.open(tutorialUrl.value, '_blank', 'noopener,noreferrer')
 }
 </script>
 
 <style scoped>
-.agent-card {
-  position: relative;
-  isolation: isolate;
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(20, 184, 166, 0.28);
-  background:
-    radial-gradient(circle at 14% 20%, rgba(251, 191, 36, 0.26), transparent 30%),
-    linear-gradient(135deg, #ecfdf5 0%, #fef3c7 52%, #e0f2fe 100%);
-  padding: 1px;
-  cursor: pointer;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
-  box-shadow: 0 14px 34px rgba(20, 184, 166, 0.13);
-}
-
-.agent-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(245, 158, 11, 0.5);
-  box-shadow: 0 18px 42px rgba(245, 158, 11, 0.18);
-}
-
-.agent-card-glow {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.82) 45%, transparent 70%);
-  transform: translateX(-120%);
-  animation: agent-card-sheen 4s ease-in-out infinite;
-}
-
-.agent-card-content {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-height: 6rem;
-  border-radius: calc(1rem - 1px);
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.58);
-}
-
-.agent-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  flex-shrink: 0;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #f59e0b, #14b8a6);
-  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.22);
-  transition: transform 0.2s ease;
-}
-
-.agent-card:hover .agent-card-icon {
-  transform: scale(1.06) rotate(-2deg);
-}
-
-.agent-card-eyebrow {
-  margin: 0 0 0.25rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #0f766e;
-}
-
-.agent-card-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #111827;
-}
-
-.agent-card-desc {
-  margin: 0.25rem 0 0;
-  max-width: 42rem;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: #4b5563;
-}
-
-.agent-card-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: max-content;
-  border-radius: 9999px;
-  padding: 0.5rem 0.875rem;
-  background: #111827;
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.14);
-}
-
-:root.dark .agent-card {
-  border-color: rgba(20, 184, 166, 0.26);
-  background:
-    radial-gradient(circle at 14% 20%, rgba(245, 158, 11, 0.2), transparent 30%),
-    linear-gradient(135deg, rgba(6, 78, 59, 0.64), rgba(120, 53, 15, 0.44), rgba(30, 64, 175, 0.36));
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
-}
-
-:root.dark .agent-card-content {
-  background: rgba(17, 24, 39, 0.66);
-}
-
-:root.dark .agent-card-eyebrow {
-  color: #5eead4;
-}
-
-:root.dark .agent-card-title {
-  color: #f9fafb;
-}
-
-:root.dark .agent-card-desc {
-  color: #d1d5db;
-}
-
-:root.dark .agent-card-cta {
-  background: rgba(255, 255, 255, 0.92);
-  color: #111827;
-}
-
-@media (max-width: 640px) {
-  .agent-card-content {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .agent-card-cta {
-    width: 100%;
-  }
-}
-
-@keyframes agent-card-sheen {
-  0%,
-  56% {
-    transform: translateX(-120%);
-  }
-  82%,
-  100% {
-    transform: translateX(120%);
-  }
-}
-
-/* Row 1: Primary large cards */
 .primary-card {
   display: flex;
   flex-direction: column;
@@ -356,7 +218,6 @@ const openTutorial = () => {
   color: #9ca3af;
 }
 
-/* Row 2: Secondary compact cards */
 .secondary-card {
   display: flex;
   align-items: center;

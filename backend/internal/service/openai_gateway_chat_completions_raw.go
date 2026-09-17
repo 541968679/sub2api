@@ -306,7 +306,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
 	stageClk := getOpenAIStreamStageClock(c)
-	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(account).FirstUsefulFrameDuration())
+	firstFrameTimer, firstFrameCh := beginOpenAIWaitTimer(s.openAIWaitTimeoutSettingsForAccount(ginRequestContext(c), account).FirstUsefulFrameDuration())
 	defer stopOpenAIWaitTimer(firstFrameTimer)
 	firstFrameStartedAt := time.Now()
 	usefulFrameSeen := false

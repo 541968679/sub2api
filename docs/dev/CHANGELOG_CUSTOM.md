@@ -1,3 +1,113 @@
+## 2026-09-16 - merge: main 0.1.288 into isolation sync/main-1
+
+### What
+- Fold occupied main 9a33fc1eb (user-level OpenAI wait timeout + 0.1.288) into sync/main-1.
+- Remap main SQL 221_user_openai_wait_timeout.sql to **250** because isolation already uses 221 for subscription_plan_currency. Forbidden dual-meaning 221 avoided.
+- VERSION becomes **0.1.288**. Overlay A-tier features stay.
+
+### Why
+Catch isolation up to current main before switching the product line.
+
+### Affected files
+ackend/migrations/250_user_openai_wait_timeout.sql, wait-timeout / smart-schedule overlay from main, this changelog.
+
+## 2026-09-15 - deploy: production v0.1.288
+
+### What
+- Released and deployed `v0.1.288` (`64aaecfcc`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.288`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:19e56249271d21dc7fb71f11dc84a8c946cbe96daa37eb5b52b521247f7083ed`. Rollback is `v0.1.287` digest `sha256:4b1ba478682aed55b29d4356875193ea4156843cac2d5ad508b53e41e3004a52`.
+
+### Why
+Ship user-level OpenAI header/first-useful-frame wait timeout on smart schedule, plus billing-rules/API-access nav and formula pricing copy.
+
+## 2026-09-15 - release: 0.1.288 user-level OpenAI wait timeout + billing nav
+
+### What
+- Ship user-level OpenAI header-wait / first-useful-frame timeout on the smart-schedule parameter panel as `v0.1.288`.
+- Also ships the user pricing-page formula billing copy and the billing-rules / API-access nav reorder.
+
+### Why
+Admins can override wait-timeout per user without changing the site-wide 90s/30s default; user-facing billing paths are easier to find.
+
+## 2026-09-15 - feat(schedule): user-level OpenAI header/first-frame wait timeout
+
+### What
+- Add nullable `users.openai_header_wait_seconds` and `users.openai_first_useful_frame_seconds` (empty/NULL inherits site settings; `0` disables that gate; a positive number overrides this user).
+- Smart-schedule parameter panel shows the same pair on every platform tab; save goes through the existing PUT.
+- Hot path merges the user override from the smart-schedule Redis bundle onto site `openai_wait_timeout_settings`. Grok stays skipped.
+- Copy-from-user copies these seconds only with the existing「质量门槛和冷却」slice (still default unchecked). Copy-from-platform does not change them.
+
+### Why
+Let admins tune OpenAI header-wait / first-useful-frame timeout per user without changing the site-wide default.
+
+### Verification
+- Backend unit tests: merge/override/Grok, Put omit/null/0/invalid, CopyFromUser thresholds on/off, CopyPlatform unchanged
+- Frontend Vitest: editor load/save/tab, UserSmartScheduleView fields, copy dialog thresholds default false
+
+### Affected files
+`backend/migrations/250_user_openai_wait_timeout.sql`,
+`backend/ent/schema/user.go`,
+`backend/internal/service/openai_wait_timeout.go`,
+`backend/internal/service/user_smart_schedule.go`,
+`backend/internal/service/user_smart_schedule_service.go`,
+`backend/internal/service/user_smart_schedule_copy_from.go`,
+`backend/internal/repository/user_smart_schedule_repo.go`,
+`backend/internal/repository/user_smart_schedule_cache.go`,
+`backend/internal/handler/admin/user_smart_schedule.go`,
+`frontend/src/composables/useUserSmartScheduleEditor.ts`,
+`frontend/src/views/admin/UserSmartScheduleView.vue`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+this changelog.
+
+## 2026-09-14 - feat(frontend): nav focus on billing rules and API access
+
+### What
+- Rename user nav/page titles: 模型定价→计费规则, API密钥→API接入 (zh/en).
+- Sidebar order prioritizes 充值/订阅, 计费规则, API接入; demote 成为代理 and remove HOT/agent highlight styles.
+- Dashboard quick actions: three primary cards (purchase / billing rules / API access); agent moved to secondary compact row.
+
+### Why
+Make recharge, billing rules, and API access the obvious user paths; stop over-emphasizing affiliate/agent entry.
+
+### Verification
+- Vitest: UserDashboardQuickActions + PricingView
+- Browser check on /dashboard sidebar + quick actions
+
+### Affected files
+`frontend/src/components/layout/AppSidebar.vue`,
+`frontend/src/components/user/dashboard/UserDashboardQuickActions.vue`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+`frontend/src/router/index.ts`,
+this changelog.
+
+## 2026-09-14 - feat(frontend): pricing page dual tables (model prices + group rates)
+
+### What
+- User `/pricing` layout: one top「计费说明」block (intro + education Markdown), then left **模型价格** + right **分组倍率** (UI copy avoids「展示」wording).
+- Left card uses platform tabs over curated `show_on_pricing_page` prices (empty state when none).
+- Right card loads `GET /groups/available` and shows name / platform / `rate_multiplier` as 倍率 (no personal `/groups/rates` overlay).
+- zh/en i18n + Vitest coverage for tabs / groups error isolation / empty groups.
+
+### Why
+Make display unit prices and group display rates immediately readable on one page instead of stacked long markdown + model-only table.
+
+### Verification
+- `pnpm --dir frontend` Vitest: `PricingView.spec.ts` 3/3 pass
+- Playwright against `http://127.0.0.1:15174/pricing` (admin login): billing + dual tables + 3 group rows; local curated models empty so no platform tabs
+- Dev Control `ensure`: `api2sub` backend+frontend serving from this checkout
+
+### Affected files
+`frontend/src/views/user/PricingView.vue`,
+`frontend/src/views/user/__tests__/PricingView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/tasks/09-14-user-pricing-dual-tables/*`,
+this changelog.
+
+### Follow-up
+- Default billing copy rewritten to the formula explanation (百万 token 单价 × token 数量 × 分组倍率 × 1 人民币/1 美元); education default cleared; group-rate footer hint removed.
+
 ## 2026-09-13 - fix: create-account platform picker wraps to two rows
 
 ### What

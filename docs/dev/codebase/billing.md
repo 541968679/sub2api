@@ -300,7 +300,7 @@ Settings（代码默认 0/关；推荐运营值只写文档）:
 | 使用记录 — tooltip 倍率 | `rate_multiplier` | 后端 DTO（经过两层展示变换） |
 | 使用记录 — CSV 导出 | `rate_multiplier` | 同上 |
 | 可用渠道页 — 分组徽章 | `userRateMultiplier` | 同上 user_group_rate |
-| 模型计价页 | 不显示倍率 | 只展示单价（直传，不涉及倍率） |
+| 模型计价页 | 右侧分组表展示 `groups.rate_multiplier`（UI 文案为「分组倍率」） | 左表为模型单价（直传）；右表用 `/groups/available`，不叠用户专属 `/groups/rates` |
 
 ## 重要机制
 

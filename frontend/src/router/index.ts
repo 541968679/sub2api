@@ -179,7 +179,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'API Keys',
+      title: 'API Access',
       titleKey: 'keys.title',
       descriptionKey: 'keys.description'
     }
@@ -216,7 +216,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Model Pricing',
+      title: 'Billing Rules',
       titleKey: 'pricing.title',
       descriptionKey: 'pricing.description'
     }
