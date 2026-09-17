@@ -1,3 +1,12 @@
+## 2026-09-17 - deploy: production v0.1.289
+
+### What
+- Released and deployed `v0.1.289` (`5e8c99832`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.289`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:470ae539f97c014b4532c3fe02ccf6b6dca2495a1ce0e95ce1df0ad451827368`. Rollback is `v0.1.288` digest `sha256:19e56249271d21dc7fb71f11dc84a8c946cbe96daa37eb5b52b521247f7083ed`.
+
+### Why
+Ship isolation 0.2.4 A-tier overlay onto the product line with a new version number (not reusing deployed 0.1.288).
+
 ## 2026-09-17 - fix: frontend typecheck for CN platforms and plaza
 
 ### What
