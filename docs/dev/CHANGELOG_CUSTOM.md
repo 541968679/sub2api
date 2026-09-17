@@ -1,3 +1,19 @@
+## 2026-09-17 - ops: raise production prices that were below CN list
+
+### What
+- Under 中转 1 CNY = 1 USD: raised only rows below official CN list. Did not lower any row already above list.
+- MiniMax-M2.7 cache write 0.375 → 2.625 (CN 元刊例). MiniMax-M3 write left at 0.375 (国内 M3 无写价栏).
+- Z02 `deepseek-flash` / `deepseek-v4.1-flash` / `deepseek-v4.1-flash-expires-on-0910` 2/8/0.04 → 3/9/0.10 (国内高峰刊例，与 Z01 Flash 一致).
+- Left unchanged: GLM-5.3 出 30 (>28), GLM-5.3-flash 1/3 (>0.8/2.8), mimo-v2.5-pro 3.10/6.10 (>3/6).
+- Recreated `sub2api` to reload pricing cache. Still `v0.1.290`.
+
+### Why
+User: 低于国内的改到和国内一致，高于国内的就不改了.
+
+### Affected files
+production `global_model_pricing`,
+this changelog.
+
 ## 2026-09-17 - ops: production Z01/Z02 model billing+display prices
 
 ### What
