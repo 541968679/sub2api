@@ -1,3 +1,31 @@
+## 2026-09-17 - ops: production Z01/Z02 model billing+display prices
+
+### What
+- Wrote 22 Boluomi snapshot models into production `global_model_pricing` (billing and display both = 基础 USD/MTok, including cache read/write and qwen 1h write).
+- Set group `国产模型` (`id=46`) `rate_multiplier` from `0.30` to `0.10` so 实付 = 基础 × 0.10 matches Z01.
+- Recreated `sub2api` to reload the in-memory pricing cache. Live remains `v0.1.290`, `/health` ok.
+
+### Why
+Match the 2026-09-14 菠萝蜜 Z01/Z02 价目. Z02’s 0.20x still needs a separate group; those four models currently share 国产模型 0.10x.
+
+### Affected files
+production `global_model_pricing` + `groups.id=46` (no image bump),
+this changelog.
+
+## 2026-09-17 - fix: CCS import picker states default-only scope
+
+### What
+- The CCS Codex import dialog now says the chosen ID is only the post-import default model; every other model in the list can still be requested.
+
+### Why
+Users could read the picker as locking the key to one model.
+
+### Affected files
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-17 - deploy: production v0.1.290
 
 ### What
