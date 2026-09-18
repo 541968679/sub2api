@@ -1,3 +1,20 @@
+## 2026-09-18 - copy: CCS import picker title and provider name
+
+### What
+- CCS Codex import dialog title is now “选择导入的默认模型” / “Choose the default import model”.
+- CCS import provider name is `{site_name}-{key name}` (e.g. `ZeroCode-Claude生产`) instead of a fixed site name.
+
+### Why
+The previous title read as picking the only importable model. Multiple keys from the same site all imported as “ZeroCode”, which is hard to tell apart in CC-Switch.
+
+### Affected files
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`frontend/src/views/user/KeysView.vue`,
+this changelog.
+
 ## 2026-09-17 - ops: raise production prices that were below CN list
 
 ### What

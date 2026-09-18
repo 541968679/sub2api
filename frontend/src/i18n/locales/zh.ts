@@ -963,9 +963,10 @@ const zhBase = {
       codexDesc: '导入为 Codex 配置（OpenAI 协议接入）'
     },
     ccsModelPicker: {
-      title: '选择导入模型',
-      description: '写入 CCS Codex 的 model。列表是该分组下所有账号上游 GET /v1/models 的并集，可输入筛选或填写其他 ID。',
-      modelLabel: '模型',
+      title: '选择导入的默认模型',
+      description: '列表来自该分组下所有账号上游 GET /v1/models 的并集，可输入筛选或填写其他 ID。',
+      scopeHint: '这里只决定导入 CCS 后的默认模型。列表中的其它模型仍可正常请求，不会被这次选择限制。',
+      modelLabel: '默认模型',
       searchPlaceholder: '输入筛选或自定义模型 ID',
       loading: '正在拉取分组账号的上游 /v1/models…',
       loadFailed: '部分或全部账号的上游 /v1/models 未能加载，仍可输入或使用分组默认模型导入。',

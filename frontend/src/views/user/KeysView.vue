@@ -1039,6 +1039,9 @@
         <p class="text-sm text-gray-600 dark:text-gray-400">
           {{ t('keys.ccsModelPicker.description') }}
         </p>
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+          {{ t('keys.ccsModelPicker.scopeHint') }}
+        </p>
         <div>
           <label class="input-label">{{ t('keys.ccsModelPicker.modelLabel') }}</label>
           <input
@@ -1202,6 +1205,7 @@ import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
+  buildCcSwitchProviderName,
   launchCcSwitchImportDeeplink,
   filterCcsImportModelIDs,
   shouldShowCcsCodexModelPicker,
@@ -2027,7 +2031,7 @@ const executeCcsImport = (
       };
     }
   })`
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = buildCcSwitchProviderName(publicSettings.value?.site_name, row.name)
   const pickedModel = selectedCodexModel?.trim()
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,

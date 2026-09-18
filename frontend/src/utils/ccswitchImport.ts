@@ -101,6 +101,22 @@ export function resolveCcSwitchImportConfig(
   }
 }
 
+/**
+ * CCS provider display name: `{site}-{key}` so multiple keys from the same
+ * site stay distinguishable. Falls back to the site name when the key is unnamed.
+ */
+export function buildCcSwitchProviderName(
+  siteName: string | undefined | null,
+  keyName: string | undefined | null
+): string {
+  const site = (siteName || 'sub2api').trim() || 'sub2api'
+  const key = (keyName || '').trim()
+  if (!key) {
+    return site
+  }
+  return `${site}-${key}`
+}
+
 export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput): string {
   const config = resolveCcSwitchImportConfig(
     input.platform,

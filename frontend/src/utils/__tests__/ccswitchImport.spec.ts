@@ -4,6 +4,7 @@ import {
   CCS_IMPORT_PRESET_GPT,
   GROK_CC_SWITCH_CODEX_MODEL,
   buildCcSwitchImportDeeplink,
+  buildCcSwitchProviderName,
   launchCcSwitchImportDeeplink,
   mergeCcsImportModelOptions,
   parseGatewayModelsList,
@@ -62,6 +63,26 @@ describe('ccswitchImport utils', () => {
     expect(params.get('model')).toBe(GROK_CC_SWITCH_CODEX_MODEL)
     expect(params.get('model')).not.toBe('claude-sonnet-4-5')
     expect(atob(params.get('usageScript') || '')).toBe(baseInput.usageScript)
+  })
+
+  it('builds CCS provider names as site-key so keys stay distinguishable', () => {
+    expect(buildCcSwitchProviderName('ZeroCode', 'Claude生产')).toBe('ZeroCode-Claude生产')
+    expect(buildCcSwitchProviderName('  ZeroCode  ', '  Codex 日常  ')).toBe('ZeroCode-Codex 日常')
+    expect(buildCcSwitchProviderName('', 'my-key')).toBe('sub2api-my-key')
+    expect(buildCcSwitchProviderName('ZeroCode', '   ')).toBe('ZeroCode')
+    expect(buildCcSwitchProviderName(undefined, undefined)).toBe('sub2api')
+  })
+
+  it('writes the provider name into the CCS deeplink name param', () => {
+    const params = paramsFromDeeplink(
+      buildCcSwitchImportDeeplink({
+        ...baseInput,
+        platform: 'openai',
+        clientType: 'codex',
+        providerName: buildCcSwitchProviderName('ZeroCode', 'Claude生产')
+      })
+    )
+    expect(params.get('name')).toBe('ZeroCode-Claude生产')
   })
 
   it('exposes CCS import presets gpt-6-astra and glm-5.3', () => {

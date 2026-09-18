@@ -962,9 +962,10 @@ const enBase = {
       codexDesc: 'Import as Codex configuration (OpenAI protocol)',
     },
     ccsModelPicker: {
-      title: 'Choose import model',
-      description: 'Written to the CCS Codex model field. Options are the union of upstream GET /v1/models from every account in this group. Type to filter or enter another ID.',
-      modelLabel: 'Model',
+      title: 'Choose the default import model',
+      description: 'Options are the union of upstream GET /v1/models from every account in this group. Type to filter or enter another ID.',
+      scopeHint: 'This only sets the default model after CCS import. Every other model in this list can still be requested; the selection does not restrict the key.',
+      modelLabel: 'Default model',
       searchPlaceholder: 'Type to filter or enter a model ID',
       loading: 'Fetching upstream /v1/models from group accounts…',
       loadFailed: 'Could not load some account /v1/models lists. You can still type an ID or import the group default.',
