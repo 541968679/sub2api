@@ -1,3 +1,21 @@
+## 2026-09-18 - ui: split domestic models on billing rules and add price search
+
+### What
+- User `/pricing` (计费规则) now splits GLM / Kimi / DeepSeek / Qwen / MiniMax and other CN coding IDs out of the OpenAI table into a sibling **国产 / Domestic** tab.
+- Added a model-price search box: filter by model name or displayed unit price (USD / CNY). Searching jumps to the first tab that has matches.
+
+### Why
+Domestic models were stored as `provider=openai`, so they mixed with GPT on the billing-rules page.
+
+### Affected files
+`frontend/src/utils/pricingPageModels.ts`,
+`frontend/src/utils/__tests__/pricingPageModels.spec.ts`,
+`frontend/src/views/user/PricingView.vue`,
+`frontend/src/views/user/__tests__/PricingView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-18 - deploy: production v0.1.291
 
 ### What

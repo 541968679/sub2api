@@ -1046,6 +1046,11 @@ const enBase = {
     groupTableTitle: 'Group Rates',
     platformTabsLabel: 'Platform',
     modelsSuffix: 'models',
+    searchPlaceholder: 'Search model name or price',
+    searchEmpty: 'No matching models',
+    tabs: {
+      domestic: 'Domestic'
+    },
     cnyBanner: '1 USD = ¥{rate}',
     unitHint: '1 MTok = one million tokens. ¥ is shown at the current rate when configured; the $ value in parentheses is the underlying USD price.',
     perRequestUnit: 'request',

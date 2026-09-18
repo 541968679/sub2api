@@ -43,18 +43,25 @@
               <span>{{ t('pricing.cnyBanner', { rate: cnyRate.toFixed(2) }) }}</span>
             </div>
 
-            <div v-if="!data.platforms.length" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div v-if="!displayPlatforms.length" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
               {{ t('pricing.emptyState') }}
             </div>
 
             <template v-else>
+              <div class="mb-4 w-full sm:max-w-sm" data-test="pricing-model-search">
+                <SearchInput
+                  v-model="modelSearch"
+                  :placeholder="t('pricing.searchPlaceholder')"
+                />
+              </div>
+
               <div
                 role="tablist"
                 class="mb-4 flex flex-wrap gap-1 border-b border-gray-200 dark:border-dark-700"
                 :aria-label="t('pricing.platformTabsLabel')"
               >
                 <button
-                  v-for="platform in data.platforms"
+                  v-for="platform in displayPlatforms"
                   :key="platform.provider"
                   type="button"
                   role="tab"
@@ -66,15 +73,17 @@
                   :data-test="'pricing-platform-tab-' + platform.provider"
                   @click="selectedProvider = platform.provider"
                 >
-                  <span class="uppercase tracking-wide">{{ platform.provider }}</span>
+                  <span :class="platform.provider === DOMESTIC_PRICING_TAB ? 'tracking-wide' : 'uppercase tracking-wide'">
+                    {{ platformTabLabel(platform.provider) }}
+                  </span>
                   <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
-                    {{ platform.models.length }}
+                    {{ filteredCount(platform) }}
                   </span>
                 </button>
               </div>
 
               <div
-                v-if="selectedPlatform"
+                v-if="selectedPlatform && visibleModels.length"
                 class="min-w-0 overflow-x-auto rounded-lg border border-gray-200 dark:border-dark-700"
               >
                 <table class="w-full border-collapse text-sm">
@@ -89,7 +98,7 @@
                   </thead>
                   <tbody>
                     <tr
-                      v-for="model in selectedPlatform.models"
+                      v-for="model in visibleModels"
                       :key="model.model"
                       class="border-t border-gray-200 dark:border-dark-700"
                     >
@@ -141,6 +150,14 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div
+                v-else
+                class="py-10 text-center text-sm text-gray-500 dark:text-gray-400"
+                data-test="pricing-search-empty"
+              >
+                {{ modelSearch.trim() ? t('pricing.searchEmpty') : t('pricing.emptyState') }}
               </div>
 
               <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -224,10 +241,16 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { pricingPageAPI, type PricingPageData, type PricingPagePlatform } from '@/api/pricingPage'
+import SearchInput from '@/components/common/SearchInput.vue'
+import { pricingPageAPI, type PricingPageData, type PricingPageModel, type PricingPagePlatform } from '@/api/pricingPage'
 import { userGroupsAPI } from '@/api/groups'
 import type { Group } from '@/types'
 import { useAppStore } from '@/stores'
+import {
+  DOMESTIC_PRICING_TAB,
+  filterPricingModels,
+  splitDomesticPricingPlatforms
+} from '@/utils/pricingPageModels'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -240,6 +263,7 @@ const loading = ref(true)
 const data = ref<PricingPageData | null>(null)
 const errorMessage = ref('')
 const selectedProvider = ref('')
+const modelSearch = ref('')
 
 const groups = ref<Group[]>([])
 const groupsLoading = ref(false)
@@ -249,15 +273,24 @@ marked.setOptions({ breaks: true, gfm: true })
 
 const renderedIntro = computed(() => renderMarkdown(data.value?.intro ?? ''))
 
+const displayPlatforms = computed<PricingPagePlatform[]>(() =>
+  splitDomesticPricingPlatforms(data.value?.platforms ?? [])
+)
+
 const selectedPlatform = computed<PricingPagePlatform | null>(() => {
-  if (!data.value?.platforms.length) return null
-  return data.value.platforms.find((p) => p.provider === selectedProvider.value) ?? data.value.platforms[0] ?? null
+  if (!displayPlatforms.value.length) return null
+  return displayPlatforms.value.find((p) => p.provider === selectedProvider.value) ?? displayPlatforms.value[0] ?? null
+})
+
+const visibleModels = computed<PricingPageModel[]>(() => {
+  if (!selectedPlatform.value) return []
+  return filterPricingModels(selectedPlatform.value.models, modelSearch.value, cnyRate.value)
 })
 
 watch(
-  () => data.value?.platforms,
+  displayPlatforms,
   (platforms) => {
-    if (!platforms?.length) {
+    if (!platforms.length) {
       selectedProvider.value = ''
       return
     }
@@ -267,6 +300,25 @@ watch(
   },
   { immediate: true }
 )
+
+watch(modelSearch, () => {
+  if (!normalizeHasQuery() || visibleModels.value.length > 0) return
+  const firstHit = displayPlatforms.value.find((platform) => filteredCount(platform) > 0)
+  if (firstHit) selectedProvider.value = firstHit.provider
+})
+
+function normalizeHasQuery(): boolean {
+  return modelSearch.value.trim().length > 0
+}
+
+function filteredCount(platform: PricingPagePlatform): number {
+  return filterPricingModels(platform.models, modelSearch.value, cnyRate.value).length
+}
+
+function platformTabLabel(provider: string): string {
+  if (provider === DOMESTIC_PRICING_TAB) return t('pricing.tabs.domestic')
+  return provider
+}
 
 function renderMarkdown(text: string): string {
   if (!text) return ''

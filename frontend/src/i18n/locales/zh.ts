@@ -9606,6 +9606,11 @@ const v117ZhPatch = {
     groupTableTitle: '分组倍率',
     platformTabsLabel: '平台',
     modelsSuffix: '个模型',
+    searchPlaceholder: '搜索模型名称或价格',
+    searchEmpty: '没有匹配的模型',
+    tabs: {
+      domestic: '国产'
+    },
     emptyState: '暂无可展示的模型',
     groupsEmpty: '暂无可用分组',
     groupsLoadFailed: '分组倍率加载失败',

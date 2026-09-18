@@ -32,6 +32,27 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
   })
 }))
 
+vi.mock('@/components/common/SearchInput.vue', () => ({
+  default: defineComponent({
+    name: 'SearchInput',
+    props: {
+      modelValue: { type: String, default: '' },
+      placeholder: { type: String, default: '' }
+    },
+    emits: ['update:modelValue', 'search'],
+    setup(props, { emit }) {
+      return () =>
+        h('input', {
+          'data-test': 'pricing-model-search-input',
+          value: props.modelValue,
+          placeholder: props.placeholder,
+          onInput: (event: Event) =>
+            emit('update:modelValue', (event.target as HTMLInputElement).value)
+        })
+    }
+  })
+}))
+
 vi.mock('@/api/pricingPage', () => ({
   pricingPageAPI: {
     getUserPricingPage
@@ -83,6 +104,14 @@ const pricingFixture = {
           display_input_price: 0.000001,
           display_output_price: 0.000002,
           display_cache_read_price: null,
+          per_request_price: null
+        },
+        {
+          model: 'glm-5.3',
+          billing_mode: 'per_token',
+          display_input_price: 0.000002,
+          display_output_price: 0.00003,
+          display_cache_read_price: 0.0000004,
           per_request_price: null
         }
       ]
@@ -154,6 +183,13 @@ describe('PricingView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('gpt-5')
     expect(wrapper.text()).not.toContain('claude-sonnet-4')
+    expect(wrapper.text()).not.toContain('glm-5.3')
+
+    expect(wrapper.find('[data-test="pricing-platform-tab-domestic"]').exists()).toBe(true)
+    await wrapper.get('[data-test="pricing-platform-tab-domestic"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('glm-5.3')
+    expect(wrapper.text()).not.toContain('gpt-5')
 
     expect(wrapper.find('[data-test="pricing-group-row-11"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Claude Standard')
@@ -180,5 +216,40 @@ describe('PricingView', () => {
 
     expect(wrapper.find('[data-test="pricing-groups-empty"]').exists()).toBe(true)
     expect(getAvailable).toHaveBeenCalledTimes(1)
+  })
+
+  it('searches model names and jumps to the matching tab', async () => {
+    const wrapper = mount(PricingView)
+    await flushPromises()
+
+    await wrapper.get('[data-test="pricing-model-search-input"]').setValue('glm-5.3')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('glm-5.3')
+    expect(wrapper.text()).not.toContain('gpt-5')
+    expect(wrapper.text()).not.toContain('claude-sonnet-4')
+    expect(wrapper.get('[data-test="pricing-platform-tab-domestic"]').attributes('aria-selected')).toBe('true')
+  })
+
+  it('searches displayed unit prices', async () => {
+    const wrapper = mount(PricingView)
+    await flushPromises()
+
+    await wrapper.get('[data-test="pricing-model-search-input"]').setValue('30.00')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('glm-5.3')
+    expect(wrapper.text()).not.toContain('gpt-5')
+  })
+
+  it('shows search empty state when nothing matches', async () => {
+    const wrapper = mount(PricingView)
+    await flushPromises()
+
+    await wrapper.get('[data-test="pricing-model-search-input"]').setValue('no-such-model')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="pricing-search-empty"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('pricing.searchEmpty')
   })
 })
