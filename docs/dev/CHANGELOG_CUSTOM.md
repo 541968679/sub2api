@@ -1,3 +1,16 @@
+## 2026-09-18 - deploy: production v0.1.291
+
+### What
+- Released and deployed `v0.1.291` (`a28185883`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.291`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:5a5f77ed251a35c09359eed0a5ab4b2c335e84dd64592fa0ae3261abf3ffb431`. Rollback is `v0.1.290` digest `sha256:eafa1f502aa96e33804f44fceda9f780c5f14f6f2c73afefc24e2b3b1bb874e6`.
+
+### Why
+Ship the CCS import default-model picker copy and `{site}-{key}` provider names.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-18 - copy: CCS import picker title and provider name
 
 ### What
