@@ -1,3 +1,17 @@
+## 2026-09-18 - deploy: production v0.1.292
+
+### What
+- Released and deployed `v0.1.292` (`8a88a1713`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.292`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:73ac3d1efee40c4c2a5788911b19e54e18fef72f1bd8ffe8946c93ea7e783473`. Rollback is `v0.1.291` digest `sha256:5a5f77ed251a35c09359eed0a5ab4b2c335e84dd64592fa0ae3261abf3ffb431`.
+- Public settings still report `model_plaza_enabled: false` after recreate.
+
+### Why
+Ship the billing-rules domestic tab and model-price search.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-18 - ui: split domestic models on billing rules and add price search
 
 ### What
