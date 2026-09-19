@@ -1,3 +1,16 @@
+## 2026-09-19 - deploy: production v0.1.293
+
+### What
+- Released and deployed `v0.1.293` (`46081c9a8`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.293`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:cf4eb51585f4eaae88281f5063cd9b0f35b6153990b93737c85ffd159efc2f57`. Rollback is `v0.1.292` digest `sha256:73ac3d1efee40c4c2a5788911b19e54e18fef72f1bd8ffe8946c93ea7e783473`.
+
+### Why
+Ship picker-group actual `/v1/models` listing.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-19 - feat: picker groups return actual models on GET /v1/models
 
 ### What
