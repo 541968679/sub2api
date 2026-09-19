@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +14,118 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+var errPickerUpstream = errors.New("upstream 502")
+
+type pickerAccountRepoStub struct {
+	service.AccountRepository
+	accounts []service.Account
+}
+
+func (s *pickerAccountRepoStub) ListByGroup(_ context.Context, _ int64) ([]service.Account, error) {
+	return append([]service.Account(nil), s.accounts...), nil
+}
+
+type pickerFetcherStub struct {
+	byID map[int64][]string
+	err  map[int64]error
+}
+
+func (s pickerFetcherStub) FetchUpstreamSupportedModels(_ context.Context, account *service.Account) ([]string, error) {
+	if account == nil {
+		return nil, errors.New("nil account")
+	}
+	if s.err != nil {
+		if err, ok := s.err[account.ID]; ok {
+			return nil, err
+		}
+	}
+	if s.byID == nil {
+		return nil, nil
+	}
+	return append([]string(nil), s.byID[account.ID]...), nil
+}
+
+func TestGatewayHandlerModels_PickerEnabledReturnsUpstreamUnionNotGPTSeed(t *testing.T) {
+	groupID := int64(46)
+	svc := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.SetAccountRepo(&pickerAccountRepoStub{
+		accounts: []service.Account{
+			{ID: 10, Platform: service.PlatformOpenAI},
+			{ID: 11, Platform: service.PlatformOpenAI},
+		},
+	})
+	svc.SetUpstreamModelsFetcher(pickerFetcherStub{
+		byID: map[int64][]string{
+			10: {"kimi-k2.5", "glm-5.3"},
+			11: {"MiniMax-M2.5"},
+		},
+	})
+
+	apiKey := &service.APIKey{
+		ID:      1,
+		UserID:  9,
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:                          groupID,
+			Platform:                    service.PlatformOpenAI,
+			CcsImportModelPickerEnabled: true,
+			CcsImportDefaultModel:       "glm-5.3",
+		},
+	}
+
+	ids := runGatewayModelsForTestWithService(t, apiKey, svc)
+	require.Equal(t, []string{"glm-5.3", "kimi-k2.5", "MiniMax-M2.5"}, ids)
+	require.NotEqual(t, service.OpenAIDisplaySeed(), ids)
+}
+
+func TestGatewayHandlerModels_PickerEnabledSkipsFailedAccountAndKeepsDefault(t *testing.T) {
+	groupID := int64(46)
+	svc := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.SetAccountRepo(&pickerAccountRepoStub{
+		accounts: []service.Account{
+			{ID: 10, Platform: service.PlatformOpenAI},
+			{ID: 11, Platform: service.PlatformOpenAI},
+		},
+	})
+	svc.SetUpstreamModelsFetcher(pickerFetcherStub{
+		byID: map[int64][]string{
+			10: {"glm-5.3"},
+		},
+		err: map[int64]error{
+			11: errPickerUpstream,
+		},
+	})
+
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:                          groupID,
+			Platform:                    service.PlatformOpenAI,
+			CcsImportModelPickerEnabled: true,
+			CcsImportDefaultModel:       "glm-5.3",
+		},
+	}
+
+	ids := runGatewayModelsForTestWithService(t, apiKey, svc)
+	require.Equal(t, []string{"glm-5.3"}, ids)
+}
+
+func TestGatewayHandlerModels_PickerEnabledWithoutFetcherKeepsDefaultNotGPTSeed(t *testing.T) {
+	groupID := int64(46)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:                          groupID,
+			Platform:                    service.PlatformOpenAI,
+			CcsImportModelPickerEnabled: true,
+			CcsImportDefaultModel:       "glm-5.3",
+		},
+	}
+
+	ids := runGatewayModelsForTest(t, apiKey)
+	require.Equal(t, []string{"glm-5.3"}, ids)
+}
 
 func TestGatewayHandlerModels_OpenAICuratedDiscoveryList(t *testing.T) {
 	groupID := int64(1)
@@ -175,8 +289,13 @@ func TestGatewayHandlerAntigravityModels_CuratedDiscoveryList(t *testing.T) {
 
 func runGatewayModelsForTest(t *testing.T, apiKey *service.APIKey) []string {
 	t.Helper()
+	return runGatewayModelsForTestWithService(t, apiKey, nil)
+}
 
-	entries := runGatewayModelEntriesForTest(t, apiKey)
+func runGatewayModelsForTestWithService(t *testing.T, apiKey *service.APIKey, apiKeyService *service.APIKeyService) []string {
+	t.Helper()
+
+	entries := runGatewayModelEntriesForTest(t, apiKey, apiKeyService)
 	ids := make([]string, 0, len(entries))
 	for _, model := range entries {
 		ids = append(ids, model.ID)
@@ -184,7 +303,7 @@ func runGatewayModelsForTest(t *testing.T, apiKey *service.APIKey) []string {
 	return ids
 }
 
-func runGatewayModelEntriesForTest(t *testing.T, apiKey *service.APIKey) []modelEntryForTest {
+func runGatewayModelEntriesForTest(t *testing.T, apiKey *service.APIKey, apiKeyService ...*service.APIKeyService) []modelEntryForTest {
 	t.Helper()
 
 	recorder := httptest.NewRecorder()
@@ -193,6 +312,9 @@ func runGatewayModelEntriesForTest(t *testing.T, apiKey *service.APIKey) []model
 	c.Set(string(middleware2.ContextKeyAPIKey), apiKey)
 
 	h := &GatewayHandler{}
+	if len(apiKeyService) > 0 {
+		h.apiKeyService = apiKeyService[0]
+	}
 	h.Models(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)

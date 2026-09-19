@@ -32,6 +32,7 @@ func TestShouldServeCodexModelsManifest(t *testing.T) {
 		clientVersion string
 		userAgent     string
 		originator    string
+		picker        bool
 		want          bool
 	}{
 		{name: "OpenAI Codex CLI with client_version", platform: service.PlatformOpenAI, clientVersion: "0.144.1", want: true},
@@ -62,6 +63,20 @@ func TestShouldServeCodexModelsManifest(t *testing.T) {
 			userAgent: "codex_chatgpt_desktop/1.2.3",
 			want:      false,
 		},
+		{
+			name:          "picker group skips Codex catalog even with client_version",
+			platform:      service.PlatformOpenAI,
+			clientVersion: "0.144.1",
+			picker:        true,
+			want:          false,
+		},
+		{
+			name:      "picker group skips Codex catalog even with Desktop UA",
+			platform:  service.PlatformOpenAI,
+			userAgent: "codex_chatgpt_desktop/1.2.3",
+			picker:    true,
+			want:      false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -82,7 +97,10 @@ func TestShouldServeCodexModelsManifest(t *testing.T) {
 			groupID := int64(1)
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
-				Group:   &service.Group{Platform: tt.platform},
+				Group: &service.Group{
+					Platform:                    tt.platform,
+					CcsImportModelPickerEnabled: tt.picker,
+				},
 			})
 
 			require.Equal(t, tt.want, shouldServeCodexModelsManifest(c))

@@ -1,3 +1,27 @@
+## 2026-09-19 - feat: picker groups return actual models on GET /v1/models
+
+### What
+- Groups with `ccs_import_model_picker_enabled` now serve the live upstream
+  `/v1/models` union (same IDs as CCS import picker, default model pinned) on
+  gateway `GET /v1/models`.
+- Codex User-Agent / `client_version` no longer divert those groups to the
+  official GPT catalog.
+
+### Why
+Domestic groups still listed GPT models on `/v1/models` while the import
+picker already showed glm/kimi/etc.
+
+### Affected files
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/gateway_models_list_test.go`,
+`backend/internal/server/routes/gateway.go`,
+`backend/internal/server/routes/gateway_codex_models_test.go`,
+`backend/internal/service/api_key_service.go`,
+`backend/internal/service/ccs_import_picker.go`,
+`backend/internal/service/ccs_import_picker_test.go`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-18 - deploy: production v0.1.292
 
 ### What

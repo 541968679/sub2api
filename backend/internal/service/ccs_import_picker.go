@@ -99,6 +99,12 @@ func uniqueTrimmedModelIDsSorted(ids []string) []string {
 	return out
 }
 
+// CcsImportPickerModelIDs is the GET /v1/models source for groups with
+// ccs_import_model_picker_enabled: live upstream union, default model pinned first.
+func CcsImportPickerModelIDs(ctx context.Context, fetcher UpstreamModelsFetcher, accounts []Account, defaultModel string) []string {
+	return mergeCcsImportPickerOptions(defaultModel, CollectGroupAccountUpstreamModelIDs(ctx, fetcher, accounts))
+}
+
 func mergeCcsImportPickerOptions(defaultModel string, ids []string) []string {
 	seen := make(map[string]struct{})
 	out := make([]string, 0, len(ids)+1)

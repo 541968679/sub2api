@@ -62,6 +62,12 @@ button, in parallel, then pins `ccs_import_default_model` first. Shadow
 accounts are skipped. A failed account does not drop the others. This is not
 `model_mapping`, not the group custom catalog, and not OpenAIDisplaySeed.
 
+When `ccs_import_model_picker_enabled` is true, gateway `GET /v1/models` for
+that group's API keys uses this same ID list (including Codex User-Agent /
+`client_version` requests). Those requests do not divert to the official
+ChatGPT Codex catalog. Presentation-only: scheduling, mapping, and billing
+are unchanged.
+
 The UI is a type-in field (filter or custom ID).
 
 ## Model Config Pricing List Seed (2026-09-17)

@@ -70,3 +70,60 @@ func TestMergeCcsImportPickerOptionsPinsDefault(t *testing.T) {
 	got := mergeCcsImportPickerOptions("glm-5.3", []string{"kimi-k2.5", "glm-5.3"})
 	require.Equal(t, []string{"glm-5.3", "kimi-k2.5"}, got)
 }
+
+func TestCcsImportPickerModelIDsPinsDefaultAndSkipsFailures(t *testing.T) {
+	accounts := []Account{
+		{ID: 10, Platform: PlatformOpenAI},
+		{ID: 11, Platform: PlatformOpenAI},
+	}
+	fetcher := stubUpstreamModelsFetcher{
+		byID: map[int64][]string{
+			10: {"kimi-k2.5", "glm-5.3"},
+		},
+		err: map[int64]error{
+			11: errors.New("upstream 502"),
+		},
+	}
+	got := CcsImportPickerModelIDs(context.Background(), fetcher, accounts, "glm-5.3")
+	require.Equal(t, []string{"glm-5.3", "kimi-k2.5"}, got)
+}
+
+func TestCcsImportPickerModelIDsNilFetcherKeepsDefault(t *testing.T) {
+	got := CcsImportPickerModelIDs(context.Background(), nil, nil, "glm-5.3")
+	require.Equal(t, []string{"glm-5.3"}, got)
+}
+
+type pickerAccountRepoStub struct {
+	AccountRepository
+	accounts []Account
+}
+
+func (s pickerAccountRepoStub) ListByGroup(_ context.Context, _ int64) ([]Account, error) {
+	return append([]Account(nil), s.accounts...), nil
+}
+
+func TestListCcsImportModelsForAPIKeyUsesGroupAccounts(t *testing.T) {
+	groupID := int64(46)
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.SetAccountRepo(pickerAccountRepoStub{
+		accounts: []Account{
+			{ID: 10, Platform: PlatformOpenAI},
+			{ID: 11, Platform: PlatformOpenAI},
+		},
+	})
+	svc.SetUpstreamModelsFetcher(stubUpstreamModelsFetcher{
+		byID: map[int64][]string{
+			10: {"glm-5.3"},
+			11: {"kimi-k2.5"},
+		},
+	})
+
+	got := svc.ListCcsImportModelsForAPIKey(context.Background(), &APIKey{
+		GroupID: &groupID,
+		Group: &Group{
+			ID:                    groupID,
+			CcsImportDefaultModel: "glm-5.3",
+		},
+	})
+	require.Equal(t, []string{"glm-5.3", "kimi-k2.5"}, got)
+}

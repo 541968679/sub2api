@@ -352,7 +352,13 @@ func RegisterGatewayRoutes(
 // CLI historically sends ?client_version=... . Desktop / VS Code / App often
 // omit that query param but still send Codex User-Agent / Originator headers;
 // without this branch they only get the OpenAI list and hide custom Grok slugs.
+//
+// Groups with CCS import model picker enabled skip this divert so GET /v1/models
+// always returns the live upstream union instead of the official GPT catalog.
 func shouldServeCodexModelsManifest(c *gin.Context) bool {
+	if groupCcsImportModelPickerEnabled(c) {
+		return false
+	}
 	if getGroupPlatform(c) != service.PlatformOpenAI {
 		return false
 	}
@@ -375,4 +381,9 @@ func getGroupPlatform(c *gin.Context) string {
 		return ""
 	}
 	return apiKey.Group.Platform
+}
+
+func groupCcsImportModelPickerEnabled(c *gin.Context) bool {
+	apiKey, ok := middleware.GetAPIKeyFromContext(c)
+	return ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.CcsImportModelPickerEnabled
 }

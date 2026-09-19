@@ -992,9 +992,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 // Models handles listing available models
 // GET /v1/models
-// Catalog platforms (openai/anthropic/gemini/antigravity) return the curated
-// display list, then the group custom-list filter. Other platforms still union
-// account mapping keys and fall back to hardcoded defaults.
+// Groups with CCS import model picker enabled return the live upstream union
+// (same IDs as ListCcsImportModels). Catalog platforms otherwise return the
+// curated display list, then the group custom-list filter. Other platforms
+// still union account mapping keys and fall back to hardcoded defaults.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 
@@ -1007,6 +1008,15 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
 		platform = forcedPlatform
+	}
+
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CcsImportModelPickerEnabled {
+		ids := h.ccsImportPickerModelIDs(c.Request.Context(), apiKey)
+		if apiKey.Group.ModelAllowlistEnabled() {
+			ids = apiKey.Group.ModelAllowlist.FilterForListing(ids)
+		}
+		writeModelsListForPlatform(c, platform, ids)
+		return
 	}
 
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
@@ -1069,6 +1079,17 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		"object": "list",
 		"data":   claude.DefaultModels,
 	})
+}
+
+func (h *GatewayHandler) ccsImportPickerModelIDs(ctx context.Context, apiKey *service.APIKey) []string {
+	if h != nil && h.apiKeyService != nil {
+		return h.apiKeyService.ListCcsImportModelsForAPIKey(ctx, apiKey)
+	}
+	defaultModel := ""
+	if apiKey != nil && apiKey.Group != nil {
+		defaultModel = apiKey.Group.CcsImportDefaultModel
+	}
+	return service.CcsImportPickerModelIDs(ctx, nil, nil, defaultModel)
 }
 
 // AntigravityModels 返回 Antigravity 支持的全部模型

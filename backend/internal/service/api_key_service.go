@@ -642,20 +642,29 @@ func (s *APIKeyService) ListCcsImportModels(ctx context.Context, userID, keyID i
 		return nil, ErrAPIKeyNotFound
 	}
 
-	var accounts []Account
-	if s.accountRepo != nil && apiKey.GroupID != nil {
-		accounts, err = s.accountRepo.ListByGroup(ctx, *apiKey.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("list group accounts: %w", err)
-		}
-	}
+	return s.ListCcsImportModelsForAPIKey(ctx, apiKey), nil
+}
 
+// ListCcsImportModelsForAPIKey returns the picker / GET /v1/models ID list for an
+// already-authenticated key. Failed account fetches are skipped; GPT catalog is
+// never used as a fallback.
+func (s *APIKeyService) ListCcsImportModelsForAPIKey(ctx context.Context, apiKey *APIKey) []string {
 	defaultModel := ""
-	if apiKey.Group != nil {
+	if apiKey != nil && apiKey.Group != nil {
 		defaultModel = apiKey.Group.CcsImportDefaultModel
 	}
-	ids := CollectGroupAccountUpstreamModelIDs(ctx, s.upstreamModelsFetcher, accounts)
-	return mergeCcsImportPickerOptions(defaultModel, ids), nil
+	if s == nil || apiKey == nil {
+		return mergeCcsImportPickerOptions(defaultModel, nil)
+	}
+
+	var accounts []Account
+	if s.accountRepo != nil && apiKey.GroupID != nil {
+		listed, err := s.accountRepo.ListByGroup(ctx, *apiKey.GroupID)
+		if err == nil {
+			accounts = listed
+		}
+	}
+	return CcsImportPickerModelIDs(ctx, s.upstreamModelsFetcher, accounts, defaultModel)
 }
 
 // GetByKey 根据Key字符串获取API Key（用于认证）
