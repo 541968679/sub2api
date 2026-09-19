@@ -1,3 +1,23 @@
+## 2026-09-19 - fix: load CCS picker flags on gateway auth path
+
+### What
+- `GetByKeyForAuth` now selects `ccs_import_model_picker_enabled` and
+  `ccs_import_default_model`.
+- Auth cache snapshot v12 carries those fields so GET `/v1/models` can see the
+  picker switch.
+
+### Why
+Production group 46 had the switch on, but gateway auth omitted the columns, so
+`/v1/models` still returned the GPT curated list.
+
+### Affected files
+`backend/internal/repository/api_key_repo.go`,
+`backend/internal/repository/api_key_repo_messages_dispatch_unit_test.go`,
+`backend/internal/service/api_key_auth_cache.go`,
+`backend/internal/service/api_key_auth_cache_impl.go`,
+`backend/internal/service/api_key_service_cache_test.go`,
+this changelog.
+
 ## 2026-09-19 - deploy: production v0.1.293
 
 ### What

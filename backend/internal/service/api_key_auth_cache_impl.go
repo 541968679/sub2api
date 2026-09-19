@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 11 // v11: include group web search per-call pricing
+const apiKeyAuthSnapshotVersion = 12 // v12: include CCS import picker fields for GET /v1/models
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -283,6 +283,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
+			CcsImportModelPickerEnabled:     apiKey.Group.CcsImportModelPickerEnabled,
+			CcsImportDefaultModel:           apiKey.Group.CcsImportDefaultModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
@@ -369,6 +371,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
+			CcsImportModelPickerEnabled:     snapshot.Group.CcsImportModelPickerEnabled,
+			CcsImportDefaultModel:           snapshot.Group.CcsImportDefaultModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,

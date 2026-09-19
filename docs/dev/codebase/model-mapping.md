@@ -68,6 +68,10 @@ that group's API keys uses this same ID list (including Codex User-Agent /
 ChatGPT Codex catalog. Presentation-only: scheduling, mapping, and billing
 are unchanged.
 
+The gateway auth path (`GetByKeyForAuth` + auth-cache group snapshot) must
+include the two CCS picker columns. A `Select(...)` that omits them zeroes the
+bool, so picker groups keep serving `OpenAIDisplaySeed`.
+
 The UI is a type-in field (filter or custom ID).
 
 ## Model Config Pricing List Seed (2026-09-17)

@@ -197,6 +197,8 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldSupportedModelScopes,
 				group.FieldAllowMessagesDispatch,
 				group.FieldDefaultMappedModel,
+				group.FieldCcsImportModelPickerEnabled,
+				group.FieldCcsImportDefaultModel,
 				group.FieldMessagesDispatchModelConfig,
 				group.FieldRpmLimit,
 				group.FieldPeakRateEnabled,
