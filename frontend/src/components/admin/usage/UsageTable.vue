@@ -34,23 +34,41 @@
         </template>
 
         <template #cell-model="{ row }">
-          <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5 text-xs">
-            <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
-                 class="break-all"
-                 :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
-                 :style="i > 0 ? `padding-left: ${i * 0.75}rem` : ''">
-              <span v-if="i > 0" class="mr-0.5">↳</span>{{ step }}
+          <div class="space-y-0.5 text-xs">
+            <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
+              <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
+                   class="break-all"
+                   :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
+                   :style="i > 0 ? `padding-left: ${i * 0.75}rem` : ''">
+                <span v-if="i > 0" class="mr-0.5">↳</span>{{ step }}
+              </div>
+            </div>
+            <div v-else-if="row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5">
+              <div class="break-all font-medium text-gray-900 dark:text-white">
+                {{ row.model }}
+              </div>
+              <div class="break-all text-gray-500 dark:text-gray-400">
+                <span class="mr-0.5">↳</span>{{ row.upstream_model }}
+              </div>
+            </div>
+            <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
+            <div
+              v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
+              class="break-all pl-3 text-[11px]"
+              :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
+              :title="modelAuditTitle(row)"
+            >
+              <span class="mr-1">↳ {{ t('usage.upstreamResponseModel') }}:</span>{{ row.upstream_response_model }}
+              <span
+                class="ml-1 inline-flex rounded px-1 py-px text-[10px] font-medium ring-1 ring-inset"
+                :class="isLikelyModelVariant(row)
+                  ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30'
+                  : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30'"
+              >
+                {{ isLikelyModelVariant(row) ? t('usage.modelVariant') : t('usage.modelMismatch') }}
+              </span>
             </div>
           </div>
-          <div v-else-if="row.upstream_model && row.upstream_model !== row.model" class="space-y-0.5 text-xs">
-            <div class="break-all font-medium text-gray-900 dark:text-white">
-              {{ row.model }}
-            </div>
-            <div class="break-all text-gray-500 dark:text-gray-400">
-              <span class="mr-0.5">↳</span>{{ row.upstream_model }}
-            </div>
-          </div>
-          <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
         </template>
 
         <template #cell-reasoning_effort="{ row }">
@@ -528,6 +546,23 @@ import {
 import { getBillingModeLabel, getBillingModeBadgeClass, BILLING_MODE_TOKEN, BILLING_MODE_IMAGE } from '@/utils/billingMode'
 
 /** Compute the account-billed cost for display: (account_stats_cost ?? total_cost) * rate_multiplier */
+function stripModelVariantNoise(model: string): string {
+  return model.toLowerCase().replace(/-\d{8}$/, '').replace(/-latest$/, '').replace(/-build$/, '')
+}
+
+function isLikelyModelVariant(row: AdminUsageLog): boolean {
+  const sent = stripModelVariantNoise(row.upstream_model || row.model || '')
+  const response = stripModelVariantNoise(row.upstream_response_model || '')
+  if (!sent || !response || sent === response) {
+    return sent !== '' && response !== '' && sent === response
+  }
+  return sent.startsWith(response) || response.startsWith(sent)
+}
+
+function modelAuditTitle(row: AdminUsageLog): string {
+  return `${row.model || ''} → ${row.upstream_response_model || ''}`
+}
+
 function accountBilled(row: { total_cost?: number | null; account_stats_cost?: number | null; account_rate_multiplier?: number | null }): number {
   const base = row.account_stats_cost != null ? row.account_stats_cost : (row.total_cost ?? 0)
   const result = base * (row.account_rate_multiplier ?? 1)

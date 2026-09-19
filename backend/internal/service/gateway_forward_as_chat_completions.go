@@ -33,6 +33,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	body []byte,
 	parsed *ParsedRequest,
 ) (*ForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request
@@ -330,13 +331,14 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 	}
 
 	return &ForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		UpstreamModel:   mappedModel,
-		ReasoningEffort: reasoningEffort,
-		Stream:          false,
-		Duration:        time.Since(startTime),
+		RequestID:             requestID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		UpstreamModel:         mappedModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ReasoningEffort:       reasoningEffort,
+		Stream:                false,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 
@@ -382,14 +384,15 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 
 	resultWithUsage := func() *ForwardResult {
 		return &ForwardResult{
-			RequestID:       requestID,
-			Usage:           usage,
-			Model:           originalModel,
-			UpstreamModel:   mappedModel,
-			ReasoningEffort: reasoningEffort,
-			Stream:          true,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:             requestID,
+			Usage:                 usage,
+			Model:                 originalModel,
+			UpstreamModel:         mappedModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			ReasoningEffort:       reasoningEffort,
+			Stream:                true,
+			Duration:              time.Since(startTime),
+			FirstTokenMs:          firstTokenMs,
 		}
 	}
 

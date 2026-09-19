@@ -127,10 +127,39 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	userJSON, err := json.Marshal(userDTO)
 	require.NoError(t, err)
 	require.NotContains(t, string(userJSON), "upstream_model")
+	require.NotContains(t, string(userJSON), "upstream_response_model")
+	require.NotContains(t, string(userJSON), "upstream_model_mismatch")
 
 	adminJSON, err := json.Marshal(adminDTO)
 	require.NoError(t, err)
 	require.Contains(t, string(adminJSON), `"upstream_model":"claude-sonnet-4-20250514"`)
+}
+
+func TestUsageLogFromServiceAdmin_IncludesUpstreamResponseModelMismatch(t *testing.T) {
+	t.Parallel()
+
+	upstreamResponseModel := "gpt-5.6-luna"
+	mismatch := true
+	log := &service.UsageLog{
+		RequestID:             "req_mismatch",
+		Model:                 "gpt-6-astra",
+		RequestedModel:        "gpt-6-astra",
+		UpstreamResponseModel: &upstreamResponseModel,
+		UpstreamModelMismatch: &mismatch,
+	}
+
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "upstream_response_model")
+	require.NotContains(t, string(userJSON), "upstream_model_mismatch")
+
+	require.NotNil(t, adminDTO.UpstreamResponseModel)
+	require.Equal(t, "gpt-5.6-luna", *adminDTO.UpstreamResponseModel)
+	require.NotNil(t, adminDTO.UpstreamModelMismatch)
+	require.True(t, *adminDTO.UpstreamModelMismatch)
 }
 
 func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *testing.T) {

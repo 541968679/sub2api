@@ -23,6 +23,7 @@ const (
 // without binding its request or response schema. A non-nil result represents
 // exactly one successful 2xx search and is used for per-call billing.
 func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	if s == nil || c == nil || account == nil {
 		return nil, fmt.Errorf("service, context, and account are required")
 	}
@@ -88,11 +89,12 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 		return nil, nil
 	}
 	return &OpenAIForwardResult{
-		RequestID:      strings.TrimSpace(resp.Header.Get("x-request-id")),
-		Model:          requestedModel,
-		UpstreamModel:  upstreamModel,
-		Duration:       time.Since(upstreamStart),
-		WebSearchCalls: 1,
+		RequestID:             strings.TrimSpace(resp.Header.Get("x-request-id")),
+		Model:                 requestedModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Duration:              time.Since(upstreamStart),
+		WebSearchCalls:        1,
 	}, nil
 }
 

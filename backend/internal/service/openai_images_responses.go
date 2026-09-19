@@ -1809,18 +1809,19 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		imageCount = parsed.N
 	}
 	return &OpenAIForwardResult{
-		RequestID:       resp.Header.Get("x-request-id"),
-		Usage:           usage,
-		Model:           requestModel,
-		UpstreamModel:   requestModel,
-		Stream:          parsed.Stream,
-		ResponseHeaders: resp.Header.Clone(),
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
-		ImageCount:      imageCount,
-		ImageSize:       parsed.Size,
-		ImageSizeInfo:   parsed.SizeInfo,
-		ImageQuality:    parsed.Quality,
+		RequestID:             resp.Header.Get("x-request-id"),
+		Usage:                 usage,
+		Model:                 requestModel,
+		UpstreamModel:         requestModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Stream:                parsed.Stream,
+		ResponseHeaders:       resp.Header.Clone(),
+		Duration:              time.Since(startTime),
+		FirstTokenMs:          firstTokenMs,
+		ImageCount:            imageCount,
+		ImageSize:             parsed.Size,
+		ImageSizeInfo:         parsed.SizeInfo,
+		ImageQuality:          parsed.Quality,
 	}, nil
 }
 

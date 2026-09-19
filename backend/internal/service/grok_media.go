@@ -290,6 +290,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	body []byte,
 	contentType string,
 ) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 	if account == nil {
 		return nil, fmt.Errorf("grok account is required")
@@ -368,21 +369,22 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
 	usage := grokMediaUsageFromResponse(endpoint, requestInfo, respBody)
 	return &OpenAIForwardResult{
-		RequestID:            requestIDHeader,
-		ResponseID:           usage.ResponseID,
-		Usage:                usage.Usage,
-		Model:                requestModel,
-		BillingModel:         requestModel,
-		UpstreamModel:        requestModel,
-		ResponseHeaders:      resp.Header.Clone(),
-		Duration:             time.Since(startTime),
-		ImageCount:           usage.ImageCount,
-		ImageSize:            usage.ImageSize,
-		ImageInputSize:       usage.ImageInputSize,
-		ImageOutputSizes:     usage.ImageOutputSizes,
-		VideoCount:           usage.VideoCount,
-		VideoResolution:      usage.VideoResolution,
-		VideoDurationSeconds: usage.VideoDurationSeconds,
+		RequestID:             requestIDHeader,
+		ResponseID:            usage.ResponseID,
+		Usage:                 usage.Usage,
+		Model:                 requestModel,
+		BillingModel:          requestModel,
+		UpstreamModel:         requestModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ResponseHeaders:       resp.Header.Clone(),
+		Duration:              time.Since(startTime),
+		ImageCount:            usage.ImageCount,
+		ImageSize:             usage.ImageSize,
+		ImageInputSize:        usage.ImageInputSize,
+		ImageOutputSizes:      usage.ImageOutputSizes,
+		VideoCount:            usage.VideoCount,
+		VideoResolution:       usage.VideoResolution,
+		VideoDurationSeconds:  usage.VideoDurationSeconds,
 	}, nil
 }
 

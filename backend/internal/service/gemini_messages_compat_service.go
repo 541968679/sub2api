@@ -612,6 +612,7 @@ func (s *GeminiMessagesCompatService) SelectAccountForAIStudioEndpoints(ctx cont
 }
 
 func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	var req struct {
@@ -1092,15 +1093,16 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	}
 
 	return &ForwardResult{
-		RequestID:     requestID,
-		Usage:         *usage,
-		Model:         originalModel,
-		UpstreamModel: mappedModel,
-		Stream:        req.Stream,
-		Duration:      time.Since(startTime),
-		FirstTokenMs:  firstTokenMs,
-		ImageCount:    imageCount,
-		ImageSize:     imageSize,
+		RequestID:             requestID,
+		Usage:                 *usage,
+		Model:                 originalModel,
+		UpstreamModel:         mappedModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Stream:                req.Stream,
+		Duration:              time.Since(startTime),
+		FirstTokenMs:          firstTokenMs,
+		ImageCount:            imageCount,
+		ImageSize:             imageSize,
 	}, nil
 }
 
@@ -1113,6 +1115,7 @@ func isGeminiSignatureRelatedError(respBody []byte) bool {
 }
 
 func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte) (*ForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	if strings.TrimSpace(originalModel) == "" {
@@ -1331,13 +1334,14 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				estimated := estimateGeminiCountTokens(body)
 				c.JSON(http.StatusOK, map[string]any{"totalTokens": estimated})
 				return &ForwardResult{
-					RequestID:     "",
-					Usage:         ClaudeUsage{},
-					Model:         originalModel,
-					UpstreamModel: mappedModel,
-					Stream:        false,
-					Duration:      time.Since(startTime),
-					FirstTokenMs:  nil,
+					RequestID:             "",
+					Usage:                 ClaudeUsage{},
+					Model:                 originalModel,
+					UpstreamModel:         mappedModel,
+					UpstreamResponseModel: observedUpstreamResponseModel(c),
+					Stream:                false,
+					Duration:              time.Since(startTime),
+					FirstTokenMs:          nil,
 				}, nil
 			}
 			setOpsUpstreamError(c, 0, safeErr, "")
@@ -1395,13 +1399,14 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				estimated := estimateGeminiCountTokens(body)
 				c.JSON(http.StatusOK, map[string]any{"totalTokens": estimated})
 				return &ForwardResult{
-					RequestID:     "",
-					Usage:         ClaudeUsage{},
-					Model:         originalModel,
-					UpstreamModel: mappedModel,
-					Stream:        false,
-					Duration:      time.Since(startTime),
-					FirstTokenMs:  nil,
+					RequestID:             "",
+					Usage:                 ClaudeUsage{},
+					Model:                 originalModel,
+					UpstreamModel:         mappedModel,
+					UpstreamResponseModel: observedUpstreamResponseModel(c),
+					Stream:                false,
+					Duration:              time.Since(startTime),
+					FirstTokenMs:          nil,
 				}, nil
 			}
 			// Final attempt: surface the upstream error body (passed through below) instead of a generic retry error.
@@ -1436,13 +1441,14 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 			estimated := estimateGeminiCountTokens(body)
 			c.JSON(http.StatusOK, map[string]any{"totalTokens": estimated})
 			return &ForwardResult{
-				RequestID:     requestID,
-				Usage:         ClaudeUsage{},
-				Model:         originalModel,
-				UpstreamModel: mappedModel,
-				Stream:        false,
-				Duration:      time.Since(startTime),
-				FirstTokenMs:  nil,
+				RequestID:             requestID,
+				Usage:                 ClaudeUsage{},
+				Model:                 originalModel,
+				UpstreamModel:         mappedModel,
+				UpstreamResponseModel: observedUpstreamResponseModel(c),
+				Stream:                false,
+				Duration:              time.Since(startTime),
+				FirstTokenMs:          nil,
 			}, nil
 		}
 
@@ -1591,15 +1597,16 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	}
 
 	return &ForwardResult{
-		RequestID:     requestID,
-		Usage:         *usage,
-		Model:         originalModel,
-		UpstreamModel: mappedModel,
-		Stream:        stream,
-		Duration:      time.Since(startTime),
-		FirstTokenMs:  firstTokenMs,
-		ImageCount:    imageCount,
-		ImageSize:     imageSize,
+		RequestID:             requestID,
+		Usage:                 *usage,
+		Model:                 originalModel,
+		UpstreamModel:         mappedModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Stream:                stream,
+		Duration:              time.Since(startTime),
+		FirstTokenMs:          firstTokenMs,
+		ImageCount:            imageCount,
+		ImageSize:             imageSize,
 	}, nil
 }
 
@@ -1918,10 +1925,12 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream response")
 	}
 
+	observeGeminiResponseBody(c, body)
 	unwrappedBody, err := unwrapGeminiResponse(body)
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
+	observeGeminiResponseBody(c, unwrappedBody)
 
 	var geminiResp map[string]any
 	if err := json.Unmarshal(unwrappedBody, &geminiResp); err != nil {
@@ -2468,10 +2477,12 @@ func (s *GeminiMessagesCompatService) handleNativeNonStreamingResponse(c *gin.Co
 		return nil, err
 	}
 
+	observeGeminiResponseBody(c, respBody)
 	if isOAuth {
 		unwrappedBody, uwErr := unwrapGeminiResponse(respBody)
 		if uwErr == nil {
 			respBody = unwrappedBody
+			observeGeminiResponseBody(c, respBody)
 		}
 	}
 

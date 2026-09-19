@@ -403,16 +403,17 @@ scanRaw:
 			if !silentFailover {
 				writeOpenAIChatStreamErrorEvent(c, OpenAIFirstUsefulFrameTimeoutMarker)
 				return &OpenAIForwardResult{
-					RequestID:       requestID,
-					Usage:           usage,
-					Model:           originalModel,
-					BillingModel:    billingModel,
-					UpstreamModel:   upstreamModel,
-					ReasoningEffort: reasoningEffort,
-					ServiceTier:     serviceTier,
-					Stream:          true,
-					Duration:        time.Since(startTime),
-					FirstTokenMs:    firstTokenMs,
+					RequestID:             requestID,
+					Usage:                 usage,
+					Model:                 originalModel,
+					BillingModel:          billingModel,
+					UpstreamModel:         upstreamModel,
+					UpstreamResponseModel: observedUpstreamResponseModel(c),
+					ReasoningEffort:       reasoningEffort,
+					ServiceTier:           serviceTier,
+					Stream:                true,
+					Duration:              time.Since(startTime),
+					FirstTokenMs:          firstTokenMs,
 				}, timeoutErr
 			}
 			return nil, timeoutErr
@@ -492,16 +493,17 @@ scanRaw:
 		}
 		recordOpenAIRawStreamTruncation(c, account, requestID, cause, "http_error")
 		return &OpenAIForwardResult{
-			RequestID:       requestID,
-			Usage:           usage,
-			Model:           originalModel,
-			BillingModel:    billingModel,
-			UpstreamModel:   upstreamModel,
-			ReasoningEffort: reasoningEffort,
-			ServiceTier:     serviceTier,
-			Stream:          true,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:             requestID,
+			Usage:                 usage,
+			Model:                 originalModel,
+			BillingModel:          billingModel,
+			UpstreamModel:         upstreamModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			ReasoningEffort:       reasoningEffort,
+			ServiceTier:           serviceTier,
+			Stream:                true,
+			Duration:              time.Since(startTime),
+			FirstTokenMs:          firstTokenMs,
 		}, newOpenAIUpstreamStreamReadError(cause)
 	}
 	if !clientDisconnected && !clientOutputStarted {
@@ -520,16 +522,17 @@ scanRaw:
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     serviceTier,
-		Stream:          true,
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
+		RequestID:             requestID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		BillingModel:          billingModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ReasoningEffort:       reasoningEffort,
+		ServiceTier:           serviceTier,
+		Stream:                true,
+		Duration:              time.Since(startTime),
+		FirstTokenMs:          firstTokenMs,
 	}, nil
 }
 
@@ -604,15 +607,16 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	_, _ = c.Writer.Write(respBody)
 
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     serviceTier,
-		Stream:          false,
-		Duration:        time.Since(startTime),
+		RequestID:             requestID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		BillingModel:          billingModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ReasoningEffort:       reasoningEffort,
+		ServiceTier:           serviceTier,
+		Stream:                false,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 
@@ -836,15 +840,16 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 			usage = *acc.usage
 		}
 		return &OpenAIForwardResult{
-			RequestID:       requestID,
-			Usage:           usage,
-			Model:           originalModel,
-			BillingModel:    billingModel,
-			UpstreamModel:   upstreamModel,
-			ReasoningEffort: reasoningEffort,
-			ServiceTier:     serviceTier,
-			Stream:          false,
-			Duration:        time.Since(startTime),
+			RequestID:             requestID,
+			Usage:                 usage,
+			Model:                 originalModel,
+			BillingModel:          billingModel,
+			UpstreamModel:         upstreamModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			ReasoningEffort:       reasoningEffort,
+			ServiceTier:           serviceTier,
+			Stream:                false,
+			Duration:              time.Since(startTime),
 		}, nil
 	}
 

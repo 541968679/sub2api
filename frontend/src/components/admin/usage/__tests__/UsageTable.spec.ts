@@ -25,6 +25,9 @@ const messages: Record<string, string> = {
   'usage.userBilled': 'User billed',
   'usage.userDisplayCost': 'User display',
   'usage.accountBilled': 'Account billed',
+  'usage.upstreamResponseModel': 'Upstream response',
+  'usage.modelMismatch': 'Mismatch',
+  'usage.modelVariant': 'Variant',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -350,5 +353,45 @@ describe('admin UsageTable tooltip', () => {
     const text = wrapper.text()
     expect(text).toContain('claude-sonnet-4')
     expect(text).toContain('claude-sonnet-4-20250514')
+  })
+
+  it('shows upstream response model mismatch badge', () => {
+    const row = {
+      request_id: 'req-mismatch-1',
+      model: 'gpt-6-astra',
+      upstream_response_model: 'gpt-5.6-luna',
+      upstream_model_mismatch: true,
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain('gpt-6-astra')
+    expect(text).toContain('gpt-5.6-luna')
+    expect(text).toContain('Mismatch')
   })
 })

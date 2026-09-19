@@ -301,8 +301,10 @@ type UsageLogFilters struct {
 	Stream      *bool
 	BillingType *int8
 	BillingMode string
-	StartTime   *time.Time
-	EndTime     *time.Time
+	// UpstreamModelMismatch filters admin usage lists: true = mismatched only.
+	UpstreamModelMismatch *bool
+	StartTime             *time.Time
+	EndTime               *time.Time
 	// ExactTotal requests exact COUNT(*) for pagination. Default false for fast large-table paging.
 	ExactTotal bool
 }

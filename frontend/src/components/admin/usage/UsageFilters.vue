@@ -154,6 +154,11 @@
           <Select v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
         </div>
 
+        <div class="w-full sm:w-auto sm:min-w-[180px]">
+          <label class="input-label">{{ t('usage.upstreamModelMismatch') }}</label>
+          <Select v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
+        </div>
+
         <!-- Account Filter -->
         <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
@@ -417,6 +422,11 @@ const billingTypeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allBillingTypes') },
   { value: 0, label: t('admin.usage.billingTypeBalance') },
   { value: 1, label: t('admin.usage.billingTypeSubscription') }
+])
+
+const upstreamModelMismatchOptions = ref<SelectOption[]>([
+  { value: null, label: t('usage.allModelMatch') },
+  { value: true, label: t('usage.upstreamModelMismatchOnly') }
 ])
 
 const billingModeOptions = ref<SelectOption[]>([

@@ -3,6 +3,10 @@
 > Unified API entry points, account scheduling, upstream protocol conversion,
 > failover, and usage recording.
 
+## Upstream response model mismatch
+
+Each forward hop starts `beginUpstreamResponseModelObservation`. SSE/JSON/WS payloads are observed **before** client-facing model rewrite. The observed name is stored on `usage_logs.upstream_response_model`; `upstream_model_mismatch` is tri-state (NULL = not declared). Comparison uses the model we **sent** (`upstream_model` else requested), case-insensitive, with Grok `*-build` aliases. Admin usage shows `上游响应` + `模型不一致`. Observation does not change billing, scheduling, or the rewritten client `model` field.
+
 ## Spark Shadow Routing
 
 > 策略真源见 [scheduler.md](./scheduler.md)。本节保留网关面契约，不替代手册。

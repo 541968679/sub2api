@@ -1834,6 +1834,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	attempt int,
 	lastFailureReason string,
 ) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	if s == nil || account == nil {
 		return nil, wrapOpenAIWSFallback("invalid_state", errors.New("service or account is nil"))
 	}
@@ -2291,6 +2292,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 
 		if !clientDisconnected {
+			if openAIWSEventMayContainModel(eventType) {
+				observer := upstreamResponseModelObserverFromContext(c)
+				if observer != nil {
+					observer.ObserveOpenAI(message, eventType)
+				}
+			}
 			if needModelReplace && len(mappedModelBytes) > 0 && openAIWSEventMayContainModel(eventType) && bytes.Contains(message, mappedModelBytes) {
 				message = replaceOpenAIWSMessageModel(message, mappedModel, originalModel)
 			}
@@ -2491,17 +2498,18 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:       responseID,
-		Usage:           *usage,
-		Model:           originalModel,
-		UpstreamModel:   mappedModel,
-		ServiceTier:     extractOpenAIServiceTier(reqBody),
-		ReasoningEffort: extractOpenAIReasoningEffort(reqBody, mappedModel, originalModel),
-		Stream:          reqStream,
-		OpenAIWSMode:    true,
-		ResponseHeaders: lease.HandshakeHeaders(),
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
+		RequestID:             responseID,
+		Usage:                 *usage,
+		Model:                 originalModel,
+		UpstreamModel:         mappedModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ServiceTier:           extractOpenAIServiceTier(reqBody),
+		ReasoningEffort:       extractOpenAIReasoningEffort(reqBody, mappedModel, originalModel),
+		Stream:                reqStream,
+		OpenAIWSMode:          true,
+		ResponseHeaders:       lease.HandshakeHeaders(),
+		Duration:              time.Since(startTime),
+		FirstTokenMs:          firstTokenMs,
 	}, nil
 }
 
@@ -3348,6 +3356,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 
 			if !clientDisconnected {
+				if openAIWSEventMayContainModel(eventType) {
+					observer := upstreamResponseModelObserverFromContext(c)
+					if observer != nil {
+						observer.ObserveOpenAI(upstreamMessage, eventType)
+					}
+				}
 				if needModelReplace && len(mappedModelBytes) > 0 && openAIWSEventMayContainModel(eventType) && bytes.Contains(upstreamMessage, mappedModelBytes) {
 					upstreamMessage = replaceOpenAIWSMessageModel(upstreamMessage, mappedModel, originalModel)
 				}
@@ -3407,17 +3421,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					)
 				}
 				result := &OpenAIForwardResult{
-					RequestID:       responseID,
-					Usage:           usage,
-					Model:           originalModel,
-					UpstreamModel:   mappedModel,
-					ServiceTier:     extractOpenAIServiceTierFromBody(payload),
-					ReasoningEffort: extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel),
-					Stream:          reqStream,
-					OpenAIWSMode:    true,
-					ResponseHeaders: lease.HandshakeHeaders(),
-					Duration:        time.Since(turnStart),
-					FirstTokenMs:    firstTokenMs,
+					RequestID:             responseID,
+					Usage:                 usage,
+					Model:                 originalModel,
+					UpstreamModel:         mappedModel,
+					UpstreamResponseModel: observedUpstreamResponseModel(c),
+					ServiceTier:           extractOpenAIServiceTierFromBody(payload),
+					ReasoningEffort:       extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel),
+					Stream:                reqStream,
+					OpenAIWSMode:          true,
+					ResponseHeaders:       lease.HandshakeHeaders(),
+					Duration:              time.Since(turnStart),
+					FirstTokenMs:          firstTokenMs,
 				}
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput

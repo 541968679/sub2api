@@ -123,6 +123,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	upstreamModelMismatch, ok := parseOptionalBoolQuery(c, "upstream_model_mismatch")
+	if !ok {
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -184,18 +188,19 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	filters := usagestats.UsageLogFilters{
-		UserID:      userID,
-		APIKeyID:    apiKeyID,
-		AccountID:   accountID,
-		GroupID:     groupID,
-		Model:       model,
-		RequestType: requestType,
-		Stream:      stream,
-		BillingType: billingType,
-		BillingMode: billingMode,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		ExactTotal:  exactTotal,
+		UserID:                userID,
+		APIKeyID:              apiKeyID,
+		AccountID:             accountID,
+		GroupID:               groupID,
+		Model:                 model,
+		RequestType:           requestType,
+		Stream:                stream,
+		BillingType:           billingType,
+		BillingMode:           billingMode,
+		UpstreamModelMismatch: upstreamModelMismatch,
+		StartTime:             startTime,
+		EndTime:               endTime,
+		ExactTotal:            exactTotal,
 	}
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
@@ -285,6 +290,10 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	upstreamModelMismatch, ok := parseOptionalBoolQuery(c, "upstream_model_mismatch")
+	if !ok {
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -355,17 +364,18 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	// Build filters and call GetStatsWithFilters
 	filters := usagestats.UsageLogFilters{
-		UserID:      userID,
-		APIKeyID:    apiKeyID,
-		AccountID:   accountID,
-		GroupID:     groupID,
-		Model:       model,
-		RequestType: requestType,
-		Stream:      stream,
-		BillingType: billingType,
-		BillingMode: billingMode,
-		StartTime:   &startTime,
-		EndTime:     &endTime,
+		UserID:                userID,
+		APIKeyID:              apiKeyID,
+		AccountID:             accountID,
+		GroupID:               groupID,
+		Model:                 model,
+		RequestType:           requestType,
+		Stream:                stream,
+		BillingType:           billingType,
+		BillingMode:           billingMode,
+		UpstreamModelMismatch: upstreamModelMismatch,
+		StartTime:             &startTime,
+		EndTime:               &endTime,
 	}
 
 	stats, err := h.usageService.GetStatsWithFilters(c.Request.Context(), filters)
@@ -799,6 +809,19 @@ func (h *UsageHandler) loadUserGroupRatesForRecords(c *gin.Context, records []se
 		return nil
 	}
 	return rates
+}
+
+func parseOptionalBoolQuery(c *gin.Context, key string) (*bool, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, true
+	}
+	val, err := strconv.ParseBool(raw)
+	if err != nil {
+		response.BadRequest(c, "Invalid "+key+" value, use true or false")
+		return nil, false
+	}
+	return &val, true
 }
 
 // UserViewSnapshot is one column of the side-by-side comparison.

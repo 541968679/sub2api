@@ -63,6 +63,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	restrictionResult := s.detectCodexClientRestriction(c, account, body)
 	logCodexCLIOnlyDetection(ctx, c, account, getAPIKeyIDFromContext(c), restrictionResult, body)
 	if restrictionResult.Enabled && !restrictionResult.Matched {
@@ -664,14 +665,15 @@ func (s *OpenAIGatewayService) finishChatCompletionsFromResponsesResponse(
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 
 	return &OpenAIForwardResult{
-		RequestID:     requestID,
-		ResponseID:    responseID,
-		Usage:         usage,
-		Model:         originalModel,
-		BillingModel:  billingModel,
-		UpstreamModel: upstreamModel,
-		Stream:        false,
-		Duration:      time.Since(startTime),
+		RequestID:             requestID,
+		ResponseID:            responseID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		BillingModel:          billingModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Stream:                false,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 
@@ -773,6 +775,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 			return false
 		}
 		payload := line[6:]
+		observeOpenAIResponseBody(c, []byte(payload))
 
 		var event apicompat.ResponsesStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
@@ -971,20 +974,22 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			headers = resp.Header.Clone()
 		}
 		return &OpenAIForwardResult{
-			RequestID:       requestID,
-			ResponseID:      responseID,
-			Usage:           usage,
-			Model:           originalModel,
-			BillingModel:    billingModel,
-			UpstreamModel:   upstreamModel,
-			Stream:          true,
-			ResponseHeaders: headers,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:             requestID,
+			ResponseID:            responseID,
+			Usage:                 usage,
+			Model:                 originalModel,
+			BillingModel:          billingModel,
+			UpstreamModel:         upstreamModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			Stream:                true,
+			ResponseHeaders:       headers,
+			Duration:              time.Since(startTime),
+			FirstTokenMs:          firstTokenMs,
 		}
 	}
 
 	processDataLine := func(payload string) bool {
+		observeOpenAIResponseBody(c, []byte(payload))
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())

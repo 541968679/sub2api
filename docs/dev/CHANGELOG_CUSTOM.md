@@ -1,3 +1,28 @@
+## 2026-09-19 - feat: detect upstream response model mismatch
+
+### What
+- Observe the model name declared in upstream OpenAI / Anthropic / Gemini / WS responses.
+- Persist `upstream_response_model` and tri-state `upstream_model_mismatch` on usage logs.
+- Admin usage table shows `上游响应` plus a `模型不一致` badge; filter can list mismatched rows only.
+- User usage JSON does not include these fields. Billing and scheduling are unchanged.
+
+### Why
+Official Sub2API flags silent upstream substitutions (request `gpt-6-astra`, response `gpt-5.6-luna`). This fork only stored mapping (`upstream_model` = the name we sent).
+
+### Affected files
+`backend/internal/service/upstream_response_model.go`,
+`backend/internal/service/upstream_response_model_test.go`,
+`backend/internal/service/usage_log.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/migrations/252_add_usage_log_upstream_response_model.sql`,
+`backend/migrations/253_add_usage_log_upstream_model_mismatch_index_notx.sql`,
+`backend/internal/repository/usage_log_repo.go`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/components/admin/usage/UsageFilters.vue`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-19 - deploy: production v0.1.294
 
 ### What

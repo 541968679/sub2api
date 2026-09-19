@@ -35,6 +35,7 @@ func (s *GatewayService) ForwardAsResponses(
 	body []byte,
 	parsed *ParsedRequest,
 ) (*ForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	// 1. Parse Responses request
@@ -347,13 +348,14 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	}
 
 	return &ForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		UpstreamModel:   mappedModel,
-		ReasoningEffort: reasoningEffort,
-		Stream:          false,
-		Duration:        time.Since(startTime),
+		RequestID:             requestID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		UpstreamModel:         mappedModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ReasoningEffort:       reasoningEffort,
+		Stream:                false,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 
@@ -393,14 +395,15 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 
 	resultWithUsage := func() *ForwardResult {
 		return &ForwardResult{
-			RequestID:       requestID,
-			Usage:           usage,
-			Model:           originalModel,
-			UpstreamModel:   mappedModel,
-			ReasoningEffort: reasoningEffort,
-			Stream:          true,
-			Duration:        time.Since(startTime),
-			FirstTokenMs:    firstTokenMs,
+			RequestID:             requestID,
+			Usage:                 usage,
+			Model:                 originalModel,
+			UpstreamModel:         mappedModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			ReasoningEffort:       reasoningEffort,
+			Stream:                true,
+			Duration:              time.Since(startTime),
+			FirstTokenMs:          firstTokenMs,
 		}
 	}
 

@@ -24,6 +24,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	body []byte,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
@@ -148,13 +149,14 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter)
 
 	return &OpenAIForwardResult{
-		RequestID:     firstNonEmptyString(resp.Header.Get("x-request-id"), resp.Header.Get("request-id")),
-		Usage:         extractOpenAIEmbeddingsUsage(respBody),
-		Model:         originalModel,
-		BillingModel:  billingModel,
-		UpstreamModel: upstreamModel,
-		Stream:        false,
-		Duration:      time.Since(startTime),
+		RequestID:             firstNonEmptyString(resp.Header.Get("x-request-id"), resp.Header.Get("request-id")),
+		Usage:                 extractOpenAIEmbeddingsUsage(respBody),
+		Model:                 originalModel,
+		BillingModel:          billingModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		Stream:                false,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 

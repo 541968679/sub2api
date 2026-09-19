@@ -407,6 +407,12 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		imageCounter.AddSSEData(upstreamMessage)
 
+		if openAIWSEventMayContainModel(eventType) {
+			observer := upstreamResponseModelObserverFromContext(c)
+			if observer != nil {
+				observer.ObserveOpenAI(upstreamMessage, eventType)
+			}
+		}
 		if needModelReplace && len(mappedModelBytes) > 0 && openAIWSEventMayContainModel(eventType) && strings.Contains(trimmedData, mappedModel) {
 			upstreamMessage = replaceOpenAIWSMessageModel(upstreamMessage, mappedModel, originalModel)
 		}

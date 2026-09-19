@@ -59,6 +59,8 @@ const usageLogTrueCostIndexMigration = "206_usage_log_true_cost_index_notx.sql"
 const usageLogTrueCostIndex = "idx_usage_logs_true_cost_user_account_created"
 const usageLogsUpstreamRequestIDIndexMigration = "228_add_usage_log_upstream_request_id_index_notx.sql"
 const usageLogsUpstreamRequestIDIndex = "idx_usage_logs_upstream_request_id"
+const usageLogsUpstreamModelMismatchIndexMigration = "253_add_usage_log_upstream_model_mismatch_index_notx.sql"
+const usageLogsUpstreamModelMismatchIndex = "idx_usage_logs_upstream_model_mismatch_created_at"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -275,6 +277,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 		return dropInvalidIndexIfPresent(ctx, db, usageLogTrueCostIndex)
 	case usageLogsUpstreamRequestIDIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamRequestIDIndex)
+	case usageLogsUpstreamModelMismatchIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamModelMismatchIndex)
 	default:
 		return nil
 	}

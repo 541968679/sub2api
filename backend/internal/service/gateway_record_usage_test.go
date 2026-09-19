@@ -191,6 +191,34 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, "claude-sonnet-4", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
+	require.Nil(t, usageRepo.lastLog.UpstreamResponseModel)
+	require.Nil(t, usageRepo.lastLog.UpstreamModelMismatch)
+}
+
+func TestGatewayServiceRecordUsage_RecordsUpstreamResponseModelMismatch(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:             "gateway_response_model_mismatch",
+			Usage:                 ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:                 "gpt-6-astra",
+			UpstreamModel:         "gpt-6-astra",
+			UpstreamResponseModel: "gpt-5.6-luna",
+			Duration:              time.Second,
+		},
+		APIKey:  &APIKey{ID: 501, Quota: 100},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.UpstreamResponseModel)
+	require.Equal(t, "gpt-5.6-luna", *usageRepo.lastLog.UpstreamResponseModel)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
+	require.True(t, *usageRepo.lastLog.UpstreamModelMismatch)
 }
 
 func TestGatewayServiceRecordUsage_UsageLogWriteErrorDoesNotSkipBilling(t *testing.T) {

@@ -231,6 +231,9 @@ type OpenAIForwardResult struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Empty when no mapping was applied (requested model was used as-is).
 	UpstreamModel string
+	// UpstreamResponseModel is the model name declared by the upstream response body.
+	// Empty when the response did not declare a model.
+	UpstreamResponseModel string
 	// UpstreamEndpoint is the actual upstream API path used for this request.
 	UpstreamEndpoint string
 	// ServiceTier records the OpenAI Responses API service tier, e.g. "priority" / "flex".
@@ -2680,6 +2683,7 @@ func (s *OpenAIGatewayService) handleFailoverSideEffects(ctx context.Context, re
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 
 	restrictionResult := s.detectCodexClientRestriction(c, account, body)
@@ -3579,20 +3583,21 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		)
 
 		return &OpenAIForwardResult{
-			RequestID:        resp.Header.Get("x-request-id"),
-			ResponseID:       responseID,
-			Usage:            *usage,
-			Model:            originalModel,
-			BillingModel:     billingModel,
-			UpstreamModel:    upstreamModel,
-			ServiceTier:      serviceTier,
-			ReasoningEffort:  reasoningEffort,
-			Stream:           reqStream,
-			OpenAIWSMode:     false,
-			ResponseHeaders:  resp.Header.Clone(),
-			Duration:         duration,
-			FirstTokenMs:     firstTokenMs,
-			TrueFirstTokenMs: trueFirstTokenMs,
+			RequestID:             resp.Header.Get("x-request-id"),
+			ResponseID:            responseID,
+			Usage:                 *usage,
+			Model:                 originalModel,
+			BillingModel:          billingModel,
+			UpstreamModel:         upstreamModel,
+			UpstreamResponseModel: observedUpstreamResponseModel(c),
+			ServiceTier:           serviceTier,
+			ReasoningEffort:       reasoningEffort,
+			Stream:                reqStream,
+			OpenAIWSMode:          false,
+			ResponseHeaders:       resp.Header.Clone(),
+			Duration:              duration,
+			FirstTokenMs:          firstTokenMs,
+			TrueFirstTokenMs:      trueFirstTokenMs,
 		}, nil
 	}
 }
@@ -3828,19 +3833,20 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
-		ResponseID:       responseID,
-		Usage:            *usage,
-		Model:            reqModel,
-		UpstreamModel:    upstreamPassthroughModel,
-		ServiceTier:      extractOpenAIServiceTierFromBody(body),
-		ReasoningEffort:  reasoningEffort,
-		Stream:           reqStream,
-		OpenAIWSMode:     false,
-		ResponseHeaders:  resp.Header.Clone(),
-		Duration:         duration,
-		FirstTokenMs:     firstTokenMs,
-		TrueFirstTokenMs: trueFirstTokenMs,
+		RequestID:             resp.Header.Get("x-request-id"),
+		ResponseID:            responseID,
+		Usage:                 *usage,
+		Model:                 reqModel,
+		UpstreamModel:         upstreamPassthroughModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ServiceTier:           extractOpenAIServiceTierFromBody(body),
+		ReasoningEffort:       reasoningEffort,
+		Stream:                reqStream,
+		OpenAIWSMode:          false,
+		ResponseHeaders:       resp.Header.Clone(),
+		Duration:              duration,
+		FirstTokenMs:          firstTokenMs,
+		TrueFirstTokenMs:      trueFirstTokenMs,
 	}, nil
 }
 
@@ -4719,6 +4725,7 @@ scanLines:
 			dataBytes := []byte(data)
 			trimmedData := strings.TrimSpace(data)
 			if needModelReplace && strings.Contains(data, mappedModel) {
+				observeOpenAISSELine(c, line)
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 				if replacedData, replaced := extractOpenAISSEDataLine(line); replaced {
 					dataBytes = []byte(replacedData)
@@ -4972,6 +4979,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if contentType == "" {
 		contentType = "application/json"
 	}
+	observeOpenAIResponseBody(c, body)
 	if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
 	}
@@ -4996,6 +5004,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 // preserving passthrough payloads, except compact-only model remapping may
 // rewrite model fields back to the original requested model.
 func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
+	observeOpenAISSEBody(upstreamResponseModelObserverFromContext(c), string(body))
 	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, nil, body, originalModel, "responses_passthrough_sse_json"); empty {
 		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
 	} else if replace {
@@ -5904,6 +5913,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			// Replace model in response if needed.
 			// Fast path: most events do not contain model field values.
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
+				observeOpenAISSELine(c, line)
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
 			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(data) {
@@ -6528,6 +6538,8 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		}
 	}
 
+	observeOpenAIResponseBody(c, body)
+
 	// Replace model in response if needed
 	if originalModel != mappedModel {
 		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
@@ -6560,6 +6572,7 @@ func isEventStreamResponse(header http.Header) bool {
 }
 
 func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Context, body []byte, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
+	observeOpenAISSEBody(upstreamResponseModelObserverFromContext(c), string(body))
 	if next, empty, replace := s.consumeMarkedCodexCompactV2NonStream(c, nil, body, originalModel, "responses_sse_json"); empty {
 		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, "compact response carries no summary text")
 	} else if replace {
@@ -7684,6 +7697,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageSize:           normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),
 		ImageQuality:        optionalTrimmedStringPtr(result.ImageQuality),
 	}
+	attachUpstreamResponseModelAudit(usageLog, upstreamSentModel(requestedModel, result.UpstreamModel), result.UpstreamResponseModel)
 	if result.VideoCount > 0 {
 		usageLog.VideoCount = result.VideoCount
 		usageLog.VideoResolution = optionalTrimmedStringPtr(NormalizeVideoBillingResolutionOrDefault(result.VideoResolution))

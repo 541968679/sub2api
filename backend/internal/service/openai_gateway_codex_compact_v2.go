@@ -875,15 +875,16 @@ func (s *OpenAIGatewayService) finishCodexCompactV2FromChat(
 	}
 	usage := extractUsageFromCompactBuffer(body)
 	return &OpenAIForwardResult{
-		RequestID:       requestID,
-		Usage:           usage,
-		Model:           originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		ServiceTier:     serviceTier,
-		Stream:          clientStream,
-		Duration:        time.Since(startTime),
+		RequestID:             requestID,
+		Usage:                 usage,
+		Model:                 originalModel,
+		BillingModel:          billingModel,
+		UpstreamModel:         upstreamModel,
+		UpstreamResponseModel: observedUpstreamResponseModel(c),
+		ReasoningEffort:       reasoningEffort,
+		ServiceTier:           serviceTier,
+		Stream:                clientStream,
+		Duration:              time.Since(startTime),
 	}, nil
 }
 

@@ -774,6 +774,8 @@ func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPr
 	admin := &AdminUsageLog{
 		UsageLog:              base,
 		UpstreamModel:         l.UpstreamModel,
+		UpstreamResponseModel: l.UpstreamResponseModel,
+		UpstreamModelMismatch: l.UpstreamModelMismatch,
 		ChannelID:             l.ChannelID,
 		ModelMappingChain:     l.ModelMappingChain,
 		BillingTier:           l.BillingTier,

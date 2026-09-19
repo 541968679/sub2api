@@ -28,7 +28,7 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, true_first_token_ms, user_agent, ip_address, image_count, image_input_tokens, image_size, image_quality, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, long_context_applied, long_context_input_threshold, long_context_input_multiplier, long_context_output_multiplier, account_stats_cost, true_cost, true_cost_rate, display_token_cap_applied, display_context_token_max_used, display_output_token_max_used, upstream_request_id, created_at"
+const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, upstream_response_model, upstream_model_mismatch, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, true_first_token_ms, user_agent, ip_address, image_count, image_input_tokens, image_size, image_quality, video_count, video_resolution, video_duration_seconds, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, long_context_applied, long_context_input_threshold, long_context_input_multiplier, long_context_output_multiplier, account_stats_cost, true_cost, true_cost_rate, display_token_cap_applied, display_context_token_max_used, display_output_token_max_used, upstream_request_id, created_at"
 
 const usageLogSuccessFilterUL = "ul.actual_cost > 0"
 const usageLogEffectivePlatformExpr = "CASE WHEN g.platform = 'composite' THEN a.platform ELSE COALESCE(NULLIF(g.platform,''), a.platform) END"
@@ -48,6 +48,8 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // model
 	"text",        // requested_model
 	"text",        // upstream_model
+	"text",        // upstream_response_model
+	"boolean",     // upstream_model_mismatch
 	"bigint",      // group_id
 	"bigint",      // subscription_id
 	"integer",     // input_tokens
@@ -137,6 +139,16 @@ func appendRawUsageLogModelWhereCondition(conditions []string, args []any, model
 	conditions = append(conditions, fmt.Sprintf("%s = $%d", rawUsageLogModelColumn, len(args)+1))
 	args = append(args, model)
 	return conditions, args
+}
+
+func appendUpstreamModelMismatchWhereCondition(conditions []string, mismatch *bool) []string {
+	if mismatch == nil {
+		return conditions
+	}
+	if *mismatch {
+		return append(conditions, "upstream_model_mismatch IS TRUE")
+	}
+	return append(conditions, "upstream_model_mismatch IS NOT TRUE")
 }
 
 // appendRawUsageLogModelQueryFilter keeps direct model filters on the raw model column for backward
@@ -341,6 +353,8 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -397,12 +411,12 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			upstream_request_id,
 			created_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9,
-			$10, $11, $12, $13,
-			$14, $15, $16, $17,
-			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61
+			$1, $2, $3, $4, $5, $6, $7, $8, $9,
+			$10, $11,
+			$12, $13, $14, $15,
+			$16, $17, $18, $19,
+			$20, $21, $22, $23, $24, $25,
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -797,6 +811,8 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -890,6 +906,8 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				model,
 				requested_model,
 				upstream_model,
+				upstream_response_model,
+				upstream_model_mismatch,
 				group_id,
 				subscription_id,
 				input_tokens,
@@ -954,6 +972,8 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				model,
 				requested_model,
 				upstream_model,
+				upstream_response_model,
+				upstream_model_mismatch,
 				group_id,
 				subscription_id,
 				input_tokens,
@@ -1058,6 +1078,8 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -1148,6 +1170,8 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -1212,6 +1236,8 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -1284,6 +1310,8 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			model,
 			requested_model,
 			upstream_model,
+			upstream_response_model,
+			upstream_model_mismatch,
 			group_id,
 			subscription_id,
 			input_tokens,
@@ -1340,12 +1368,12 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			upstream_request_id,
 			created_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9,
-			$10, $11, $12, $13,
-			$14, $15, $16, $17,
-			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61
+			$1, $2, $3, $4, $5, $6, $7, $8, $9,
+			$10, $11,
+			$12, $13, $14, $15,
+			$16, $17, $18, $19,
+			$20, $21, $22, $23, $24, $25,
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1403,6 +1431,8 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 		requestedModel = strings.TrimSpace(log.Model)
 	}
 	upstreamModel := nullString(log.UpstreamModel)
+	upstreamResponseModel := nullString(log.UpstreamResponseModel)
+	upstreamModelMismatch := nullBool(log.UpstreamModelMismatch)
 
 	var requestIDArg any
 	if requestID != "" {
@@ -1422,6 +1452,8 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			log.Model,
 			nullString(&requestedModel),
 			upstreamModel,
+			upstreamResponseModel,
+			upstreamModelMismatch,
 			groupID,
 			subscriptionID,
 			log.InputTokens,
@@ -3322,6 +3354,7 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 	}
 	conditions, args = appendRawUsageLogModelWhereCondition(conditions, args, filters.Model)
 	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
+	conditions = appendUpstreamModelMismatchWhereCondition(conditions, filters.UpstreamModelMismatch)
 	if filters.BillingType != nil {
 		conditions = append(conditions, fmt.Sprintf("billing_type = $%d", len(args)+1))
 		args = append(args, int16(*filters.BillingType))
@@ -4320,6 +4353,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 	}
 	conditions, args = appendRawUsageLogModelWhereCondition(conditions, args, filters.Model)
 	conditions, args = appendRequestTypeOrStreamWhereCondition(conditions, args, filters.RequestType, filters.Stream)
+	conditions = appendUpstreamModelMismatchWhereCondition(conditions, filters.UpstreamModelMismatch)
 	if filters.BillingType != nil {
 		conditions = append(conditions, fmt.Sprintf("billing_type = $%d", len(args)+1))
 		args = append(args, int16(*filters.BillingType))
@@ -5022,69 +5056,71 @@ func (r *usageLogRepository) loadSubscriptions(ctx context.Context, ids []int64)
 
 func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, error) {
 	var (
-		id                    int64
-		userID                int64
-		apiKeyID              int64
-		accountID             int64
-		requestID             sql.NullString
-		model                 string
-		requestedModel        sql.NullString
-		upstreamModel         sql.NullString
-		groupID               sql.NullInt64
-		subscriptionID        sql.NullInt64
-		inputTokens           int
-		outputTokens          int
-		cacheCreationTokens   int
-		cacheReadTokens       int
-		cacheCreation5m       int
-		cacheCreation1h       int
-		imageOutputTokens     int
-		imageOutputCost       float64
-		inputCost             float64
-		outputCost            float64
-		cacheCreationCost     float64
-		cacheReadCost         float64
-		totalCost             float64
-		actualCost            float64
-		rateMultiplier        float64
-		accountRateMultiplier sql.NullFloat64
-		billingType           int16
-		requestTypeRaw        int16
-		stream                bool
-		openaiWSMode          bool
-		durationMs            sql.NullInt64
-		firstTokenMs          sql.NullInt64
-		trueFirstTokenMs      sql.NullInt64
-		userAgent             sql.NullString
-		ipAddress             sql.NullString
-		imageCount            int
-		imageInputTokens      int
-		imageSize             sql.NullString
-		imageQuality          sql.NullString
-		videoCount            int
-		videoResolution       sql.NullString
-		videoDurationSeconds  sql.NullInt64
-		serviceTier           sql.NullString
-		reasoningEffort       sql.NullString
-		inboundEndpoint       sql.NullString
-		upstreamEndpoint      sql.NullString
-		cacheTTLOverridden    bool
-		channelID             sql.NullInt64
-		modelMappingChain     sql.NullString
-		billingTier           sql.NullString
-		billingMode           sql.NullString
-		longContextApplied    bool
-		longContextThreshold  sql.NullInt64
-		longContextInputMult  sql.NullFloat64
-		longContextOutputMult sql.NullFloat64
-		accountStatsCost      sql.NullFloat64
-		trueCost              sql.NullFloat64
-		trueCostRate          sql.NullFloat64
-		displayTokenCapApplied bool
+		id                         int64
+		userID                     int64
+		apiKeyID                   int64
+		accountID                  int64
+		requestID                  sql.NullString
+		model                      string
+		requestedModel             sql.NullString
+		upstreamModel              sql.NullString
+		upstreamResponseModel      sql.NullString
+		upstreamModelMismatch      sql.NullBool
+		groupID                    sql.NullInt64
+		subscriptionID             sql.NullInt64
+		inputTokens                int
+		outputTokens               int
+		cacheCreationTokens        int
+		cacheReadTokens            int
+		cacheCreation5m            int
+		cacheCreation1h            int
+		imageOutputTokens          int
+		imageOutputCost            float64
+		inputCost                  float64
+		outputCost                 float64
+		cacheCreationCost          float64
+		cacheReadCost              float64
+		totalCost                  float64
+		actualCost                 float64
+		rateMultiplier             float64
+		accountRateMultiplier      sql.NullFloat64
+		billingType                int16
+		requestTypeRaw             int16
+		stream                     bool
+		openaiWSMode               bool
+		durationMs                 sql.NullInt64
+		firstTokenMs               sql.NullInt64
+		trueFirstTokenMs           sql.NullInt64
+		userAgent                  sql.NullString
+		ipAddress                  sql.NullString
+		imageCount                 int
+		imageInputTokens           int
+		imageSize                  sql.NullString
+		imageQuality               sql.NullString
+		videoCount                 int
+		videoResolution            sql.NullString
+		videoDurationSeconds       sql.NullInt64
+		serviceTier                sql.NullString
+		reasoningEffort            sql.NullString
+		inboundEndpoint            sql.NullString
+		upstreamEndpoint           sql.NullString
+		cacheTTLOverridden         bool
+		channelID                  sql.NullInt64
+		modelMappingChain          sql.NullString
+		billingTier                sql.NullString
+		billingMode                sql.NullString
+		longContextApplied         bool
+		longContextThreshold       sql.NullInt64
+		longContextInputMult       sql.NullFloat64
+		longContextOutputMult      sql.NullFloat64
+		accountStatsCost           sql.NullFloat64
+		trueCost                   sql.NullFloat64
+		trueCostRate               sql.NullFloat64
+		displayTokenCapApplied     bool
 		displayContextTokenMaxUsed int64
 		displayOutputTokenMaxUsed  int64
-		upstreamRequestID     sql.NullString
-		createdAt             time.Time
+		upstreamRequestID          sql.NullString
+		createdAt                  time.Time
 	)
 
 	if err := scanner.Scan(
@@ -5096,6 +5132,8 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		&model,
 		&requestedModel,
 		&upstreamModel,
+		&upstreamResponseModel,
+		&upstreamModelMismatch,
 		&groupID,
 		&subscriptionID,
 		&inputTokens,
@@ -5156,34 +5194,34 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 	}
 
 	log := &service.UsageLog{
-		ID:                    id,
-		UserID:                userID,
-		APIKeyID:              apiKeyID,
-		AccountID:             accountID,
-		Model:                 model,
-		RequestedModel:        coalesceTrimmedString(requestedModel, model),
-		InputTokens:           inputTokens,
-		OutputTokens:          outputTokens,
-		CacheCreationTokens:   cacheCreationTokens,
-		CacheReadTokens:       cacheReadTokens,
-		CacheCreation5mTokens: cacheCreation5m,
-		CacheCreation1hTokens: cacheCreation1h,
-		ImageOutputTokens:     imageOutputTokens,
-		ImageOutputCost:       imageOutputCost,
-		InputCost:             inputCost,
-		OutputCost:            outputCost,
-		CacheCreationCost:     cacheCreationCost,
-		CacheReadCost:         cacheReadCost,
-		TotalCost:             totalCost,
-		ActualCost:            actualCost,
-		RateMultiplier:        rateMultiplier,
-		LongContextApplied:    longContextApplied,
-		AccountRateMultiplier: nullFloat64Ptr(accountRateMultiplier),
-		BillingType:           int8(billingType),
-		RequestType:           service.RequestTypeFromInt16(requestTypeRaw),
-		ImageCount:            imageCount,
-		ImageInputTokens:      imageInputTokens,
-		VideoCount:            videoCount,
+		ID:                         id,
+		UserID:                     userID,
+		APIKeyID:                   apiKeyID,
+		AccountID:                  accountID,
+		Model:                      model,
+		RequestedModel:             coalesceTrimmedString(requestedModel, model),
+		InputTokens:                inputTokens,
+		OutputTokens:               outputTokens,
+		CacheCreationTokens:        cacheCreationTokens,
+		CacheReadTokens:            cacheReadTokens,
+		CacheCreation5mTokens:      cacheCreation5m,
+		CacheCreation1hTokens:      cacheCreation1h,
+		ImageOutputTokens:          imageOutputTokens,
+		ImageOutputCost:            imageOutputCost,
+		InputCost:                  inputCost,
+		OutputCost:                 outputCost,
+		CacheCreationCost:          cacheCreationCost,
+		CacheReadCost:              cacheReadCost,
+		TotalCost:                  totalCost,
+		ActualCost:                 actualCost,
+		RateMultiplier:             rateMultiplier,
+		LongContextApplied:         longContextApplied,
+		AccountRateMultiplier:      nullFloat64Ptr(accountRateMultiplier),
+		BillingType:                int8(billingType),
+		RequestType:                service.RequestTypeFromInt16(requestTypeRaw),
+		ImageCount:                 imageCount,
+		ImageInputTokens:           imageInputTokens,
+		VideoCount:                 videoCount,
 		CacheTTLOverridden:         cacheTTLOverridden,
 		DisplayTokenCapApplied:     displayTokenCapApplied,
 		DisplayContextTokenMaxUsed: displayContextTokenMaxUsed,
@@ -5258,6 +5296,13 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 	}
 	if upstreamModel.Valid {
 		log.UpstreamModel = &upstreamModel.String
+	}
+	if upstreamResponseModel.Valid {
+		log.UpstreamResponseModel = &upstreamResponseModel.String
+	}
+	if upstreamModelMismatch.Valid {
+		value := upstreamModelMismatch.Bool
+		log.UpstreamModelMismatch = &value
 	}
 	if channelID.Valid {
 		value := channelID.Int64
@@ -5423,6 +5468,13 @@ func nullString(v *string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *v, Valid: true}
+}
+
+func nullBool(v *bool) sql.NullBool {
+	if v == nil {
+		return sql.NullBool{}
+	}
+	return sql.NullBool{Bool: *v, Valid: true}
 }
 
 func coalesceTrimmedString(v sql.NullString, fallback string) string {
