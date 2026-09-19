@@ -1,3 +1,17 @@
+## 2026-09-19 - deploy: production v0.1.294
+
+### What
+- Released and deployed `v0.1.294` (`f4b497df7`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.294`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:2b2fbc52bc70a1aa841619b18f9696f9ec924892baa5072d52c093e1d4670537`. Rollback is `v0.1.293` digest `sha256:cf4eb51585f4eaae88281f5063cd9b0f35b6153990b93737c85ffd159efc2f57`.
+- Verified group 46 key `GET /v1/models` returns 21 upstream IDs starting with `glm-5.3`, not the GPT catalog. Codex UA path matches.
+
+### Why
+Ship the gateway auth-path picker flag fix.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-19 - fix: load CCS picker flags on gateway auth path
 
 ### What
