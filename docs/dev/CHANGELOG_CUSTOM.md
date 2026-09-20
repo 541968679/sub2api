@@ -1,3 +1,17 @@
+## 2026-09-20 - deploy: production v0.1.295
+
+### What
+- Released and deployed `v0.1.295` (`58caa5c17`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.295`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:1bfbf5324a75a63e40880aa447e6dc2d66bf35f458c39a68f18c4a7025f39c28`. Rollback is `v0.1.294` digest `sha256:2b2fbc52bc70a1aa841619b18f9696f9ec924892baa5072d52c093e1d4670537`.
+- Release https://github.com/541968679/sub2api/actions/runs/35496778039. `update.sh` dangling-image cleanup untagged the previous live digest locally again.
+
+### Why
+Ship raw Chat Completions empty-`model` fill for kimi-k3 client mismatch, plus usage upstream response-model observation.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-20 - release: v0.1.295 empty chat model fill
 
 ### What
