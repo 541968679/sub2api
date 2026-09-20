@@ -7,6 +7,8 @@
 
 Each forward hop starts `beginUpstreamResponseModelObservation`. SSE/JSON/WS payloads are observed **before** client-facing model rewrite. The observed name is stored on `usage_logs.upstream_response_model`; `upstream_model_mismatch` is tri-state (NULL = not declared). Comparison uses the model we **sent** (`upstream_model` else requested), case-insensitive, with Grok `*-build` aliases. Admin usage shows `上游响应` + `模型不一致`. Observation does not change billing, scheduling, or the rewritten client `model` field.
 
+Raw Chat Completions passthrough (`forwardAsRawChatCompletions`) additionally fills an empty/missing client `model` with the **requested** model after observation. This is only a wire-compat patch for OpenAI-compatible upstreams that stream content but omit `model` (production: kimi-k3 on qidian7/boluomi). A non-empty upstream `model` is never overwritten.
+
 ## Spark Shadow Routing
 
 > 策略真源见 [scheduler.md](./scheduler.md)。本节保留网关面契约，不替代手册。
@@ -905,6 +907,7 @@ Responses→Chat fallback (`force_chat_completions` / unsupported native Respons
 
 ## Known Pitfalls
 
+- **Empty CC `model` is a client-compat fill, not an empty completion**: domestic OpenAI-compatible streams (kimi-k3 on qidian7/boluomi) can return real tokens with `model:""`. Raw CC passthrough copies the requested model onto the client wire after observation. Do not treat `upstream model mismatch: expected "…", got ""` as a Sub2API HTTP 500, and do not overwrite a non-empty upstream `model`.
 - **Wait-timeout markers are Ops-only**: `openai_header_wait_timeout` / `openai_first_useful_frame_timeout` must not appear in client JSON or SSE. Anthropic / Claude-GPT bridge exhausted failover replays `ResponseBody`; keep the marker in `RawUpstreamBody` / `event.Message` / `error.Error()` only. `recordOpsUpstreamAttempt` drops the generic 502 sentence, so do not reuse the client text as the Ops message.
 - **OAuth soft 429 is not a client-stream workaround**: inbound sync `/v1/chat/completions` (`stream:false`) stays one JSON. Soft 429 is local failover + short Redis exclude. Do not ask clients to change `stream`, endpoint, or body.
 - **Midstream Cloudflare 524 is not a client-stream problem**: inbound sync `/v1/chat/completions` (`stream:false`) must stay one JSON. Custom-`base_url` API keys now ask the upstream for SSE and buffer locally so CF sees bytes before 120s. Official `api.openai.com` keeps S2 JSON. Do not “fix” 524 by asking clients to set `stream:true` or switch to `/v1/responses`. Rollback: `gateway.openai_sync_inbound_upstream_sse_mode=off`. A 90s hop abort would kill the current 95–104s success p95; do not enable it by default.

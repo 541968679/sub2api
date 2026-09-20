@@ -419,6 +419,7 @@ scanRaw:
 			return nil, timeoutErr
 		}
 		refusalDetector.ObserveSSELine(line)
+		observeOpenAISSELine(c, line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			stageClk.MarkFirstSSE()
 			trimmedPayload := strings.TrimSpace(payload)
@@ -440,6 +441,7 @@ scanRaw:
 		}
 
 		outLine := stripEmptyChatToolCallIdentityFromSSELine(line)
+		outLine = fillEmptyOpenAIResponseModelInSSELine(outLine, originalModel)
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			outLine = rewriteOpenAIChatSSEUsageTokens(outLine, mult)
 		}
@@ -599,6 +601,10 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		c.Writer.Header().Set("Content-Type", ct)
 	} else {
 		c.Writer.Header().Set("Content-Type", "application/json")
+	}
+	observeOpenAIResponseBody(c, respBody)
+	if filled, ok := fillEmptyOpenAIResponseModel(respBody, originalModel); ok {
+		respBody = filled
 	}
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		respBody = rewriteOpenAIChatUsageTokens(respBody, "usage", mult)
@@ -811,6 +817,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 
 	acc := &rawChatSSEAccumulator{}
 	processLine := func(line string) {
+		observeOpenAISSELine(c, line)
 		payload, ok := extractOpenAISSEDataLine(line)
 		if !ok {
 			return

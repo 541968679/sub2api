@@ -1,3 +1,32 @@
+## 2026-09-20 - release: v0.1.295 empty chat model fill
+
+### What
+- Tag `v0.1.295`. Includes raw Chat Completions empty-`model` fill plus the already-committed admin usage `upstream_response_model` mismatch observation.
+
+### Why
+Ship the kimi-k3 client `got ""` compat fix.
+
+### Affected files
+`backend/cmd/server/VERSION`,
+this changelog.
+
+## 2026-09-20 - fix: fill empty upstream chat `model` with the requested id
+
+### What
+- Raw OpenAI Chat Completions passthrough now copies the **request** model onto client JSON/SSE when upstream omits `model` or sends `""` / whitespace / null.
+- Non-empty upstream `model` is left unchanged. Error payloads without a chat shape are not injected.
+- Observation for `upstream_response_model` still runs on the original upstream bytes, before this fill.
+
+### Why
+Domestic kimi-k3 (qidian7/boluomi) streamed real content but empty `model`. Clients then failed locally with `upstream model mismatch: expected "kimi-k3", got ""`. This is not an HTTP 500 from Sub2API.
+
+### Affected files
+`backend/internal/service/openai_gateway_fill_empty_response_model.go`,
+`backend/internal/service/openai_gateway_fill_empty_response_model_test.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-19 - feat: detect upstream response model mismatch
 
 ### What
