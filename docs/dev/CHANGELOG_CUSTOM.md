@@ -1,3 +1,17 @@
+## 2026-09-21 - deploy: production v0.1.296
+
+### What
+- Released and deployed `v0.1.296` (`4e555e965`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.296`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:14a98f22f3f07e351a6feeae69fd6780f036043d9db13e46e875096d2dd2ad83`. Rollback is `v0.1.295` digest `sha256:1bfbf5324a75a63e40880aa447e6dc2d66bf35f458c39a68f18c4a7025f39c28`.
+- Release https://github.com/541968679/sub2api/actions/runs/35572782574. `update.sh` dangling-image cleanup untagged the previous live digest locally again.
+
+### Why
+Ship Responses passthrough + missing-field CC/WS empty-`model` fill so clients no longer see `got ""` on those paths.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-21 - release: v0.1.296 empty model fill coverage
 
 ### What
