@@ -12,6 +12,20 @@ The customer SLA is a token-distribution + TTFT/TPOT table, not only in-flight 5
 `tools/kimi-loadtest/`,
 this changelog.
 
+## 2026-09-21 - deploy: production v0.1.297
+
+### What
+- Released and deployed `v0.1.297` (`90c540bff`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.297`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:2df62c3aae25b90218f2b66360645269f9613d7da149f867fde2496a9c44166b`. Rollback is `v0.1.296` digest `sha256:14a98f22f3f07e351a6feeae69fd6780f036043d9db13e46e875096d2dd2ad83`.
+- Release https://github.com/541968679/sub2api/actions/runs/35584737445. `update.sh` dangling-image cleanup untagged the previous live digest locally again.
+
+### Why
+Ship empty-`model` fill on `"error": null`, ping, NDJSON, and CC→Responses conversion writes so new-api last-chunk / heartbeat unmarshals no longer see `got ""`.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-21 - release: v0.1.297 empty model fill for error-null / ping / NDJSON
 
 ### What
