@@ -841,6 +841,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
 		}
+		body = applyClientFacingOpenAIResponseModel(body, originalModel)
 		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 		usage := OpenAIUsage{}
 		if acc.usage != nil {

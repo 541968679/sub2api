@@ -7,7 +7,7 @@
 
 Each forward hop starts `beginUpstreamResponseModelObservation`. SSE/JSON/WS payloads are observed **before** client-facing model rewrite. The observed name is stored on `usage_logs.upstream_response_model`; `upstream_model_mismatch` is tri-state (NULL = not declared). Comparison uses the model we **sent** (`upstream_model` else requested), case-insensitive, with Grok `*-build` aliases. Admin usage shows `上游响应` + `模型不一致`. Observation does not change billing, scheduling, or the rewritten client `model` field.
 
-Raw Chat Completions passthrough (`forwardAsRawChatCompletions`) and OpenAI Responses passthrough (`/v1/responses` SSE and JSON) fill an empty/missing client `model` (and `response.model`) with the **requested** model after observation. Missing JSON `model` is treated like `""` because Go clients unmarshal both to empty string. A non-empty upstream `model` is never overwritten. Error-only and ping payloads are skipped.
+Raw Chat Completions passthrough (`forwardAsRawChatCompletions`) and OpenAI Responses passthrough (`/v1/responses` SSE and JSON) fill an empty/missing client `model` (and `response.model`) with the **requested** model after observation. Missing JSON `model` is treated like `""` because Go clients unmarshal both to empty string. A non-empty upstream `model` is never overwritten. Dedicated `type=error` / error-object payloads are skipped. `"error": null` is a normal Responses/CC field and must still be filled. Ping frames and NDJSON objects (no `data:` prefix) are filled so clients that unmarshal every JSON object do not see `got ""`. CC→Responses conversion outbound chunks are filled at write time.
 
 ## Spark Shadow Routing
 

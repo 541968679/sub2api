@@ -67,6 +67,28 @@ func TestFillEmptyOpenAIResponseModel(t *testing.T) {
 		require.Equal(t, string(in), string(got))
 	})
 
+	t.Run("fills responses delta with error null", func(t *testing.T) {
+		t.Parallel()
+		got, changed := fillEmptyOpenAIResponseModel(
+			[]byte(`{"type":"response.output_text.delta","delta":"hi","error":null}`),
+			"kimi-k3",
+		)
+		require.True(t, changed)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(got, "model").String())
+		require.Equal(t, "hi", gjson.GetBytes(got, "delta").String())
+		require.True(t, gjson.GetBytes(got, "error").Exists())
+	})
+
+	t.Run("fills chat heartbeat with error null", func(t *testing.T) {
+		t.Parallel()
+		got, changed := fillEmptyOpenAIResponseModel(
+			[]byte(`{"id":"chatcmpl_1","error":null}`),
+			"kimi-k3",
+		)
+		require.True(t, changed)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(got, "model").String())
+	})
+
 	t.Run("fills missing model without choices or object", func(t *testing.T) {
 		t.Parallel()
 		got, changed := fillEmptyOpenAIResponseModel([]byte(`{"id":"chatcmpl_1"}`), "kimi-k3")
@@ -85,12 +107,12 @@ func TestFillEmptyOpenAIResponseModel(t *testing.T) {
 		require.Equal(t, "hi", gjson.GetBytes(got, "delta").String())
 	})
 
-	t.Run("skips ping", func(t *testing.T) {
+	t.Run("fills ping frames", func(t *testing.T) {
 		t.Parallel()
-		in := []byte(`{"type":"ping"}`)
-		got, changed := fillEmptyOpenAIResponseModel(in, "kimi-k3")
-		require.False(t, changed)
-		require.Equal(t, string(in), string(got))
+		got, changed := fillEmptyOpenAIResponseModel([]byte(`{"type":"ping"}`), "kimi-k3")
+		require.True(t, changed)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(got, "model").String())
+		require.Equal(t, "ping", gjson.GetBytes(got, "type").String())
 	})
 
 	t.Run("fills empty response.model", func(t *testing.T) {
@@ -110,6 +132,19 @@ func TestFillEmptyOpenAIResponseModelInSSELine(t *testing.T) {
 
 	require.Equal(t, "data: [DONE]", fillEmptyOpenAIResponseModelInSSELine("data: [DONE]", "kimi-k3"))
 	require.Equal(t, "event: ping", fillEmptyOpenAIResponseModelInSSELine("event: ping", "kimi-k3"))
+
+	ndjson := fillEmptyOpenAIResponseModelInSSELine(
+		`{"id":"chatcmpl_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"}}]}`,
+		"kimi-k3",
+	)
+	require.Equal(t, "kimi-k3", gjson.Get(ndjson, "model").String())
+	require.Equal(t, "hi", gjson.Get(ndjson, "choices.0.delta.content").String())
+
+	pingLine := fillEmptyOpenAIResponseModelInSSELine(`data: {"type":"ping","error":null}`, "kimi-k3")
+	pingPayload, pingOK := extractOpenAISSEDataLine(pingLine)
+	require.True(t, pingOK)
+	require.Equal(t, "kimi-k3", gjson.Get(pingPayload, "model").String())
+	require.Equal(t, "ping", gjson.Get(pingPayload, "type").String())
 
 	got := fillEmptyOpenAIResponseModelInSSELine(
 		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","model":"","choices":[{"index":0,"delta":{"content":"hi"}}]}`,
@@ -173,6 +208,56 @@ func TestForwardAsRawChatCompletions_FillsEmptyStreamModel(t *testing.T) {
 	}
 	require.True(t, sawFilled)
 	require.Equal(t, "", observedUpstreamResponseModel(c), "audit must see the empty upstream model, not the filled client value")
+}
+
+func TestForwardAsRawChatCompletions_FillsErrorNullAndPingChunks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"kimi-k3","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	beginUpstreamResponseModelObservation(c)
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"ping","error":null}`,
+		"",
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hello"}}],"error":null}`,
+		"",
+		`{"id":"chatcmpl_1","choices":[{"index":0,"delta":{"content":"!"}}],"error":null}`,
+		"",
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3},"error":null}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_error_null_model"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	for _, line := range strings.Split(rec.Body.String(), "\n") {
+		payload := strings.TrimSpace(line)
+		if strings.HasPrefix(payload, "data:") {
+			extracted, ok := extractOpenAISSEDataLine(line)
+			require.True(t, ok)
+			payload = strings.TrimSpace(extracted)
+		}
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		require.Equal(t, "kimi-k3", gjson.Get(payload, "model").String(), line)
+	}
 }
 
 func TestForwardAsRawChatCompletions_FillsEmptyJSONModel(t *testing.T) {

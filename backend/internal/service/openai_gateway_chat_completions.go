@@ -662,6 +662,7 @@ func (s *OpenAIGatewayService) finishChatCompletionsFromResponsesResponse(
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
 	}
+	body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 
 	return &OpenAIForwardResult{
@@ -1093,6 +1094,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				)
 				continue
 			}
+			sse = fillEmptyOpenAIResponseModelInSSEBody(sse, originalModel)
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				logger.L().Info("openai chat_completions stream: client disconnected",
 					zap.String("request_id", requestID),
@@ -1113,6 +1115,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				if err != nil {
 					continue
 				}
+				sse = fillEmptyOpenAIResponseModelInSSEBody(sse, originalModel)
 				fmt.Fprint(c.Writer, sse) //nolint:errcheck
 			}
 		}

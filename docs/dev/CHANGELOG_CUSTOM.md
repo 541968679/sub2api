@@ -1,3 +1,47 @@
+## 2026-09-21 - tools: loadtest multi-model, SLA table, empty-model contract
+
+### What
+- `tools/kimi-loadtest` now takes `-model` / `-models` (round-robin), so the same 50-concurrency driver can soak `glm-5.3` as well as `kimi-k3`.
+- New profile `user363-sla` builds input/output sizes from the customer's sheet (input 50K/160K/380K/80K, output 0.2K/1.3K/7K/0.6K) and scores TTFT p50/p75/p90/p99 plus TPOT decode speed.
+- Contract inspector flags `model_missing` / `model_empty` / `model_mismatch` / `response.model` (the Go-client `got ""` class), plus usage-missing and silent-refusal. `-strict-contract` fails the run.
+
+### Why
+The customer SLA is a token-distribution + TTFT/TPOT table, not only in-flight 50. The empty-`model` fill is still being verified; the load tool must count it per chunk while swapping models.
+
+### Affected files
+`tools/kimi-loadtest/`,
+this changelog.
+
+## 2026-09-21 - release: v0.1.297 empty model fill for error-null / ping / NDJSON
+
+### What
+- Tag `v0.1.297`. Fill empty/missing `model` on `"error": null` chunks, ping frames, NDJSON, and CC→Responses conversion writes.
+
+### Why
+Close the v0.1.296 gap that left new-api (and other Go clients) seeing `got ""` on heartbeat / last usage / error-null frames.
+
+### Affected files
+`backend/cmd/server/VERSION`,
+this changelog.
+
+## 2026-09-21 - fix: fill empty model on error-null / ping / NDJSON chunks
+
+### What
+- `"error": null` is no longer treated as an error-only payload, so Responses delta and CC heartbeat chunks still get the requested `model`.
+- Ping frames and NDJSON objects (no `data:` prefix) are filled; dedicated `type=error` / error-object payloads stay untouched.
+- CC→Responses conversion writes (`ChatChunkToSSE` / buffered JSON) apply the same fill at the last outbound step.
+
+### Why
+v0.1.296 still skipped fill when upstream included the normal `"error": null` field. Go clients that unmarshal every JSON object then report `expected "kimi-k3", got ""` even though usage observation already saw a later chunk with a model name.
+
+### Affected files
+`backend/internal/service/openai_gateway_fill_empty_response_model.go`,
+`backend/internal/service/openai_gateway_fill_empty_response_model_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-21 - deploy: production v0.1.296
 
 ### What
