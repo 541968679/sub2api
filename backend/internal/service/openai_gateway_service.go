@@ -4724,13 +4724,18 @@ scanLines:
 			stageClk.MarkFirstSSE()
 			dataBytes := []byte(data)
 			trimmedData := strings.TrimSpace(data)
+			observeOpenAISSELine(c, line)
 			if needModelReplace && strings.Contains(data, mappedModel) {
-				observeOpenAISSELine(c, line)
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 				if replacedData, replaced := extractOpenAISSEDataLine(line); replaced {
 					dataBytes = []byte(replacedData)
 					trimmedData = strings.TrimSpace(replacedData)
 				}
+			}
+			line = fillEmptyOpenAIResponseModelInSSELine(line, originalModel)
+			if filledData, filled := extractOpenAISSEDataLine(line); filled {
+				dataBytes = []byte(filledData)
+				trimmedData = strings.TrimSpace(filledData)
 			}
 			if normalizedData, normalized := normalizeOpenAIResponsesFunctionCallArguments(dataBytes); normalized {
 				dataBytes = normalizedData
@@ -4991,6 +4996,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	}
+	body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	c.Data(resp.StatusCode, contentType, body)
 	return &openaiNonStreamingResultPassthrough{
 		OpenAIUsage: usage,
@@ -5015,6 +5021,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 			next = s.replaceModelInResponseBody(next, mappedModel, originalModel)
 		}
+		next = applyClientFacingOpenAIResponseModel(next, originalModel)
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
@@ -5086,6 +5093,9 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
+		body = []byte(fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel))
+	} else {
+		body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	}
 	c.Data(resp.StatusCode, contentType, body)
 
@@ -5910,12 +5920,13 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				data = string(rewritten)
 				line = "data: " + data
 			}
-			// Replace model in response if needed.
-			// Fast path: most events do not contain model field values.
+			// Replace mapped model, then fill empty/missing model for clients
+			// that treat a missing JSON field as "". Observe the upstream line first.
+			observeOpenAISSELine(c, line)
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
-				observeOpenAISSELine(c, line)
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
+			line = fillEmptyOpenAIResponseModelInSSELine(line, originalModel)
 			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(data) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
@@ -5947,6 +5958,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					lineForDownstream = slimmed
 				}
 			}
+			lineForDownstream = fillEmptyOpenAIResponseModelInSSELine(lineForDownstream, originalModel)
 
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected {
@@ -6547,6 +6559,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	}
+	body = applyClientFacingOpenAIResponseModel(body, originalModel)
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
@@ -6583,6 +6596,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if originalModel != mappedModel {
 			next = s.replaceModelInResponseBody(next, mappedModel, originalModel)
 		}
+		next = applyClientFacingOpenAIResponseModel(next, originalModel)
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
@@ -6668,6 +6682,9 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
+		body = []byte(fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel))
+	} else {
+		body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	}
 	c.Data(resp.StatusCode, contentType, body)
 

@@ -1,3 +1,33 @@
+## 2026-09-21 - release: v0.1.296 empty model fill coverage
+
+### What
+- Tag `v0.1.296`. Responses passthrough + missing-field CC/WS empty-`model` fill.
+
+### Why
+Close the v0.1.295 gap that left `/v1/responses` passthrough empty.
+
+### Affected files
+`backend/cmd/server/VERSION`,
+this changelog.
+
+## 2026-09-21 - fix: fill empty model on Responses passthrough and missing-field CC chunks
+
+### What
+- Empty/missing OpenAI `model` (and `response.model`) is filled with the requested id on Responses passthrough SSE/JSON, not only raw Chat Completions.
+- Missing `model` is treated like `""` (Go clients unmarshal both to empty string). Previously we only filled CC chunks that already had `object`/`choices`.
+- Same fill on Responses-from-CC fallback SSE, OpenAI WS events, and WS-buffered JSON.
+- Observation still runs on the original upstream line.
+
+### Why
+v0.1.295 only patched raw `/v1/chat/completions`. Account 1762 is `passthrough`, so `/v1/responses` streamed empty `model` unchanged. Clients still reported `got ""`.
+
+### Affected files
+`backend/internal/service/openai_gateway_fill_empty_response_model.go`,
+`backend/internal/service/openai_gateway_fill_empty_response_model_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-20 - deploy: production v0.1.295
 
 ### What

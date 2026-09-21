@@ -67,6 +67,32 @@ func TestFillEmptyOpenAIResponseModel(t *testing.T) {
 		require.Equal(t, string(in), string(got))
 	})
 
+	t.Run("fills missing model without choices or object", func(t *testing.T) {
+		t.Parallel()
+		got, changed := fillEmptyOpenAIResponseModel([]byte(`{"id":"chatcmpl_1"}`), "kimi-k3")
+		require.True(t, changed)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(got, "model").String())
+	})
+
+	t.Run("fills missing model on responses delta events", func(t *testing.T) {
+		t.Parallel()
+		got, changed := fillEmptyOpenAIResponseModel(
+			[]byte(`{"type":"response.output_text.delta","delta":"hi"}`),
+			"kimi-k3",
+		)
+		require.True(t, changed)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(got, "model").String())
+		require.Equal(t, "hi", gjson.GetBytes(got, "delta").String())
+	})
+
+	t.Run("skips ping", func(t *testing.T) {
+		t.Parallel()
+		in := []byte(`{"type":"ping"}`)
+		got, changed := fillEmptyOpenAIResponseModel(in, "kimi-k3")
+		require.False(t, changed)
+		require.Equal(t, string(in), string(got))
+	})
+
 	t.Run("fills empty response.model", func(t *testing.T) {
 		t.Parallel()
 		got, changed := fillEmptyOpenAIResponseModel(
@@ -75,7 +101,7 @@ func TestFillEmptyOpenAIResponseModel(t *testing.T) {
 		)
 		require.True(t, changed)
 		require.Equal(t, "gpt-5.4", gjson.GetBytes(got, "response.model").String())
-		require.False(t, gjson.GetBytes(got, "model").Exists())
+		require.Equal(t, "gpt-5.4", gjson.GetBytes(got, "model").String())
 	})
 }
 
