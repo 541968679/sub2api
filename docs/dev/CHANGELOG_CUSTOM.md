@@ -1,7 +1,7 @@
 ## 2026-09-21 - release: v0.1.298 admin channel load-test
 
 ### What
-- Tag `v0.1.298`. Ship admin **渠道管理 → 并发压测** (`/admin/channels/loadtest`): account or pasted API, optional proxy, CC/Responses, stream/sync, user363/SLA profiles, live per-request rows, TTFT ms/s toggle, empty-`model` contract checks.
+- Tag `v0.1.298`. Ship admin **渠道管理 → 并发压测** (`/admin/channels/loadtest`): account or pasted API, optional proxy, CC/Responses, stream/sync, live rows, TTFT ms/s toggle, empty-`model` checks, and a **客户 SLA 表预设** that builds 50K/160K/380K input and scores TTFT/TPOT per input band.
 
 ### Why
 Kayn needs an in-product soak for the user-363 kimi/glm channel SLA sheet (50K/160K/380K input, TTFT/TPOT gates) before cutting traffic to a new upstream.
@@ -13,6 +13,21 @@ Kayn needs an in-product soak for the user-363 kimi/glm channel SLA sheet (50K/1
 `backend/internal/handler/admin/channel_loadtest_handler.go`,
 `frontend/src/views/admin/ChannelLoadtestView.vue`,
 `tools/kimi-loadtest/`,
+this changelog.
+
+## 2026-09-21 - feat: customer SLA sheet preset with input-banded TTFT
+
+### What
+- Preset `user363-sla` now emits the sheet mix (50% 50K / 38% 80K / 10% 160K / 2% 380K) with paired output 0.2K/0.6K/1.3K/7K.
+- TTFT/TPOT gates are scored **per input band** (p50@50K, p90@160K, p99@380K), not mixed across all sizes. Optional `input_tokens` pins every request to one size.
+- Admin UI: one-click「应用客户 SLA 表预设」plus data-profile table vs the sheet.
+
+### Why
+The customer sheet ties performance percentiles to input length; a mixed p50 hid the 50K condition.
+
+### Affected files
+`backend/internal/pkg/loadtest/`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
 this changelog.
 
 ## 2026-09-21 - feat: live load-test rows and ms/s toggle

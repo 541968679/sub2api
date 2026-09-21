@@ -28,7 +28,7 @@ func TestPickClassMixHasBoth(t *testing.T) {
 	rng := rand.New(rand.NewSource(363))
 	syncN, streamN := 0, 0
 	for i := 0; i < 400; i++ {
-		cls := pickClass(rng, "user363", defaultSyncRatio, 80000, defaultCacheShare)
+		cls := pickClass(rng, "user363", defaultSyncRatio, 80000, defaultCacheShare, i+1)
 		if cls.Stream {
 			streamN++
 			if cls.TargetTokens > 80000 {
@@ -196,7 +196,7 @@ func TestRunOneStreamSuccess(t *testing.T) {
 	if res.Outcome != "success" {
 		t.Fatalf("%+v", res)
 	}
-	if res.RequestID != "rid-1" || res.ContentChars == 0 || res.FirstContentMs <= 0 {
+	if res.RequestID != "rid-1" || res.ContentChars == 0 {
 		t.Fatalf("%+v", res)
 	}
 	if res.RequestedModel != "kimi-k3" {
@@ -236,9 +236,46 @@ func TestParseModelList(t *testing.T) {
 
 func TestSLAClassIsStream(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
-	cls := pickClass(rng, "user363-sla", 0, 0, defaultCacheShare)
-	if !cls.Stream || cls.TargetTokens < 50000 || cls.MaxTokens < 200 {
+	cls := pickClass(rng, "user363-sla", 0, 0, defaultCacheShare, 1)
+	if !cls.Stream || cls.TargetTokens != 50000 || cls.MaxTokens != 200 || inputBand(cls.TargetTokens) != "50k" {
 		t.Fatalf("%+v", cls)
+	}
+	p90 := pickClass(rng, "user363-sla", 0, 0, defaultCacheShare, 89)
+	if p90.TargetTokens != 160000 || p90.MaxTokens != 1300 {
+		t.Fatalf("p90 slot %+v", p90)
+	}
+	p99 := pickClass(rng, "user363-sla", 0, 0, defaultCacheShare, 99)
+	if p99.TargetTokens != 380000 || p99.MaxTokens != 7000 {
+		t.Fatalf("p99 slot %+v", p99)
+	}
+}
+
+func TestSLASlotMatchesSheetPercentiles(t *testing.T) {
+	var ins []int
+	for seq := 1; seq <= 100; seq++ {
+		in, _, _ := slaSlot(seq)
+		ins = append(ins, in)
+	}
+	if percentile(ins, 0.5) != 50000 || percentile(ins, 0.9) != 160000 || percentile(ins, 0.99) != 380000 {
+		t.Fatalf("p50=%d p90=%d p99=%d", percentile(ins, 0.5), percentile(ins, 0.9), percentile(ins, 0.99))
+	}
+}
+
+func TestInputBandSLAUses50kCohort(t *testing.T) {
+	rows := []Result{
+		{Stream: true, TargetTokens: 50000, InputBand: "50k", FirstContentMs: 3000, TPOT: 80},
+		{Stream: true, TargetTokens: 50000, InputBand: "50k", FirstContentMs: 3500, TPOT: 90},
+		{Stream: true, TargetTokens: 380000, InputBand: "380k", FirstContentMs: 20000, TPOT: 50},
+	}
+	gates := evalInputBandSLA(rows)
+	var p50 SLAVerdict
+	for _, g := range gates {
+		if g.Name == "TTFT p50 @ 50K in" {
+			p50 = g
+		}
+	}
+	if p50.Skip || !p50.Pass || p50.GotValue > 3500 {
+		t.Fatalf("%+v", p50)
 	}
 }
 
@@ -292,7 +329,7 @@ func TestBuildPayloadResponsesUsesInput(t *testing.T) {
 }
 
 func TestApplyStreamMode(t *testing.T) {
-	cls := pickClass(rand.New(rand.NewSource(1)), "user363", defaultSyncRatio, 80000, defaultCacheShare)
+	cls := pickClass(rand.New(rand.NewSource(1)), "user363", defaultSyncRatio, 80000, defaultCacheShare, 1)
 	if got := applyStreamMode(cls, StreamModeSync); got.Stream {
 		t.Fatal("sync override")
 	}

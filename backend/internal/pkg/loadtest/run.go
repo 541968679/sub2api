@@ -41,6 +41,7 @@ type Config struct {
 	ProxyURL          string
 	APIMode           string
 	StreamMode        string
+	InputTokens       int
 }
 
 type Progress struct {
@@ -107,7 +108,7 @@ func EstimateInputTokens(cfg Config) int {
 	rng := rand.New(rand.NewSource(c.Seed))
 	sum := 0
 	for i := 0; i < n; i++ {
-		sum += pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare).TargetTokens
+		sum += applyInputTokens(pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare, i+1), c.InputTokens, c.CacheShare).TargetTokens
 	}
 	return sum
 }
@@ -178,7 +179,7 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 		}
 		seq++
 		curSeq := seq
-		cls := applyStreamMode(pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare), c.StreamMode)
+		cls := applyInputTokens(applyStreamMode(pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare, curSeq), c.StreamMode), c.InputTokens, c.CacheShare)
 		modelName := c.Models[(curSeq-1)%len(c.Models)]
 		sem <- struct{}{}
 		wg.Add(1)
@@ -282,6 +283,7 @@ func runOne(
 		Stream:         cls.Stream,
 		RequestedModel: model,
 		TargetTokens:   cls.TargetTokens,
+		InputBand:      inputBand(cls.TargetTokens),
 		APIMode:        apiMode,
 	}
 	payload, err := buildPayload(cls, model, seq, maxTokens, temperature, toolsMode, cachePrefix, apiMode)

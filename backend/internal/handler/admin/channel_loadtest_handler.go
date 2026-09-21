@@ -37,6 +37,7 @@ type channelLoadtestStartRequest struct {
 	Tools           string `json:"tools"`
 	ConfirmCost     bool   `json:"confirm_cost"`
 	AbortAfterFirst bool   `json:"abort_after_first"`
+	InputTokens     int    `json:"input_tokens"`
 }
 
 func (h *ChannelLoadtestHandler) Start(c *gin.Context) {
@@ -65,6 +66,7 @@ func (h *ChannelLoadtestHandler) Start(c *gin.Context) {
 		Tools:           req.Tools,
 		ConfirmCost:     req.ConfirmCost,
 		AbortAfterFirst: req.AbortAfterFirst,
+		InputTokens:     req.InputTokens,
 	})
 	if err != nil {
 		msg := err.Error()

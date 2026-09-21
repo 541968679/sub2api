@@ -19,6 +19,7 @@ type Result struct {
 	APIMode          string   `json:"api_mode,omitempty"`
 	RequestedModel   string   `json:"requested_model,omitempty"`
 	TargetTokens     int      `json:"target_input_tokens"`
+	InputBand        string   `json:"input_band,omitempty"`
 	BodyBytes        int      `json:"body_bytes"`
 	StatusCode       int      `json:"status_code"`
 	Outcome          string   `json:"outcome"`
@@ -71,9 +72,57 @@ type SLAVerdict struct {
 	Pass      bool    `json:"pass"`
 	Skip      bool    `json:"skip"`
 	Metric    string  `json:"metric,omitempty"`
+	Band      string  `json:"band,omitempty"`
 	WantValue float64 `json:"want_value,omitempty"`
 	GotValue  float64 `json:"got_value,omitempty"`
 	Samples   int     `json:"samples,omitempty"`
+}
+
+type TokenPercentiles struct {
+	N   int `json:"n"`
+	P50 int `json:"p50"`
+	P90 int `json:"p90"`
+	P99 int `json:"p99"`
+	Avg int `json:"avg"`
+}
+
+type DataProfile struct {
+	TargetInput TokenPercentiles `json:"target_input"`
+	UsageInput  TokenPercentiles `json:"usage_input"`
+	UsageOutput TokenPercentiles `json:"usage_output"`
+}
+
+func BuildDataProfile(rows []Result) DataProfile {
+	var target, usageIn, usageOut []int
+	for _, r := range rows {
+		if r.TargetTokens > 0 {
+			target = append(target, r.TargetTokens)
+		}
+		if r.PromptTokens > 0 {
+			usageIn = append(usageIn, r.PromptTokens)
+		}
+		if r.CompletionTokens > 0 {
+			usageOut = append(usageOut, r.CompletionTokens)
+		}
+	}
+	return DataProfile{
+		TargetInput: tokenPct(target),
+		UsageInput:  tokenPct(usageIn),
+		UsageOutput: tokenPct(usageOut),
+	}
+}
+
+func tokenPct(values []int) TokenPercentiles {
+	if len(values) == 0 {
+		return TokenPercentiles{}
+	}
+	return TokenPercentiles{
+		N:   len(values),
+		P50: percentile(values, 0.5),
+		P90: percentile(values, 0.9),
+		P99: percentile(values, 0.99),
+		Avg: mean(values),
+	}
 }
 
 func classifyHTTP(status int, body string) (category, message string) {
@@ -186,6 +235,10 @@ func fmtTok(n int) string {
 }
 
 func evalSLA(rows []Result) []SLAVerdict {
+	return append(evalInputBandSLA(rows), evalMixedSLA(rows)...)
+}
+
+func evalMixedSLA(rows []Result) []SLAVerdict {
 	var ttft []int
 	var tpot []float64
 	for _, r := range rows {
@@ -196,16 +249,68 @@ func evalSLA(rows []Result) []SLAVerdict {
 			tpot = append(tpot, r.TPOT)
 		}
 	}
-	out := []SLAVerdict{
-		gateMs("TTFT p50", slaTTFTp50Ms, ttft, 0.50),
-		gateMs("TTFT p75", slaTTFTp75Ms, ttft, 0.75),
-		gateMs("TTFT p90", slaTTFTp90Ms, ttft, 0.90),
-		gateMs("TTFT p99", slaTTFTp99Ms, ttft, 0.99),
-		gateTPOT("TPOT p50", slaTPOTp50, tpot, 0.50),
-		gateTPOT("TPOT slow-tail p1 (sheet p99)", slaTPOTp99, tpot, 0.01),
-		gateTPOT("TPOT p99 (literal)", slaTPOTp99, tpot, 0.99),
+	return []SLAVerdict{
+		withBand(gateMs("TTFT p50 (mixed)", slaTTFTp50Ms, ttft, 0.50), "mixed"),
+		withBand(gateMs("TTFT p75 (mixed)", slaTTFTp75Ms, ttft, 0.75), "mixed"),
+		withBand(gateMs("TTFT p90 (mixed)", slaTTFTp90Ms, ttft, 0.90), "mixed"),
+		withBand(gateMs("TTFT p99 (mixed)", slaTTFTp99Ms, ttft, 0.99), "mixed"),
+		withBand(gateTPOT("TPOT p50 (mixed)", slaTPOTp50, tpot, 0.50), "mixed"),
+		withBand(gateTPOT("TPOT slow-tail p1 (mixed)", slaTPOTp99, tpot, 0.01), "mixed"),
+	}
+}
+
+func evalInputBandSLA(rows []Result) []SLAVerdict {
+	band50 := filterBand(rows, "50k")
+	band160 := filterBand(rows, "160k")
+	band380 := filterBand(rows, "380k")
+	return []SLAVerdict{
+		withBand(gateMs("TTFT p50 @ 50K in", slaTTFTp50Ms, ttftOf(band50), 0.50), "50k"),
+		withBand(gateMs("TTFT p75 @ 50K in", slaTTFTp75Ms, ttftOf(band50), 0.75), "50k"),
+		withBand(gateTPOT("TPOT p50 @ 50K in", slaTPOTp50, tpotOf(band50), 0.50), "50k"),
+		withBand(gateMs("TTFT p50 @ 160K in", slaTTFTp90Ms, ttftOf(band160), 0.50), "160k"),
+		withBand(gateMs("TTFT p90 @ 160K in", slaTTFTp90Ms, ttftOf(band160), 0.90), "160k"),
+		withBand(gateMs("TTFT p50 @ 380K in", slaTTFTp99Ms, ttftOf(band380), 0.50), "380k"),
+		withBand(gateTPOT("TPOT p50 @ 380K in", slaTPOTp99, tpotOf(band380), 0.50), "380k"),
+	}
+}
+
+func filterBand(rows []Result, band string) []Result {
+	var out []Result
+	for _, r := range rows {
+		b := r.InputBand
+		if b == "" {
+			b = inputBand(r.TargetTokens)
+		}
+		if b == band {
+			out = append(out, r)
+		}
 	}
 	return out
+}
+
+func ttftOf(rows []Result) []int {
+	var out []int
+	for _, r := range rows {
+		if r.Stream && r.FirstContentMs > 0 {
+			out = append(out, r.FirstContentMs)
+		}
+	}
+	return out
+}
+
+func tpotOf(rows []Result) []float64 {
+	var out []float64
+	for _, r := range rows {
+		if r.TPOT > 0 {
+			out = append(out, r.TPOT)
+		}
+	}
+	return out
+}
+
+func withBand(v SLAVerdict, band string) SLAVerdict {
+	v.Band = band
+	return v
 }
 
 func gateMs(name string, want int, samples []int, p float64) SLAVerdict {
@@ -245,15 +350,16 @@ func gateTPOT(name string, want float64, samples []float64, p float64) SLAVerdic
 func slaPassed(verdicts []SLAVerdict) bool {
 	ok := false
 	for _, v := range verdicts {
+		if v.Band != "50k" {
+			continue
+		}
 		if v.Skip {
 			return false
 		}
-		if strings.HasPrefix(v.Name, "TTFT") || v.Name == "TPOT p50" || strings.Contains(v.Name, "slow-tail") {
-			if !v.Pass {
-				return false
-			}
-			ok = true
+		if !v.Pass {
+			return false
 		}
+		ok = true
 	}
 	return ok
 }

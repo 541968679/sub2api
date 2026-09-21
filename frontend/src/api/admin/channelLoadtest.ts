@@ -12,9 +12,24 @@ export interface LoadtestSLAVerdict {
   pass: boolean
   skip: boolean
   metric?: 'ttft' | 'tpot' | string
+  band?: string
   want_value?: number
   got_value?: number
   samples?: number
+}
+
+export interface LoadtestTokenPercentiles {
+  n: number
+  p50: number
+  p90: number
+  p99: number
+  avg: number
+}
+
+export interface LoadtestDataProfile {
+  target_input: LoadtestTokenPercentiles
+  usage_input: LoadtestTokenPercentiles
+  usage_output: LoadtestTokenPercentiles
 }
 
 export interface LoadtestResult {
@@ -25,6 +40,7 @@ export interface LoadtestResult {
   stream: boolean
   requested_model?: string
   target_input_tokens: number
+  input_band?: string
   body_bytes: number
   status_code: number
   outcome: string
@@ -76,6 +92,8 @@ export interface LoadtestSnapshot {
   ok: number
   success_rate: number
   estimated_input_tokens: number
+  input_tokens?: number
+  data_profile?: LoadtestDataProfile
   sla: LoadtestSLAVerdict[]
   sla_pass: boolean
   model_missing_requests: number
@@ -103,6 +121,7 @@ export interface StartLoadtestRequest {
   tools?: string
   confirm_cost?: boolean
   abort_after_first?: boolean
+  input_tokens?: number
 }
 
 export async function start(req: StartLoadtestRequest): Promise<LoadtestSnapshot> {

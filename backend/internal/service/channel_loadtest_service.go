@@ -40,6 +40,7 @@ type ChannelLoadtestStartInput struct {
 	Tools           string
 	ConfirmCost     bool
 	AbortAfterFirst bool
+	InputTokens     int
 }
 
 type ChannelLoadtestSnapshot struct {
@@ -68,6 +69,8 @@ type ChannelLoadtestSnapshot struct {
 	OK                 int64                 `json:"ok"`
 	SuccessRate        float64               `json:"success_rate"`
 	EstimatedInputTok  int                   `json:"estimated_input_tokens"`
+	InputTokens        int                   `json:"input_tokens,omitempty"`
+	DataProfile        loadtest.DataProfile  `json:"data_profile"`
 	SLA                []loadtest.SLAVerdict `json:"sla"`
 	SLAPass            bool                  `json:"sla_pass"`
 	ModelMissingReqs   int                   `json:"model_missing_requests"`
@@ -164,6 +167,12 @@ func (s *ChannelLoadtestService) Start(ctx context.Context, in ChannelLoadtestSt
 	if in.SizeCap < 0 || in.SizeCap > 400000 {
 		return nil, fmt.Errorf("size_cap must be 0-400000")
 	}
+	if in.InputTokens < 0 || in.InputTokens > 400000 {
+		return nil, fmt.Errorf("input_tokens must be 0-400000")
+	}
+	if in.Profile == "user363-sla" && in.SizeCap == 80000 {
+		in.SizeCap = 0
+	}
 
 	baseURL, apiKey, source, acc, err := s.resolveTarget(ctx, in)
 	if err != nil {
@@ -202,6 +211,7 @@ func (s *ChannelLoadtestService) Start(ctx context.Context, in ChannelLoadtestSt
 		ProxyURL:          proxyURL,
 		APIMode:           in.APIMode,
 		StreamMode:        in.StreamMode,
+		InputTokens:       in.InputTokens,
 	}
 	if in.DurationSec > 0 {
 		cfg.Duration = time.Duration(in.DurationSec) * time.Second
@@ -365,7 +375,9 @@ func (s *ChannelLoadtestService) snapshot(run *channelLoadtestRun, includeResult
 		Done:               done,
 		OK:                 ok,
 		SuccessRate:        rate,
+		InputTokens:        run.cfg.InputTokens,
 		EstimatedInputTok:  loadtest.EstimateInputTokens(run.cfg),
+		DataProfile:        loadtest.BuildDataProfile(rows),
 		SLA:                loadtest.PublicSLA(rows),
 		SLAPass:            loadtest.SLAOK(rows),
 		ModelMissingReqs:   loadtest.ModelMissingRequests(rows),

@@ -102,6 +102,10 @@
               <option value="user363-sync">{{ t('admin.channelLoadtest.profileSync') }}</option>
               <option value="user363-sla">{{ t('admin.channelLoadtest.profileSla') }}</option>
             </select>
+            <button type="button" class="btn btn-secondary w-full text-sm" @click="applySheetPreset">
+              {{ t('admin.channelLoadtest.applySheetPreset') }}
+            </button>
+            <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.sheetPresetHint') }}</p>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -150,6 +154,13 @@
                   {{ t('admin.channelLoadtest.sizeCap') }}
                 </label>
                 <input v-model.number="sizeCap" type="number" min="0" max="400000" class="input" />
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.channelLoadtest.inputTokens') }}
+                </label>
+                <input v-model.number="inputTokens" type="number" min="0" max="400000" class="input" />
+                <p class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.inputTokensHint') }}</p>
               </div>
             </div>
             <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.sizeCapHint') }}</p>
@@ -228,6 +239,55 @@
           </div>
 
           <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.channelLoadtest.dataTitle') }}
+            </h2>
+            <p class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.dataProfileHint') }}</p>
+            <table class="mt-3 w-full text-left text-sm">
+              <thead>
+                <tr class="text-xs text-gray-500">
+                  <th class="py-1"></th>
+                  <th class="py-1">p50</th>
+                  <th class="py-1">p90</th>
+                  <th class="py-1">p99</th>
+                  <th class="py-1">avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5">{{ t('admin.channelLoadtest.sheetInput') }}</td>
+                  <td>50K</td><td>160K</td><td>380K</td><td>80K</td>
+                </tr>
+                <tr class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5">{{ t('admin.channelLoadtest.builtInput') }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.target_input?.p50) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.target_input?.p90) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.target_input?.p99) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.target_input?.avg) }}</td>
+                </tr>
+                <tr class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5">{{ t('admin.channelLoadtest.usageInput') }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_input?.p50) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_input?.p90) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_input?.p99) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_input?.avg) }}</td>
+                </tr>
+                <tr class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5">{{ t('admin.channelLoadtest.sheetOutput') }}</td>
+                  <td>0.2K</td><td>1.3K</td><td>7K</td><td>0.6K</td>
+                </tr>
+                <tr class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5">{{ t('admin.channelLoadtest.usageOutput') }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_output?.p50) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_output?.p90) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_output?.p99) }}</td>
+                  <td>{{ fmtTok(snap?.data_profile?.usage_output?.avg) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
             <div class="flex items-center justify-between gap-3">
               <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
                 {{ t('admin.channelLoadtest.slaTitle') }}
@@ -254,6 +314,7 @@
             <table v-if="snap?.sla?.length" class="mt-3 w-full text-left text-sm">
               <thead>
                 <tr class="text-xs text-gray-500">
+                  <th class="py-1">{{ t('admin.channelLoadtest.inputBand') }}</th>
                   <th class="py-1">metric</th>
                   <th class="py-1">want</th>
                   <th class="py-1">got</th>
@@ -262,6 +323,7 @@
               </thead>
               <tbody>
                 <tr v-for="row in snap.sla" :key="row.name" class="border-t border-gray-100 dark:border-dark-700">
+                  <td class="py-1.5 text-gray-500">{{ row.band || '-' }}</td>
                   <td class="py-1.5">{{ row.name }}</td>
                   <td class="py-1.5 text-gray-500">{{ formatSlaWant(row) }}</td>
                   <td class="py-1.5">{{ formatSlaGot(row) }}</td>
@@ -311,6 +373,7 @@
                 <thead class="sticky top-0 bg-gray-50 text-gray-500 dark:bg-dark-900">
                   <tr>
                     <th class="px-3 py-2">#</th>
+                    <th class="px-3 py-2">{{ t('admin.channelLoadtest.inputTokens') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.requestedModel') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.outcome') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.ttft') }}</th>
@@ -326,6 +389,7 @@
                     class="border-t border-gray-100 dark:border-dark-700"
                   >
                     <td class="px-3 py-1.5">{{ row.seq }}</td>
+                    <td class="px-3 py-1.5">{{ fmtTok(row.target_input_tokens) }}{{ row.input_band ? ` (${row.input_band})` : '' }}</td>
                     <td class="px-3 py-1.5">{{ row.requested_model }}</td>
                     <td class="px-3 py-1.5">{{ row.outcome }}</td>
                     <td class="px-3 py-1.5">{{ formatMs(row.first_content_ms) }}</td>
@@ -375,6 +439,7 @@ const concurrency = ref(20)
 const total = ref(40)
 const maxTokens = ref(256)
 const sizeCap = ref(80000)
+const inputTokens = ref(0)
 const tools = ref('auto')
 const confirmCost = ref(false)
 const busy = ref(false)
@@ -403,6 +468,33 @@ function formatSlaWant(row: LoadtestSLAVerdict) {
   }
   return row.want
 }
+
+function fmtTok(n?: number) {
+  if (!n) return '-'
+  if (n >= 1000) {
+    const k = n / 1000
+    return k >= 10 ? `${Math.round(k)}K` : `${k.toFixed(1)}K`
+  }
+  return String(n)
+}
+
+function applySheetPreset() {
+  profile.value = 'user363-sla'
+  streamMode.value = 'stream'
+  sizeCap.value = 0
+  inputTokens.value = 0
+  tools.value = 'off'
+  timeUnit.value = 's'
+  concurrency.value = 50
+  total.value = 100
+}
+
+watch(profile, (p) => {
+  if (p === 'user363-sla') {
+    sizeCap.value = 0
+    streamMode.value = 'stream'
+  }
+})
 
 function formatSlaGot(row: LoadtestSLAVerdict) {
   if (row.skip) return 'n/a'
@@ -462,6 +554,7 @@ async function startRun() {
       total: total.value,
       max_tokens: maxTokens.value,
       size_cap: sizeCap.value,
+      input_tokens: inputTokens.value,
       tools: tools.value,
       confirm_cost: confirmCost.value
     }

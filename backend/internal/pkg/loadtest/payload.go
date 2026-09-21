@@ -51,23 +51,8 @@ var syncBuckets = []sizeBucket{
 	{Name: "8k+", Weight: 239, Tokens: 12000},
 }
 
-// Customer sheet (user 363): input p50=50K p90=160K p99=380K avg≈80K.
-var slaInputBuckets = []sizeBucket{
-	{Name: "sla-p50", Weight: 50, Tokens: 50000},
-	{Name: "sla-mid", Weight: 30, Tokens: 65000},
-	{Name: "sla-p90", Weight: 10, Tokens: 160000},
-	{Name: "sla-p99body", Weight: 8, Tokens: 200000},
-	{Name: "sla-p99", Weight: 2, Tokens: 380000},
-}
-
-// Customer sheet: output p50=0.2K p90=1.3K p99=7K avg≈0.6K.
-var slaOutputBuckets = []sizeBucket{
-	{Name: "out-p50", Weight: 50, Tokens: 200},
-	{Name: "out-mid", Weight: 30, Tokens: 400},
-	{Name: "out-p90", Weight: 10, Tokens: 1300},
-	{Name: "out-p99body", Weight: 8, Tokens: 2000},
-	{Name: "out-p99", Weight: 2, Tokens: 7000},
-}
+// Customer sheet mix (per 100 requests): p50=50K p90=160K p99=380K avg≈80K.
+// Output is paired with the same percentile: 0.2K / 0.6K / 1.3K / 7K.
 
 const (
 	slaTTFTp50Ms = 4000
@@ -215,7 +200,7 @@ func pickBucket(rng *rand.Rand, buckets []sizeBucket, sizeCap int) sizeBucket {
 	return chosen
 }
 
-func pickClass(rng *rand.Rand, profile string, syncRatio float64, sizeCap int, cacheShare float64) payloadClass {
+func pickClass(rng *rand.Rand, profile string, syncRatio float64, sizeCap int, cacheShare float64, seq int) payloadClass {
 	switch profile {
 	case "smoke":
 		return payloadClass{Name: "smoke", Stream: true, Bucket: "smoke", TargetTokens: 80, UniqueTokens: 80}
@@ -225,7 +210,7 @@ func pickClass(rng *rand.Rand, profile string, syncRatio float64, sizeCap int, c
 	case "user363-stream":
 		return streamClass(rng, sizeCap, cacheShare)
 	case "user363-sla":
-		return slaClass(rng, sizeCap, cacheShare)
+		return slaClassForSeq(seq, sizeCap, cacheShare)
 	default: // user363 mixed
 		if rng.Float64() < syncRatio {
 			b := pickBucket(rng, syncBuckets, sizeCap)
@@ -282,31 +267,76 @@ func defaultPathForAPIMode(apiMode string) string {
 	return DefaultPathForAPIMode(apiMode)
 }
 
-func slaClass(rng *rand.Rand, sizeCap int, cacheShare float64) payloadClass {
-	in := pickBucket(rng, slaInputBuckets, sizeCap)
-	out := pickBucket(rng, slaOutputBuckets, 0)
+func slaSlot(seq int) (inTok, outTok int, name string) {
+	r := ((seq - 1) % 100) + 1
+	switch {
+	case r <= 50:
+		return 50000, 200, "sla-p50"
+	case r <= 88:
+		return 80000, 600, "sla-avg"
+	case r <= 98:
+		return 160000, 1300, "sla-p90"
+	default:
+		return 380000, 7000, "sla-p99"
+	}
+}
+
+func slaClassForSeq(seq, sizeCap int, cacheShare float64) payloadClass {
+	inTok, outTok, name := slaSlot(seq)
+	if sizeCap > 0 && inTok > sizeCap {
+		inTok = sizeCap
+		name += fmt.Sprintf("@cap%d", sizeCap)
+	}
+	return sizedStreamClass("stream-sla", name, inTok, outTok, cacheShare)
+}
+
+func sizedStreamClass(className, bucket string, inTok, outTok int, cacheShare float64) payloadClass {
 	if cacheShare < 0 {
 		cacheShare = 0
 	}
 	if cacheShare > 0.95 {
 		cacheShare = 0.95
 	}
-	cacheTok := int(float64(in.Tokens) * cacheShare)
-	uniqueTok := in.Tokens - cacheTok
+	cacheTok := int(float64(inTok) * cacheShare)
+	uniqueTok := inTok - cacheTok
 	if uniqueTok < 64 {
 		uniqueTok = 64
-		if cacheTok+uniqueTok > in.Tokens && in.Tokens > 64 {
-			cacheTok = in.Tokens - uniqueTok
+		if cacheTok+uniqueTok > inTok && inTok > 64 {
+			cacheTok = inTok - uniqueTok
 		}
 	}
 	return payloadClass{
-		Name:         "stream-sla",
+		Name:         className,
 		Stream:       true,
-		Bucket:       in.Name + "/" + out.Name,
-		TargetTokens: in.Tokens,
+		Bucket:       bucket,
+		TargetTokens: inTok,
 		CacheTokens:  cacheTok,
 		UniqueTokens: uniqueTok,
-		MaxTokens:    out.Tokens,
+		MaxTokens:    outTok,
+	}
+}
+
+func applyInputTokens(cls payloadClass, inputTokens int, cacheShare float64) payloadClass {
+	if inputTokens <= 0 {
+		return cls
+	}
+	outTok := cls.MaxTokens
+	if outTok <= 0 {
+		outTok = 200
+	}
+	return sizedStreamClass(cls.Name, fmt.Sprintf("fixed-%d", inputTokens), inputTokens, outTok, cacheShare)
+}
+
+func inputBand(tokens int) string {
+	switch {
+	case tokens >= 40000 && tokens <= 60000:
+		return "50k"
+	case tokens >= 140000 && tokens <= 180000:
+		return "160k"
+	case tokens >= 300000 && tokens <= 420000:
+		return "380k"
+	default:
+		return "other"
 	}
 }
 
