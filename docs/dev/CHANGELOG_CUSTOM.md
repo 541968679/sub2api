@@ -1,3 +1,17 @@
+## 2026-09-21 - deploy: production v0.1.298
+
+### What
+- Released and deployed `v0.1.298` (`fec7bec41`) to production as `ghcr.io/541968679/sub2api:latest` (`0.1.298`).
+- Preflight `/health` passed; live container healthy. Digest `sha256:a262cb65dad709910d8b6e8c23306ffa761f22909916ea1f374fcdfc372a93e3`. Rollback is `v0.1.297` digest `sha256:2df62c3aae25b90218f2b66360645269f9613d7da149f867fde2496a9c44166b`.
+- Release https://github.com/541968679/sub2api/actions/runs/35597683595. `update.sh` dangling-image cleanup untagged the previous live digest locally again.
+
+### Why
+Ship admin 并发压测 and the customer SLA sheet preset (50K/160K/380K input-banded TTFT/TPOT).
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-21 - release: v0.1.298 admin channel load-test
 
 ### What
