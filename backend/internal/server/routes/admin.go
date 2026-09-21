@@ -107,6 +107,7 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 		registerImageChannelMonitorRoutes(admin, h)
+		registerChannelLoadtestRoutes(admin, h)
 
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
@@ -812,6 +813,19 @@ func registerRedeemPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		rp.GET("/content", h.Admin.RedeemPage.Get)
 		rp.PUT("/content", h.Admin.RedeemPage.Update)
+	}
+}
+
+func registerChannelLoadtestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Admin == nil || h.Admin.ChannelLoadtest == nil {
+		return
+	}
+	lt := admin.Group("/channel-loadtest")
+	{
+		lt.POST("/runs", h.Admin.ChannelLoadtest.Start)
+		lt.GET("/runs/latest", h.Admin.ChannelLoadtest.Latest)
+		lt.GET("/runs/:id", h.Admin.ChannelLoadtest.Get)
+		lt.POST("/runs/:id/stop", h.Admin.ChannelLoadtest.Stop)
 	}
 }
 

@@ -778,6 +778,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewOpenAI7dLiteLLMCycleService,
 	NewAccountTestService,
+	NewChannelLoadtestService,
 	ProvideSettingService,
 	wire.Bind(new(GatewayNetworkRetrySettingsReader), new(*SettingService)),
 	NewDataManagementService,

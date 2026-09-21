@@ -16,6 +16,7 @@
 | Data consistency | [data-consistency.md](data-consistency.md) | Account pagination query isolation, requested-model usage aggregation, and version-aware OpenAI model-sync URLs | 2026-07-11 |
 | OpenAI Image URL Relay Diagnostics | [../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md](../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md) | Production `gpt-image-2` URL-response behavior, native 4K channel tests, and image URL download timing splits | 2026-06-30 |
 | Channel Monitor | [channel-monitor.md](channel-monitor.md) | Admin monitor CRUD, OpenAI chat/responses api_mode, request templates, checks, and rollups | 2026-06-07 |
+| Channel Load Test | [channel-loadtest.md](channel-loadtest.md) | Admin 并发压测：选账号或手填 API/Key，user363/SLA 画像，TTFT/TPOT，空 model 检查 | 2026-09-21 |
 | Image Channel Monitor | [image-channel-monitor.md](image-channel-monitor.md) | Dedicated OpenAI-compatible image generation monitor with custom API and OpenAI API-key account sources | 2026-07-10 |
 | Batch Image | [batch-image.md](batch-image.md) | Gemini/Vertex asynchronous image batches, frozen-balance settlement, owner-scoped downloads, and fork-local preservation boundaries | 2026-07-11 |
 | Subscription management | [subscription.md](subscription.md) | Soft-delete revoke/restore, admin history visibility, uniqueness, and cache invalidation boundaries | 2026-07-11 |

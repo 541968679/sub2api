@@ -1,3 +1,84 @@
+## 2026-09-21 - release: v0.1.298 admin channel load-test
+
+### What
+- Tag `v0.1.298`. Ship admin **渠道管理 → 并发压测** (`/admin/channels/loadtest`): account or pasted API, optional proxy, CC/Responses, stream/sync, user363/SLA profiles, live per-request rows, TTFT ms/s toggle, empty-`model` contract checks.
+
+### Why
+Kayn needs an in-product soak for the user-363 kimi/glm channel SLA sheet (50K/160K/380K input, TTFT/TPOT gates) before cutting traffic to a new upstream.
+
+### Affected files
+`backend/cmd/server/VERSION`,
+`backend/internal/pkg/loadtest/`,
+`backend/internal/service/channel_loadtest_service.go`,
+`backend/internal/handler/admin/channel_loadtest_handler.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`tools/kimi-loadtest/`,
+this changelog.
+
+## 2026-09-21 - feat: live load-test rows and ms/s toggle
+
+### What
+- Each finished request is appended to the run snapshot immediately, so the admin table fills row-by-row instead of after the whole batch.
+- TTFT / duration / SLA TTFT thresholds can switch between milliseconds and seconds.
+
+### Why
+Waiting for the last of 50 concurrent requests hid progress; operators also compare TTFT in seconds against the customer SLA sheet.
+
+### Affected files
+`backend/internal/pkg/loadtest/`,
+`backend/internal/service/channel_loadtest_service.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+this changelog.
+
+## 2026-09-21 - feat: load-test CC/Responses and stream/sync switches
+
+### What
+- Channel load-test can target Chat Completions (`/v1/chat/completions`) or Responses (`/v1/responses`).
+- Stream mode is configurable: follow the traffic profile, force all stream, or force all sync.
+- Responses payloads use `instructions`/`input`/`max_output_tokens`; SSE parser reads `response.output_text.delta`.
+
+### Why
+Kayn needs to soak a new channel on the same protocol the client actually uses, not only CC stream.
+
+### Affected files
+`backend/internal/pkg/loadtest/`,
+`backend/internal/service/channel_loadtest_service.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+this changelog.
+
+## 2026-09-21 - feat: optional proxy on channel load-test
+
+### What
+- 并发压测 form can pick a proxy from the existing proxy pool (or 直连). Selecting an account prefills that account's bound proxy; `proxy_id=0` is explicit direct.
+- Engine uses `proxyurl.Parse` + `proxyutil.ConfigureTransportProxy` (http/https/socks5h). Empty proxy is direct; env `HTTP_PROXY` is not used.
+
+### Why
+Upstream soaks often need the same egress proxy as production accounts.
+
+### Affected files
+`backend/internal/pkg/loadtest/run.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+this changelog.
+
+## 2026-09-21 - feat: channel load-test UI under 渠道管理
+
+### What
+- Admin page `渠道管理 → 并发压测` (`/admin/channels/loadtest`) starts a backend Go HTTP/2 soak: pick an API-key account or paste base URL + key, set model/concurrency/profile, then poll live inflight/TTFT/TPOT/empty-`model`.
+- Engine lives in `backend/internal/pkg/loadtest`; one in-process run at a time; keys are not stored.
+
+### Why
+Kayn needed a visual control for the user-363 / glm-5.3 channel soak instead of only the CLI.
+
+### Affected files
+`backend/internal/pkg/loadtest/`,
+`backend/internal/service/channel_loadtest_service.go`,
+`backend/internal/handler/admin/channel_loadtest_handler.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/router/index.ts`,
+`frontend/src/components/layout/AppSidebar.vue`,
+this changelog.
+
 ## 2026-09-21 - tools: loadtest multi-model, SLA table, empty-model contract
 
 ### What

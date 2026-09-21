@@ -31,6 +31,7 @@ import modelPricingAPI from './modelPricing'
 import channelMonitorAPI from './channelMonitor'
 import channelMonitorTemplateAPI from './channelMonitorTemplate'
 import imageChannelMonitorAPI from './imageChannelMonitor'
+import channelLoadtestAPI from './channelLoadtest'
 import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import distributionAdminAPI from './distribution'
@@ -69,6 +70,7 @@ export const adminAPI = {
   channelMonitor: channelMonitorAPI,
   channelMonitorTemplate: channelMonitorTemplateAPI,
   imageChannelMonitor: imageChannelMonitorAPI,
+  channelLoadtest: channelLoadtestAPI,
   payment: adminPaymentAPI,
   affiliates: affiliatesAPI,
   distribution: distributionAdminAPI,
@@ -105,6 +107,7 @@ export {
   channelMonitorAPI,
   channelMonitorTemplateAPI,
   imageChannelMonitorAPI,
+  channelLoadtestAPI,
   adminPaymentAPI,
   affiliatesAPI,
   distributionAdminAPI,
