@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,25 @@ import (
 	"testing"
 	"time"
 )
+
+func TestExtractErrorTextJSON(t *testing.T) {
+	got := extractErrorText(`{"error":{"message":"prompt is too long: 100001 tokens > 100000 maximum","type":"invalid_request_error"}}`)
+	if !strings.Contains(got, "prompt is too long") {
+		t.Fatalf("%q", got)
+	}
+	html := `<html><head><title>example.com | 502: Bad gateway</title></head><body>cf</body></html>`
+	if extractErrorText(html) != "example.com | 502: Bad gateway" {
+		t.Fatalf("%q", extractErrorText(html))
+	}
+}
+
+func TestConsumeSSECapturesUpstreamError(t *testing.T) {
+	body := "data: {\"error\":{\"message\":\"overloaded\"}}\n\n"
+	st := consumeSSE(strings.NewReader(body), time.Now().Add(-8*time.Millisecond), false, nil, "kimi-k3")
+	if st.UpstreamError != "overloaded" {
+		t.Fatalf("%q", st.UpstreamError)
+	}
+}
 
 func TestEstimateTokensCJK(t *testing.T) {
 	n := estimateTokens("你好世界")
@@ -66,6 +86,77 @@ func TestBuildPayloadStreamIncludesUsageAndTools(t *testing.T) {
 	}
 }
 
+func TestKimiK3PayloadStaysNativeChatCompletions(t *testing.T) {
+	cls := payloadClass{Name: "stream-ctx", Stream: true, Bucket: "20-50k", TargetTokens: 400, CacheTokens: 250, UniqueTokens: 150}
+	p, err := buildPayload(cls, "kimi-k3", 1, 256, nil, "auto", "PREFIX", APIModeResponses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(p.Body)
+	for _, needle := range []string{
+		`"model":"kimi-k3"`,
+		`"messages"`,
+		`"max_completion_tokens":256`,
+	} {
+		if !strings.Contains(body, needle) {
+			t.Fatalf("missing %s in %s", needle, body[:min(len(body), 500)])
+		}
+	}
+	for _, banned := range []string{`"input"`, `"instructions"`, `"max_tokens"`, `"role":"assistant"`} {
+		if strings.Contains(body, banned) {
+			t.Fatalf("kimi-k3 payload must stay native chat completions, found %s in %s", banned, body[:min(len(body), 500)])
+		}
+	}
+}
+
+func TestResolveLoadtestRequestKeepsKimiOnChatCompletions(t *testing.T) {
+	mode, path := resolveLoadtestRequest(APIModeResponses, "/v1/responses", "kimi-k3")
+	if mode != APIModeChatCompletions || path != "/v1/chat/completions" {
+		t.Fatalf("kimi-k3 mode=%s path=%s", mode, path)
+	}
+	mode, path = resolveLoadtestRequest(APIModeResponses, "/v1/responses", "glm-5.3")
+	if mode != APIModeResponses || path != "/v1/responses" {
+		t.Fatalf("glm mode=%s path=%s", mode, path)
+	}
+}
+
+func TestRunKimiK3IgnoresResponsesMode(t *testing.T) {
+	var gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"model":"kimi-k3","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+
+	results, err := Run(t.Context(), Config{
+		BaseURL:     srv.URL,
+		Path:        "/v1/responses",
+		APIMode:     APIModeResponses,
+		Models:      []string{"kimi-k3"},
+		Profile:     "smoke",
+		Concurrency: 1,
+		Total:       1,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		Tools:       "off",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("path %s body %s", gotPath, gotBody)
+	}
+	if !strings.Contains(gotBody, `"messages"`) || strings.Contains(gotBody, `"input"`) {
+		t.Fatalf("body %s", gotBody)
+	}
+	if len(results) != 1 || results[0].APIMode != APIModeChatCompletions {
+		t.Fatalf("%+v", results)
+	}
+}
+
 func TestBuildPayloadSyncOmitsStreamOptions(t *testing.T) {
 	cls := payloadClass{Name: "sync-short", Stream: false, Bucket: "0-500", TargetTokens: 80, UniqueTokens: 80}
 	p, err := buildPayload(cls, "kimi-k3", 2, 128, nil, "auto", "", APIModeChatCompletions)
@@ -78,6 +169,27 @@ func TestBuildPayloadSyncOmitsStreamOptions(t *testing.T) {
 	}
 	if strings.Contains(body, "stream_options") || strings.Contains(body, "read_file") {
 		t.Fatalf("sync should not send tools/stream_options: %s", body)
+	}
+}
+
+func TestConsumeSSEReasoningCountsAsFirstToken(t *testing.T) {
+	var st streamStats
+	t0 := time.Now().Add(-40 * time.Millisecond)
+	parseSSELine([]byte(`data: {"choices":[{"delta":{"reasoning_content":""}}]}`), t0, &st, "kimi-k3")
+	if st.FirstToken != 0 || st.FirstContent != 0 {
+		t.Fatalf("empty reasoning must not start TTFT: %+v", st)
+	}
+	parseSSELine([]byte(`data: {"choices":[{"delta":{"reasoning_content":"先想"}}]}`), t0, &st, "kimi-k3")
+	token := st.FirstToken
+	if token <= 0 || st.FirstContent != 0 || st.SawContent {
+		t.Fatalf("reasoning should be first token only: %+v", st)
+	}
+	parseSSELine([]byte(`data: {"choices":[{"delta":{"content":"答"}}]}`), time.Now().Add(-5*time.Millisecond), &st, "kimi-k3")
+	if st.FirstToken != token {
+		t.Fatalf("answer content moved first token: before %s after %s", token, st.FirstToken)
+	}
+	if st.FirstContent <= 0 || st.FirstContent >= token || !st.SawContent || st.ContentChars != 1 {
+		t.Fatalf("answer content: %+v", st)
 	}
 }
 
@@ -100,7 +212,7 @@ func TestConsumeSSEFirstContent(t *testing.T) {
 	if st.Usage.PromptTokens != 10 || st.Usage.CompletionTokens != 2 || st.Usage.CachedTokens != 4 {
 		t.Fatalf("usage %+v", st.Usage)
 	}
-	if st.FirstSSE <= 0 || st.FirstContent <= 0 {
+	if st.FirstSSE <= 0 || st.FirstContent <= 0 || st.FirstToken <= 0 {
 		t.Fatalf("timings %+v", st)
 	}
 	if st.ResponseModel != "kimi-k3" {
@@ -112,6 +224,13 @@ func TestConsumeSSEFirstContent(t *testing.T) {
 	issues := contractIssues(st, true, true)
 	if !containsIssue(issues, issueModelMissing) {
 		t.Fatalf("issues %v", issues)
+	}
+}
+
+func TestClassifyHTTPExtractsJSONMessage(t *testing.T) {
+	cat, msg := classifyHTTP(400, `{"error":{"message":"prompt is too long: 100001 tokens > 100000 maximum"}}`)
+	if cat != "prompt_too_long" || !strings.Contains(msg, "prompt is too long") {
+		t.Fatalf("%s %s", cat, msg)
 	}
 }
 

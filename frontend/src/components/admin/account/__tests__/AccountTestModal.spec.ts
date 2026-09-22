@@ -175,7 +175,7 @@ describe('AccountTestModal', () => {
     await wrapper.setProps({ show: true })
     await flushPromises()
 
-    expect(wrapper.findAll('.select-option').map((option) => option.text())).toEqual([
+    expect(wrapper.findAll('.select-stub')[0].findAll('.select-option').map((option) => option.text())).toEqual([
       'Opus 4.8',
       'GPT-5.5',
       'GPT-5.4',
@@ -211,5 +211,53 @@ describe('AccountTestModal', () => {
 
     const [, request] = (global.fetch as any).mock.calls[0]
     expect(JSON.parse(request.body).model_id).toBe('claude-haiku-4-5')
+    expect(JSON.parse(request.body).api_mode).toBeUndefined()
+  })
+
+  it('posts the selected OpenAI endpoint for an API-key account', async () => {
+    getAvailableModels.mockResolvedValueOnce([{ id: 'gpt-5.4', display_name: 'GPT-5.4' }])
+    const wrapper = mountModal({
+      name: 'OpenAI API Key',
+      platform: 'openai',
+      type: 'apikey'
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.testEndpointResponses')
+    expect(wrapper.text()).toContain('admin.accounts.testEndpointChatCompletions')
+    ;(wrapper.vm as any).apiMode = 'chat_completions'
+
+    const buttons = wrapper.findAll('button')
+    const startButton = buttons.find((button) => button.text().includes('admin.accounts.startTest'))
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    const [, request] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(request.body)).toMatchObject({
+      model_id: 'gpt-5.4',
+      api_mode: 'chat_completions'
+    })
+  })
+
+  it('does not offer an endpoint choice for OpenAI OAuth accounts', async () => {
+    getAvailableModels.mockResolvedValueOnce([{ id: 'gpt-5.4', display_name: 'GPT-5.4' }])
+    const wrapper = mountModal({
+      name: 'OpenAI OAuth',
+      platform: 'openai',
+      type: 'oauth'
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('admin.accounts.testEndpointChatCompletions')
+
+    const buttons = wrapper.findAll('button')
+    const startButton = buttons.find((button) => button.text().includes('admin.accounts.startTest'))
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    const [, request] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(request.body).api_mode).toBeUndefined()
   })
 })

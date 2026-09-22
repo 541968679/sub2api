@@ -114,8 +114,9 @@
                 </label>
                 <select v-model="apiMode" class="input">
                   <option value="chat_completions">{{ t('admin.channelLoadtest.apiModeCC') }}</option>
-                  <option value="responses">{{ t('admin.channelLoadtest.apiModeRE') }}</option>
+                  <option value="responses" :disabled="kimiOnly">{{ t('admin.channelLoadtest.apiModeRE') }}</option>
                 </select>
+                <p v-if="kimiOnly" class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.apiModeKimiHint') }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -210,7 +211,7 @@
                 <template v-if="snap.proxy_name"> · {{ snap.proxy_name }}</template>
               </span>
             </div>
-            <div v-if="snap" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div v-if="snap" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
                 <div class="text-xs text-gray-500">in-flight</div>
                 <div class="text-lg font-semibold">{{ snap.inflight }}</div>
@@ -226,6 +227,13 @@
               <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
                 <div class="text-xs text-gray-500">{{ t('admin.channelLoadtest.success') }}</div>
                 <div class="text-lg font-semibold">{{ snap.success_rate.toFixed(1) }}%</div>
+              </div>
+              <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900" :title="t('admin.channelLoadtest.rpmHint')">
+                <div class="text-xs text-gray-500">RPM</div>
+                <div class="text-lg font-semibold tabular-nums">{{ snap.rpm ?? 0 }}</div>
+                <div class="text-[11px] text-gray-500">
+                  {{ t('admin.channelLoadtest.rpmDetail', { peak: snap.rpm_peak ?? 0, avg: (snap.rpm_avg ?? 0).toFixed(1) }) }}
+                </div>
               </div>
             </div>
             <p v-else class="mt-3 text-sm text-gray-500">{{ t('admin.channelLoadtest.idle') }}</p>
@@ -342,14 +350,23 @@
           </div>
 
           <div class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
-            <div class="flex items-center justify-between gap-3 px-5 py-3">
+            <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
               <div class="text-sm font-semibold">
                 {{ t('admin.channelLoadtest.results') }}
                 <span v-if="snap?.results?.length" class="ml-1 font-normal text-gray-500">
-                  ({{ snap.results.length }})
+                  ({{ visibleResults.length }}/{{ snap.results.length }})
                 </span>
               </div>
-              <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 text-xs dark:border-dark-700 dark:bg-dark-900">
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg border px-2 py-1 text-xs font-medium"
+                  :class="failOnly ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 dark:border-dark-600'"
+                  @click="failOnly = !failOnly"
+                >
+                  {{ t('admin.channelLoadtest.failOnly') }}
+                </button>
+                <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 text-xs dark:border-dark-700 dark:bg-dark-900">
                 <button
                   type="button"
                   class="rounded-md px-2 py-1 font-medium"
@@ -366,6 +383,7 @@
                 >
                   {{ t('admin.channelLoadtest.timeUnitS') }}
                 </button>
+                </div>
               </div>
             </div>
             <div class="max-h-[28rem] overflow-auto">
@@ -376,27 +394,51 @@
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.inputTokens') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.requestedModel') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.outcome') }}</th>
-                    <th class="px-3 py-2">{{ t('admin.channelLoadtest.ttft') }}</th>
+                    <th class="px-3 py-2">{{ t('admin.channelLoadtest.error') }}</th>
+                    <th class="px-3 py-2" :title="t('admin.channelLoadtest.ttftHint')">{{ t('admin.channelLoadtest.ttft') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.duration') }}</th>
+                    <th class="px-3 py-2" :title="t('usage.tokenRateHint')">{{ t('usage.inputPerSecondColumn') }}</th>
+                    <th class="px-3 py-2" :title="t('usage.tokenRateHint')">{{ t('usage.outputPerSecondColumn') }}</th>
                     <th class="px-3 py-2">{{ t('admin.channelLoadtest.tpot') }}</th>
                     <th class="px-3 py-2">model</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    v-for="row in snap?.results || []"
-                    :key="row.seq"
-                    class="border-t border-gray-100 dark:border-dark-700"
-                  >
-                    <td class="px-3 py-1.5">{{ row.seq }}</td>
-                    <td class="px-3 py-1.5">{{ fmtTok(row.target_input_tokens) }}{{ row.input_band ? ` (${row.input_band})` : '' }}</td>
-                    <td class="px-3 py-1.5">{{ row.requested_model }}</td>
-                    <td class="px-3 py-1.5">{{ row.outcome }}</td>
-                    <td class="px-3 py-1.5">{{ formatMs(row.first_content_ms) }}</td>
-                    <td class="px-3 py-1.5">{{ formatMs(row.duration_ms) }}</td>
-                    <td class="px-3 py-1.5">{{ row.tpot_tok_s ? row.tpot_tok_s.toFixed(1) : '-' }}</td>
-                    <td class="px-3 py-1.5">{{ row.response_model || (row.model_missing_chunks ? 'missing' : '-') }}</td>
-                  </tr>
+                  <template v-for="row in visibleResults" :key="row.seq">
+                    <tr
+                      class="cursor-pointer border-t border-gray-100 dark:border-dark-700"
+                      :class="row.outcome !== 'success' ? 'bg-red-50/60 dark:bg-red-950/20' : ''"
+                      @click="toggleError(row.seq)"
+                    >
+                      <td class="px-3 py-1.5">{{ row.seq }}</td>
+                      <td class="px-3 py-1.5">{{ fmtTok(row.target_input_tokens) }}{{ row.input_band ? ` (${row.input_band})` : '' }}</td>
+                      <td class="px-3 py-1.5">{{ row.requested_model }}</td>
+                      <td class="px-3 py-1.5">
+                        <span class="font-medium">{{ row.outcome }}</span>
+                        <span v-if="row.status_code" class="ml-1 text-gray-500">{{ row.status_code }}</span>
+                      </td>
+                      <td class="max-w-xs px-3 py-1.5">
+                        <div v-if="row.error_category || row.error_message" class="truncate text-red-700 dark:text-red-300" :title="errorLine(row)">
+                          <span v-if="row.error_category" class="font-medium">{{ row.error_category }}</span>
+                          <span v-if="row.error_message"> {{ row.error_message }}</span>
+                        </div>
+                        <span v-else class="text-gray-400">-</span>
+                      </td>
+                      <td class="px-3 py-1.5" :title="ttftTitle(row)">{{ formatMs(displayedTTFT(row)) }}</td>
+                      <td class="px-3 py-1.5">{{ formatMs(row.duration_ms) }}</td>
+                      <td class="px-3 py-1.5 tabular-nums">{{ formatTps(row.prompt_tokens, row.duration_ms) }}</td>
+                      <td class="px-3 py-1.5 tabular-nums">{{ formatTps(row.completion_tokens, row.duration_ms) }}</td>
+                      <td class="px-3 py-1.5">{{ row.tpot_tok_s ? row.tpot_tok_s.toFixed(1) : '-' }}</td>
+                      <td class="px-3 py-1.5">{{ row.response_model || (row.model_missing_chunks ? 'missing' : '-') }}</td>
+                    </tr>
+                    <tr v-if="expandedSeq === row.seq && (row.error_message || row.contract_issues?.length || row.request_id)" class="border-t border-gray-100 bg-gray-50 dark:border-dark-700 dark:bg-dark-900">
+                      <td colspan="11" class="px-4 py-2">
+                        <div v-if="row.request_id" class="mb-1 font-mono text-[11px] text-gray-500">{{ row.request_id }}</div>
+                        <pre v-if="row.error_message" class="whitespace-pre-wrap break-all text-xs text-red-800 dark:text-red-200">{{ row.error_message }}</pre>
+                        <div v-if="row.contract_issues?.length" class="mt-1 text-xs text-amber-700">{{ row.contract_issues.join(', ') }}</div>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
@@ -414,10 +456,11 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { LoadtestAPIMode, LoadtestProfile, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode } from '@/api/admin/channelLoadtest'
+import type { LoadtestAPIMode, LoadtestProfile, LoadtestResult, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode } from '@/api/admin/channelLoadtest'
 import { list as listAccounts } from '@/api/admin/accounts'
 import { getAll as listProxies } from '@/api/admin/proxies'
 import type { Account, Proxy } from '@/types'
+import { tokensPerSecond } from '@/utils/latencyHealth'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -434,6 +477,10 @@ const apiKey = ref('')
 const models = ref('kimi-k3')
 const profile = ref<LoadtestProfile>('smoke')
 const apiMode = ref<LoadtestAPIMode>('chat_completions')
+const kimiOnly = computed(() => {
+  const list = models.value.split(',').map((item) => item.trim()).filter(Boolean)
+  return list.length > 0 && list.every(isKimiNativeModel)
+})
 const streamMode = ref<LoadtestStreamMode>('auto')
 const concurrency = ref(20)
 const total = ref(40)
@@ -445,14 +492,45 @@ const confirmCost = ref(false)
 const busy = ref(false)
 const snap = ref<LoadtestSnapshot | null>(null)
 const timeUnit = ref<'ms' | 's'>((localStorage.getItem('channel-loadtest-time-unit') as 'ms' | 's') || 'ms')
+const failOnly = ref(false)
+const expandedSeq = ref<number | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const running = computed(() => snap.value?.status === 'running' || snap.value?.status === 'stopping')
+const visibleResults = computed(() => {
+  const rows = snap.value?.results || []
+  if (!failOnly.value) return rows
+  return rows.filter((row) => row.outcome !== 'success')
+})
+
+function errorLine(row: LoadtestResult) {
+  return [row.error_category, row.error_message].filter(Boolean).join(' ')
+}
+
+function toggleError(seq: number) {
+  expandedSeq.value = expandedSeq.value === seq ? null : seq
+}
 
 watch(timeUnit, (unit) => {
   localStorage.setItem('channel-loadtest-time-unit', unit)
 })
+
+function displayedTTFT(row: LoadtestResult) {
+  return row.first_token_ms || row.first_content_ms
+}
+
+function ttftTitle(row: LoadtestResult) {
+  if (row.first_token_ms && row.first_content_ms && row.first_content_ms - row.first_token_ms > 50) {
+    return t('admin.channelLoadtest.ttftAnswer', { n: formatMs(row.first_content_ms) })
+  }
+  return t('admin.channelLoadtest.ttftHint')
+}
+
+function formatTps(tokens?: number, durationMs?: number) {
+  const rate = tokensPerSecond(tokens ?? 0, durationMs ?? 0)
+  return rate == null ? '-' : String(rate)
+}
 
 function formatMs(ms?: number) {
   if (ms == null || ms <= 0) return '-'
@@ -495,6 +573,15 @@ watch(profile, (p) => {
     streamMode.value = 'stream'
   }
 })
+
+watch(kimiOnly, (only) => {
+  if (only) apiMode.value = 'chat_completions'
+})
+
+function isKimiNativeModel(model: string) {
+  const bare = model.trim().toLowerCase().split('/').pop() || ''
+  return bare === 'kimi' || bare.startsWith('kimi-')
+}
 
 function formatSlaGot(row: LoadtestSLAVerdict) {
   if (row.skip) return 'n/a'

@@ -80,14 +80,15 @@ type streamOptions struct {
 }
 
 type chatRequest struct {
-	Model         string           `json:"model"`
-	Messages      []chatMessage    `json:"messages"`
-	Stream        bool             `json:"stream"`
-	StreamOptions *streamOptions   `json:"stream_options,omitempty"`
-	MaxTokens     *int             `json:"max_tokens,omitempty"`
-	Temperature   *float64         `json:"temperature,omitempty"`
-	Tools         []map[string]any `json:"tools,omitempty"`
-	ToolChoice    any              `json:"tool_choice,omitempty"`
+	Model               string           `json:"model"`
+	Messages            []chatMessage    `json:"messages"`
+	Stream              bool             `json:"stream"`
+	StreamOptions       *streamOptions   `json:"stream_options,omitempty"`
+	MaxTokens           *int             `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int             `json:"max_completion_tokens,omitempty"`
+	Temperature         *float64         `json:"temperature,omitempty"`
+	Tools               []map[string]any `json:"tools,omitempty"`
+	ToolChoice          any              `json:"tool_choice,omitempty"`
 }
 
 type responsesRequest struct {
@@ -378,8 +379,47 @@ func codingTools() []map[string]any {
 	}
 }
 
-func buildConversation(cls payloadClass, seq int, cachePrefix string) (system string, msgs []chatMessage) {
+// RequiresNativeChatCompletions reports models whose upstream only accepts
+// POST /v1/chat/completions with a messages body. kimi-k3 is in this set:
+// a Responses body (input/instructions) is rejected.
+func RequiresNativeChatCompletions(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(m, "/"); i >= 0 {
+		m = m[i+1:]
+	}
+	return m == "kimi" || strings.HasPrefix(m, "kimi-")
+}
+
+func usesMaxCompletionTokens(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(m, "/"); i >= 0 {
+		m = m[i+1:]
+	}
+	return m == "kimi-k3" || strings.HasPrefix(m, "kimi-k3-")
+}
+
+// resolveLoadtestRequest picks the endpoint for one request. kimi models stay
+// on /v1/chat/completions even when the run's api_mode is responses.
+func resolveLoadtestRequest(apiMode, path, model string) (mode, reqPath string) {
+	if RequiresNativeChatCompletions(model) {
+		return APIModeChatCompletions, DefaultPathForAPIMode(APIModeChatCompletions)
+	}
+	if apiMode == "" {
+		apiMode = APIModeChatCompletions
+	}
+	if path == "" {
+		path = DefaultPathForAPIMode(apiMode)
+	}
+	return apiMode, path
+}
+
+func buildConversation(cls payloadClass, seq int, cachePrefix, model string) (system string, msgs []chatMessage) {
 	system = "你是一个谨慎的编程助手。根据仓库上下文回答，不要编造文件内容。用简体中文回复。"
+	uniqueN := cls.UniqueTokens
+	if uniqueN <= 0 {
+		uniqueN = cls.TargetTokens
+	}
+	userTurn := makeFiller(uniqueN, fmt.Sprintf("SEQ=%d CLASS=%s BUCKET=%s 请用三句话总结上面上下文里出现过的错误类型，并给出一条可执行的下一步。不要重复全文。", seq, cls.Name, cls.Bucket))
 	if cls.CacheTokens > 0 {
 		prefix := cachePrefix
 		if prefix == "" {
@@ -387,16 +427,18 @@ func buildConversation(cls payloadClass, seq int, cachePrefix string) (system st
 		} else {
 			prefix = trimToTokens(prefix, cls.CacheTokens)
 		}
+		// kimi-k3 rejects a synthetic assistant turn that has no reasoning_content.
+		// Keep the stable prefix as the leading user text so the body stays a
+		// native chat-completions conversation.
+		if RequiresNativeChatCompletions(model) {
+			msgs = append(msgs, chatMessage{Role: "user", Content: prefix + "\n" + userTurn})
+			return system, msgs
+		}
 		msgs = append(msgs,
 			chatMessage{Role: "user", Content: prefix},
 			chatMessage{Role: "assistant", Content: "已记住当前仓库上下文，请继续给具体任务。"},
 		)
 	}
-	uniqueN := cls.UniqueTokens
-	if uniqueN <= 0 {
-		uniqueN = cls.TargetTokens
-	}
-	userTurn := makeFiller(uniqueN, fmt.Sprintf("SEQ=%d CLASS=%s BUCKET=%s 请用三句话总结上面上下文里出现过的错误类型，并给出一条可执行的下一步。不要重复全文。", seq, cls.Name, cls.Bucket))
 	msgs = append(msgs, chatMessage{Role: "user", Content: userTurn})
 	return system, msgs
 }
@@ -420,7 +462,10 @@ func resolveMaxTokens(cls payloadClass, maxTokens int) int {
 }
 
 func buildPayload(cls payloadClass, model string, seq int, maxTokens int, temperature *float64, toolsMode, cachePrefix, apiMode string) (builtPayload, error) {
-	system, msgs := buildConversation(cls, seq, cachePrefix)
+	if RequiresNativeChatCompletions(model) {
+		apiMode = APIModeChatCompletions
+	}
+	system, msgs := buildConversation(cls, seq, cachePrefix, model)
 	mt := resolveMaxTokens(cls, maxTokens)
 	useTools := shouldSendTools(toolsMode, cls.Stream)
 
@@ -453,7 +498,11 @@ func buildPayload(cls payloadClass, model string, seq int, maxTokens int, temper
 			req.StreamOptions = &streamOptions{IncludeUsage: true}
 		}
 		if mt > 0 {
-			req.MaxTokens = &mt
+			if usesMaxCompletionTokens(model) {
+				req.MaxCompletionTokens = &mt
+			} else {
+				req.MaxTokens = &mt
+			}
 		}
 		if useTools {
 			req.Tools = codingTools()

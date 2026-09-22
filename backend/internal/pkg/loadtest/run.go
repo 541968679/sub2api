@@ -125,7 +125,6 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 	if err != nil {
 		return nil, err
 	}
-	endpoint := JoinURL(c.BaseURL, c.Path)
 	headers := map[string]string{
 		"Authorization": "Bearer " + c.APIKey,
 		"Content-Type":  "application/json",
@@ -181,6 +180,8 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 		curSeq := seq
 		cls := applyInputTokens(applyStreamMode(pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare, curSeq), c.StreamMode), c.InputTokens, c.CacheShare)
 		modelName := c.Models[(curSeq-1)%len(c.Models)]
+		reqMode, reqPath := resolveLoadtestRequest(c.APIMode, c.Path, modelName)
+		endpoint := JoinURL(c.BaseURL, reqPath)
 		sem <- struct{}{}
 		wg.Add(1)
 		go func() {
@@ -196,7 +197,7 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 			defer inflight.Add(-1)
 			reqCtx, cancel := context.WithTimeout(ctx, c.Timeout)
 			defer cancel()
-			record(runOne(reqCtx, client, endpoint, headers, cls, modelName, curSeq, c.MaxTokens, c.Temperature, c.Tools, "", c.AbortAfterContent, c.APIMode))
+			record(runOne(reqCtx, client, endpoint, headers, cls, modelName, curSeq, c.MaxTokens, c.Temperature, c.Tools, "", c.AbortAfterContent, reqMode))
 		}()
 		return true
 	}
@@ -356,24 +357,30 @@ func runOne(
 	res.DurationMs = int(time.Since(started).Milliseconds())
 	res.computeTPOT()
 	switch {
-	case res.ErrorCategory != "":
-		if res.Outcome == "" {
+	case res.ErrorCategory != "" && !res.SawSuccess():
+		if res.Outcome == "" || res.Outcome == "success" {
 			res.Outcome = res.ErrorCategory
 		}
 	case cls.Stream && !res.SawSuccess():
 		if res.Chunks == 0 {
 			res.Outcome = "empty_stream"
 			res.ErrorCategory = "empty_stream"
-			res.ErrorMessage = "HTTP 200 stream with no content/tool_calls"
+			if res.ErrorMessage == "" {
+				res.ErrorMessage = "HTTP 200 stream with no content/tool_calls"
+			}
 		} else {
 			res.Outcome = "truncated_stream"
 			res.ErrorCategory = "truncated_stream"
-			res.ErrorMessage = "stream ended without useful output"
+			if res.ErrorMessage == "" {
+				res.ErrorMessage = "stream ended without useful output"
+			}
 		}
 	case !cls.Stream && !res.SawSuccess():
 		res.Outcome = "empty_response"
 		res.ErrorCategory = "empty_response"
-		res.ErrorMessage = "HTTP 200 JSON without content/tool_calls"
+		if res.ErrorMessage == "" {
+			res.ErrorMessage = "HTTP 200 JSON without content/tool_calls"
+		}
 	default:
 		res.Outcome = "success"
 	}
@@ -383,6 +390,9 @@ func runOne(
 func applyStreamStats(res *Result, st streamStats, includeUsage bool) {
 	if st.FirstSSE > 0 {
 		res.FirstSSEMs = int(st.FirstSSE.Milliseconds())
+	}
+	if st.FirstToken > 0 {
+		res.FirstTokenMs = int(st.FirstToken.Milliseconds())
 	}
 	if st.FirstContent > 0 {
 		res.FirstContentMs = int(st.FirstContent.Milliseconds())
@@ -400,6 +410,12 @@ func applyStreamStats(res *Result, st streamStats, includeUsage bool) {
 	res.ModelPresentN = st.ModelPresent
 	res.ModelMismatchN = st.ModelMismatch
 	res.ContractIssues = contractIssues(st, res.Stream, includeUsage)
+	if st.UpstreamError != "" && res.ErrorMessage == "" {
+		res.ErrorMessage = st.UpstreamError
+		if res.ErrorCategory == "" {
+			res.ErrorCategory = "upstream_error"
+		}
+	}
 	if st.SawToolCall && res.FinishReason == "" {
 		res.FinishReason = "tool_calls"
 	}

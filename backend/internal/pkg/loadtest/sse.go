@@ -18,6 +18,7 @@ type usageSnap struct {
 
 type streamStats struct {
 	FirstSSE      time.Duration
+	FirstToken    time.Duration
 	FirstContent  time.Duration
 	Chunks        int
 	ContentChars  int
@@ -40,6 +41,7 @@ type streamStats struct {
 	LastModel            string
 	MismatchValue        string
 	RoleOnlyFirst        bool
+	UpstreamError        string
 }
 
 func consumeSSE(r io.Reader, t0 time.Time, abortAfterContent bool, abort func(), requested string) streamStats {
@@ -92,6 +94,9 @@ func parseSSELine(line []byte, t0 time.Time, st *streamStats, requested string) 
 		st.ParseErrors++
 		return
 	}
+	if msg := nestedErrorMessage(obj); msg != "" && st.UpstreamError == "" {
+		st.UpstreamError = msg
+	}
 	if st.LastModel != "" {
 		st.ResponseModel = st.LastModel
 	} else if m, _ := obj["model"].(string); m != "" && st.ResponseModel == "" {
@@ -123,18 +128,32 @@ func parseSSELine(line []byte, t0 time.Time, st *streamStats, requested string) 
 	if delta == nil {
 		return
 	}
+	if c := deltaContent(delta["reasoning_content"]); c != "" {
+		noteFirstToken(st, t0)
+	}
+	if c := deltaContent(delta["reasoning"]); c != "" {
+		noteFirstToken(st, t0)
+	}
 	if c := deltaContent(delta["content"]); c != "" {
 		st.SawContent = true
 		st.ContentChars += len([]rune(c))
 		if st.FirstContent == 0 {
 			st.FirstContent = time.Since(t0)
 		}
+		noteFirstToken(st, t0)
 	}
 	if _, ok := delta["tool_calls"]; ok {
 		st.SawToolCall = true
+		noteFirstToken(st, t0)
 		if st.FirstContent == 0 {
 			st.FirstContent = time.Since(t0)
 		}
+	}
+}
+
+func noteFirstToken(st *streamStats, t0 time.Time) {
+	if st.FirstToken == 0 {
+		st.FirstToken = time.Since(t0)
 	}
 }
 
@@ -170,6 +189,7 @@ func ingestResponsesEvent(obj map[string]any, t0 time.Time, st *streamStats) boo
 		if st.FirstContent == 0 {
 			st.FirstContent = time.Since(t0)
 		}
+		noteFirstToken(st, t0)
 	}
 	if resp, ok := obj["response"].(map[string]any); ok {
 		ingestResponsesBody(resp, st)
@@ -271,6 +291,9 @@ func parseJSONCompletion(body []byte, requested string) streamStats {
 	if err := json.Unmarshal(body, &obj); err != nil {
 		st.ParseErrors++
 		return st
+	}
+	if msg := nestedErrorMessage(obj); msg != "" {
+		st.UpstreamError = msg
 	}
 	if st.LastModel != "" {
 		st.ResponseModel = st.LastModel

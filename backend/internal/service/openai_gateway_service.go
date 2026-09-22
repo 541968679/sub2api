@@ -2705,9 +2705,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, reqModel, reqStream, startTime)
 	}
-	if account.Type == AccountTypeAPIKey &&
-		openai_compat.ResolveUpstreamAPI(openai_compat.InboundResponses, account.Extra) == openai_compat.UpstreamChatCompletions {
-		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
+	if account.Type == AccountTypeAPIKey {
+		mapped := resolveOpenAIForwardModel(account, reqModel, "")
+		upstreamModel := normalizeOpenAIModelForUpstream(account, mapped)
+		// kimi-k3 只接受原生 chat completions。入站 /v1/responses 也先转成
+		// messages 再打到 /v1/chat/completions，避免上游看到 Responses 体。
+		if kimiRequiresNativeChatCompletions(account, reqModel, mapped, upstreamModel) ||
+			openai_compat.ResolveUpstreamAPI(openai_compat.InboundResponses, account.Extra) == openai_compat.UpstreamChatCompletions {
+			return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
+		}
 	}
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey {
 		sanitizedBody, changed, sanitizeErr := sanitizeOpenAIResponsesInputItemIDs(body)

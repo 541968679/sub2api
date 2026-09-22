@@ -49,6 +49,7 @@ export interface LoadtestResult {
   duration_ms: number
   header_ms?: number
   first_sse_ms?: number
+  first_token_ms?: number
   first_content_ms?: number
   generation_ms?: number
   tpot_tok_s?: number
@@ -91,6 +92,9 @@ export interface LoadtestSnapshot {
   done: number
   ok: number
   success_rate: number
+  rpm?: number
+  rpm_peak?: number
+  rpm_avg?: number
   estimated_input_tokens: number
   input_tokens?: number
   data_profile?: LoadtestDataProfile

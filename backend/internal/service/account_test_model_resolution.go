@@ -91,24 +91,44 @@ func resolveAccountTestModel(account *Account, requested string) accountTestMode
 	return resolution
 }
 
-func (s *AccountTestService) sendTestStart(c *gin.Context, account *Account, resolution accountTestModelResolution) {
+func (s *AccountTestService) sendTestStart(c *gin.Context, account *Account, resolution accountTestModelResolution, apiMode ...string) {
 	accountID := int64(0)
 	if account != nil {
 		accountID = account.ID
 	}
-	logger.LegacyPrintf(
-		"service.account_test",
-		"account_test account_id=%d selected=%s mapped=%s source=%s",
-		accountID,
-		resolution.Selected,
-		resolution.Mapped,
-		resolution.Source,
-	)
+	resolvedAPIMode := ""
+	if len(apiMode) > 0 {
+		switch normalizeAccountTestAPIMode(apiMode[0]) {
+		case AccountTestAPIModeResponses, AccountTestAPIModeChatCompletions:
+			resolvedAPIMode = normalizeAccountTestAPIMode(apiMode[0])
+		}
+	}
+	if resolvedAPIMode == "" {
+		logger.LegacyPrintf(
+			"service.account_test",
+			"account_test account_id=%d selected=%s mapped=%s source=%s",
+			accountID,
+			resolution.Selected,
+			resolution.Mapped,
+			resolution.Source,
+		)
+	} else {
+		logger.LegacyPrintf(
+			"service.account_test",
+			"account_test account_id=%d selected=%s mapped=%s source=%s api_mode=%s",
+			accountID,
+			resolution.Selected,
+			resolution.Mapped,
+			resolution.Source,
+			resolvedAPIMode,
+		)
+	}
 	s.sendEvent(c, TestEvent{
 		Type:          "test_start",
 		Model:         resolution.Mapped,
 		SelectedModel: resolution.Selected,
 		MappedModel:   resolution.Mapped,
 		MappingSource: resolution.Source,
+		APIMode:       resolvedAPIMode,
 	})
 }

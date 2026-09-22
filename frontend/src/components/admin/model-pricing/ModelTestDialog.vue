@@ -28,6 +28,18 @@
         </select>
       </div>
 
+      <div v-if="showEndpointChoice">
+        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+          {{ t('admin.accounts.testEndpoint') }}
+        </label>
+        <select v-model="apiMode" class="input w-full text-sm" :disabled="testRunning">
+          <option value="auto">{{ t('admin.accounts.testEndpointAuto') }}</option>
+          <option value="responses">{{ t('admin.accounts.testEndpointResponses') }}</option>
+          <option value="chat_completions">{{ t('admin.accounts.testEndpointChatCompletions') }}</option>
+        </select>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.testEndpointHint') }}</p>
+      </div>
+
       <!-- Prompt -->
       <div>
         <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -92,6 +104,7 @@ const authStore = useAuthStore()
 
 const accounts = ref<Account[]>([])
 const testAccountId = ref<number>(0)
+const apiMode = ref<'auto' | 'responses' | 'chat_completions'>('auto')
 const testPrompt = ref('你好，你是什么模型')
 const testRunning = ref(false)
 const testOutput = ref<{ text: string; cls: string }[]>([])
@@ -99,6 +112,26 @@ const terminalRef = ref<HTMLElement | null>(null)
 const providerOptions = MODEL_PRICING_PROVIDER_OPTIONS
 const selectedProvider = ref<ModelPricingProvider>('antigravity')
 const selectedProviderLabel = computed(() => modelPricingProviderLabel(selectedProvider.value) || selectedProvider.value)
+const selectedAccount = computed(() => accounts.value.find((account) => account.id === Number(testAccountId.value)))
+const selectedAccountIsAPIKey = computed(() => selectedAccount.value?.type === 'apikey')
+const showEndpointChoice = computed(
+  () =>
+    selectedProvider.value === 'openai' &&
+    selectedAccountIsAPIKey.value &&
+    !props.model.toLowerCase().startsWith('gpt-image-')
+)
+
+function testEndpointLabel(mode?: string) {
+  if (mode === 'responses') return t('admin.accounts.testEndpointResponses')
+  if (mode === 'chat_completions') return t('admin.accounts.testEndpointChatCompletions')
+  return t('admin.accounts.testEndpointAuto')
+}
+
+watch(selectedAccountIsAPIKey, (isAPIKey) => {
+  if (!isAPIKey && apiMode.value === 'chat_completions') {
+    apiMode.value = 'auto'
+  }
+})
 
 function defaultProvider(): ModelPricingProvider {
   return normalizeModelPricingProvider(props.provider) || inferModelPricingProvider(props.model) || 'antigravity'
@@ -126,6 +159,7 @@ async function loadAccounts() {
 function handleProviderChange() {
   testAccountId.value = 0
   accounts.value = []
+  apiMode.value = 'auto'
   void loadAccounts()
 }
 
@@ -146,17 +180,27 @@ async function runTest() {
   const acc = accounts.value.find((a) => a.id === testAccountId.value)
   appendOutput(`> Account: ${acc?.credentials?.email || testAccountId.value}`, 'text-cyan-400')
   appendOutput(`> Prompt: ${testPrompt.value}`, 'text-gray-500')
+  if (showEndpointChoice.value) {
+    appendOutput(`> ${t('admin.accounts.testEndpointUsed', { endpoint: testEndpointLabel(apiMode.value) })}`, 'text-cyan-400')
+  }
   appendOutput('', 'text-gray-500')
 
   try {
     const token = authStore.token
+    const body: { model_id: string; prompt: string; api_mode?: string } = {
+      model_id: props.model,
+      prompt: testPrompt.value,
+    }
+    if (showEndpointChoice.value) {
+      body.api_mode = apiMode.value
+    }
     const resp = await fetch(`/api/v1/admin/accounts/${testAccountId.value}/test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ model_id: props.model, prompt: testPrompt.value }),
+      body: JSON.stringify(body),
     })
 
     if (!resp.ok || !resp.body) {
@@ -206,6 +250,12 @@ async function runTest() {
             } else {
               appendOutput(`> Testing model: ${event.model || props.model}`, 'text-cyan-400')
             }
+            if (event.api_mode === 'responses' || event.api_mode === 'chat_completions') {
+              appendOutput(
+                `> ${t('admin.accounts.testEndpointUsed', { endpoint: testEndpointLabel(event.api_mode) })}`,
+                'text-cyan-400'
+              )
+            }
           } else if (event.type === 'test_complete') {
             appendOutput('')
             if (event.success) {
@@ -240,6 +290,7 @@ watch(
     if (val) {
       testOutput.value = []
       testAccountId.value = 0
+      apiMode.value = 'auto'
       selectedProvider.value = defaultProvider()
       void loadAccounts()
     }

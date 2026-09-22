@@ -239,6 +239,52 @@ func TestForwardAsChatCompletions_APIKeyDoesNotOverwriteClientSessionHeader(t *t
 	require.Equal(t, "client-session-header", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
 }
 
+func TestForwardAsChatCompletions_KimiK3StaysOnChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"kimi-k3","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := chatCompletionsSpeedStopRecorder()
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
+		openai_compat.ExtraKeyResponsesSupported: true,
+		openai_compat.ExtraKeyResponsesMode:      string(openai_compat.ResponsesSupportModeForceResponses),
+	})
+
+	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "kimi-k3")
+	require.Error(t, err)
+	require.Equal(t, "https://api.openai.com/v1/chat/completions", upstream.lastReq.URL.String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
+}
+
+func TestForward_KimiK3InboundResponsesUsesChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"kimi-k3","input":"hello","stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := chatCompletionsSpeedStopRecorder()
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
+		openai_compat.ExtraKeyResponsesSupported: true,
+		openai_compat.ExtraKeyResponsesMode:      string(openai_compat.ResponsesSupportModeForceResponses),
+	})
+
+	_, err := svc.Forward(context.Background(), c, account, body)
+	require.Error(t, err)
+	require.Equal(t, "https://api.openai.com/v1/chat/completions", upstream.lastReq.URL.String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
+}
+
 func TestForwardAsChatCompletions_UnknownProbeStillConvertsToResponses(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

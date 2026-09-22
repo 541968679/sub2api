@@ -464,7 +464,7 @@
           <label class="input-label">{{ t('keys.groupLabel') }}</label>
           <Select
             v-model="formData.group_id"
-            :options="groupOptions"
+            :options="groupPickerSelectOptions"
             :placeholder="t('keys.selectGroup')"
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
@@ -472,7 +472,7 @@
           >
             <template #selected="{ option }">
               <GroupBadge
-                v-if="option"
+                v-if="option && !isSelectGroupHeader(option)"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
@@ -486,7 +486,12 @@
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
             </template>
             <template #option="{ option, selected }">
+              <span v-if="isSelectGroupHeader(option)" class="inline-flex min-w-0 items-center gap-1.5">
+                <PlatformIcon :platform="groupHeaderPlatform(option)" size="xs" />
+                <span class="truncate">{{ option.label }}</span>
+              </span>
               <GroupOptionItem
+                v-else
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
@@ -1128,41 +1133,48 @@
             />
           </div>
         </div>
-        <!-- Group list -->
+        <!-- Group list, sectioned by platform -->
         <div class="max-h-80 overflow-y-auto p-1.5">
-          <button
-            v-for="option in filteredGroupOptions"
-            :key="option.value ?? 'null'"
-            @click="changeGroup(selectedKeyForGroup!, option.value)"
-            :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
-              'border-b border-gray-100 last:border-0 dark:border-dark-700',
-              selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
-                ? 'bg-primary-50 dark:bg-primary-900/20'
-                : 'hover:bg-gray-100 dark:hover:bg-dark-700'
-            ]"
-            :title="option.description || undefined"
-          >
-            <GroupOptionItem
-              :name="option.label"
-              :platform="option.platform"
-              :subscription-type="option.subscriptionType"
-              :rate-multiplier="option.rate"
-              :user-rate-multiplier="option.userRate"
-              :peak-rate-enabled="option.peakRateEnabled"
-              :peak-start="option.peakStart"
-              :peak-end="option.peakEnd"
-              :peak-rate-multiplier="option.peakRateMultiplier"
-              :description="option.description"
-              :selected="
+          <template v-for="section in filteredGroupSections" :key="section.platform">
+            <div
+              class="sticky top-0 z-10 -mx-1.5 mb-1 flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:bg-dark-900 dark:text-gray-400"
+            >
+              <PlatformIcon :platform="asGroupPlatform(section.platform)" size="xs" />
+              <span>{{ section.label }}</span>
+            </div>
+            <button
+              v-for="option in section.items"
+              :key="option.value"
+              @click="changeGroup(selectedKeyForGroup!, option.value)"
+              :class="[
+                'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+                'border-b border-gray-100 last:border-0 dark:border-dark-700',
                 selectedKeyForGroup?.group_id === option.value ||
                 (!selectedKeyForGroup?.group_id && option.value === null)
-              "
-            />
-          </button>
-          <!-- Empty state when search has no results -->
-          <div v-if="filteredGroupOptions.length === 0" class="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
+                  ? 'bg-primary-50 dark:bg-primary-900/20'
+                  : 'hover:bg-gray-100 dark:hover:bg-dark-700'
+              ]"
+              :title="option.description || undefined"
+            >
+              <GroupOptionItem
+                :name="option.label"
+                :platform="option.platform"
+                :subscription-type="option.subscriptionType"
+                :rate-multiplier="option.rate"
+                :user-rate-multiplier="option.userRate"
+                :peak-rate-enabled="option.peakRateEnabled"
+                :peak-start="option.peakStart"
+                :peak-end="option.peakEnd"
+                :peak-rate-multiplier="option.peakRateMultiplier"
+                :description="option.description"
+                :selected="
+                  selectedKeyForGroup?.group_id === option.value ||
+                  (!selectedKeyForGroup?.group_id && option.value === null)
+                "
+              />
+            </button>
+          </template>
+          <div v-if="filteredGroupSections.length === 0" class="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
             {{ t('keys.noGroupFound') }}
           </div>
         </div>
@@ -1190,7 +1202,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
-	import Select from '@/components/common/Select.vue'
+	import Select, { type SelectOption } from '@/components/common/Select.vue'
 	import SearchInput from '@/components/common/SearchInput.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
@@ -1198,6 +1210,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import GettingStartedGuide from '@/components/keys/GettingStartedGuide.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+	import PlatformIcon from '@/components/common/PlatformIcon.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
@@ -1211,6 +1224,13 @@ import {
   shouldShowCcsCodexModelPicker,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
+import {
+  filterOptionsPreservingGroups,
+  flattenPlatformSections,
+  isSelectGroupHeader,
+  sectionsByPlatform,
+  sectionsFromGroupedOptions
+} from '@/utils/selectOptionGroups'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1494,12 +1514,34 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('common.inactive') }
 ])
 
-// Filter dropdown options
-const groupFilterOptions = computed(() => [
+const platformSectionLabel = (platform: string) => {
+  const key = `monitorCommon.providers.${platform}`
+  const translated = t(key)
+  return translated === key ? platform : translated
+}
+
+const asGroupPlatform = (platform: string): GroupPlatform => platform as GroupPlatform
+
+const groupHeaderPlatform = (option: unknown): GroupPlatform | undefined => {
+  if (!isSelectGroupHeader(option) || !option.platform) return undefined
+  return asGroupPlatform(option.platform)
+}
+
+// Filter dropdown options. "All" and "No group" stay above the platform sections.
+const groupFilterOptions = computed<SelectOption[]>(() => [
   { value: '', label: t('keys.allGroups') },
   { value: 0, label: t('keys.noGroup') },
-  ...groups.value.map((g) => ({ value: g.id, label: g.name }))
-])
+  ...flattenPlatformSections(
+    sectionsByPlatform(
+      groups.value.map((group) => ({
+        value: group.id,
+        label: group.name,
+        platform: group.platform
+      })),
+      platformSectionLabel
+    )
+  )
+] as SelectOption[])
 
 const statusFilterOptions = computed(() => [
   { value: '', label: t('keys.allStatus') },
@@ -1541,15 +1583,22 @@ const groupOptions = computed(() =>
   }))
 )
 
-// Group dropdown search
+const groupSections = computed(() => sectionsByPlatform(groupOptions.value, platformSectionLabel))
+
+const groupedGroupOptions = computed(() => flattenPlatformSections(groupSections.value))
+
+const groupPickerSelectOptions = computed<SelectOption[]>(
+  () => groupedGroupOptions.value as unknown as SelectOption[]
+)
+
+// Group dropdown search. Empty query keeps every platform section.
 const groupSearchQuery = ref('')
-const filteredGroupOptions = computed(() => {
-  const query = groupSearchQuery.value.trim().toLowerCase()
-  if (!query) return groupOptions.value
-  return groupOptions.value.filter((opt) => {
-    return opt.label.toLowerCase().includes(query) ||
-      (opt.description && opt.description.toLowerCase().includes(query))
-  })
+const filteredGroupSections = computed(() => {
+  const query = groupSearchQuery.value.trim()
+  if (!query) return groupSections.value
+  return sectionsFromGroupedOptions<GroupOption>(
+    filterOptionsPreservingGroups(groupedGroupOptions.value, query)
+  )
 })
 
 const copyToClipboard = async (text: string, keyId: number) => {

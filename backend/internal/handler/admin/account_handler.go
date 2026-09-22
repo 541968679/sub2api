@@ -1196,6 +1196,9 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
 	Mode    string `json:"mode"`
+	// APIMode overrides the OpenAI test endpoint for this request:
+	// "responses", "chat_completions", or empty/"auto".
+	APIMode string `json:"api_mode"`
 }
 
 type SyncFromCRSRequest struct {
@@ -1226,7 +1229,7 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	_ = c.ShouldBindJSON(&req)
 
 	// Use AccountTestService to test the account with SSE streaming
-	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode); err != nil {
+	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode, req.APIMode); err != nil {
 		// Error already sent via SSE, just log
 		return
 	}

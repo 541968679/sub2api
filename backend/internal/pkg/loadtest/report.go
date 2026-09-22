@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -28,6 +29,7 @@ type Result struct {
 	DurationMs       int      `json:"duration_ms"`
 	HeaderMs         int      `json:"header_ms,omitempty"`
 	FirstSSEMs       int      `json:"first_sse_ms,omitempty"`
+	FirstTokenMs     int      `json:"first_token_ms,omitempty"`
 	FirstContentMs   int      `json:"first_content_ms,omitempty"`
 	GenerationMs     int      `json:"generation_ms,omitempty"`
 	TPOT             float64  `json:"tpot_tok_s,omitempty"`
@@ -125,10 +127,74 @@ func tokenPct(values []int) TokenPercentiles {
 	}
 }
 
+func nestedErrorMessage(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case map[string]any:
+		for _, key := range []string{"message", "msg", "error", "detail", "error_description"} {
+			if s := nestedErrorMessage(t[key]); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func extractErrorText(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var obj any
+	if json.Unmarshal([]byte(raw), &obj) == nil {
+		if s := nestedErrorMessage(obj); s != "" {
+			return clipErr(s)
+		}
+	}
+	lower := strings.ToLower(raw)
+	if strings.Contains(lower, "<html") || strings.Contains(lower, "<!doctype") {
+		if i := strings.Index(lower, "<title>"); i >= 0 {
+			rest := raw[i+7:]
+			if j := strings.Index(strings.ToLower(rest), "</title>"); j >= 0 {
+				return clipErr(strings.TrimSpace(rest[:j]))
+			}
+		}
+		return clipErr(strings.Join(strings.Fields(stripTags(raw)), " "))
+	}
+	return clipErr(raw)
+}
+
+func stripTags(s string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range s {
+		switch {
+		case r == '<':
+			in = true
+		case r == '>':
+			in = false
+			b.WriteByte(' ')
+		case !in:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func clipErr(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 800 {
+		return s[:800]
+	}
+	return s
+}
+
 func classifyHTTP(status int, body string) (category, message string) {
-	msg := strings.TrimSpace(body)
-	if len(msg) > 400 {
-		msg = msg[:400]
+	msg := extractErrorText(body)
+	if msg == "" {
+		msg = strings.TrimSpace(body)
+		msg = clipErr(msg)
 	}
 	lower := strings.ToLower(msg)
 	switch {
@@ -242,8 +308,8 @@ func evalMixedSLA(rows []Result) []SLAVerdict {
 	var ttft []int
 	var tpot []float64
 	for _, r := range rows {
-		if r.Stream && r.FirstContentMs > 0 {
-			ttft = append(ttft, r.FirstContentMs)
+		if ms := measuredTTFT(r); r.Stream && ms > 0 {
+			ttft = append(ttft, ms)
 		}
 		if r.TPOT > 0 {
 			tpot = append(tpot, r.TPOT)
@@ -288,11 +354,21 @@ func filterBand(rows []Result, band string) []Result {
 	return out
 }
 
+func measuredTTFT(r Result) int {
+	if !r.Stream {
+		return 0
+	}
+	if r.FirstTokenMs > 0 {
+		return r.FirstTokenMs
+	}
+	return r.FirstContentMs
+}
+
 func ttftOf(rows []Result) []int {
 	var out []int
 	for _, r := range rows {
-		if r.Stream && r.FirstContentMs > 0 {
-			out = append(out, r.FirstContentMs)
+		if ms := measuredTTFT(r); ms > 0 {
+			out = append(out, ms)
 		}
 	}
 	return out
@@ -393,8 +469,8 @@ func writeSummary(path string, cfg map[string]any, rows []Result, started, ended
 			byCat[key]++
 		}
 		dur = append(dur, r.DurationMs)
-		if r.FirstContentMs > 0 {
-			ttft = append(ttft, r.FirstContentMs)
+		if ms := measuredTTFT(r); ms > 0 {
+			ttft = append(ttft, ms)
 		}
 		if r.HeaderMs > 0 {
 			ttfb = append(ttfb, r.HeaderMs)
@@ -486,7 +562,7 @@ func writeSummary(path string, cfg map[string]any, rows []Result, started, ended
 	writePct(&b, "duration_success_ms", okDur)
 	writePct(&b, "header_ms (TTFB)", ttfb)
 	writePct(&b, "first_sse_ms", firstSSE)
-	writePct(&b, "first_content_ms (TTFT)", ttft)
+	writePct(&b, "first_token_ms (TTFT)", ttft)
 	if len(tpot) > 0 {
 		b.WriteString(fmt.Sprintf("- TPOT tok/s: n=%d min=%.1f mean=%.1f p1=%.1f p50=%.1f p90=%.1f p99=%.1f max=%.1f\n",
 			len(tpot), percentileF(tpot, 0), meanF(tpot), percentileF(tpot, 0.01),

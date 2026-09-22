@@ -13,6 +13,14 @@ export const firstTokenSeverity = (milliseconds: number): LatencySeverity =>
 export const durationSeverity = (milliseconds: number): LatencySeverity =>
   classify(milliseconds, [60_000, 180_000, 300_000])
 
+// Same rounding as new-api usage logs: tokens / request duration in seconds.
+// new-api only prints completion_tokens / use_time; input uses the same denominator.
+export function tokensPerSecond(tokens: number, durationMs: number): number | null {
+  if (!Number.isFinite(tokens) || tokens <= 0) return null
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return null
+  return Math.round((tokens * 1000) / durationMs)
+}
+
 export const LATENCY_TEXT_CLASSES: Record<LatencySeverity, string> = {
   good: 'text-emerald-600 dark:text-emerald-400',
   warn: 'text-amber-600 dark:text-amber-400',

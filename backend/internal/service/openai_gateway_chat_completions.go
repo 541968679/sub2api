@@ -50,11 +50,12 @@ var cursorResponsesUnsupportedFields = []string{
 // 这些上游普遍只支持 /v1/chat/completions，无 /v1/responses 端点。
 //
 // 当前路由策略（按 inbound + extra，详见 openai_compat.ResolveUpstreamAPI）：
-//   - APIKey 账号 + 入站 CC 判定上游为 Chat Completions
-//     （force_chat_completions / passthrough / auto+Rsupp=false）
+//   - APIKey 账号 +（kimi 平台或 kimi-* 模型，或入站 CC 判定上游为 Chat Completions）
+//     （force_chat_completions / passthrough / auto+Rsupp=false / kimi-k3）
 //     → 走 forwardAsRawChatCompletions 直转，不做协议转换
 //   - 其他所有情况（OAuth、auto+未探测/支持、force_responses）→ 走原有
 //     CC→Responses 转换路径。auto 在两路都可用时仍转 Responses。
+//     kimi-k3 不走这条：上游只接受原生 /v1/chat/completions。
 func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
@@ -92,9 +93,16 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	// 入口分流：按入站 CC + extra 选上游。passthrough 走 raw CC；
 	// auto+未探测仍走下方 Responses 转换（存量兼容）。
-	if account.Type == AccountTypeAPIKey &&
-		openai_compat.ResolveUpstreamAPI(openai_compat.InboundChatCompletions, account.Extra) == openai_compat.UpstreamChatCompletions {
-		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+	// kimi-k3 上游只接受原生 /v1/chat/completions，即使账号被标成支持
+	// Responses 或 force_responses，也不要把入站 CC 转成 /v1/responses。
+	if account.Type == AccountTypeAPIKey {
+		requested := gjson.GetBytes(body, "model").String()
+		mapped := resolveOpenAIForwardModel(account, requested, defaultMappedModel)
+		upstreamModel := normalizeOpenAIModelForUpstream(account, mapped)
+		if kimiRequiresNativeChatCompletions(account, requested, mapped, upstreamModel) ||
+			openai_compat.ResolveUpstreamAPI(openai_compat.InboundChatCompletions, account.Extra) == openai_compat.UpstreamChatCompletions {
+			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+		}
 	}
 
 	startTime := time.Now()

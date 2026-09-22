@@ -34,6 +34,13 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+
+	// AccountTestAPIModeAuto follows the account's saved OpenAI upstream route.
+	AccountTestAPIModeAuto = "auto"
+	// AccountTestAPIModeResponses forces this test onto /v1/responses.
+	AccountTestAPIModeResponses = "responses"
+	// AccountTestAPIModeChatCompletions forces this test onto /v1/chat/completions.
+	AccountTestAPIModeChatCompletions = "chat_completions"
 )
 
 // TestEvent represents a SSE event for account testing
@@ -44,6 +51,7 @@ type TestEvent struct {
 	SelectedModel string `json:"selected_model,omitempty"`
 	MappedModel   string `json:"mapped_model,omitempty"`
 	MappingSource string `json:"mapping_source,omitempty"`
+	APIMode       string `json:"api_mode,omitempty"`
 	Status        string `json:"status,omitempty"`
 	Code          string `json:"code,omitempty"`
 	ImageURL      string `json:"image_url,omitempty"`
@@ -217,7 +225,9 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // All account types use full Claude Code client characteristics, only auth header differs
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
 // mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
-func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string) error {
+// apiMode is optional - "responses" or "chat_completions" overrides the OpenAI API-key
+// endpoint for this test only. Empty or "auto" keeps the account's saved route.
+func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, apiMode string) error {
 	ctx := c.Request.Context()
 
 	// Get account
@@ -232,7 +242,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	// Route to platform-specific test method
 	if account.IsOpenAI() {
-		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
+		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode), apiMode)
 	}
 
 	if account.IsGemini() {
@@ -640,14 +650,47 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 	return nil
 }
 
-// testOpenAIAccountConnection tests an OpenAI account's connection
-func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) error {
+func normalizeAccountTestAPIMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case AccountTestAPIModeResponses, "re":
+		return AccountTestAPIModeResponses
+	case AccountTestAPIModeChatCompletions, "cc":
+		return AccountTestAPIModeChatCompletions
+	default:
+		return AccountTestAPIModeAuto
+	}
+}
+
+// resolveOpenAIAPIKeyTestAPIMode picks the upstream endpoint for one API-key test.
+// An explicit responses or chat_completions choice wins. auto keeps the saved route.
+func resolveOpenAIAPIKeyTestAPIMode(account *Account, requested string) string {
+	switch normalizeAccountTestAPIMode(requested) {
+	case AccountTestAPIModeResponses:
+		return AccountTestAPIModeResponses
+	case AccountTestAPIModeChatCompletions:
+		return AccountTestAPIModeChatCompletions
+	}
+	if account != nil &&
+		openai_compat.ResponsesSupportModeFromExtra(account.Extra) != openai_compat.ResponsesSupportModePassthrough &&
+		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		return AccountTestAPIModeChatCompletions
+	}
+	return AccountTestAPIModeResponses
+}
+
+// testOpenAIAccountConnection tests an OpenAI account's connection.
+// apiMode overrides the API-key endpoint for this request and is not persisted.
+func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string, apiMode string) error {
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
+	requestedAPIMode := normalizeAccountTestAPIMode(apiMode)
 
 	resolution := resolveAccountTestModel(account, modelID)
 	testModelID := resolution.Mapped
 	if mode == AccountTestModeCompact {
+		if requestedAPIMode == AccountTestAPIModeChatCompletions {
+			return s.sendErrorAndEnd(c, "Compact account tests use the Responses endpoint")
+		}
 		compactModel := resolveOpenAICompactForwardModel(account, testModelID)
 		if compactModel != "" {
 			resolution.Mapped = compactModel
@@ -673,6 +716,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	var isOAuth bool
 
 	if account.IsOAuth() {
+		if requestedAPIMode == AccountTestAPIModeChatCompletions {
+			return s.sendErrorAndEnd(c, "OpenAI OAuth account tests only support the Responses endpoint")
+		}
 		isOAuth = true
 		var tokenErr error
 		authToken, tokenErr = s.resolveOpenAITestAccessToken(ctx, account)
@@ -697,10 +743,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		// 连通测试：force_chat_completions → CC；passthrough 走现有主路径 Responses；
+		// 显式 api_mode 只影响这一次测试。auto 仍是：
+		// force_chat_completions → CC；passthrough 走 Responses；
 		// 其余与今天相同（auto+Rsupp false → CC）。
-		if openai_compat.ResponsesSupportModeFromExtra(account.Extra) != openai_compat.ResponsesSupportModePassthrough &&
-			!openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		if resolveOpenAIAPIKeyTestAPIMode(account, requestedAPIMode) == AccountTestAPIModeChatCompletions {
 			return s.testOpenAIChatCompletionsAPIKey(c, ctx, account, resolution, prompt, normalizedBaseURL)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
@@ -716,10 +762,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	c.Writer.Flush()
 
 	// Create OpenAI Responses API payload
-	payload := createOpenAITestPayload(testModelID, isOAuth)
+	payload := createOpenAITestPayloadWithText(testModelID, isOAuth, prompt)
 	payloadBytes, _ := json.Marshal(payload)
 
-	s.sendTestStart(c, account, resolution)
+	s.sendTestStart(c, account, resolution, AccountTestAPIModeResponses)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -785,7 +831,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsAPIKey(c *gin.Context, ctx
 
 	payload := createOpenAIChatCompletionsTestPayload(resolution.Mapped, prompt)
 	payloadBytes, _ := json.Marshal(payload)
-	s.sendTestStart(c, account, resolution)
+	s.sendTestStart(c, account, resolution, AccountTestAPIModeChatCompletions)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, buildOpenAIChatCompletionsURL(normalizedBaseURL), bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -1290,8 +1336,16 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 	}
 }
 
-// createOpenAITestPayload creates a test payload for OpenAI Responses API
+// createOpenAITestPayload creates a test payload for OpenAI Responses API.
 func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
+	return createOpenAITestPayloadWithText(modelID, isOAuth, "")
+}
+
+func createOpenAITestPayloadWithText(modelID string, isOAuth bool, prompt string) map[string]any {
+	text := strings.TrimSpace(prompt)
+	if text == "" {
+		text = "hi"
+	}
 	payload := map[string]any{
 		"model": modelID,
 		"input": []map[string]any{
@@ -1300,7 +1354,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 				"content": []map[string]any{
 					{
 						"type": "input_text",
-						"text": "hi",
+						"text": text,
 					},
 				},
 			},
@@ -1811,7 +1865,7 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 	ginCtx, _ := gin.CreateTestContext(w)
 	ginCtx.Request = (&http.Request{}).WithContext(ctx)
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault, AccountTestAPIModeAuto)
 
 	finishedAt := time.Now()
 	body := w.Body.String()

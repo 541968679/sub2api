@@ -1,3 +1,149 @@
+## 2026-09-22 - fix: load-test TTFT includes reasoning tokens
+
+### What
+- Load-test TTFT now starts at the first output token, including chat `reasoning_content` / `reasoning`. Answer text stays on `first_content_ms`. SLA TTFT uses the earlier timestamp.
+- Each request row shows input t/s and output t/s: token count divided by the whole request duration, same rounding as admin usage.
+
+### Why
+kimi-k3 streams thinking before the answer. Waiting for `content` counted the whole thinking pass as time-to-first-token, so the number was much slower than the upstream console.
+
+### Affected files
+`backend/internal/pkg/loadtest/sse.go`,
+`backend/internal/pkg/loadtest/report.go`,
+`backend/internal/pkg/loadtest/run.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
+## 2026-09-22 - fix: load-test RPM counts successes only
+
+### What
+- Load-test RPM, its peak, and its average now count rows with `outcome=success`. Failed requests are left out of all three numbers.
+
+### Why
+A failure is not a completed successful request, so it was inflating the rate.
+
+### Affected files
+`backend/internal/pkg/loadtest/rpm.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
+## 2026-09-22 - feat: show load-test RPM
+
+### What
+- The concurrent load-test live panel shows RPM: completed requests in the last 60 seconds, the peak 60-second window, and the average over the run. Failures count. After the run ends, the 60-second window is anchored at the end time.
+
+### Why
+Operators need a request rate next to in-flight and success while a soak is running.
+
+### Affected files
+`backend/internal/pkg/loadtest/rpm.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
+## 2026-09-22 - feat: show input and output tokens per second on admin usage rows
+
+### What
+- Admin usage rows show input and output tokens per second under latency: token count divided by the whole request duration, rounded. Excel export adds the same two columns.
+- Zero tokens or zero duration stay blank.
+
+### Why
+new-api usage logs print `completion_tokens / use_time` as `t/s`. The same formula now covers both input and output on the admin usage table.
+
+### Affected files
+`frontend/src/utils/latencyHealth.ts`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-09-22 - fix: keep kimi-k3 on native chat completions
+
+### What
+- Load-test requests for `kimi-*` always POST `/v1/chat/completions` with a `messages` body, even when the run endpoint is Responses. `kimi-k3` sends `max_completion_tokens` and does not insert a synthetic assistant turn.
+- Gateway inbound Chat Completions and Responses for platform `kimi` or a `kimi-*` model stay on upstream `/v1/chat/completions`. `force_responses` and an unprobed account no longer rewrite those requests into `/v1/responses`.
+- The load-test form disables Responses when every selected model is kimi.
+
+### Why
+kimi-k3 only accepts native `/v1/chat/completions`. user363 mixed runs were failing immediately because some requests left as Responses bodies.
+
+### Affected files
+`backend/internal/pkg/loadtest/payload.go`,
+`backend/internal/pkg/loadtest/run.go`,
+`backend/internal/pkg/loadtest/engine_test.go`,
+`backend/internal/service/kimi_native_chat.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+`.trellis/spec/backend/openai-apikey-upstream-routing.md`,
+this changelog.
+
+## 2026-09-22 - feat: choose Responses or Chat Completions for account model tests
+
+### What
+- OpenAI API-key account tests and the model-pricing model test can pick the upstream endpoint for that run: follow the account route, Responses (`/v1/responses`), or Chat Completions (`/v1/chat/completions`).
+- The choice is request-only. It does not change the account's saved upstream route or probe flags. OpenAI OAuth stays on Responses.
+
+### Why
+Operators could not probe the other endpoint without changing the account route.
+
+### Affected files
+`backend/internal/service/account_test_service.go`,
+`backend/internal/service/account_test_model_resolution.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/components/admin/account/AccountTestModal.vue`,
+`frontend/src/components/admin/model-pricing/ModelTestDialog.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-09-22 - feat: group API key picker by platform
+
+### What
+- API 接入 create/edit key group picker, the in-table change-group menu, and the group filter now section groups by platform instead of one flat list.
+- Search keeps the platform heading when a group name matches, and shows every group in a platform when the platform name or id matches.
+
+### Why
+Creating a key listed every platform's groups together, so the right group was hard to scan.
+
+### Affected files
+`frontend/src/utils/selectOptionGroups.ts`,
+`frontend/src/components/common/Select.vue`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/utils/__tests__/selectOptionGroups.spec.ts`,
+`frontend/src/components/common/__tests__/Select.groupHeaders.spec.ts`,
+`frontend/src/views/user/KeysView.groupSections.spec.ts`,
+this changelog.
+
+## 2026-09-22 - feat: show load-test error bodies in the request log
+
+### What
+- Request rows show HTTP status, error category, and the upstream message (JSON `error.message` or HTML title). Click a row to expand the full text, request id, and contract issues. A failures-only filter is available.
+- Stream/JSON bodies that carry an `error` object now keep that message even when the HTTP status is 200.
+
+### Why
+The detail table only showed outcome labels such as `http_error`, so operators could not see why a request failed.
+
+### Affected files
+`backend/internal/pkg/loadtest/`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+this changelog.
+
 ## 2026-09-21 - deploy: production v0.1.298
 
 ### What

@@ -46,6 +46,8 @@ ChannelLoadtestView
 
 ## Known Pitfalls
 
-- Results table fills when the run finishes; live widgets are inflight/peak/done.
+- Live widgets are in-flight, peak, done, success, and RPM. RPM counts only `outcome=success` in the trailing 60 seconds, plus the peak 60-second window and the run average. Failures are excluded.
 - 380K SLA p99 bodies can 413 on some vendors.
+- kimi-k3 (any `kimi-*` model) is always posted to `/v1/chat/completions` with a `messages` body and `max_completion_tokens`. A run-level Responses mode does not apply to those models. The body does not include a synthetic assistant turn.
+- TTFT is time to the first output token, including `reasoning_content`. Answer text is `first_content_ms` and can be much later on thinking models. Input/output t/s are token counts divided by the whole request duration.
 - Do not log or return the pasted API key.

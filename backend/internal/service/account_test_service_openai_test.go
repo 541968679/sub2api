@@ -120,7 +120,7 @@ func TestAccountTestService_OpenAISuccessPersistsSnapshotFromHeaders(t *testing.
 		Credentials: map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.NotEmpty(t, repo.updatedExtra)
 	require.Equal(t, 42.0, repo.updatedExtra["codex_5h_used_percent"])
@@ -144,7 +144,7 @@ func TestAccountTestService_OpenAIEmptyStreamBeforeCompletedFails(t *testing.T) 
 		Credentials: map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.Contains(t, recorder.Body.String(), "response.completed")
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
@@ -183,7 +183,7 @@ func TestAccountTestService_OpenAIResponsesPathAcceptsEOFAfterContentDelta(t *te
 		},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
@@ -224,7 +224,7 @@ func TestAccountTestService_OpenAIResponsesPathAddsV1ForRootBaseURL(t *testing.T
 		},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
@@ -403,7 +403,7 @@ func TestAccountTestService_OpenAIResponsesPathAcceptsDoneAfterContentDelta(t *t
 		},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
@@ -451,7 +451,7 @@ func TestAccountTestService_OpenAIResponsesPathAcceptsChatCompletionsStream(t *t
 		},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
@@ -483,7 +483,7 @@ func TestAccountTestService_OpenAI429PersistsSnapshotAndRateLimitState(t *testin
 		Credentials: map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.NotEmpty(t, repo.updatedExtra)
 	require.Equal(t, 100.0, repo.updatedExtra["codex_5h_used_percent"])
@@ -513,7 +513,7 @@ func TestAccountTestService_OpenAI429BodyOnlyPersistsRateLimitAndClearsStaleErro
 		Credentials:  map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.Zero(t, repo.rateLimitedID)
 	require.Nil(t, repo.rateLimitedAt)
@@ -542,7 +542,7 @@ func TestAccountTestService_OpenAI429ActiveAccountDoesNotClearError(t *testing.T
 		Credentials: map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.Zero(t, repo.rateLimitedID)
 	require.Nil(t, repo.rateLimitedAt)
@@ -570,7 +570,7 @@ func TestAccountTestService_OpenAI429WithoutResetSignalDoesNotMutateRuntimeState
 		Credentials:  map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.Zero(t, repo.rateLimitedID)
 	require.Nil(t, repo.rateLimitedAt)
@@ -598,7 +598,7 @@ func TestAccountTestService_OpenAI401SetsPermanentErrorOnly(t *testing.T) {
 		Credentials: map[string]any{"access_token": "test-token"},
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.Error(t, err)
 	require.Zero(t, repo.setErrorID)
 	require.Empty(t, repo.setErrorMsg)
@@ -647,7 +647,7 @@ func TestAccountTestService_OpenAIAPIKeyForceChatCompletionsUsesRawChatTestPath(
 		Concurrency: 1,
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.requests[0].URL.String())
@@ -704,7 +704,7 @@ func TestAccountTestService_OpenAIAPIKeyPassthroughUsesResponsesTestPath(t *test
 		Concurrency: 1,
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
@@ -745,10 +745,192 @@ func TestAccountTestService_OpenAIChatCompletionsPathAcceptsEOFAfterContent(t *t
 		Concurrency: 1,
 	}
 
-	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello", "")
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.requests[0].URL.String())
 	require.Contains(t, recorder.Body.String(), `"type":"content","text":"ok"`)
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+}
+
+func TestNormalizeAccountTestAPIMode(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{input: "", want: AccountTestAPIModeAuto},
+		{input: "auto", want: AccountTestAPIModeAuto},
+		{input: " AUTO ", want: AccountTestAPIModeAuto},
+		{input: "unknown", want: AccountTestAPIModeAuto},
+		{input: "responses", want: AccountTestAPIModeResponses},
+		{input: "RE", want: AccountTestAPIModeResponses},
+		{input: "chat_completions", want: AccountTestAPIModeChatCompletions},
+		{input: " cc ", want: AccountTestAPIModeChatCompletions},
+	}
+	for _, tt := range cases {
+		if got := normalizeAccountTestAPIMode(tt.input); got != tt.want {
+			t.Fatalf("normalizeAccountTestAPIMode(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestAccountTestService_OpenAIAPIKeyExplicitResponsesOverridesForceChat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"ok"}`,
+		"",
+		`data: [DONE]`,
+		"",
+	}, "\n")))
+
+	repo := &openAIAccountTestRepo{}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+	}
+	account := &Account{
+		ID:       97,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example/v1",
+		},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeForceChatCompletions),
+		},
+		Concurrency: 1,
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello from re", "", AccountTestAPIModeResponses)
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "http://upstream.example/v1/responses", upstream.requests[0].URL.String())
+	require.Nil(t, repo.updatedExtra)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(upstream.requests[0].Body).Decode(&body))
+	require.Equal(t, "gpt-5.4", body["model"])
+	require.NotNil(t, body["input"])
+	require.Nil(t, body["messages"])
+	raw, err := json.Marshal(body["input"])
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "hello from re")
+	require.Contains(t, recorder.Body.String(), `"api_mode":"responses"`)
+	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+}
+
+func TestAccountTestService_OpenAIAPIKeyExplicitChatCompletionsOverridesPassthrough(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(strings.Join([]string{
+		`data: {"id":"chatcmpl_test","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}`,
+		"",
+		`data: [DONE]`,
+		"",
+	}, "\n")))
+
+	repo := &openAIAccountTestRepo{}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+	}
+	account := &Account{
+		ID:       98,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example/v1",
+		},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesMode:            string(openai_compat.ResponsesSupportModePassthrough),
+			openai_compat.ExtraKeyResponsesSupported:       true,
+			openai_compat.ExtraKeyChatCompletionsSupported: false,
+		},
+		Concurrency: 1,
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello from cc", "", "cc")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.requests[0].URL.String())
+	require.Nil(t, repo.updatedExtra)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(upstream.requests[0].Body).Decode(&body))
+	require.Equal(t, "gpt-5.4", body["model"])
+	require.NotNil(t, body["messages"])
+	require.Nil(t, body["input"])
+	raw, err := json.Marshal(body["messages"])
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "hello from cc")
+	require.Contains(t, recorder.Body.String(), `"api_mode":"chat_completions"`)
+}
+
+func TestAccountTestService_OpenAIOAuthExplicitChatCompletionsRejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	upstream := &queuedHTTPUpstream{}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          99,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"access_token": "test-token"},
+		Concurrency: 1,
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "", AccountTestAPIModeChatCompletions)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Responses endpoint")
+	require.Empty(t, upstream.requests)
+	require.Contains(t, recorder.Body.String(), `"type":"error"`)
+}
+
+func TestAccountTestService_OpenAICompactRejectsChatCompletionsMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := newTestContext()
+
+	upstream := &queuedHTTPUpstream{}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example/v1",
+		},
+		Concurrency: 1,
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", AccountTestModeCompact, AccountTestAPIModeChatCompletions)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Responses endpoint")
+	require.Empty(t, upstream.requests)
 }

@@ -68,7 +68,7 @@ func TestAccountTestService_TestAccountConnection_GrokUsesXAIResponses(t *testin
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/13/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault, AccountTestAPIModeAuto)
 	require.NoError(t, err)
 
 	require.Equal(t, "https://cli-chat-proxy.grok.com/v1/responses", upstream.lastReq.URL.String())
@@ -114,7 +114,7 @@ func TestAccountTestService_TestAccountConnection_GrokDefaultsEmptyModelTo45(t *
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/16/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(c, account.ID, "", "", AccountTestModeDefault, AccountTestAPIModeAuto)
 
 	require.NoError(t, err)
 	require.Equal(t, grokDefaultResponsesModel, gjson.GetBytes(upstream.lastBody, "model").String())
@@ -153,7 +153,7 @@ func TestAccountTestService_Grok429PersistsRateLimitReset(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/14/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault, AccountTestAPIModeAuto)
 
 	require.Error(t, err)
 	require.Zero(t, repo.rateLimitedCalls)
@@ -182,7 +182,7 @@ func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T)
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/15/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault, AccountTestAPIModeAuto)
 
 	require.Error(t, err)
 	require.Zero(t, repo.rateLimitedCalls)

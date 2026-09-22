@@ -621,6 +621,12 @@ Important mechanisms:
   `force_chat_completions` and `auto` + `openai_responses_supported=false`
   test `{base_url}/v1/chat/completions`, matching raw Chat Completions
   forwarding. Missing mode/probe fields keep today's Responses test.
+- Admin account test and model-pricing test can send `api_mode` on
+  `POST /api/v1/admin/accounts/:id/test`: `responses` forces `/v1/responses`,
+  `chat_completions` forces `/v1/chat/completions`, and empty/`auto` keeps the
+  saved route above. The override is not written back to `openai_responses_mode`
+  or the probe flags. OpenAI OAuth rejects `chat_completions`. Image tests and
+  compact tests do not use this override.
 - The Chat Completions test stream maps upstream `delta.content` and
   `delta.reasoning_content` chunks into the existing account-test SSE
   `content` events, so DeepSeek/Kimi/GLM/Qwen-style compatible upstreams can be

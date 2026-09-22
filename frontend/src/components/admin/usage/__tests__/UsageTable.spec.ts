@@ -28,6 +28,11 @@ const messages: Record<string, string> = {
   'usage.upstreamResponseModel': 'Upstream response',
   'usage.modelMismatch': 'Mismatch',
   'usage.modelVariant': 'Variant',
+  'usage.latencyFirstToken': 'First token',
+  'usage.latencyDuration': 'Total',
+  'usage.inputPerSecond': 'in {n} t/s',
+  'usage.outputPerSecond': 'out {n} t/s',
+  'usage.tokenRateHint': 'token rate hint',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -56,6 +61,7 @@ const DataTableStub = {
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-display_tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
+        <slot name="cell-latency" :row="row" />
       </div>
     </div>
   `,
@@ -393,5 +399,42 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('gpt-6-astra')
     expect(text).toContain('gpt-5.6-luna')
     expect(text).toContain('Mismatch')
+  })
+
+  it('shows input and output tokens per second from request duration', () => {
+    const row = {
+      request_id: 'req-rate-1',
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 4057,
+      output_tokens: 101,
+      duration_ms: 10_000,
+      first_token_ms: 1200,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('in 406 t/s')
+    expect(wrapper.text()).toContain('out 10 t/s')
   })
 })

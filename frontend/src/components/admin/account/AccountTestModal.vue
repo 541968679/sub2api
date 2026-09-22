@@ -71,6 +71,18 @@
         <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.customTestModelHint') }}</p>
       </div>
 
+      <div v-if="supportsEndpointChoice" class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.testEndpoint') }}
+        </label>
+        <Select
+          v-model="apiMode"
+          :options="endpointOptions"
+          :disabled="status === 'connecting'"
+        />
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.testEndpointHint') }}</p>
+      </div>
+
       <div v-if="supportsImageTest" class="space-y-1.5">
         <TextArea
           v-model="testPrompt"
@@ -293,8 +305,15 @@ const loadingModels = ref(false)
 let abortController: AbortController | null = null
 const generatedImages = ref<PreviewImage[]>([])
 const previewImageUrl = ref('')
+const apiMode = ref<'auto' | 'responses' | 'chat_completions'>('auto')
 const effectiveTestModelId = computed(() => customModelId.value.trim() || selectedModelId.value)
 const canStartTest = computed(() => Boolean(effectiveTestModelId.value))
+
+const testEndpointLabel = (mode?: string) => {
+  if (mode === 'responses') return t('admin.accounts.testEndpointResponses')
+  if (mode === 'chat_completions') return t('admin.accounts.testEndpointChatCompletions')
+  return t('admin.accounts.testEndpointAuto')
+}
 
 const hasAccountMapping = computed(() => {
   const raw = props.account?.credentials?.model_mapping
@@ -357,6 +376,14 @@ const supportsOpenAIImageTest = computed(() => {
 })
 
 const supportsImageTest = computed(() => supportsGeminiImageTest.value || supportsOpenAIImageTest.value)
+const supportsEndpointChoice = computed(
+  () => props.account?.platform === 'openai' && props.account?.type === 'apikey' && !supportsImageTest.value
+)
+const endpointOptions = computed(() => [
+  { value: 'auto', label: t('admin.accounts.testEndpointAuto') },
+  { value: 'responses', label: t('admin.accounts.testEndpointResponses') },
+  { value: 'chat_completions', label: t('admin.accounts.testEndpointChatCompletions') }
+])
 
 // Load available models when modal opens
 watch(
@@ -365,6 +392,7 @@ watch(
     if (newVal && props.account) {
       testPrompt.value = ''
       customModelId.value = ''
+      apiMode.value = 'auto'
       resetState()
       await loadAvailableModels()
     } else {
@@ -459,9 +487,10 @@ const startTest = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-              model_id: effectiveTestModelId.value,
-              prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
-            }),
+        model_id: effectiveTestModelId.value,
+        prompt: supportsImageTest.value ? testPrompt.value.trim() : '',
+        ...(supportsEndpointChoice.value ? { api_mode: apiMode.value } : {})
+      }),
       signal: abortController.signal
     })
 
@@ -518,6 +547,7 @@ const handleEvent = (event: {
   selected_model?: string
   mapped_model?: string
   mapping_source?: string
+  api_mode?: string
   success?: boolean
   error?: string
   image_url?: string
@@ -541,6 +571,12 @@ const handleEvent = (event: {
         }
       } else if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
+      }
+      if (event.api_mode === 'responses' || event.api_mode === 'chat_completions') {
+        addLine(
+          t('admin.accounts.testEndpointUsed', { endpoint: testEndpointLabel(event.api_mode) }),
+          'text-cyan-400'
+        )
       }
       addLine(
         supportsImageTest.value

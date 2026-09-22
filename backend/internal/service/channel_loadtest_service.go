@@ -68,6 +68,9 @@ type ChannelLoadtestSnapshot struct {
 	Done               int64                 `json:"done"`
 	OK                 int64                 `json:"ok"`
 	SuccessRate        float64               `json:"success_rate"`
+	RPM                int                   `json:"rpm"`
+	RPMPeak            int                   `json:"rpm_peak"`
+	RPMAvg             float64               `json:"rpm_avg"`
 	EstimatedInputTok  int                   `json:"estimated_input_tokens"`
 	InputTokens        int                   `json:"input_tokens,omitempty"`
 	DataProfile        loadtest.DataProfile  `json:"data_profile"`
@@ -350,6 +353,11 @@ func (s *ChannelLoadtestService) snapshot(run *channelLoadtestRun, includeResult
 	if done > 0 {
 		rate = float64(ok) * 100 / float64(done)
 	}
+	anchor := time.Now()
+	if run.endedAt != nil {
+		anchor = *run.endedAt
+	}
+	rpm := loadtest.ComputeRPM(rows, run.startedAt, anchor)
 	out := &ChannelLoadtestSnapshot{
 		ID:                 run.id,
 		Status:             run.status,
@@ -375,6 +383,9 @@ func (s *ChannelLoadtestService) snapshot(run *channelLoadtestRun, includeResult
 		Done:               done,
 		OK:                 ok,
 		SuccessRate:        rate,
+		RPM:                rpm.Current,
+		RPMPeak:            rpm.Peak,
+		RPMAvg:             rpm.Average,
 		InputTokens:        run.cfg.InputTokens,
 		EstimatedInputTok:  loadtest.EstimateInputTokens(run.cfg),
 		DataProfile:        loadtest.BuildDataProfile(rows),

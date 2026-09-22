@@ -254,6 +254,11 @@
               <span v-else class="text-gray-400">-</span>
               <span class="text-gray-400">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
+              <span
+                v-if="tokenRateLabel(row)"
+                class="col-span-2 text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
+                :title="t('usage.tokenRateHint')"
+              >{{ tokenRateLabel(row) }}</span>
             </div>
           </div>
         </template>
@@ -541,7 +546,7 @@ import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   LATENCY_BAR_CLASSES, LATENCY_BAR_FROM_CLASSES, LATENCY_BAR_TO_CLASSES,
-  LATENCY_TEXT_CLASSES, durationSeverity, firstTokenSeverity,
+  LATENCY_TEXT_CLASSES, durationSeverity, firstTokenSeverity, tokensPerSecond,
 } from '@/utils/latencyHealth'
 import { getBillingModeLabel, getBillingModeBadgeClass, BILLING_MODE_TOKEN, BILLING_MODE_IMAGE } from '@/utils/billingMode'
 
@@ -683,6 +688,15 @@ const getRequestTypeBadgeClass = (row: AdminUsageLog): string => {
 
 const formatUserAgent = (ua: string): string => {
   return ua
+}
+
+function tokenRateLabel(row: AdminUsageLog): string {
+  const input = tokensPerSecond(row.input_tokens ?? 0, row.duration_ms ?? 0)
+  const output = tokensPerSecond(row.output_tokens ?? 0, row.duration_ms ?? 0)
+  const parts: string[] = []
+  if (input != null) parts.push(t('usage.inputPerSecond', { n: input }))
+  if (output != null) parts.push(t('usage.outputPerSecond', { n: output }))
+  return parts.join(' · ')
 }
 
 const formatDuration = (ms: number | null | undefined): string => {

@@ -63,10 +63,10 @@
             <div
               v-for="(option, index) in filteredOptions"
               :key="`${typeof getOptionValue(option)}:${String(getOptionValue(option) ?? '')}`"
-              role="option"
-              :aria-selected="isSelected(option)"
-              :aria-disabled="isOptionDisabled(option)"
-              @click.stop="!isOptionDisabled(option) && selectOption(option)"
+              :role="isGroupHeaderOption(option) ? 'presentation' : 'option'"
+              :aria-selected="isGroupHeaderOption(option) ? undefined : isSelected(option)"
+              :aria-disabled="isGroupHeaderOption(option) ? undefined : isOptionDisabled(option)"
+              @click.stop="!isOptionSkipped(option) && selectOption(option)"
               @mouseenter="handleOptionMouseEnter(option, index)"
               :class="[
                 'select-option',
@@ -109,6 +109,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { filterOptionsPreservingGroups, isSelectGroupHeader } from '@/utils/selectOptionGroups'
 
 const { t } = useI18n()
 
@@ -212,12 +213,9 @@ const isOptionDisabled = (option: any): boolean => {
   return false
 }
 
-const isGroupHeaderOption = (option: any): boolean => {
-  if (typeof option === 'object' && option !== null) {
-    return option.kind === 'group'
-  }
-  return false
-}
+const isGroupHeaderOption = (option: any): boolean => isSelectGroupHeader(option)
+
+const isOptionSkipped = (option: any): boolean => isOptionDisabled(option) || isGroupHeaderOption(option)
 
 const selectedOption = computed(() => {
   return props.options.find((opt) => getOptionValue(opt) === props.modelValue) || null
@@ -236,20 +234,16 @@ const selectedLabel = computed(() => {
 
 const filteredOptions = computed(() => {
   let opts = props.options as any[]
-  if (props.searchable && searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    opts = opts.filter((opt) => {
-      // Match label
-      if (getOptionLabel(opt).toLowerCase().includes(query)) return true
-      // Also match description if present
-      if (opt.description && String(opt.description).toLowerCase().includes(query)) return true
-      return false
+  const query = searchQuery.value.trim()
+  if (props.searchable && query) {
+    opts = filterOptionsPreservingGroups(opts, query, {
+      label: (opt) => getOptionLabel(opt),
+      description: (opt) => (opt && typeof opt === 'object' ? (opt as { description?: unknown }).description : undefined)
     })
     // In creatable mode, always prepend a fuzzy search option
-    if (props.creatable && searchQuery.value.trim()) {
-      const trimmed = searchQuery.value.trim()
+    if (props.creatable) {
       const prefix = props.creatablePrefix || t('common.search')
-      opts = [{ [props.valueKey]: trimmed, [props.labelKey]: `${prefix} "${trimmed}"`, _creatable: true }, ...opts]
+      opts = [{ [props.valueKey]: query, [props.labelKey]: `${prefix} "${query}"`, _creatable: true }, ...opts]
     }
   }
   return opts
@@ -264,7 +258,7 @@ const findNextEnabledIndex = (startIndex: number): number => {
   if (opts.length === 0) return -1
   for (let offset = 0; offset < opts.length; offset++) {
     const idx = (startIndex + offset) % opts.length
-    if (!isOptionDisabled(opts[idx])) return idx
+    if (!isOptionSkipped(opts[idx])) return idx
   }
   return -1
 }
@@ -274,13 +268,13 @@ const findPrevEnabledIndex = (startIndex: number): number => {
   if (opts.length === 0) return -1
   for (let offset = 0; offset < opts.length; offset++) {
     const idx = (startIndex - offset + opts.length) % opts.length
-    if (!isOptionDisabled(opts[idx])) return idx
+    if (!isOptionSkipped(opts[idx])) return idx
   }
   return -1
 }
 
 const handleOptionMouseEnter = (option: any, index: number) => {
-  if (isOptionDisabled(option) || isGroupHeaderOption(option)) return
+  if (isOptionSkipped(option)) return
   focusedIndex.value = index
 }
 
@@ -323,7 +317,7 @@ watch(isOpen, (open) => {
     } else {
       const selectedIdx = filteredOptions.value.findIndex(isSelected)
       const initialIdx = selectedIdx >= 0 ? selectedIdx : 0
-      focusedIndex.value = isOptionDisabled(filteredOptions.value[initialIdx])
+      focusedIndex.value = isOptionSkipped(filteredOptions.value[initialIdx])
         ? findNextEnabledIndex(initialIdx + 1)
         : initialIdx
     }
@@ -373,7 +367,7 @@ const onDropdownKeyDown = (e: KeyboardEvent) => {
       e.preventDefault()
       if (focusedIndex.value >= 0 && focusedIndex.value < filteredOptions.value.length) {
         const opt = filteredOptions.value[focusedIndex.value]
-        if (!isOptionDisabled(opt)) selectOption(opt)
+        if (!isOptionSkipped(opt)) selectOption(opt)
       }
       break
     case 'Escape':
