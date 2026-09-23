@@ -208,6 +208,15 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsCacheBreakdown:     false,
 	}
 
+	s.fallbackPrices["claude-opus-5-5"] = &ModelPricing{
+		InputPricePerToken:         4e-6,   // $4 per MTok
+		OutputPricePerToken:        20e-6,  // $20 per MTok
+		CacheCreationPricePerToken: 5e-6,   // $5 per MTok (5m write)
+		CacheReadPricePerToken:     0.2e-6, // $0.20 per MTok (0.05x)
+		CacheCreation5mPrice:       5e-6,
+		CacheCreation1hPrice:       8e-6, // $8 per MTok
+		SupportsCacheBreakdown:     true,
+	}
 	s.fallbackPrices["claude-fable-5-1"] = &ModelPricing{
 		InputPricePerToken:         10e-6,
 		OutputPricePerToken:        50e-6,
@@ -345,6 +354,32 @@ func (s *BillingService) initFallbackPricing() {
 	s.fallbackPrices["gpt-5.6-sol"] = newGPT56Fallback()
 	s.fallbackPrices["gpt-5.6-terra"] = newGPT56Fallback()
 	s.fallbackPrices["gpt-5.6-luna"] = newGPT56Fallback()
+	s.fallbackPrices["gpt-6-sol"] = &ModelPricing{
+		InputPricePerToken:             2e-6,   // $2 per MTok
+		InputPricePerTokenPriority:     4e-6,   // $4 per MTok
+		OutputPricePerToken:            10e-6,  // $10 per MTok
+		OutputPricePerTokenPriority:    20e-6,  // $20 per MTok
+		CacheCreationPricePerToken:     2.5e-6, // $2.50 per MTok
+		CacheReadPricePerToken:         0.2e-6, // $0.20 per MTok
+		CacheReadPricePerTokenPriority: 0.4e-6,
+		SupportsCacheBreakdown:         false,
+		LongContextInputThreshold:      openAIGPT54LongContextInputThreshold,
+		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
+		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
+	}
+	s.fallbackPrices["gpt-6-luna"] = &ModelPricing{
+		InputPricePerToken:             0.1e-6,   // $0.10 per MTok
+		InputPricePerTokenPriority:     0.2e-6,   // $0.20 per MTok
+		OutputPricePerToken:            0.5e-6,   // $0.50 per MTok
+		OutputPricePerTokenPriority:    1e-6,     // $1 per MTok
+		CacheCreationPricePerToken:     0.125e-6, // $0.125 per MTok
+		CacheReadPricePerToken:         0.01e-6,  // $0.01 per MTok
+		CacheReadPricePerTokenPriority: 0.02e-6,
+		SupportsCacheBreakdown:         false,
+		LongContextInputThreshold:      openAIGPT54LongContextInputThreshold,
+		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
+		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
+	}
 	// OpenAI GPT-5.4（业务指定价格）
 	s.fallbackPrices["gpt-5.4"] = &ModelPricing{
 		InputPricePerToken:             2.5e-6,  // $2.5 per MTok
@@ -427,6 +462,9 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 
 	// 按模型系列匹配
 	if strings.Contains(modelLower, "opus") {
+		if strings.Contains(modelLower, "opus-5-5") || strings.Contains(modelLower, "opus-5.5") {
+			return s.fallbackPrices["claude-opus-5-5"]
+		}
 		if strings.Contains(modelLower, "4.7") || strings.Contains(modelLower, "4-7") {
 			return s.fallbackPrices["claude-opus-4.7"]
 		}
@@ -473,6 +511,10 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 			return s.fallbackPrices["gpt-5.6-sol"]
 		case "gpt-5.6-terra":
 			return s.fallbackPrices["gpt-5.6-terra"]
+		case "gpt-6-sol":
+			return s.fallbackPrices["gpt-6-sol"]
+		case "gpt-6-luna":
+			return s.fallbackPrices["gpt-6-luna"]
 		case "gpt-5.6-luna":
 			return s.fallbackPrices["gpt-5.6-luna"]
 		case "gpt-5.5-pro":
@@ -850,13 +892,14 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 		return pricing
 	}
 	normalized := normalizeKnownOpenAICodexModel(model)
-	needsGPT56CacheWriteDefault := normalized == "gpt-5.6" || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" || normalized == "gpt-5.6-luna"
+	needsOpenAICacheWriteDefault := normalized == "gpt-5.6" || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" || normalized == "gpt-5.6-luna" ||
+		normalized == "gpt-6-sol" || normalized == "gpt-6-luna"
 	if pricing.LongContextInputThreshold > 0 && pricing.LongContextInputMultiplier > 0 && pricing.LongContextOutputMultiplier > 0 &&
-		(!needsGPT56CacheWriteDefault || pricing.CacheCreationPricePerToken > 0 || pricing.InputPricePerToken <= 0) {
+		(!needsOpenAICacheWriteDefault || pricing.CacheCreationPricePerToken > 0 || pricing.InputPricePerToken <= 0) {
 		return pricing
 	}
 	cloned := *pricing
-	if needsGPT56CacheWriteDefault && cloned.CacheCreationPricePerToken <= 0 && cloned.InputPricePerToken > 0 {
+	if needsOpenAICacheWriteDefault && cloned.CacheCreationPricePerToken <= 0 && cloned.InputPricePerToken > 0 {
 		cloned.CacheCreationPricePerToken = cloned.InputPricePerToken * 1.25
 	}
 	if cloned.LongContextInputThreshold <= 0 {
@@ -897,7 +940,7 @@ func isOpenAIGPT54Model(model string) bool {
 	// 的默认兜底把非 OpenAI 模型（claude-*、gemini-*、gpt-4o）误识别为 gpt-5.4。
 	normalized := normalizeKnownOpenAICodexModel(model)
 	switch normalized {
-	case "gpt-5.4", "gpt-5.5", "gpt-5.5-pro", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna":
+	case "gpt-5.4", "gpt-5.5", "gpt-5.5-pro", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-sol", "gpt-6-luna":
 		return true
 	default:
 		return false

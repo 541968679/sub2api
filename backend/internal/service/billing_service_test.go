@@ -130,6 +130,35 @@ func TestGetModelPricing_UnknownClaudeModelFallsBackToSonnet(t *testing.T) {
 	require.InDelta(t, 3e-6, pricing.InputPricePerToken, 1e-12)
 }
 
+func TestGetModelPricing_September2026Models(t *testing.T) {
+	svc := newTestBillingService()
+
+	sol, err := svc.GetModelPricing("gpt-6-sol-high")
+	require.NoError(t, err)
+	require.InDelta(t, 2e-6, sol.InputPricePerToken, 1e-15)
+	require.InDelta(t, 10e-6, sol.OutputPricePerToken, 1e-15)
+	require.InDelta(t, 0.2e-6, sol.CacheReadPricePerToken, 1e-15)
+	require.InDelta(t, 2.5e-6, sol.CacheCreationPricePerToken, 1e-15)
+	require.Equal(t, 272000, sol.LongContextInputThreshold)
+	require.InDelta(t, 2.0, sol.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, sol.LongContextOutputMultiplier, 1e-12)
+
+	luna, err := svc.GetModelPricing("GPT-6-Luna")
+	require.NoError(t, err)
+	require.InDelta(t, 0.1e-6, luna.InputPricePerToken, 1e-15)
+	require.InDelta(t, 0.5e-6, luna.OutputPricePerToken, 1e-15)
+	require.InDelta(t, 0.01e-6, luna.CacheReadPricePerToken, 1e-15)
+
+	opus, err := svc.GetModelPricing("claude-opus-5-5")
+	require.NoError(t, err)
+	require.InDelta(t, 4e-6, opus.InputPricePerToken, 1e-15)
+	require.InDelta(t, 20e-6, opus.OutputPricePerToken, 1e-15)
+	require.InDelta(t, 0.2e-6, opus.CacheReadPricePerToken, 1e-15)
+	require.InDelta(t, 5e-6, opus.CacheCreationPricePerToken, 1e-15)
+	require.True(t, opus.SupportsCacheBreakdown)
+	require.InDelta(t, 8e-6, opus.CacheCreation1hPrice, 1e-15)
+}
+
 func TestGetModelPricing_UnknownOpenAIModelReturnsError(t *testing.T) {
 	svc := newTestBillingService()
 

@@ -45,6 +45,38 @@ var (
 		Mode:                            "chat",
 		SupportsPromptCaching:           true,
 	}
+	openAIGPT6SolFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:               2e-06,
+		InputCostPerTokenPriority:       4e-06,
+		OutputCostPerToken:              1e-05,
+		OutputCostPerTokenPriority:      2e-05,
+		CacheCreationInputTokenCost:     2.5e-06,
+		CacheReadInputTokenCost:         2e-07,
+		CacheReadInputTokenCostPriority: 4e-07,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2.0,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+		SupportsServiceTier:             true,
+	}
+	openAIGPT6LunaFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:               1e-07,
+		InputCostPerTokenPriority:       2e-07,
+		OutputCostPerToken:              5e-07,
+		OutputCostPerTokenPriority:      1e-06,
+		CacheCreationInputTokenCost:     1.25e-07,
+		CacheReadInputTokenCost:         1e-08,
+		CacheReadInputTokenCostPriority: 2e-08,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2.0,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+		SupportsServiceTier:             true,
+	}
 	openAIGPT56FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               5e-06, // $5 per MTok
 		OutputCostPerToken:              3e-05, // $30 per MTok
@@ -693,6 +725,7 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	// 因子串关系误匹配 "claude-opus-4-7"（opus-4.7 系列）。
 	// 注意：原 map 实现存在 Go map 迭代随机性导致的同类 bug，此处改为有序切片修复。
 	families := []modelFamily{
+		{name: "opus-5.5", match: []string{"claude-opus-5-5", "claude-opus-5.5"}, pricing: []string{"claude-opus-5-5"}},
 		{name: "opus-4.7", match: []string{"claude-opus-4-7", "claude-opus-4.7"}, pricing: []string{"claude-opus-4-7", "claude-opus-4.7", "claude-opus-4-6"}},
 		{name: "opus-4.6", match: []string{"claude-opus-4-6", "claude-opus-4.6"}},
 		{name: "opus-4.5", match: []string{"claude-opus-4-5", "claude-opus-4.5"}},
@@ -725,6 +758,8 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 		switch {
 		case strings.Contains(model, "opus"):
 			switch {
+			case strings.Contains(model, "opus-5-5") || strings.Contains(model, "opus-5.5"):
+				fallbackName = "opus-5.5"
 			case strings.Contains(model, "4.7") || strings.Contains(model, "4-7"):
 				fallbackName = "opus-4.7"
 			case strings.Contains(model, "4.6") || strings.Contains(model, "4-6"):
@@ -792,6 +827,19 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // 5. gpt-5.4* -> 业务静态兜底价
 // 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
+	switch {
+	case strings.HasPrefix(model, "gpt-6-sol"):
+		if pricing, ok := s.pricingData["gpt-6-sol"]; ok {
+			return pricing
+		}
+		return openAIGPT6SolFallbackPricing
+	case strings.HasPrefix(model, "gpt-6-luna"):
+		if pricing, ok := s.pricingData["gpt-6-luna"]; ok {
+			return pricing
+		}
+		return openAIGPT6LunaFallbackPricing
+	}
+
 	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
 		if pricing, ok := s.pricingData["gpt-5.1-codex"]; ok {
 			logger.LegacyPrintf("service.pricing", "[Pricing][SparkBilling] %s -> %s billing", model, "gpt-5.1-codex")

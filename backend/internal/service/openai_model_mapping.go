@@ -30,12 +30,31 @@ func isExplicitCodexModel(model string) bool {
 		model = parts[len(parts)-1]
 	}
 	model = strings.ToLower(strings.TrimSpace(model))
-	if getNormalizedCodexModel(model) != "" {
+	if codexModelFamilyRecognized(model) {
 		return true
 	}
 	if strings.HasSuffix(model, "-openai-compact") {
 		base := strings.TrimSuffix(model, "-openai-compact")
-		return getNormalizedCodexModel(base) != ""
+		return codexModelFamilyRecognized(base)
+	}
+	return false
+}
+
+// codexModelFamilyRecognized reports canonical IDs and their effort or dated
+// suffixes. Group default mapping must not rewrite these to an older model.
+func codexModelFamilyRecognized(model string) bool {
+	if getNormalizedCodexModel(model) != "" {
+		return true
+	}
+	key := codexModelLookupKey(model)
+	for _, item := range codexVersionModelPrefixes {
+		if key == item.prefix {
+			return true
+		}
+		suffix, ok := strings.CutPrefix(key, item.prefix+"-")
+		if ok && isKnownCodexModelSuffix(suffix) {
+			return true
+		}
 	}
 	return false
 }

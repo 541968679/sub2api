@@ -13,11 +13,15 @@ import (
 func TestOpenAICatalogSeeds(t *testing.T) {
 	display := OpenAIDisplaySeed()
 	require.Contains(t, display, OpenAIModelGPT6Astra)
+	require.Contains(t, display, OpenAIModelGPT6Sol)
+	require.Contains(t, display, OpenAIModelGPT6Luna)
 	require.Contains(t, display, "grok-4.5")
 	require.Contains(t, display, "gpt-5.6-sol")
 
 	whitelist := OpenAIWhitelistSeed()
 	require.Contains(t, whitelist, OpenAIModelGPT6Astra)
+	require.Contains(t, whitelist, OpenAIModelGPT6Sol)
+	require.Contains(t, whitelist, OpenAIModelGPT6Luna)
 	require.Contains(t, whitelist, "gpt-5.6-luna")
 	require.Contains(t, whitelist, "gpt-image-2")
 	require.NotContains(t, whitelist, "grok-4.5")
@@ -49,6 +53,7 @@ func TestDiffNewWhitelistKeys_FirstSaveOnlyAddsGPT6(t *testing.T) {
 func TestPlatformCatalogSeeds_AnthropicGeminiAntigravity(t *testing.T) {
 	anthropic := PlatformDisplaySeed(PlatformAnthropic)
 	require.Contains(t, anthropic, "claude-opus-5")
+	require.Contains(t, anthropic, "claude-opus-5-5")
 	require.Equal(t, PlatformDisplaySeed(PlatformAnthropic), PlatformWhitelistSeed(PlatformAnthropic))
 	require.Empty(t, DiffNewWhitelistKeys(PlatformLegacyWhitelistBaseline(PlatformAnthropic), PlatformWhitelistSeed(PlatformAnthropic)))
 

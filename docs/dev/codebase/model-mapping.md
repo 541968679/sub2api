@@ -36,6 +36,30 @@ API Key HTTP bridge must not read that id to trim or attach. OAuth/Codex
 continuation (`session_id` / `x-codex-turn-state`) is unchanged. Do not flip
 `store=true` as the memory fix.
 
+## GPT-6 Sol / Luna and Claude Opus 5.5 (2026-09-22)
+
+Official IDs are `gpt-6-sol`, `gpt-6-luna`, and `claude-opus-5-5`. They are
+first-class catalog, whitelist, and billing models. `gpt-6` stays the Astra
+alias and is not rewritten to Sol. Claude-GPT bridge defaults stay on
+`gpt-5.5` / `gpt-5.4`.
+
+Standard API prices, USD per million tokens:
+
+| Model | Input | Cache read | Cache write | Output |
+| --- | --- | --- | --- | --- |
+| gpt-6-sol | 2 | 0.20 | 2.50 | 10 |
+| gpt-6-luna | 0.10 | 0.01 | 0.125 | 0.50 |
+| claude-opus-5-5 | 4 | 0.20 | 5 (5m) / 8 (1h) | 20 |
+
+Prompts over 272K input tokens on Sol and Luna use the existing OpenAI long-context
+rule: 2x input and 1.5x output. Opus 5.5 cache reads are 0.05x input, not 0.1x.
+Bedrock ID is `anthropic.claude-opus-5-5`. Opus 5.5 is in the Opus 5 1M-context
+family, so the gateway still passes `context-1m-2025-08-07`.
+
+Saved admin model catalogs replace these seeds. An empty catalog picks the new
+IDs up; a catalog already stored in settings does not grow until an admin adds
+the IDs.
+
 ## OpenAI GPT-5.6 Model Mapping (2026-07-10)
 
 OpenAI model lists and presets include `gpt-5.6-sol`, `gpt-5.6-terra`, and

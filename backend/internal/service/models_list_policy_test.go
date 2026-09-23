@@ -15,6 +15,7 @@ func TestGatewayModelDiscoveryIDsForPlatform(t *testing.T) {
 	antigravity, ok := GatewayModelDiscoveryIDsForPlatform(PlatformAntigravity)
 	require.True(t, ok)
 	require.Equal(t, []string{
+		"claude-opus-5-5",
 		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",
@@ -26,7 +27,7 @@ func TestGatewayModelDiscoveryIDsForPlatform(t *testing.T) {
 	openAI[0] = "mutated"
 	openAIAgain, ok := GatewayModelDiscoveryIDsForPlatform(PlatformOpenAI)
 	require.True(t, ok)
-	require.Equal(t, OpenAIModelGPT6Astra, openAIAgain[0])
+	require.Equal(t, OpenAIModelGPT6Sol, openAIAgain[0])
 
 	gemini, ok := GatewayModelDiscoveryIDsForPlatform(PlatformGemini)
 	require.True(t, ok)
@@ -51,6 +52,7 @@ func TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy(t *testing.T) {
 	antigravity, err := svc.GetGroupModelsListCandidates(context.Background(), 0, PlatformAntigravity)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{
+		"claude-opus-5-5",
 		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",

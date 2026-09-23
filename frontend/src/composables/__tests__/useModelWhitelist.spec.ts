@@ -32,6 +32,8 @@ describe('useModelWhitelist', () => {
     const models = getModelsByPlatform('openai')
 
     expect(models).toContain('gpt-6-astra')
+    expect(models).toContain('gpt-6-sol')
+    expect(models).toContain('gpt-6-luna')
     expect(models).toContain('gpt-5.6-sol')
     expect(models).toContain('gpt-5.6-terra')
     expect(models).toContain('gpt-5.6-luna')
@@ -63,7 +65,9 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('claude')).toContain('claude-fable-5')
     expect(getModelsByPlatform('antigravity')).toContain('claude-fable-5')
     expect(getModelsByPlatform('claude')).toContain('claude-opus-5')
+    expect(getModelsByPlatform('claude')).toContain('claude-opus-5-5')
     expect(getModelsByPlatform('antigravity')).toContain('claude-opus-5')
+    expect(getModelsByPlatform('antigravity')).toContain('claude-opus-5-5')
     expect(getModelsByPlatform('claude')).toContain('claude-opus-4-8')
     expect(getModelsByPlatform('antigravity')).toContain('claude-opus-4-8')
   })
@@ -110,6 +114,8 @@ describe('useModelWhitelist', () => {
   it('openai presets include GPT-5.6 without changing default Claude bridge targets', () => {
     const presets = getPresetMappingsByPlatform('openai')
     expect(presets.map((preset) => preset.to)).toEqual(expect.arrayContaining([
+      'gpt-6-sol',
+      'gpt-6-luna',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna'

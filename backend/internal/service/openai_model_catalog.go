@@ -12,7 +12,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 )
 
-const OpenAIModelGPT6Astra = "gpt-6-astra"
+const (
+	OpenAIModelGPT6Sol   = "gpt-6-sol"
+	OpenAIModelGPT6Luna  = "gpt-6-luna"
+	OpenAIModelGPT6Astra = "gpt-6-astra"
+)
 
 // OpenAIModelCatalog is the editable OpenAI display list + default whitelist.
 type OpenAIModelCatalog struct {
@@ -32,6 +36,8 @@ type IdentityModelMappingMerger interface {
 // OpenAIDisplaySeed is the unconfigured /v1/models curated list (includes gpt-6-astra).
 func OpenAIDisplaySeed() []string {
 	return []string{
+		OpenAIModelGPT6Sol,
+		OpenAIModelGPT6Luna,
 		OpenAIModelGPT6Astra,
 		"gpt-5.6-sol",
 		"gpt-5.6-terra",
@@ -96,6 +102,7 @@ func catalogSettingKey(platform string) (string, bool) {
 // AntigravityDisplaySeed is the unconfigured Antigravity /v1/models curated list.
 func AntigravityDisplaySeed() []string {
 	return []string{
+		"claude-opus-5-5",
 		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",

@@ -1,3 +1,29 @@
+## 2026-09-23 - feat: support GPT-6 Sol, GPT-6 Luna, and Claude Opus 5.5
+
+### What
+- Default OpenAI and Claude model lists, admin presets, Antigravity passthrough, and Bedrock mapping now include `gpt-6-sol`, `gpt-6-luna`, and `claude-opus-5-5`.
+- Billing uses the September 22 API prices. Sol and Luna keep the 272K long-context multipliers. Opus 5.5 cache read is $0.20 per million tokens, with 5-minute and 1-hour cache writes at $5 and $8.
+
+### Why
+OpenAI and Anthropic released these three models on September 22. Requests for the new IDs had no catalog entry and no price, so they could be rewritten to an older default or fail billing.
+
+### Affected files
+`backend/internal/pkg/openai/constants.go`,
+`backend/internal/pkg/claude/constants.go`,
+`backend/internal/domain/constants.go`,
+`backend/internal/service/openai_model_catalog.go`,
+`backend/internal/service/openai_model_alias.go`,
+`backend/internal/service/openai_codex_transform.go`,
+`backend/internal/service/openai_model_mapping.go`,
+`backend/internal/service/billing_service.go`,
+`backend/internal/service/pricing_service.go`,
+`backend/resources/model-pricing/model_prices_and_context_window.json`,
+`backend/internal/pkg/antigravity/claude_types.go`,
+`backend/internal/pkg/antigravity/request_transformer.go`,
+`frontend/src/composables/useModelWhitelist.ts`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-22 - fix: load-test TTFT includes reasoning tokens
 
 ### What

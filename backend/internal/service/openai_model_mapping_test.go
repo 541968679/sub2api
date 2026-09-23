@@ -77,6 +77,33 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			expectedModel:      "gpt-5.3-codex-spark",
 		},
 		{
+			name: "preserves gpt-6 sol and luna instead of group default",
+			account: &Account{
+				Credentials: map[string]any{},
+			},
+			requestedModel:     "gpt-6-sol",
+			defaultMappedModel: "gpt-5.4",
+			expectedModel:      "gpt-6-sol",
+		},
+		{
+			name: "preserves gpt-6 sol effort suffix instead of group default",
+			account: &Account{
+				Credentials: map[string]any{},
+			},
+			requestedModel:     "gpt-6-sol-high",
+			defaultMappedModel: "gpt-5.4",
+			expectedModel:      "gpt-6-sol-high",
+		},
+		{
+			name: "preserves gpt-6 luna instead of group default",
+			account: &Account{
+				Credentials: map[string]any{},
+			},
+			requestedModel:     "gpt-6-luna",
+			defaultMappedModel: "gpt-5.4",
+			expectedModel:      "gpt-6-luna",
+		},
+		{
 			name: "preserves gpt-5.5 instead of group default",
 			account: &Account{
 				Credentials: map[string]any{},

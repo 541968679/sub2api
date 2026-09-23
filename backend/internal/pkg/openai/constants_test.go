@@ -9,6 +9,8 @@ import (
 func TestDefaultModelsIncludeGPT6Astra(t *testing.T) {
 	require.Contains(t, DefaultModelIDs(), "gpt-6-astra")
 	require.Contains(t, DefaultModelIDs(), "gpt-6")
+	require.Contains(t, DefaultModelIDs(), "gpt-6-sol")
+	require.Contains(t, DefaultModelIDs(), "gpt-6-luna")
 	var displayName string
 	for _, model := range DefaultModels {
 		if model.ID == "gpt-6-astra" {

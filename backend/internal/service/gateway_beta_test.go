@@ -291,6 +291,8 @@ func TestDefaultBetaPolicy_Context1M_Sonnet5Whitelist(t *testing.T) {
 		{"claude-opus-4-8-thinking", BetaPolicyActionPass},
 		{"us.anthropic.claude-opus-4-8-v1", BetaPolicyActionPass},
 		{"claude-opus-5", BetaPolicyActionPass},
+		{"claude-opus-5-5", BetaPolicyActionPass},
+		{"anthropic.claude-opus-5-5", BetaPolicyActionPass},
 		{"claude-opus-5-thinking", BetaPolicyActionPass},
 		{"us.anthropic.claude-opus-5-v1", BetaPolicyActionPass},
 		{"claude-opus-4-7", BetaPolicyActionFilter},

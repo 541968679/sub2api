@@ -34,6 +34,9 @@ func TestRequiresForcedContext1M(t *testing.T) {
 		want  bool
 	}{
 		{"claude-opus-5", true},
+		{"claude-opus-5-5", true},
+		{"claude-opus-5-5[1m]", true},
+		{"anthropic.claude-opus-5-5", true},
 		{"claude-opus-5[1m]", true},
 		{"claude-opus-5[2m]", true},
 		{"claude-opus-5-thinking", true},

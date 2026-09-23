@@ -9,6 +9,20 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-6-sol":                  "gpt-6-sol",
+	"gpt-6-sol-none":             "gpt-6-sol",
+	"gpt-6-sol-low":              "gpt-6-sol",
+	"gpt-6-sol-medium":           "gpt-6-sol",
+	"gpt-6-sol-high":             "gpt-6-sol",
+	"gpt-6-sol-xhigh":            "gpt-6-sol",
+	"gpt-6-sol-max":              "gpt-6-sol",
+	"gpt-6-luna":                 "gpt-6-luna",
+	"gpt-6-luna-none":            "gpt-6-luna",
+	"gpt-6-luna-low":             "gpt-6-luna",
+	"gpt-6-luna-medium":          "gpt-6-luna",
+	"gpt-6-luna-high":            "gpt-6-luna",
+	"gpt-6-luna-xhigh":           "gpt-6-luna",
+	"gpt-6-luna-max":             "gpt-6-luna",
 	"gpt-5.6":                    "gpt-5.6",
 	"gpt-5.6-none":               "gpt-5.6",
 	"gpt-5.6-low":                "gpt-5.6",
@@ -95,6 +109,8 @@ var codexVersionModelPrefixes = []struct {
 	prefix string
 	target string
 }{
+	{prefix: "gpt-6-sol", target: "gpt-6-sol"},
+	{prefix: "gpt-6-luna", target: "gpt-6-luna"},
 	{prefix: "gpt-5.6-sol", target: "gpt-5.6-sol"},
 	{prefix: "gpt-5.6-terra", target: "gpt-5.6-terra"},
 	{prefix: "gpt-5.6-luna", target: "gpt-5.6-luna"},
@@ -644,7 +660,7 @@ func codexModelLookupKey(modelID string) string {
 
 func isKnownCodexModelSuffix(suffix string) bool {
 	switch suffix {
-	case "none", "minimal", "low", "medium", "high", "xhigh":
+	case "none", "minimal", "low", "medium", "high", "xhigh", "max":
 		return true
 	default:
 		return isCodexDateSuffix(suffix)

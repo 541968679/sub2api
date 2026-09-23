@@ -155,11 +155,11 @@ func TestGatewayHandlerModels_OpenAICuratedDiscoveryListIncludesCodexMetadata(t 
 	require.NotEmpty(t, entries)
 
 	first := entries[0]
-	require.Equal(t, "gpt-6-astra", first.ID)
+	require.Equal(t, "gpt-6-sol", first.ID)
 	require.ElementsMatch(t, []string{"openai-response", "openai", "openai-response-compact"}, first.SupportedEndpointTypes)
 	require.ElementsMatch(t, []string{"chat_completions", "responses"}, first.SupportedSessionModes)
-	require.Equal(t, "gpt-6-astra", first.ActualModelReturned["chat_completions"])
-	require.Equal(t, "gpt-6-astra", first.ActualModelReturned["responses"])
+	require.Equal(t, "gpt-6-sol", first.ActualModelReturned["chat_completions"])
+	require.Equal(t, "gpt-6-sol", first.ActualModelReturned["responses"])
 	require.ElementsMatch(t, []string{"text", "image"}, first.InputModalities)
 	require.ElementsMatch(t, []string{"text"}, first.OutputModalities)
 	require.ElementsMatch(t, []string{"text", "image"}, first.SupportedModalities)
