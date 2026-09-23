@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/loadtest"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -18,26 +19,27 @@ func NewChannelLoadtestHandler(svc *service.ChannelLoadtestService) *ChannelLoad
 }
 
 type channelLoadtestStartRequest struct {
-	AccountID       *int64 `json:"account_id"`
-	BaseURL         string `json:"base_url"`
-	APIKey          string `json:"api_key"`
-	ProxyID         *int64 `json:"proxy_id"`
-	Path            string `json:"path"`
-	APIMode         string `json:"api_mode"`
-	StreamMode      string `json:"stream_mode"`
-	Model           string `json:"model"`
-	Models          string `json:"models"`
-	Profile         string `json:"profile"`
-	Concurrency     int    `json:"concurrency"`
-	Total           int    `json:"total"`
-	DurationSec     int    `json:"duration_sec"`
-	TimeoutSec      int    `json:"timeout_sec"`
-	MaxTokens       int    `json:"max_tokens"`
-	SizeCap         int    `json:"size_cap"`
-	Tools           string `json:"tools"`
-	ConfirmCost     bool   `json:"confirm_cost"`
-	AbortAfterFirst bool   `json:"abort_after_first"`
-	InputTokens     int    `json:"input_tokens"`
+	AccountID       *int64          `json:"account_id"`
+	BaseURL         string          `json:"base_url"`
+	APIKey          string          `json:"api_key"`
+	ProxyID         *int64          `json:"proxy_id"`
+	Path            string          `json:"path"`
+	APIMode         string          `json:"api_mode"`
+	StreamMode      string          `json:"stream_mode"`
+	Model           string          `json:"model"`
+	Models          string          `json:"models"`
+	Profile         string          `json:"profile"`
+	Concurrency     int             `json:"concurrency"`
+	Total           int             `json:"total"`
+	DurationSec     int             `json:"duration_sec"`
+	TimeoutSec      int             `json:"timeout_sec"`
+	MaxTokens       int             `json:"max_tokens"`
+	SizeCap         int             `json:"size_cap"`
+	Tools           string          `json:"tools"`
+	ConfirmCost     bool            `json:"confirm_cost"`
+	AbortAfterFirst bool            `json:"abort_after_first"`
+	InputTokens     int             `json:"input_tokens"`
+	Tiers           []loadtest.Tier `json:"tiers"`
 }
 
 func (h *ChannelLoadtestHandler) Start(c *gin.Context) {
@@ -67,6 +69,7 @@ func (h *ChannelLoadtestHandler) Start(c *gin.Context) {
 		ConfirmCost:     req.ConfirmCost,
 		AbortAfterFirst: req.AbortAfterFirst,
 		InputTokens:     req.InputTokens,
+		Tiers:           req.Tiers,
 	})
 	if err != nil {
 		msg := err.Error()

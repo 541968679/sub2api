@@ -353,6 +353,113 @@ func TestParseModelList(t *testing.T) {
 	}
 }
 
+func TestExpandTiersKeepsExactCountsAndSpreads(t *testing.T) {
+	tiers := []Tier{
+		{InputTokens: 50000, Count: 50},
+		{InputTokens: 80000, Count: 38},
+		{InputTokens: 160000, Count: 10},
+		{InputTokens: 380000, Count: 2},
+	}
+	plan := expandTiers(tiers, defaultCacheShare)
+	if len(plan) != 100 {
+		t.Fatalf("len=%d", len(plan))
+	}
+	counts := map[int]int{}
+	for _, cls := range plan {
+		if cls.MaxTokens != 0 {
+			t.Fatalf("tier output must stay unset: %+v", cls)
+		}
+		counts[cls.TargetTokens]++
+	}
+	if counts[50000] != 50 || counts[80000] != 38 || counts[160000] != 10 || counts[380000] != 2 {
+		t.Fatalf("%v", counts)
+	}
+	if plan[0].TargetTokens != 50000 || plan[1].TargetTokens != 80000 {
+		t.Fatalf("spread %d then %d", plan[0].TargetTokens, plan[1].TargetTokens)
+	}
+}
+
+func TestExpandTiersTieKeepsEarlierRow(t *testing.T) {
+	plan := expandTiers([]Tier{{InputTokens: 100, Count: 1}, {InputTokens: 200, Count: 1}}, 0)
+	if len(plan) != 2 || plan[0].TargetTokens != 100 || plan[1].TargetTokens != 200 {
+		t.Fatalf("%+v %+v", plan[0], plan[1])
+	}
+}
+
+func TestTierPlanIgnoresFixedInputAndSizeCap(t *testing.T) {
+	cfg := Config{
+		Profile:     "user363-sla",
+		Tiers:       []Tier{{InputTokens: 50000, Count: 1}, {InputTokens: 80000, Count: 1}},
+		InputTokens: 1000,
+		SizeCap:     1000,
+		StreamMode:  StreamModeSync,
+		CacheShare:  defaultCacheShare,
+		MaxTokens:   256,
+	}.normalized()
+	plan := expandTiers(cfg.Tiers, cfg.CacheShare)
+	cls := classForRequest(cfg, 1, rand.New(rand.NewSource(1)), plan)
+	if cls.TargetTokens != 50000 || cls.Stream || cls.MaxTokens != 0 {
+		t.Fatalf("%+v", cls)
+	}
+	body, err := buildPayload(cls, "glm-5.3", 1, cfg.MaxTokens, nil, "off", "", APIModeChatCompletions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := string(body.Body)
+	if !strings.Contains(raw, `"max_tokens":256`) || strings.Contains(raw, `"max_tokens":200`) {
+		t.Fatalf("%s", raw)
+	}
+}
+
+func TestEmptyTiersKeepPresetSampling(t *testing.T) {
+	cfg := Config{Profile: "user363-sla", CacheShare: defaultCacheShare, SizeCap: 0}.normalized()
+	rng := rand.New(rand.NewSource(1))
+	cls := classForRequest(cfg, 1, rng, nil)
+	if cls.TargetTokens != 50000 || cls.MaxTokens != 200 {
+		t.Fatalf("p50 %+v", cls)
+	}
+	avg := classForRequest(cfg, 51, rng, nil)
+	if avg.TargetTokens != 80000 || avg.MaxTokens != 600 {
+		t.Fatalf("avg %+v", avg)
+	}
+	pinned := Config{Profile: "smoke", InputTokens: 5000, CacheShare: defaultCacheShare, Total: 1}.normalized()
+	fixed := classForRequest(pinned, 1, rng, nil)
+	if fixed.TargetTokens != 5000 {
+		t.Fatalf("pinned %+v", fixed)
+	}
+}
+
+func TestEstimateInputTokensUsesTierProduct(t *testing.T) {
+	got := EstimateInputTokens(Config{
+		Profile:     "user363-sla",
+		Total:       40,
+		InputTokens: 10,
+		Tiers:       []Tier{{InputTokens: 1000, Count: 10}, {InputTokens: 2000, Count: 3}},
+	})
+	if got != 16000 {
+		t.Fatalf("%d", got)
+	}
+}
+
+func TestValidateTiers(t *testing.T) {
+	if err := ValidateTiers(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateTiers([]Tier{{InputTokens: 0, Count: 1}}); err == nil {
+		t.Fatal("expected input error")
+	}
+	if err := ValidateTiers([]Tier{{InputTokens: 100, Count: 501}}); err == nil {
+		t.Fatal("expected count error")
+	}
+	rows := make([]Tier, maxTierRows+1)
+	for i := range rows {
+		rows[i] = Tier{InputTokens: 1, Count: 1}
+	}
+	if err := ValidateTiers(rows); err == nil {
+		t.Fatal("expected row cap")
+	}
+}
+
 func TestSLAClassIsStream(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	cls := pickClass(rng, "user363-sla", 0, 0, defaultCacheShare, 1)

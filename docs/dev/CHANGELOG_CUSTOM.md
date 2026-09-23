@@ -1,3 +1,27 @@
+## 2026-09-23 - feat: configurable channel load-test traffic tiers
+
+### What
+- Admin load test can send an exact mix of input lengths. Each tier row is an input token count plus an absolute request count. The run sends that many requests and does not rescale them to the form total.
+- The customer SLA button fills 50×50K, 38×80K, 10×160K, and 2×380K. Clearing the table restores the existing profile sampler, including paired SLA outputs. Output limit for tier rows is the form's max_tokens.
+
+### Why
+The built-in SLA portrait is a fixed four-point sample. Operators need to type a more precise request mix without losing the presets.
+
+### Affected files
+`backend/internal/pkg/loadtest/payload.go`,
+`backend/internal/pkg/loadtest/run.go`,
+`backend/internal/pkg/loadtest/engine_test.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`backend/internal/service/channel_loadtest_service_test.go`,
+`backend/internal/handler/admin/channel_loadtest_handler.go`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
 ## 2026-09-23 - ops: add GPT-6 Sol and Luna to non-domestic OpenAI account mappings
 
 ### What

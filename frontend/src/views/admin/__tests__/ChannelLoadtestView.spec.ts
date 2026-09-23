@@ -84,5 +84,81 @@ describe('ChannelLoadtestView', () => {
     expect(payload.proxy_id).toBe(0)
     expect(payload.api_mode).toBe('chat_completions')
     expect(payload.stream_mode).toBe('auto')
+    expect(payload.tiers).toBeUndefined()
+  })
+
+  async function mountStarted() {
+    startRun.mockResolvedValue({
+      id: 'run-1',
+      status: 'running',
+      inflight: 0,
+      peak: 0,
+      done: 0,
+      ok: 0,
+      success_rate: 0,
+      sla: [],
+      results: []
+    })
+    const wrapper = mount(ChannelLoadtestView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+    await wrapper.get('select').setValue(12)
+    return wrapper
+  }
+
+  it('sends the SLA sheet as absolute tier counts', async () => {
+    const wrapper = await mountStarted()
+    await wrapper.get('[data-testid=apply-sla-preset]').trigger('click')
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+    const payload = startRun.mock.calls[0][0]
+    expect(payload.profile).toBe('user363-sla')
+    expect(payload.stream_mode).toBe('stream')
+    expect(payload.total).toBe(100)
+    expect(payload.max_tokens).toBe(256)
+    expect(payload.tiers).toEqual([
+      { input_tokens: 50000, count: 50 },
+      { input_tokens: 80000, count: 38 },
+      { input_tokens: 160000, count: 10 },
+      { input_tokens: 380000, count: 2 }
+    ])
+  })
+
+  it('sends edited tiers without rewriting the form total', async () => {
+    const wrapper = await mountStarted()
+    await wrapper.get('[data-testid=add-tier]').trigger('click')
+    await wrapper.get('[data-testid=add-tier]').trigger('click')
+    const inputs = wrapper.findAll('[data-testid=tier-input]')
+    const counts = wrapper.findAll('[data-testid=tier-count]')
+    await inputs[0].setValue(12000)
+    await counts[0].setValue(3)
+    await inputs[1].setValue(90000)
+    await counts[1].setValue(4)
+    await wrapper.get('[data-testid=loadtest-total]').setValue(40)
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+    const payload = startRun.mock.calls[0][0]
+    expect(payload.total).toBe(40)
+    expect(payload.tiers).toEqual([
+      { input_tokens: 12000, count: 3 },
+      { input_tokens: 90000, count: 4 }
+    ])
+  })
+
+  it('clears the tier table and falls back to preset sampling', async () => {
+    const wrapper = await mountStarted()
+    await wrapper.get('[data-testid=apply-sla-preset]').trigger('click')
+    await wrapper.get('[data-testid=clear-tiers]').trigger('click')
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+    const payload = startRun.mock.calls[0][0]
+    expect(payload.profile).toBe('user363-sla')
+    expect(payload.tiers).toBeUndefined()
   })
 })

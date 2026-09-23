@@ -328,6 +328,78 @@ func applyInputTokens(cls payloadClass, inputTokens int, cacheShare float64) pay
 	return sizedStreamClass(cls.Name, fmt.Sprintf("fixed-%d", inputTokens), inputTokens, outTok, cacheShare)
 }
 
+const (
+	maxTierRows        = 64
+	maxTierInputTokens = 400000
+	maxTierRequests    = 500
+)
+
+// Tier is one exact traffic row: this many requests at this input length.
+type Tier struct {
+	InputTokens int `json:"input_tokens"`
+	Count       int `json:"count"`
+}
+
+// ValidateTiers accepts an empty list (preset sampling). A non-empty list is
+// the whole run: each row is an absolute count, and the counts sum to 1–500.
+func ValidateTiers(tiers []Tier) error {
+	if len(tiers) == 0 {
+		return nil
+	}
+	if len(tiers) > maxTierRows {
+		return fmt.Errorf("tiers must be 1-%d rows", maxTierRows)
+	}
+	sum := 0
+	for i, tier := range tiers {
+		if tier.InputTokens < 1 || tier.InputTokens > maxTierInputTokens {
+			return fmt.Errorf("tiers[%d].input_tokens must be 1-%d", i, maxTierInputTokens)
+		}
+		if tier.Count < 1 || tier.Count > maxTierRequests {
+			return fmt.Errorf("tiers[%d].count must be 1-%d", i, maxTierRequests)
+		}
+		sum += tier.Count
+		if sum > maxTierRequests {
+			return fmt.Errorf("tier counts must sum to 1-%d", maxTierRequests)
+		}
+	}
+	return nil
+}
+
+// expandTiers spreads rows across the run with weighted round-robin.
+// Each row's count stays exact. A tie keeps the earlier row.
+// Output max tokens stays 0 so the run-level max_tokens is used.
+func expandTiers(tiers []Tier, cacheShare float64) []payloadClass {
+	total := 0
+	for _, tier := range tiers {
+		total += tier.Count
+	}
+	if total <= 0 {
+		return nil
+	}
+	acc := make([]int, len(tiers))
+	out := make([]payloadClass, 0, total)
+	for sent := 0; sent < total; sent++ {
+		best := 0
+		for i := range tiers {
+			acc[i] += tiers[i].Count
+			if acc[i] > acc[best] {
+				best = i
+			}
+		}
+		acc[best] -= total
+		tier := tiers[best]
+		out = append(out, sizedStreamClass("stream-tier", fmt.Sprintf("tier-%d", tier.InputTokens), tier.InputTokens, 0, cacheShare))
+	}
+	return out
+}
+
+func classForRequest(cfg Config, seq int, rng *rand.Rand, plan []payloadClass) payloadClass {
+	if len(plan) > 0 {
+		return applyStreamMode(plan[seq-1], cfg.StreamMode)
+	}
+	return applyInputTokens(applyStreamMode(pickClass(rng, cfg.Profile, cfg.SyncRatio, cfg.SizeCap, cfg.CacheShare, seq), cfg.StreamMode), cfg.InputTokens, cfg.CacheShare)
+}
+
 func inputBand(tokens int) string {
 	switch {
 	case tokens >= 40000 && tokens <= 60000:

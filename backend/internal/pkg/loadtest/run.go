@@ -42,6 +42,7 @@ type Config struct {
 	APIMode           string
 	StreamMode        string
 	InputTokens       int
+	Tiers             []Tier
 }
 
 type Progress struct {
@@ -93,11 +94,28 @@ func (c Config) normalized() Config {
 	if out.Profile == "user363-sla" && out.SizeCap == 80000 {
 		out.SizeCap = 0
 	}
+	if len(out.Tiers) > 0 {
+		sum := 0
+		for _, tier := range out.Tiers {
+			sum += tier.Count
+		}
+		if sum > 0 {
+			out.Total = sum
+		}
+		out.Duration = 0
+	}
 	return out
 }
 
 func EstimateInputTokens(cfg Config) int {
 	c := cfg.normalized()
+	if len(c.Tiers) > 0 {
+		sum := 0
+		for _, tier := range c.Tiers {
+			sum += tier.InputTokens * tier.Count
+		}
+		return sum
+	}
 	n := c.Total
 	if c.Duration > 0 {
 		n = c.Concurrency * 8
@@ -114,6 +132,9 @@ func EstimateInputTokens(cfg Config) int {
 }
 
 func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, error) {
+	if err := ValidateTiers(cfg.Tiers); err != nil {
+		return nil, err
+	}
 	c := cfg.normalized()
 	if strings.TrimSpace(c.BaseURL) == "" {
 		return nil, fmt.Errorf("base url is required")
@@ -161,6 +182,10 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 	if c.Duration > 0 {
 		stopLaunch = started.Add(c.Duration)
 	}
+	var plan []payloadClass
+	if len(c.Tiers) > 0 {
+		plan = expandTiers(c.Tiers, c.CacheShare)
+	}
 	sem := make(chan struct{}, c.Concurrency)
 	var wg sync.WaitGroup
 	seq := 0
@@ -178,7 +203,7 @@ func Run(ctx context.Context, cfg Config, onProgress func(Progress)) ([]Result, 
 		}
 		seq++
 		curSeq := seq
-		cls := applyInputTokens(applyStreamMode(pickClass(rng, c.Profile, c.SyncRatio, c.SizeCap, c.CacheShare, curSeq), c.StreamMode), c.InputTokens, c.CacheShare)
+		cls := classForRequest(c, curSeq, rng, plan)
 		modelName := c.Models[(curSeq-1)%len(c.Models)]
 		reqMode, reqPath := resolveLoadtestRequest(c.APIMode, c.Path, modelName)
 		endpoint := JoinURL(c.BaseURL, reqPath)

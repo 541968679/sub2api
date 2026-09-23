@@ -102,10 +102,56 @@
               <option value="user363-sync">{{ t('admin.channelLoadtest.profileSync') }}</option>
               <option value="user363-sla">{{ t('admin.channelLoadtest.profileSla') }}</option>
             </select>
-            <button type="button" class="btn btn-secondary w-full text-sm" @click="applySheetPreset">
+            <button type="button" class="btn btn-secondary w-full text-sm" data-testid="apply-sla-preset" @click="applySheetPreset">
               {{ t('admin.channelLoadtest.applySheetPreset') }}
             </button>
             <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.sheetPresetHint') }}</p>
+
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.channelLoadtest.tiers') }}
+                </span>
+                <button type="button" class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200" data-testid="add-tier" @click="addTier">
+                  {{ t('admin.channelLoadtest.addTier') }}
+                </button>
+              </div>
+              <div v-for="(row, index) in tiers" :key="index" class="grid grid-cols-[minmax(0,1fr)_5.5rem_auto] gap-2">
+                <input
+                  v-model.number="row.inputTokens"
+                  type="number"
+                  min="1"
+                  max="400000"
+                  class="input"
+                  data-testid="tier-input"
+                  :placeholder="t('admin.channelLoadtest.tierInput')"
+                />
+                <input
+                  v-model.number="row.count"
+                  type="number"
+                  min="1"
+                  max="500"
+                  class="input"
+                  data-testid="tier-count"
+                  :placeholder="t('admin.channelLoadtest.tierCount')"
+                />
+                <button type="button" class="btn btn-secondary px-2 text-xs" @click="removeTier(index)">
+                  {{ t('admin.channelLoadtest.removeTier') }}
+                </button>
+              </div>
+              <p v-if="tiers.length" class="text-xs text-gray-500">
+                {{ t('admin.channelLoadtest.tierHint', { n: tierRequestCount }) }}
+              </p>
+              <button
+                v-if="tiers.length"
+                type="button"
+                class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                data-testid="clear-tiers"
+                @click="clearTiers"
+              >
+                {{ t('admin.channelLoadtest.clearTiers') }}
+              </button>
+            </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -142,7 +188,7 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.channelLoadtest.total') }}
                 </label>
-                <input v-model.number="total" type="number" min="1" max="500" class="input" />
+                <input v-model.number="total" data-testid="loadtest-total" type="number" min="1" max="500" class="input" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -211,6 +257,12 @@
                 <template v-if="snap.proxy_name"> · {{ snap.proxy_name }}</template>
               </span>
             </div>
+            <p v-if="snap?.tiers?.length" class="mt-3 text-xs text-gray-500">
+              {{ t('admin.channelLoadtest.appliedTiers') }}
+              <template v-for="(tier, index) in snap.tiers" :key="`${tier.input_tokens}-${index}`">
+                {{ index ? ' · ' : '' }}{{ tier.count }}×{{ fmtTok(tier.input_tokens) }}
+              </template>
+            </p>
             <div v-if="snap" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <div class="rounded-xl bg-gray-50 p-3 dark:bg-dark-900">
                 <div class="text-xs text-gray-500">in-flight</div>
@@ -456,7 +508,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { LoadtestAPIMode, LoadtestProfile, LoadtestResult, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode } from '@/api/admin/channelLoadtest'
+import type { LoadtestAPIMode, LoadtestProfile, LoadtestResult, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode, LoadtestTier } from '@/api/admin/channelLoadtest'
 import { list as listAccounts } from '@/api/admin/accounts'
 import { getAll as listProxies } from '@/api/admin/proxies'
 import type { Account, Proxy } from '@/types'
@@ -487,6 +539,11 @@ const total = ref(40)
 const maxTokens = ref(256)
 const sizeCap = ref(80000)
 const inputTokens = ref(0)
+interface TierDraft {
+  inputTokens: number | string
+  count: number | string
+}
+const tiers = ref<TierDraft[]>([])
 const tools = ref('auto')
 const confirmCost = ref(false)
 const busy = ref(false)
@@ -498,6 +555,12 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const running = computed(() => snap.value?.status === 'running' || snap.value?.status === 'stopping')
+const tierRequestCount = computed(() =>
+  tiers.value.reduce((sum, row) => {
+    const count = tierNumber(row.count)
+    return sum + (count != null && count >= 1 ? count : 0)
+  }, 0)
+)
 const visibleResults = computed(() => {
   const rows = snap.value?.results || []
   if (!failOnly.value) return rows
@@ -556,6 +619,50 @@ function fmtTok(n?: number) {
   return String(n)
 }
 
+function tierNumber(value: number | string | null | undefined): number | null {
+  if (value === '' || value == null) return null
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return null
+  return n
+}
+
+function addTier() {
+  tiers.value.push({ inputTokens: '', count: '' })
+}
+
+function removeTier(index: number) {
+  tiers.value.splice(index, 1)
+}
+
+function clearTiers() {
+  tiers.value = []
+}
+
+function collectTiers(): LoadtestTier[] | null {
+  const filled = tiers.value.filter((row) => tierNumber(row.inputTokens) != null || tierNumber(row.count) != null)
+  if (!filled.length) return []
+  if (filled.length > 64) {
+    appStore.showError(t('admin.channelLoadtest.tierInvalid'))
+    return null
+  }
+  const out: LoadtestTier[] = []
+  for (const row of filled) {
+    const input = tierNumber(row.inputTokens)
+    const count = tierNumber(row.count)
+    if (input == null || !Number.isInteger(input) || input < 1 || input > 400000 || count == null || !Number.isInteger(count) || count < 1) {
+      appStore.showError(t('admin.channelLoadtest.tierInvalid'))
+      return null
+    }
+    out.push({ input_tokens: input, count })
+  }
+  const sum = out.reduce((totalCount, row) => totalCount + row.count, 0)
+  if (sum < 1 || sum > 500) {
+    appStore.showError(t('admin.channelLoadtest.tierInvalid'))
+    return null
+  }
+  return out
+}
+
 function applySheetPreset() {
   profile.value = 'user363-sla'
   streamMode.value = 'stream'
@@ -565,6 +672,12 @@ function applySheetPreset() {
   timeUnit.value = 's'
   concurrency.value = 50
   total.value = 100
+  tiers.value = [
+    { inputTokens: 50000, count: 50 },
+    { inputTokens: 80000, count: 38 },
+    { inputTokens: 160000, count: 10 },
+    { inputTokens: 380000, count: 2 }
+  ]
 }
 
 watch(profile, (p) => {
@@ -631,6 +744,8 @@ function searchAccounts() {
 async function startRun() {
   busy.value = true
   try {
+    const plannedTiers = collectTiers()
+    if (plannedTiers == null) return
     const payload: Parameters<typeof adminAPI.channelLoadtest.start>[0] = {
       model: models.value.split(',')[0]?.trim(),
       models: models.value,
@@ -645,6 +760,7 @@ async function startRun() {
       tools: tools.value,
       confirm_cost: confirmCost.value
     }
+    if (plannedTiers.length) payload.tiers = plannedTiers
     if (source.value === 'account') {
       if (!accountId.value) {
         appStore.showError(t('admin.channelLoadtest.account'))

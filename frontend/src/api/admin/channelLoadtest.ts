@@ -97,12 +97,18 @@ export interface LoadtestSnapshot {
   rpm_avg?: number
   estimated_input_tokens: number
   input_tokens?: number
+  tiers?: LoadtestTier[]
   data_profile?: LoadtestDataProfile
   sla: LoadtestSLAVerdict[]
   sla_pass: boolean
   model_missing_requests: number
   strict_contract_hits: number
   results?: LoadtestResult[]
+}
+
+export interface LoadtestTier {
+  input_tokens: number
+  count: number
 }
 
 export interface StartLoadtestRequest {
@@ -126,6 +132,7 @@ export interface StartLoadtestRequest {
   confirm_cost?: boolean
   abort_after_first?: boolean
   input_tokens?: number
+  tiers?: LoadtestTier[]
 }
 
 export async function start(req: StartLoadtestRequest): Promise<LoadtestSnapshot> {

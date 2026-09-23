@@ -41,6 +41,7 @@ type ChannelLoadtestStartInput struct {
 	ConfirmCost     bool
 	AbortAfterFirst bool
 	InputTokens     int
+	Tiers           []loadtest.Tier
 }
 
 type ChannelLoadtestSnapshot struct {
@@ -73,6 +74,7 @@ type ChannelLoadtestSnapshot struct {
 	RPMAvg             float64               `json:"rpm_avg"`
 	EstimatedInputTok  int                   `json:"estimated_input_tokens"`
 	InputTokens        int                   `json:"input_tokens,omitempty"`
+	Tiers              []loadtest.Tier       `json:"tiers,omitempty"`
 	DataProfile        loadtest.DataProfile  `json:"data_profile"`
 	SLA                []loadtest.SLAVerdict `json:"sla"`
 	SLAPass            bool                  `json:"sla_pass"`
@@ -173,6 +175,9 @@ func (s *ChannelLoadtestService) Start(ctx context.Context, in ChannelLoadtestSt
 	if in.InputTokens < 0 || in.InputTokens > 400000 {
 		return nil, fmt.Errorf("input_tokens must be 0-400000")
 	}
+	if err := loadtest.ValidateTiers(in.Tiers); err != nil {
+		return nil, err
+	}
 	if in.Profile == "user363-sla" && in.SizeCap == 80000 {
 		in.SizeCap = 0
 	}
@@ -215,8 +220,15 @@ func (s *ChannelLoadtestService) Start(ctx context.Context, in ChannelLoadtestSt
 		APIMode:           in.APIMode,
 		StreamMode:        in.StreamMode,
 		InputTokens:       in.InputTokens,
+		Tiers:             append([]loadtest.Tier(nil), in.Tiers...),
 	}
-	if in.DurationSec > 0 {
+	if len(cfg.Tiers) > 0 {
+		sum := 0
+		for _, tier := range cfg.Tiers {
+			sum += tier.Count
+		}
+		cfg.Total = sum
+	} else if in.DurationSec > 0 {
 		cfg.Duration = time.Duration(in.DurationSec) * time.Second
 	}
 	est := loadtest.EstimateInputTokens(cfg)
@@ -387,6 +399,7 @@ func (s *ChannelLoadtestService) snapshot(run *channelLoadtestRun, includeResult
 		RPMPeak:            rpm.Peak,
 		RPMAvg:             rpm.Average,
 		InputTokens:        run.cfg.InputTokens,
+		Tiers:              append([]loadtest.Tier(nil), run.cfg.Tiers...),
 		EstimatedInputTok:  loadtest.EstimateInputTokens(run.cfg),
 		DataProfile:        loadtest.BuildDataProfile(rows),
 		SLA:                loadtest.PublicSLA(rows),

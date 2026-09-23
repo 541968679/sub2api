@@ -37,10 +37,12 @@ ChannelLoadtestView
 ## Important Mechanisms
 
 - Profiles: `smoke`, `user363`, `user363-stream`, `user363-sync`, `user363-sla`.
+- Optional `tiers`: each row is `{input_tokens, count}`. A non-empty table is the whole run (absolute counts, sum 1–500, at most 64 rows). It does not rescale to `total`, does not apply `size_cap` or the single `input_tokens` pin, and uses the run-level `max_tokens` for every row. Rows are spread with weighted round-robin. An empty table keeps preset sampling, including the SLA sheet's paired outputs 200/600/1300/7000.
+- The admin SLA button fills `50×50000`, `38×80000`, `10×160000`, `2×380000` and still sets the old preset knobs. Clearing the table returns to preset sampling. `user363` weight buckets are not expanded into rows.
 - `api_mode`: `chat_completions` (`/v1/chat/completions`) or `responses` (`/v1/responses`).
-- `stream_mode`: `auto` (profile mix), `stream`, or `sync`.
-- Estimated input > 2M tokens requires `confirm_cost`.
-- Concurrency cap 80, total cap 500.
+- `stream_mode`: `auto` (profile mix), `stream`, or `sync`. Tier rows start as stream, then follow `stream_mode`.
+- Estimated input > 2M tokens requires `confirm_cost`. With tiers, the estimate is `Σ input_tokens × count`.
+- Concurrency cap 80, total cap 500. With tiers, snapshot `total` is the sum of counts.
 - Optional `proxy_id` (0 = direct).
 - Contract issues: `model_missing` / `model_empty` / `model_mismatch`.
 
