@@ -1,3 +1,16 @@
+## 2026-09-23 - deploy: production v0.1.300
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:0.1.300` (`latest`), digest `sha256:3c1b5ba68daea18c1a09f0a52e73043d3d23a40141644715247ff7daf59b286b`, revision `a455452ad`, healthy.
+- Rollback image is `v0.1.299` digest `sha256:2bf9b09dab98109ee53515d34016f2ff13618f94128148641cec94251f281520`.
+
+### Why
+Ship GPT-6 Sol, GPT-6 Luna, and Claude Opus 5.5 support. Release run `35803274255`. Only the main service was updated.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-23 - feat: support GPT-6 Sol, GPT-6 Luna, and Claude Opus 5.5
 
 ### What
