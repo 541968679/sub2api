@@ -1,3 +1,15 @@
+## 2026-09-23 - ops: add GPT-6 Sol and Luna to non-domestic OpenAI account mappings
+
+### What
+- Added identity mappings `gpt-6-sol` and `gpt-6-luna` to 54 OpenAI accounts that are not in groups 46, 47, or 48.
+- Left the 8 domestic accounts in 国产模型, DeepSeek, and Kimi groups unchanged. Scheduler cache for a sampled OpenAI account already contains both keys.
+
+### Why
+Those accounts keep an explicit whitelist. Without the new identity rows, requests for the two new models would not match the account mapping.
+
+### Affected files
+this changelog.
+
 ## 2026-09-23 - deploy: production v0.1.300
 
 ### What
