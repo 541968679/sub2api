@@ -89,7 +89,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t('admin.channelLoadtest.model') }}
             </label>
-            <input v-model="models" class="input" placeholder="kimi-k3, glm-5.3" />
+            <input v-model="models" class="input" data-testid="loadtest-models" placeholder="kimi-k3, glm-5.3" />
             <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.modelHint') }}</p>
 
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -159,11 +159,12 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.channelLoadtest.apiMode') }}
                 </label>
-                <select v-model="apiMode" class="input">
+                <select v-model="apiMode" class="input" data-testid="loadtest-api-mode">
                   <option value="chat_completions">{{ t('admin.channelLoadtest.apiModeCC') }}</option>
-                  <option value="responses" :disabled="kimiOnly">{{ t('admin.channelLoadtest.apiModeRE') }}</option>
+                  <option value="responses" :disabled="ccOnly">{{ t('admin.channelLoadtest.apiModeRE') }}</option>
                 </select>
-                <p v-if="kimiOnly" class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.apiModeKimiHint') }}</p>
+                <p class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.apiModeAutoHint') }}</p>
+                <p v-if="ccOnly" class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.apiModeKimiHint') }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -507,6 +508,7 @@ import { getAll as listProxies } from '@/api/admin/proxies'
 import type { Account, Proxy } from '@/types'
 import { tokensPerSecond } from '@/utils/latencyHealth'
 import { presetForProfile } from '@/views/admin/channelLoadtestPresets'
+import { parseModelList, requiresChatCompletions, suggestApiMode } from '@/views/admin/channelLoadtestApiMode'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -522,11 +524,9 @@ const baseUrl = ref('')
 const apiKey = ref('')
 const models = ref('kimi-k3')
 const profile = ref<LoadtestProfile>('smoke')
-const apiMode = ref<LoadtestAPIMode>('chat_completions')
-const kimiOnly = computed(() => {
-  const list = models.value.split(',').map((item) => item.trim()).filter(Boolean)
-  return list.length > 0 && list.every(isKimiNativeModel)
-})
+const apiMode = ref<LoadtestAPIMode>(suggestApiMode(models.value))
+const modelList = computed(() => parseModelList(models.value))
+const ccOnly = computed(() => modelList.value.length > 0 && modelList.value.every(requiresChatCompletions))
 const streamMode = ref<LoadtestStreamMode>('auto')
 const concurrency = ref(20)
 const maxTokens = ref(256)
@@ -682,14 +682,13 @@ watch(profile, (p) => {
 
 applyProfilePreset(profile.value)
 
-watch(kimiOnly, (only) => {
-  if (only) apiMode.value = 'chat_completions'
-})
-
-function isKimiNativeModel(model: string) {
-  const bare = model.trim().toLowerCase().split('/').pop() || ''
-  return bare === 'kimi' || bare.startsWith('kimi-')
-}
+watch(
+  models,
+  (value) => {
+    apiMode.value = suggestApiMode(value)
+  },
+  { immediate: true }
+)
 
 function formatSlaGot(row: LoadtestSLAVerdict) {
   if (row.skip) return 'n/a'

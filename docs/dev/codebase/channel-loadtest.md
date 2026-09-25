@@ -40,7 +40,7 @@ ChannelLoadtestView
 - Admin UI always runs from the tier table (`{input_tokens, count}`). Request count is Σ count (1–500, max 64 rows). Form no longer exposes `total` / `size_cap` / fixed `input_tokens`; start sends `total=Σcount`, `size_cap=0`, `input_tokens=0`. Output cap is run-level `max_tokens`. Rows use weighted round-robin.
 - The admin SLA button fills the same four SLA rows and also sets concurrency 50. “Reset tiers” restores the current profile mix.
 - Excel export: `GET /api/v1/admin/channel-loadtest/runs/:id/export` (finished runs only). Workbook sheets: 测试条件, 总览, 首字延迟, 总耗时, 成功率. Metric sheets are `构造输入大小(K) × n/p50/p75/p90` (success-rate sheet uses n/ok/rate). No SLA PASS/FAIL. Built by `loadtest.BuildExcelReport` (excelize).
-- `api_mode`: `chat_completions` (`/v1/chat/completions`) or `responses` (`/v1/responses`).
+- `api_mode`: `chat_completions` (`/v1/chat/completions`) or `responses` (`/v1/responses`). Admin UI auto-suggests from the model list (default Responses; CC only when every model matches `RequiresNativeChatCompletions` / `kimi*`). Engine still forces kimi rows to CC per request if the run mode is Responses.
 - `stream_mode`: `auto` (profile mix), `stream`, or `sync`. Tier rows start as stream, then follow `stream_mode`.
 - Estimated input > 2M tokens requires `confirm_cost`. With tiers, the estimate is `Σ input_tokens × count`.
 - Concurrency cap 80, total cap 500. With tiers, snapshot `total` is the sum of counts.

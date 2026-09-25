@@ -1,3 +1,21 @@
+## 2026-09-25 - ui: loadtest auto-picks api mode from models
+
+### What
+- Admin load test suggests endpoint from the model field: default Responses; Chat Completions only when every listed model is a known CC-only model (currently `kimi` / `kimi-*`, same as the engine).
+- Changing models re-applies the suggestion; Responses stays disabled while the list is CC-only.
+
+### Why
+Most soak targets use `/v1/responses`; only a few vendors need native Chat Completions. Auto-selection removes a common misconfiguration.
+
+### Affected files
+`frontend/src/views/admin/channelLoadtestApiMode.ts`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/__tests__/channelLoadtestApiMode.spec.ts`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-25 - ui: loadtest form drops total/size_cap/fixed input
 
 ### What

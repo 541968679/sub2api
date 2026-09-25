@@ -105,6 +105,17 @@ describe('ChannelLoadtestView', () => {
     expect(Number((counts[3].element as HTMLInputElement).value)).toBe(2)
   })
 
+  it('auto-selects api mode from the model list', async () => {
+    const wrapper = await mountStarted()
+    expect((wrapper.get('[data-testid=loadtest-api-mode]').element as HTMLSelectElement).value).toBe('chat_completions')
+    await wrapper.get('[data-testid=loadtest-models]').setValue('glm-5.3')
+    await flushPromises()
+    expect((wrapper.get('[data-testid=loadtest-api-mode]').element as HTMLSelectElement).value).toBe('responses')
+    await wrapper.get('[data-testid=loadtest-models]').setValue('kimi-k3')
+    await flushPromises()
+    expect((wrapper.get('[data-testid=loadtest-api-mode]').element as HTMLSelectElement).value).toBe('chat_completions')
+  })
+
   it('fills the general balanced tier mix', async () => {
     const wrapper = await mountStarted()
     await wrapper.get('[data-testid=loadtest-profile]').setValue('general')
