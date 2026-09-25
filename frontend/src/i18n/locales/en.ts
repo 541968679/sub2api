@@ -4180,6 +4180,7 @@ const enBase = {
       profileSync: 'user363 short sync',
       profileSla: 'Customer SLA sheet (50K/160K/380K)',
       profileSmoke: 'Smoke (tiny requests)',
+      profileGeneral: 'General (4K/16K/32K/64K)',
       applySheetPreset: 'Apply customer SLA sheet preset',
       sheetPresetHint: 'Select the SLA profile or click here to fill 50×50K, 38×80K, 10×160K, and 2×380K with concurrency 50. Output limit is the current max_tokens. Clear the table to use legacy profile sampling.',
       tiers: 'Traffic tiers',

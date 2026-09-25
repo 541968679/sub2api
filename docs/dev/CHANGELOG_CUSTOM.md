@@ -1,3 +1,26 @@
+## 2026-09-25 - feat: add general loadtest traffic profile
+
+### What
+- New Admin/engine profile `general` fills tiers `40×4K`, `30×16K`, `20×32K`, `10×64K` (sum 100) and defaults stream mode to stream.
+- Empty-table fallback samples the same four sizes with matching weights.
+
+### Why
+Operators need a non-customer-specific balanced mix for routine upstream soak without using the user363 or SLA portraits.
+
+### Affected files
+`backend/internal/pkg/loadtest/presets.go`,
+`backend/internal/pkg/loadtest/presets_test.go`,
+`backend/internal/pkg/loadtest/payload.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/views/admin/channelLoadtestPresets.ts`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
 ## 2026-09-25 - feat: loadtest profile presets fill tiers + Excel export
 
 ### What

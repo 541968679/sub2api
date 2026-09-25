@@ -11,6 +11,14 @@ func PresetTiers(profile string) []Tier {
 	switch profile {
 	case "smoke":
 		return []Tier{{InputTokens: 80, Count: 40}}
+	case "general":
+		// Balanced short/mid/long mix for generic upstream soak (sum 100).
+		return []Tier{
+			{InputTokens: 4000, Count: 40},
+			{InputTokens: 16000, Count: 30},
+			{InputTokens: 32000, Count: 20},
+			{InputTokens: 64000, Count: 10},
+		}
 	case "user363-sla":
 		return []Tier{
 			{InputTokens: 50000, Count: 50},

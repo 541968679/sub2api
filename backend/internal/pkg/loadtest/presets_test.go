@@ -9,6 +9,26 @@ func TestPresetTiersSmokeAndSLA(t *testing.T) {
 	if len(smoke) != 1 || smoke[0].InputTokens != 80 || smoke[0].Count != 40 {
 		t.Fatalf("smoke preset = %#v", smoke)
 	}
+	general := PresetTiers("general")
+	wantGeneral := []Tier{
+		{InputTokens: 4000, Count: 40},
+		{InputTokens: 16000, Count: 30},
+		{InputTokens: 32000, Count: 20},
+		{InputTokens: 64000, Count: 10},
+	}
+	if len(general) != len(wantGeneral) {
+		t.Fatalf("general len=%d want %d", len(general), len(wantGeneral))
+	}
+	sum := 0
+	for i := range wantGeneral {
+		if general[i] != wantGeneral[i] {
+			t.Fatalf("general[%d]=%#v want %#v", i, general[i], wantGeneral[i])
+		}
+		sum += general[i].Count
+	}
+	if sum != 100 {
+		t.Fatalf("general sum=%d", sum)
+	}
 	sla := PresetTiers("user363-sla")
 	want := []Tier{
 		{InputTokens: 50000, Count: 50},

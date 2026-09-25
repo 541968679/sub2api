@@ -137,7 +137,7 @@ func (s *ChannelLoadtestService) Start(ctx context.Context, in ChannelLoadtestSt
 		return nil, fmt.Errorf("duration_sec must be 0-%d", int(loadtestMaxDuration.Seconds()))
 	}
 	switch in.Profile {
-	case "", "user363", "user363-stream", "user363-sync", "user363-sla", "smoke":
+	case "", "user363", "user363-stream", "user363-sync", "user363-sla", "smoke", "general":
 		if in.Profile == "" {
 			in.Profile = "user363"
 		}

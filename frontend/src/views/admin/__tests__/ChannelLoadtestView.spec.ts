@@ -102,6 +102,23 @@ describe('ChannelLoadtestView', () => {
     expect(Number((counts[3].element as HTMLInputElement).value)).toBe(2)
   })
 
+  it('fills the general balanced tier mix', async () => {
+    const wrapper = await mountStarted()
+    await wrapper.get('[data-testid=loadtest-profile]').setValue('general')
+    await flushPromises()
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+    const payload = startRun.mock.calls[0][0]
+    expect(payload.profile).toBe('general')
+    expect(payload.stream_mode).toBe('stream')
+    expect(payload.tiers).toEqual([
+      { input_tokens: 4000, count: 40 },
+      { input_tokens: 16000, count: 30 },
+      { input_tokens: 32000, count: 20 },
+      { input_tokens: 64000, count: 10 }
+    ])
+  })
+
   it('enables Excel export after a finished run', async () => {
     startRun.mockResolvedValue({
       id: 'run-done',

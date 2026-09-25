@@ -4047,6 +4047,7 @@ const zhBase = {
       profileSync: 'user363 短同步',
       profileSla: '客户 SLA 表（50K/160K/380K）',
       profileSmoke: '冒烟（极小请求）',
+      profileGeneral: '通用（4K/16K/32K/64K）',
       applySheetPreset: '应用客户 SLA 表预设',
       sheetPresetHint: '选 SLA 画像或点此按钮：填入 50×50K、38×80K、10×160K、2×380K，并设并发 50。输出上限用当前 max_tokens。清空档位后才走原来的抽样。',
       tiers: '流量档位',

@@ -74,6 +74,16 @@ export function presetForProfile(profile: LoadtestProfile): ProfilePreset {
   switch (profile) {
     case 'smoke':
       return { tiers: [{ input_tokens: 80, count: 40 }] }
+    case 'general':
+      return {
+        tiers: [
+          { input_tokens: 4000, count: 40 },
+          { input_tokens: 16000, count: 30 },
+          { input_tokens: 32000, count: 20 },
+          { input_tokens: 64000, count: 10 }
+        ],
+        streamMode: 'stream'
+      }
     case 'user363-sla':
       return {
         tiers: [

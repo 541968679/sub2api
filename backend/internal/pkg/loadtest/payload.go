@@ -51,6 +51,14 @@ var syncBuckets = []sizeBucket{
 	{Name: "8k+", Weight: 239, Tokens: 12000},
 }
 
+// generalBuckets mirrors PresetTiers("general") for empty-table sampling fallback.
+var generalBuckets = []sizeBucket{
+	{Name: "4k", Weight: 40, Tokens: 4000},
+	{Name: "16k", Weight: 30, Tokens: 16000},
+	{Name: "32k", Weight: 20, Tokens: 32000},
+	{Name: "64k", Weight: 10, Tokens: 64000},
+}
+
 // Customer sheet mix (per 100 requests): p50=50K p90=160K p99=380K avg≈80K.
 // Output is paired with the same percentile: 0.2K / 0.6K / 1.3K / 7K.
 
@@ -205,6 +213,9 @@ func pickClass(rng *rand.Rand, profile string, syncRatio float64, sizeCap int, c
 	switch profile {
 	case "smoke":
 		return payloadClass{Name: "smoke", Stream: true, Bucket: "smoke", TargetTokens: 80, UniqueTokens: 80}
+	case "general":
+		b := pickBucket(rng, generalBuckets, sizeCap)
+		return sizedStreamClass("stream-general", b.Name, b.Tokens, 0, cacheShare)
 	case "user363-sync":
 		b := pickBucket(rng, syncBuckets, sizeCap)
 		return payloadClass{Name: "sync-short", Stream: false, Bucket: b.Name, TargetTokens: b.Tokens, UniqueTokens: b.Tokens}

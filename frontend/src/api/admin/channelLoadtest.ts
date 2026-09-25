@@ -1,6 +1,6 @@
 import { apiClient } from '../client'
 
-export type LoadtestProfile = 'user363' | 'user363-stream' | 'user363-sync' | 'user363-sla' | 'smoke'
+export type LoadtestProfile = 'user363' | 'user363-stream' | 'user363-sync' | 'user363-sla' | 'smoke' | 'general'
 export type LoadtestAPIMode = 'chat_completions' | 'responses'
 export type LoadtestStreamMode = 'auto' | 'stream' | 'sync'
 export type LoadtestStatus = 'running' | 'stopping' | 'done' | 'failed' | 'stopped'

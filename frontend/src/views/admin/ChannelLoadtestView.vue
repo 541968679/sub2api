@@ -97,6 +97,7 @@
             </label>
             <select v-model="profile" class="input" data-testid="loadtest-profile">
               <option value="smoke">{{ t('admin.channelLoadtest.profileSmoke') }}</option>
+              <option value="general">{{ t('admin.channelLoadtest.profileGeneral') }}</option>
               <option value="user363">{{ t('admin.channelLoadtest.profileUser363') }}</option>
               <option value="user363-stream">{{ t('admin.channelLoadtest.profileStream') }}</option>
               <option value="user363-sync">{{ t('admin.channelLoadtest.profileSync') }}</option>
