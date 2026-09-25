@@ -1,3 +1,16 @@
+## 2026-09-25 - fix: loadtest Excel export labels units
+
+### What
+- Excel report sheets and headers now carry units: latency sheets `*(ms)`, success `*(%)`, constructed input `(tokens)`, overview/conditions add a 单位 column (ms, %, 次/分钟, tokens, 请求数, etc.).
+
+### Why
+Exported numbers were hard to read without knowing whether values were ms, tokens, or rates.
+
+### Affected files
+`backend/internal/pkg/loadtest/excel_report.go`,
+`backend/internal/pkg/loadtest/excel_report_test.go`,
+this changelog.
+
 ## 2026-09-25 - ui: loadtest auto-picks api mode from models
 
 ### What

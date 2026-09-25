@@ -58,18 +58,21 @@ func TestBuildExcelReportMetricByTier(t *testing.T) {
 	}
 	defer f.Close()
 
-	for _, sheet := range []string{"测试条件", "总览", "首字延迟", "总耗时", "成功率"} {
+	for _, sheet := range []string{"测试条件", "总览", "首字延迟(ms)", "总耗时(ms)", "成功率(%)"} {
 		if idx, _ := f.GetSheetIndex(sheet); idx < 0 {
 			t.Fatalf("missing sheet %s", sheet)
 		}
 	}
 
-	ttftA2, err := f.GetRows("首字延迟")
+	ttftA2, err := f.GetRows("首字延迟(ms)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(ttftA2) < 3 {
 		t.Fatalf("ttft rows=%d", len(ttftA2))
+	}
+	if ttftA2[0][0] != "构造输入大小(tokens)" || ttftA2[0][2] != "p50(ms)" || ttftA2[0][4] != "p90(ms)" {
+		t.Fatalf("ttft header missing units: %#v", ttftA2[0])
 	}
 	if ttftA2[1][0] != "50K" || ttftA2[1][1] != "2" || ttftA2[1][2] != "100" {
 		// p50 of [100,300]: ceil(0.5*2)-1 → 100
@@ -79,9 +82,12 @@ func TestBuildExcelReportMetricByTier(t *testing.T) {
 		t.Fatalf("80K success-latency row = %#v", ttftA2[2])
 	}
 
-	okRows, err := f.GetRows("成功率")
+	okRows, err := f.GetRows("成功率(%)")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if okRows[0][3] != "成功率(%)" {
+		t.Fatalf("success header = %#v", okRows[0])
 	}
 	if okRows[1][0] != "50K" || okRows[1][1] != "2" || okRows[1][2] != "2" {
 		t.Fatalf("success 50K = %#v", okRows[1])
@@ -94,6 +100,9 @@ func TestBuildExcelReportMetricByTier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(cond[0]) < 3 || cond[0][2] != "单位" {
+		t.Fatalf("conditions header = %#v", cond[0])
+	}
 	joined := ""
 	for _, row := range cond {
 		for _, c := range row {
@@ -103,7 +112,24 @@ func TestBuildExcelReportMetricByTier(t *testing.T) {
 	if bytes.Contains([]byte(joined), []byte("sk-")) || bytes.Contains([]byte(joined), []byte("api_key")) {
 		t.Fatalf("conditions leaked key material: %s", joined)
 	}
-	if !bytes.Contains([]byte(joined), []byte("max_tokens")) {
-		t.Fatalf("conditions missing max_tokens: %s", joined)
+	if !bytes.Contains([]byte(joined), []byte("max_tokens")) || !bytes.Contains([]byte(joined), []byte("输出tokens上限")) {
+		t.Fatalf("conditions missing max_tokens units: %s", joined)
+	}
+
+	overview, err := f.GetRows("总览")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview[0][2] != "单位" {
+		t.Fatalf("overview header = %#v", overview[0])
+	}
+	foundRPMUnit := false
+	for _, row := range overview {
+		if len(row) >= 3 && row[0] == "rpm_peak" && row[2] == "次/分钟" {
+			foundRPMUnit = true
+		}
+	}
+	if !foundRPMUnit {
+		t.Fatalf("overview missing rpm unit: %#v", overview)
 	}
 }
