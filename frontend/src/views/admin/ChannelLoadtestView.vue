@@ -245,7 +245,7 @@
                   class="btn btn-secondary text-xs"
                   data-testid="export-excel"
                   :disabled="!canExport || busy"
-                  @click="exportExcel"
+                  @click="openExportModal"
                 >
                   {{ t('admin.channelLoadtest.exportExcel') }}
                 </button>
@@ -492,6 +492,72 @@
         </section>
       </div>
     </div>
+
+    <div
+      v-if="showExportModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      data-testid="export-modal"
+      @click.self="showExportModal = false"
+    >
+      <div class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-dark-800">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+          {{ t('admin.channelLoadtest.exportModalTitle') }}
+        </h3>
+        <p class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.exportModalHint') }}</p>
+
+        <div class="mt-4 space-y-2">
+          <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('admin.channelLoadtest.exportSheets') }}</p>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="exportOpts.include_conditions" type="checkbox" data-testid="export-opt-conditions" />
+            {{ t('admin.channelLoadtest.exportSheetConditions') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="exportOpts.include_overview" type="checkbox" />
+            {{ t('admin.channelLoadtest.exportSheetOverview') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="exportOpts.include_ttft" type="checkbox" />
+            {{ t('admin.channelLoadtest.exportSheetTtft') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="exportOpts.include_duration" type="checkbox" />
+            {{ t('admin.channelLoadtest.exportSheetDuration') }}
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="exportOpts.include_success_rate" type="checkbox" />
+            {{ t('admin.channelLoadtest.exportSheetSuccess') }}
+          </label>
+        </div>
+
+        <div v-if="exportOpts.include_conditions" class="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-dark-700">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('admin.channelLoadtest.exportConditionFields') }}</p>
+            <button type="button" class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200" @click="toggleAllConditionFields">
+              {{ allConditionFieldsSelected ? t('admin.channelLoadtest.exportUnselectAll') : t('admin.channelLoadtest.exportSelectAll') }}
+            </button>
+          </div>
+          <div class="grid max-h-48 grid-cols-2 gap-1 overflow-auto text-sm">
+            <label
+              v-for="field in conditionFieldOptions"
+              :key="field"
+              class="flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            >
+              <input v-model="exportConditionSet" type="checkbox" :value="field" />
+              <span class="font-mono text-xs">{{ field }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" class="btn btn-secondary" data-testid="export-cancel" @click="showExportModal = false">
+            {{ t('common.cancel') }}
+          </button>
+          <button type="button" class="btn btn-primary" data-testid="export-confirm" :disabled="busy || !exportHasSelection" @click="confirmExportExcel">
+            {{ t('admin.channelLoadtest.exportConfirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </AppLayout>
 </template>
 
@@ -502,7 +568,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { LoadtestAPIMode, LoadtestProfile, LoadtestResult, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode, LoadtestTier } from '@/api/admin/channelLoadtest'
+import type { LoadtestAPIMode, LoadtestExportOptions, LoadtestProfile, LoadtestResult, LoadtestSLAVerdict, LoadtestSnapshot, LoadtestStreamMode, LoadtestTier } from '@/api/admin/channelLoadtest'
+import { LOADTEST_CONDITION_FIELDS, defaultLoadtestExportOptions } from '@/api/admin/channelLoadtest'
 import { list as listAccounts } from '@/api/admin/accounts'
 import { getAll as listProxies } from '@/api/admin/proxies'
 import type { Account, Proxy } from '@/types'
@@ -784,17 +851,45 @@ async function stopRun() {
   }
 }
 
-async function exportExcel() {
-  if (!snap.value?.id || !canExport.value) return
+const showExportModal = ref(false)
+const exportOpts = ref<LoadtestExportOptions>(defaultLoadtestExportOptions())
+const exportConditionSet = ref<string[]>([...LOADTEST_CONDITION_FIELDS])
+const conditionFieldOptions = LOADTEST_CONDITION_FIELDS
+const allConditionFieldsSelected = computed(
+  () => exportConditionSet.value.length === LOADTEST_CONDITION_FIELDS.length
+)
+const exportHasSelection = computed(() => {
+  const o = exportOpts.value
+  return o.include_conditions || o.include_overview || o.include_ttft || o.include_duration || o.include_success_rate
+})
+
+function openExportModal() {
+  if (!canExport.value) return
+  exportOpts.value = defaultLoadtestExportOptions()
+  exportConditionSet.value = [...LOADTEST_CONDITION_FIELDS]
+  showExportModal.value = true
+}
+
+function toggleAllConditionFields() {
+  exportConditionSet.value = allConditionFieldsSelected.value ? [] : [...LOADTEST_CONDITION_FIELDS]
+}
+
+async function confirmExportExcel() {
+  if (!snap.value?.id || !canExport.value || !exportHasSelection.value) return
   busy.value = true
   try {
-    const { blob, filename } = await adminAPI.channelLoadtest.exportExcel(snap.value.id)
+    const payload: LoadtestExportOptions = {
+      ...exportOpts.value,
+      condition_fields: exportOpts.value.include_conditions ? [...exportConditionSet.value] : []
+    }
+    const { blob, filename } = await adminAPI.channelLoadtest.exportExcel(snap.value.id, payload)
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
     link.download = filename
     link.click()
     URL.revokeObjectURL(url)
+    showExportModal.value = false
   } catch (err) {
     appStore.showError((err as Error).message || t('admin.channelLoadtest.exportError'))
   } finally {

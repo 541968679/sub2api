@@ -2,11 +2,62 @@ package loadtest
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xuri/excelize/v2"
 )
+
+func TestExcelFilenameUsesTimeAndModel(t *testing.T) {
+	started := time.Date(2026, 9, 25, 14, 30, 5, 0, time.Local)
+	name := ExcelFilename(started, []string{"kimi-k3", "glm-5.3"})
+	if !strings.HasPrefix(name, "20260925-143005_") || !strings.Contains(name, "kimi-k3") || !strings.HasSuffix(name, ".xlsx") {
+		t.Fatalf("filename=%q", name)
+	}
+}
+
+func TestBuildExcelReportOmitsUncheckedSheets(t *testing.T) {
+	started := time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC)
+	ended := started.Add(time.Minute)
+	falseVal := false
+	trueVal := true
+	in := ExcelExportInput{
+		RunID:     "run-1",
+		Status:    "done",
+		StartedAt: started,
+		EndedAt:   &ended,
+		Models:    []string{"glm-5.3"},
+		Tiers:     []Tier{{InputTokens: 4000, Count: 1}},
+		Done:      1,
+		OK:        1,
+		Results:   []Result{{TargetTokens: 4000, Outcome: "success", Stream: true, FirstTokenMs: 50, DurationMs: 100}},
+		Options: ExcelExportOptions{
+			IncludeConditions:  &falseVal,
+			IncludeOverview:    &trueVal,
+			IncludeTTFT:        &falseVal,
+			IncludeDuration:    &falseVal,
+			IncludeSuccessRate: &falseVal,
+		},
+	}
+	raw, err := BuildExcelReport(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if idx, _ := f.GetSheetIndex("总览"); idx < 0 {
+		t.Fatal("expected overview")
+	}
+	for _, sheet := range []string{"测试条件", "首字延迟(ms)", "总耗时(ms)", "成功率(%)"} {
+		if idx, _ := f.GetSheetIndex(sheet); idx >= 0 {
+			t.Fatalf("sheet %s should be omitted", sheet)
+		}
+	}
+}
 
 func TestBuildExcelReportMetricByTier(t *testing.T) {
 	started := time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC)

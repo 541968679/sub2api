@@ -23,6 +23,12 @@ vi.mock('@/api/admin', () => ({
   }
 }))
 
+vi.stubGlobal('URL', {
+  createObjectURL: vi.fn(() => 'blob:mock'),
+  revokeObjectURL: vi.fn()
+})
+HTMLAnchorElement.prototype.click = vi.fn()
+
 vi.mock('@/api/admin/accounts', () => ({
   list: (...args: unknown[]) => listAccounts(...args)
 }))
@@ -134,7 +140,11 @@ describe('ChannelLoadtestView', () => {
     ])
   })
 
-  it('enables Excel export after a finished run', async () => {
+  it('opens an export dialog and downloads with selected options', async () => {
+    exportExcel.mockResolvedValue({
+      blob: new Blob(['xlsx']),
+      filename: '20260925-100000_kimi-k3.xlsx'
+    })
     startRun.mockResolvedValue({
       id: 'run-done',
       status: 'done',
@@ -144,6 +154,7 @@ describe('ChannelLoadtestView', () => {
       total: 10,
       peak: 2,
       inflight: 0,
+      models: ['kimi-k3'],
       sla: [],
       results: []
     })
@@ -156,11 +167,20 @@ describe('ChannelLoadtestView', () => {
       }
     })
     await flushPromises()
-    expect(wrapper.get('[data-testid=export-excel]').attributes('disabled')).toBeDefined()
     await wrapper.get('select').setValue(12)
     await wrapper.get('button.btn-primary').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid=export-excel]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-testid=export-excel]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid=export-modal]').exists()).toBe(true)
+    await wrapper.get('[data-testid=export-opt-conditions]').setValue(false)
+    await wrapper.get('[data-testid=export-confirm]').trigger('click')
+    await flushPromises()
+    expect(exportExcel).toHaveBeenCalled()
+    const [, options] = exportExcel.mock.calls[0]
+    expect(options.include_conditions).toBe(false)
+    expect(options.include_overview).toBe(true)
+    expect(wrapper.find('[data-testid=export-modal]').exists()).toBe(false)
   })
 
   async function mountStarted() {

@@ -344,7 +344,7 @@ func (s *ChannelLoadtestService) Latest() *ChannelLoadtestSnapshot {
 }
 
 // ExportExcel builds a generic .xlsx report for a finished run.
-func (s *ChannelLoadtestService) ExportExcel(id string) ([]byte, string, error) {
+func (s *ChannelLoadtestService) ExportExcel(id string, opts loadtest.ExcelExportOptions) ([]byte, string, error) {
 	s.mu.Lock()
 	run := s.findLocked(id)
 	if run == nil {
@@ -364,7 +364,7 @@ func (s *ChannelLoadtestService) ExportExcel(id string) ([]byte, string, error) 
 	s.mu.Unlock()
 
 	snap := s.snapshot(run, true)
-	filename := fmt.Sprintf("loadtest-%s.xlsx", id)
+	filename := loadtest.ExcelFilename(snap.StartedAt, snap.Models)
 	raw, err := loadtest.BuildExcelReport(loadtest.ExcelExportInput{
 		RunID:       snap.ID,
 		Status:      snap.Status,
@@ -395,6 +395,7 @@ func (s *ChannelLoadtestService) ExportExcel(id string) ([]byte, string, error) 
 		RPMPeak:     snap.RPMPeak,
 		RPMAvg:      snap.RPMAvg,
 		Results:     snap.Results,
+		Options:     opts,
 	})
 	if err != nil {
 		return nil, "", err

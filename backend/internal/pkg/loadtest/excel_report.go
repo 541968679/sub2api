@@ -41,40 +41,141 @@ type ExcelExportInput struct {
 	RPMPeak     int
 	RPMAvg      float64
 	Results     []Result
+	Options     ExcelExportOptions
+}
+
+// ExcelExportOptions selects which sheets/fields to include. Zero value means all.
+type ExcelExportOptions struct {
+	IncludeConditions  *bool    `json:"include_conditions"`
+	IncludeOverview    *bool    `json:"include_overview"`
+	IncludeTTFT        *bool    `json:"include_ttft"`
+	IncludeDuration    *bool    `json:"include_duration"`
+	IncludeSuccessRate *bool    `json:"include_success_rate"`
+	ConditionFields    []string `json:"condition_fields"`
+}
+
+// ConditionFieldKeys lists every 测试条件 row key (stable API for the export dialog).
+var ConditionFieldKeys = []string{
+	"run_id", "status", "started_at", "ended_at", "duration", "source", "account",
+	"base_url", "path", "proxy", "models", "api_mode", "stream_mode", "profile",
+	"tiers", "concurrency", "total", "max_tokens", "size_cap", "input_tokens", "tools", "notes",
+}
+
+func optBool(v *bool, def bool) bool {
+	if v == nil {
+		return def
+	}
+	return *v
+}
+
+func (o ExcelExportOptions) normalized() ExcelExportOptions {
+	out := o
+	if out.ConditionFields == nil {
+		out.ConditionFields = append([]string(nil), ConditionFieldKeys...)
+	}
+	return out
+}
+
+func (o ExcelExportOptions) allowCondition(key string) bool {
+	if len(o.ConditionFields) == 0 {
+		return true
+	}
+	for _, k := range o.ConditionFields {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+// ExcelFilename builds "{time}_{models}.xlsx" using local wall clock of startedAt.
+func ExcelFilename(startedAt time.Time, models []string) string {
+	ts := startedAt.In(time.Local).Format("20060102-150405")
+	modelPart := sanitizeFilenamePart(strings.Join(models, "+"))
+	if modelPart == "" {
+		modelPart = "model"
+	}
+	if len(modelPart) > 80 {
+		modelPart = modelPart[:80]
+	}
+	return fmt.Sprintf("%s_%s.xlsx", ts, modelPart)
+}
+
+func sanitizeFilenamePart(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		case r == ' ' || r == ',' || r == '/' || r == '+' || r == ':':
+			b.WriteByte('-')
+		default:
+			// drop other characters
+		}
+	}
+	out := strings.Trim(b.String(), "-_")
+	for strings.Contains(out, "--") {
+		out = strings.ReplaceAll(out, "--", "-")
+	}
+	return out
 }
 
 // BuildExcelReport builds a generic conditions + metric×input-size workbook.
 func BuildExcelReport(in ExcelExportInput) ([]byte, error) {
+	opts := in.Options.normalized()
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 
-	if err := writeConditionsSheet(f, in); err != nil {
-		return nil, err
+	wrote := 0
+	if optBool(opts.IncludeConditions, true) {
+		if err := writeConditionsSheet(f, in, opts); err != nil {
+			return nil, err
+		}
+		wrote++
 	}
-	if err := writeOverviewSheet(f, in); err != nil {
-		return nil, err
+	if optBool(opts.IncludeOverview, true) {
+		if err := writeOverviewSheet(f, in); err != nil {
+			return nil, err
+		}
+		wrote++
 	}
 
 	rowKeys := reportRowKeys(in.Tiers, in.Results)
-	if err := writePercentileMetricSheet(f, "首字延迟(ms)", rowKeys, in.Results, func(r Result) (int, bool) {
-		if r.Outcome != "success" {
-			return 0, false
+	if optBool(opts.IncludeTTFT, true) {
+		if err := writePercentileMetricSheet(f, "首字延迟(ms)", rowKeys, in.Results, func(r Result) (int, bool) {
+			if r.Outcome != "success" {
+				return 0, false
+			}
+			ms := measuredTTFT(r)
+			return ms, ms > 0
+		}); err != nil {
+			return nil, err
 		}
-		ms := measuredTTFT(r)
-		return ms, ms > 0
-	}); err != nil {
-		return nil, err
+		wrote++
 	}
-	if err := writePercentileMetricSheet(f, "总耗时(ms)", rowKeys, in.Results, func(r Result) (int, bool) {
-		if r.Outcome != "success" {
-			return 0, false
+	if optBool(opts.IncludeDuration, true) {
+		if err := writePercentileMetricSheet(f, "总耗时(ms)", rowKeys, in.Results, func(r Result) (int, bool) {
+			if r.Outcome != "success" {
+				return 0, false
+			}
+			return r.DurationMs, r.DurationMs > 0
+		}); err != nil {
+			return nil, err
 		}
-		return r.DurationMs, r.DurationMs > 0
-	}); err != nil {
-		return nil, err
+		wrote++
 	}
-	if err := writeSuccessRateSheet(f, rowKeys, in.Results); err != nil {
-		return nil, err
+	if optBool(opts.IncludeSuccessRate, true) {
+		if err := writeSuccessRateSheet(f, rowKeys, in.Results); err != nil {
+			return nil, err
+		}
+		wrote++
+	}
+	if wrote == 0 {
+		return nil, fmt.Errorf("select at least one sheet to export")
 	}
 
 	_ = f.DeleteSheet("Sheet1")
@@ -85,7 +186,7 @@ func BuildExcelReport(in ExcelExportInput) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func writeConditionsSheet(f *excelize.File, in ExcelExportInput) error {
+func writeConditionsSheet(f *excelize.File, in ExcelExportInput, opts ExcelExportOptions) error {
 	const name = "测试条件"
 	idx, err := f.NewSheet(name)
 	if err != nil {
@@ -121,7 +222,7 @@ func writeConditionsSheet(f *excelize.File, in ExcelExportInput) error {
 		value string
 		unit  string
 	}
-	rows := []kv{
+	all := []kv{
 		{"run_id", in.RunID, "-"},
 		{"status", in.Status, "-"},
 		{"started_at", in.StartedAt.Format(time.RFC3339), "RFC3339"},
@@ -144,6 +245,12 @@ func writeConditionsSheet(f *excelize.File, in ExcelExportInput) error {
 		{"input_tokens", fmt.Sprintf("%d", in.InputTokens), "输入tokens"},
 		{"tools", in.Tools, "-"},
 		{"notes", "TTFT=first_token_ms（含 reasoning）；RPM 只计成功；延迟百分位只用成功样本；构造输入列的 K=千 tokens", "-"},
+	}
+	rows := make([]kv, 0, len(all))
+	for _, row := range all {
+		if opts.allowCondition(row.item) {
+			rows = append(rows, row)
+		}
 	}
 	_ = f.SetSheetRow(name, "A1", &[]any{"项", "值", "单位"})
 	for i, row := range rows {

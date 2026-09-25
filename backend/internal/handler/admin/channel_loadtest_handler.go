@@ -116,9 +116,34 @@ func (h *ChannelLoadtestHandler) Stop(c *gin.Context) {
 	response.Success(c, snap)
 }
 
+type channelLoadtestExportRequest struct {
+	IncludeConditions  *bool    `json:"include_conditions"`
+	IncludeOverview    *bool    `json:"include_overview"`
+	IncludeTTFT        *bool    `json:"include_ttft"`
+	IncludeDuration    *bool    `json:"include_duration"`
+	IncludeSuccessRate *bool    `json:"include_success_rate"`
+	ConditionFields    []string `json:"condition_fields"`
+}
+
 func (h *ChannelLoadtestHandler) Export(c *gin.Context) {
 	id := strings.TrimSpace(c.Param("id"))
-	raw, filename, err := h.svc.ExportExcel(id)
+	var opts loadtest.ExcelExportOptions
+	if c.Request.Method == http.MethodPost && c.Request.ContentLength != 0 {
+		var req channelLoadtestExportRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		opts = loadtest.ExcelExportOptions{
+			IncludeConditions:  req.IncludeConditions,
+			IncludeOverview:    req.IncludeOverview,
+			IncludeTTFT:        req.IncludeTTFT,
+			IncludeDuration:    req.IncludeDuration,
+			IncludeSuccessRate:  req.IncludeSuccessRate,
+			ConditionFields:    req.ConditionFields,
+		}
+	}
+	raw, filename, err := h.svc.ExportExcel(id, opts)
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "not found") {

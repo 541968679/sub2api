@@ -93,14 +93,14 @@ func TestChannelLoadtestService_ExportExcelAfterDone(t *testing.T) {
 			t.Fatal(getErr)
 		}
 		if got.Status == "done" {
-			raw, name, expErr := svc.ExportExcel(snap.ID)
+			raw, name, expErr := svc.ExportExcel(snap.ID, loadtest.ExcelExportOptions{})
 			if expErr != nil {
 				t.Fatal(expErr)
 			}
-			if !strings.HasSuffix(name, ".xlsx") || len(raw) < 100 {
+			if !strings.HasSuffix(name, ".xlsx") || !strings.Contains(name, "kimi-k3") || len(raw) < 100 {
 				t.Fatalf("name=%s size=%d", name, len(raw))
 			}
-			if _, _, still := svc.ExportExcel(snap.ID); still != nil && strings.Contains(still.Error(), "running") {
+			if _, _, still := svc.ExportExcel(snap.ID, loadtest.ExcelExportOptions{}); still != nil && strings.Contains(still.Error(), "running") {
 				t.Fatal(still)
 			}
 			return

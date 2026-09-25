@@ -1,3 +1,27 @@
+## 2026-09-25 - feat: loadtest Excel export dialog and timed filenames
+
+### What
+- Export filename is `{YYYYMMDD-HHMMSS}_{models}.xlsx` from run start time and model list.
+- Admin shows an export dialog (default all selected) to omit sheets and individual 测试条件 fields before download.
+- `POST /admin/channel-loadtest/runs/:id/export` accepts include_* and condition_fields; GET still exports everything.
+
+### Why
+Operators want recognizable filenames and control over which tables/fields leave the spreadsheet.
+
+### Affected files
+`backend/internal/pkg/loadtest/excel_report.go`,
+`backend/internal/pkg/loadtest/excel_report_test.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`backend/internal/service/channel_loadtest_service_test.go`,
+`backend/internal/handler/admin/channel_loadtest_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-25 - fix: loadtest Excel export labels units
 
 ### What

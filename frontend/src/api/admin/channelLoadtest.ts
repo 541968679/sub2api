@@ -158,10 +158,60 @@ export async function stop(id: string): Promise<LoadtestSnapshot> {
   return data
 }
 
-export async function exportExcel(id: string): Promise<{ blob: Blob; filename: string }> {
-  const response = await apiClient.get(`/admin/channel-loadtest/runs/${encodeURIComponent(id)}/export`, {
-    responseType: 'blob'
-  })
+export interface LoadtestExportOptions {
+  include_conditions: boolean
+  include_overview: boolean
+  include_ttft: boolean
+  include_duration: boolean
+  include_success_rate: boolean
+  condition_fields: string[]
+}
+
+export const LOADTEST_CONDITION_FIELDS = [
+  'run_id',
+  'status',
+  'started_at',
+  'ended_at',
+  'duration',
+  'source',
+  'account',
+  'base_url',
+  'path',
+  'proxy',
+  'models',
+  'api_mode',
+  'stream_mode',
+  'profile',
+  'tiers',
+  'concurrency',
+  'total',
+  'max_tokens',
+  'size_cap',
+  'input_tokens',
+  'tools',
+  'notes'
+] as const
+
+export function defaultLoadtestExportOptions(): LoadtestExportOptions {
+  return {
+    include_conditions: true,
+    include_overview: true,
+    include_ttft: true,
+    include_duration: true,
+    include_success_rate: true,
+    condition_fields: [...LOADTEST_CONDITION_FIELDS]
+  }
+}
+
+export async function exportExcel(
+  id: string,
+  options: LoadtestExportOptions = defaultLoadtestExportOptions()
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.post(
+    `/admin/channel-loadtest/runs/${encodeURIComponent(id)}/export`,
+    options,
+    { responseType: 'blob' }
+  )
   const blob = response.data as Blob
   const disposition = String(response.headers?.['content-disposition'] || '')
   const matched = /filename="([^"]+)"/i.exec(disposition)
