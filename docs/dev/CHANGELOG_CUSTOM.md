@@ -1,3 +1,32 @@
+## 2026-09-25 - feat: loadtest profile presets fill tiers + Excel export
+
+### What
+- Choosing a traffic profile in Admin replaces the tier table with a deterministic absolute mix (`smoke`, SLA four-point, and weight-normalized user363 stream/sync/mixed).
+- Finished runs can export a generic Excel report (conditions, overview, first-token latency / duration percentiles by constructed input size, success rate by tier). No SLA PASS/FAIL sheet.
+- New admin API: `GET /api/v1/admin/channel-loadtest/runs/:id/export`.
+
+### Why
+Operators need profiles to mean editable tier templates, and a shareable spreadsheet that states what was tested and what was measured without customer-specific gates.
+
+### Affected files
+`backend/go.mod`,
+`backend/go.sum`,
+`backend/internal/pkg/loadtest/presets.go`,
+`backend/internal/pkg/loadtest/presets_test.go`,
+`backend/internal/pkg/loadtest/excel_report.go`,
+`backend/internal/pkg/loadtest/excel_report_test.go`,
+`backend/internal/service/channel_loadtest_service.go`,
+`backend/internal/handler/admin/channel_loadtest_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/channelLoadtest.ts`,
+`frontend/src/views/admin/channelLoadtestPresets.ts`,
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
 ## 2026-09-23 - feat: configurable channel load-test traffic tiers
 
 ### What

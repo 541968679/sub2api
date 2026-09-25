@@ -115,3 +115,19 @@ func (h *ChannelLoadtestHandler) Stop(c *gin.Context) {
 	}
 	response.Success(c, snap)
 }
+
+func (h *ChannelLoadtestHandler) Export(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	raw, filename, err := h.svc.ExportExcel(id)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "not found") {
+			response.NotFound(c, msg)
+			return
+		}
+		response.BadRequest(c, msg)
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", raw)
+}

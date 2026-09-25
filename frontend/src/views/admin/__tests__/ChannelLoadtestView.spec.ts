@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChannelLoadtestView from '@/views/admin/ChannelLoadtestView.vue'
 
-const { startRun, listAccounts, listProxies } = vi.hoisted(() => ({
+const { startRun, listAccounts, listProxies, exportExcel } = vi.hoisted(() => ({
   startRun: vi.fn(),
   listAccounts: vi.fn(),
-  listProxies: vi.fn()
+  listProxies: vi.fn(),
+  exportExcel: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -16,7 +17,8 @@ vi.mock('@/api/admin', () => ({
       start: startRun,
       get: vi.fn(),
       latest: vi.fn().mockResolvedValue(null),
-      stop: vi.fn()
+      stop: vi.fn(),
+      exportExcel
     }
   }
 }))
@@ -84,7 +86,49 @@ describe('ChannelLoadtestView', () => {
     expect(payload.proxy_id).toBe(0)
     expect(payload.api_mode).toBe('chat_completions')
     expect(payload.stream_mode).toBe('auto')
-    expect(payload.tiers).toBeUndefined()
+    expect(payload.tiers).toEqual([{ input_tokens: 80, count: 40 }])
+  })
+
+  it('fills absolute tiers when selecting a traffic profile', async () => {
+    const wrapper = await mountStarted()
+    await wrapper.get('[data-testid=loadtest-profile]').setValue('user363-sla')
+    await flushPromises()
+    const inputs = wrapper.findAll('[data-testid=tier-input]')
+    const counts = wrapper.findAll('[data-testid=tier-count]')
+    expect(inputs).toHaveLength(4)
+    expect(Number((inputs[0].element as HTMLInputElement).value)).toBe(50000)
+    expect(Number((counts[0].element as HTMLInputElement).value)).toBe(50)
+    expect(Number((inputs[3].element as HTMLInputElement).value)).toBe(380000)
+    expect(Number((counts[3].element as HTMLInputElement).value)).toBe(2)
+  })
+
+  it('enables Excel export after a finished run', async () => {
+    startRun.mockResolvedValue({
+      id: 'run-done',
+      status: 'done',
+      done: 10,
+      ok: 10,
+      success_rate: 100,
+      total: 10,
+      peak: 2,
+      inflight: 0,
+      sla: [],
+      results: []
+    })
+    const wrapper = mount(ChannelLoadtestView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid=export-excel]').attributes('disabled')).toBeDefined()
+    await wrapper.get('select').setValue(12)
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid=export-excel]').attributes('disabled')).toBeUndefined()
   })
 
   async function mountStarted() {

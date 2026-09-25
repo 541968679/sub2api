@@ -824,6 +824,7 @@ func registerChannelLoadtestRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 	{
 		lt.POST("/runs", h.Admin.ChannelLoadtest.Start)
 		lt.GET("/runs/latest", h.Admin.ChannelLoadtest.Latest)
+		lt.GET("/runs/:id/export", h.Admin.ChannelLoadtest.Export)
 		lt.GET("/runs/:id", h.Admin.ChannelLoadtest.Get)
 		lt.POST("/runs/:id/stop", h.Admin.ChannelLoadtest.Stop)
 	}

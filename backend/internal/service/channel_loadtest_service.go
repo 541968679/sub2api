@@ -343,6 +343,65 @@ func (s *ChannelLoadtestService) Latest() *ChannelLoadtestSnapshot {
 	return s.snapshot(run, true)
 }
 
+// ExportExcel builds a generic .xlsx report for a finished run.
+func (s *ChannelLoadtestService) ExportExcel(id string) ([]byte, string, error) {
+	s.mu.Lock()
+	run := s.findLocked(id)
+	if run == nil {
+		s.mu.Unlock()
+		return nil, "", fmt.Errorf("run not found")
+	}
+	status := run.status
+	if status == "running" || status == "stopping" {
+		s.mu.Unlock()
+		return nil, "", fmt.Errorf("run is still %s", status)
+	}
+	if len(run.results) == 0 && run.done == 0 {
+		s.mu.Unlock()
+		return nil, "", fmt.Errorf("run has no results")
+	}
+	cfg := run.cfg
+	s.mu.Unlock()
+
+	snap := s.snapshot(run, true)
+	filename := fmt.Sprintf("loadtest-%s.xlsx", id)
+	raw, err := loadtest.BuildExcelReport(loadtest.ExcelExportInput{
+		RunID:       snap.ID,
+		Status:      snap.Status,
+		StartedAt:   snap.StartedAt,
+		EndedAt:     snap.EndedAt,
+		Source:      snap.Source,
+		AccountID:   snap.AccountID,
+		AccountName: snap.AccountName,
+		BaseURL:     snap.BaseURL,
+		Path:        snap.Path,
+		ProxyID:     snap.ProxyID,
+		ProxyName:   snap.ProxyName,
+		Models:      snap.Models,
+		APIMode:     snap.APIMode,
+		StreamMode:  snap.StreamMode,
+		Profile:     snap.Profile,
+		Tiers:       append([]loadtest.Tier(nil), cfg.Tiers...),
+		Concurrency: snap.Concurrency,
+		Total:       snap.Total,
+		MaxTokens:   cfg.MaxTokens,
+		SizeCap:     cfg.SizeCap,
+		InputTokens: cfg.InputTokens,
+		Tools:       cfg.Tools,
+		Peak:        snap.Peak,
+		Done:        snap.Done,
+		OK:          snap.OK,
+		SuccessRate: snap.SuccessRate,
+		RPMPeak:     snap.RPMPeak,
+		RPMAvg:      snap.RPMAvg,
+		Results:     snap.Results,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return raw, filename, nil
+}
+
 func (s *ChannelLoadtestService) findLocked(id string) *channelLoadtestRun {
 	for i := len(s.runs) - 1; i >= 0; i-- {
 		if s.runs[i].id == id {

@@ -158,5 +158,16 @@ export async function stop(id: string): Promise<LoadtestSnapshot> {
   return data
 }
 
-const channelLoadtestAPI = { start, get, latest, stop }
+export async function exportExcel(id: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get(`/admin/channel-loadtest/runs/${encodeURIComponent(id)}/export`, {
+    responseType: 'blob'
+  })
+  const blob = response.data as Blob
+  const disposition = String(response.headers?.['content-disposition'] || '')
+  const matched = /filename="([^"]+)"/i.exec(disposition)
+  const filename = matched?.[1] || `loadtest-${id}.xlsx`
+  return { blob, filename }
+}
+
+const channelLoadtestAPI = { start, get, latest, stop, exportExcel }
 export default channelLoadtestAPI

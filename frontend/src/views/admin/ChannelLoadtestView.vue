@@ -95,13 +95,14 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t('admin.channelLoadtest.profile') }}
             </label>
-            <select v-model="profile" class="input">
+            <select v-model="profile" class="input" data-testid="loadtest-profile">
               <option value="smoke">{{ t('admin.channelLoadtest.profileSmoke') }}</option>
               <option value="user363">{{ t('admin.channelLoadtest.profileUser363') }}</option>
               <option value="user363-stream">{{ t('admin.channelLoadtest.profileStream') }}</option>
               <option value="user363-sync">{{ t('admin.channelLoadtest.profileSync') }}</option>
               <option value="user363-sla">{{ t('admin.channelLoadtest.profileSla') }}</option>
             </select>
+            <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.profileHint') }}</p>
             <button type="button" class="btn btn-secondary w-full text-sm" data-testid="apply-sla-preset" @click="applySheetPreset">
               {{ t('admin.channelLoadtest.applySheetPreset') }}
             </button>
@@ -250,12 +251,23 @@
               <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
                 {{ running ? t('admin.channelLoadtest.running') : t('admin.channelLoadtest.live') }}
               </h2>
-              <span v-if="snap" class="text-xs text-gray-500">
-                {{ snap.status }} · {{ snap.id?.slice(0, 8) }}
-                <template v-if="snap.api_mode"> · {{ snap.api_mode }}</template>
-                <template v-if="snap.stream_mode"> · {{ snap.stream_mode }}</template>
-                <template v-if="snap.proxy_name"> · {{ snap.proxy_name }}</template>
-              </span>
+              <div class="flex flex-wrap items-center gap-2">
+                <span v-if="snap" class="text-xs text-gray-500">
+                  {{ snap.status }} · {{ snap.id?.slice(0, 8) }}
+                  <template v-if="snap.api_mode"> · {{ snap.api_mode }}</template>
+                  <template v-if="snap.stream_mode"> · {{ snap.stream_mode }}</template>
+                  <template v-if="snap.proxy_name"> · {{ snap.proxy_name }}</template>
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-secondary text-xs"
+                  data-testid="export-excel"
+                  :disabled="!canExport || busy"
+                  @click="exportExcel"
+                >
+                  {{ t('admin.channelLoadtest.exportExcel') }}
+                </button>
+              </div>
             </div>
             <p v-if="snap?.tiers?.length" class="mt-3 text-xs text-gray-500">
               {{ t('admin.channelLoadtest.appliedTiers') }}
@@ -513,6 +525,7 @@ import { list as listAccounts } from '@/api/admin/accounts'
 import { getAll as listProxies } from '@/api/admin/proxies'
 import type { Account, Proxy } from '@/types'
 import { tokensPerSecond } from '@/utils/latencyHealth'
+import { presetForProfile } from '@/views/admin/channelLoadtestPresets'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -555,6 +568,10 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const running = computed(() => snap.value?.status === 'running' || snap.value?.status === 'stopping')
+const canExport = computed(() => {
+  const status = snap.value?.status
+  return !!snap.value?.id && (status === 'done' || status === 'stopped' || status === 'failed') && (snap.value.done ?? 0) > 0
+})
 const tierRequestCount = computed(() =>
   tiers.value.reduce((sum, row) => {
     const count = tierNumber(row.count)
@@ -663,29 +680,30 @@ function collectTiers(): LoadtestTier[] | null {
   return out
 }
 
+function applyProfilePreset(p: LoadtestProfile) {
+  const preset = presetForProfile(p)
+  tiers.value = preset.tiers.map((row) => ({ inputTokens: row.input_tokens, count: row.count }))
+  if (preset.streamMode) streamMode.value = preset.streamMode
+  if (preset.sizeCap != null) sizeCap.value = preset.sizeCap
+  if (preset.inputTokens != null) inputTokens.value = preset.inputTokens
+  if (preset.tools) tools.value = preset.tools
+  if (preset.concurrency != null) concurrency.value = preset.concurrency
+  if (preset.total != null) total.value = preset.total
+}
+
 function applySheetPreset() {
   profile.value = 'user363-sla'
-  streamMode.value = 'stream'
-  sizeCap.value = 0
-  inputTokens.value = 0
-  tools.value = 'off'
+  applyProfilePreset('user363-sla')
   timeUnit.value = 's'
   concurrency.value = 50
   total.value = 100
-  tiers.value = [
-    { inputTokens: 50000, count: 50 },
-    { inputTokens: 80000, count: 38 },
-    { inputTokens: 160000, count: 10 },
-    { inputTokens: 380000, count: 2 }
-  ]
 }
 
 watch(profile, (p) => {
-  if (p === 'user363-sla') {
-    sizeCap.value = 0
-    streamMode.value = 'stream'
-  }
+  applyProfilePreset(p)
 })
+
+applyProfilePreset(profile.value)
 
 watch(kimiOnly, (only) => {
   if (only) apiMode.value = 'chat_completions'
@@ -787,6 +805,24 @@ async function stopRun() {
     snap.value = await adminAPI.channelLoadtest.stop(snap.value.id)
   } catch (err) {
     appStore.showError((err as Error).message || t('admin.channelLoadtest.stopError'))
+  }
+}
+
+async function exportExcel() {
+  if (!snap.value?.id || !canExport.value) return
+  busy.value = true
+  try {
+    const { blob, filename } = await adminAPI.channelLoadtest.exportExcel(snap.value.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    appStore.showError((err as Error).message || t('admin.channelLoadtest.exportError'))
+  } finally {
+    busy.value = false
   }
 }
 

@@ -36,9 +36,10 @@ ChannelLoadtestView
 
 ## Important Mechanisms
 
-- Profiles: `smoke`, `user363`, `user363-stream`, `user363-sync`, `user363-sla`.
-- Optional `tiers`: each row is `{input_tokens, count}`. A non-empty table is the whole run (absolute counts, sum 1–500, at most 64 rows). It does not rescale to `total`, does not apply `size_cap` or the single `input_tokens` pin, and uses the run-level `max_tokens` for every row. Rows are spread with weighted round-robin. An empty table keeps preset sampling, including the SLA sheet's paired outputs 200/600/1300/7000.
-- The admin SLA button fills `50×50000`, `38×80000`, `10×160000`, `2×380000` and still sets the old preset knobs. Clearing the table returns to preset sampling. `user363` weight buckets are not expanded into rows.
+- Profiles are **tier templates**. Choosing a profile in Admin replaces the traffic-tier table (`presetForProfile` / `loadtest.PresetTiers`). `smoke` → `40×80`; `user363-sla` → `50/38/10/2 × 50K/80K/160K/380K`; stream/sync/mixed normalize bucket weights to 100 absolute rows (largest-remainder).
+- Optional `tiers`: each row is `{input_tokens, count}`. A non-empty table is the whole run (absolute counts, sum 1–500, at most 64 rows). It does not rescale to `total`, does not apply `size_cap` or the single `input_tokens` pin, and uses the run-level `max_tokens` for every row. Rows are spread with weighted round-robin. An empty table keeps legacy profile sampling, including the SLA sheet's paired outputs 200/600/1300/7000.
+- The admin SLA button fills the same four SLA rows and also sets concurrency 50 / total 100. Clearing the table returns to preset sampling.
+- Excel export: `GET /api/v1/admin/channel-loadtest/runs/:id/export` (finished runs only). Workbook sheets: 测试条件, 总览, 首字延迟, 总耗时, 成功率. Metric sheets are `构造输入大小(K) × n/p50/p75/p90` (success-rate sheet uses n/ok/rate). No SLA PASS/FAIL. Built by `loadtest.BuildExcelReport` (excelize).
 - `api_mode`: `chat_completions` (`/v1/chat/completions`) or `responses` (`/v1/responses`).
 - `stream_mode`: `auto` (profile mix), `stream`, or `sync`. Tier rows start as stream, then follow `stream_mode`.
 - Estimated input > 2M tokens requires `confirm_cost`. With tiers, the estimate is `Σ input_tokens × count`.
