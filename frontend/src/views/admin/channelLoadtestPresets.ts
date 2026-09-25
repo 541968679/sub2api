@@ -22,11 +22,8 @@ const defaultSyncRatio = 0.57
 export interface ProfilePreset {
   tiers: LoadtestTier[]
   streamMode?: LoadtestStreamMode
-  sizeCap?: number
-  inputTokens?: number
   tools?: string
   concurrency?: number
-  total?: number
 }
 
 function normalizeBuckets(buckets: { tokens: number; weight: number }[], total: number): LoadtestTier[] {
@@ -93,8 +90,6 @@ export function presetForProfile(profile: LoadtestProfile): ProfilePreset {
           { input_tokens: 380000, count: 2 }
         ],
         streamMode: 'stream',
-        sizeCap: 0,
-        inputTokens: 0,
         tools: 'off'
       }
     case 'user363-stream':

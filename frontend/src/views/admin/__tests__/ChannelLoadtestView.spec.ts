@@ -86,6 +86,9 @@ describe('ChannelLoadtestView', () => {
     expect(payload.proxy_id).toBe(0)
     expect(payload.api_mode).toBe('chat_completions')
     expect(payload.stream_mode).toBe('auto')
+    expect(payload.total).toBe(40)
+    expect(payload.size_cap).toBe(0)
+    expect(payload.input_tokens).toBe(0)
     expect(payload.tiers).toEqual([{ input_tokens: 80, count: 40 }])
   })
 
@@ -111,6 +114,7 @@ describe('ChannelLoadtestView', () => {
     const payload = startRun.mock.calls[0][0]
     expect(payload.profile).toBe('general')
     expect(payload.stream_mode).toBe('stream')
+    expect(payload.total).toBe(100)
     expect(payload.tiers).toEqual([
       { input_tokens: 4000, count: 40 },
       { input_tokens: 16000, count: 30 },
@@ -191,35 +195,38 @@ describe('ChannelLoadtestView', () => {
     ])
   })
 
-  it('sends edited tiers without rewriting the form total', async () => {
+  it('derives total from edited tier counts', async () => {
     const wrapper = await mountStarted()
-    await wrapper.get('[data-testid=add-tier]').trigger('click')
+    // Replace smoke's single row with two custom rows.
+    await wrapper.get('[data-testid=reset-tiers]').trigger('click')
+    const firstCount = wrapper.findAll('[data-testid=tier-count]')[0]
+    await firstCount.setValue(5)
     await wrapper.get('[data-testid=add-tier]').trigger('click')
     const inputs = wrapper.findAll('[data-testid=tier-input]')
     const counts = wrapper.findAll('[data-testid=tier-count]')
-    await inputs[0].setValue(12000)
-    await counts[0].setValue(3)
     await inputs[1].setValue(90000)
     await counts[1].setValue(4)
-    await wrapper.get('[data-testid=loadtest-total]').setValue(40)
     await wrapper.get('button.btn-primary').trigger('click')
     await flushPromises()
     const payload = startRun.mock.calls[0][0]
-    expect(payload.total).toBe(40)
+    expect(payload.total).toBe(9)
+    expect(payload.size_cap).toBe(0)
+    expect(payload.input_tokens).toBe(0)
     expect(payload.tiers).toEqual([
-      { input_tokens: 12000, count: 3 },
+      { input_tokens: 80, count: 5 },
       { input_tokens: 90000, count: 4 }
     ])
   })
 
-  it('clears the tier table and falls back to preset sampling', async () => {
+  it('resets tiers back to the current profile mix', async () => {
     const wrapper = await mountStarted()
-    await wrapper.get('[data-testid=apply-sla-preset]').trigger('click')
-    await wrapper.get('[data-testid=clear-tiers]').trigger('click')
-    await wrapper.get('button.btn-primary').trigger('click')
+    await wrapper.get('[data-testid=loadtest-profile]').setValue('general')
     await flushPromises()
-    const payload = startRun.mock.calls[0][0]
-    expect(payload.profile).toBe('user363-sla')
-    expect(payload.tiers).toBeUndefined()
+    await wrapper.get('[data-testid=add-tier]').trigger('click')
+    expect(wrapper.findAll('[data-testid=tier-input]').length).toBe(5)
+    await wrapper.get('[data-testid=reset-tiers]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid=tier-input]').length).toBe(4)
+    expect(Number((wrapper.findAll('[data-testid=tier-input]')[0].element as HTMLInputElement).value)).toBe(4000)
   })
 })

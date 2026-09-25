@@ -1,3 +1,21 @@
+## 2026-09-25 - ui: loadtest form drops total/size_cap/fixed input
+
+### What
+- Admin load test no longer shows total requests, context size cap, or fixed input tokens. Request count is always the tier-table sum; start requires at least one tier.
+- Replaced “clear tiers” with “reset to current profile”. Start payload sends `size_cap=0` and `input_tokens=0`.
+
+### Why
+With profile-filled tiers as the only traffic source, those knobs were ignored and confused operators. Concurrency and max_tokens remain the meaningful run controls.
+
+### Affected files
+`frontend/src/views/admin/ChannelLoadtestView.vue`,
+`frontend/src/views/admin/channelLoadtestPresets.ts`,
+`frontend/src/views/admin/__tests__/ChannelLoadtestView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/channel-loadtest.md`,
+this changelog.
+
 ## 2026-09-25 - feat: add general loadtest traffic profile
 
 ### What

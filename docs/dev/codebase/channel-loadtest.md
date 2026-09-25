@@ -37,8 +37,8 @@ ChannelLoadtestView
 ## Important Mechanisms
 
 - Profiles are **tier templates**. Choosing a profile in Admin replaces the traffic-tier table (`presetForProfile` / `loadtest.PresetTiers`). `smoke` → `40×80`; `general` → `40×4K / 30×16K / 20×32K / 10×64K`; `user363-sla` → `50/38/10/2 × 50K/80K/160K/380K`; stream/sync/mixed normalize bucket weights to 100 absolute rows (largest-remainder).
-- Optional `tiers`: each row is `{input_tokens, count}`. A non-empty table is the whole run (absolute counts, sum 1–500, at most 64 rows). It does not rescale to `total`, does not apply `size_cap` or the single `input_tokens` pin, and uses the run-level `max_tokens` for every row. Rows are spread with weighted round-robin. An empty table keeps legacy profile sampling, including the SLA sheet's paired outputs 200/600/1300/7000.
-- The admin SLA button fills the same four SLA rows and also sets concurrency 50 / total 100. Clearing the table returns to preset sampling.
+- Admin UI always runs from the tier table (`{input_tokens, count}`). Request count is Σ count (1–500, max 64 rows). Form no longer exposes `total` / `size_cap` / fixed `input_tokens`; start sends `total=Σcount`, `size_cap=0`, `input_tokens=0`. Output cap is run-level `max_tokens`. Rows use weighted round-robin.
+- The admin SLA button fills the same four SLA rows and also sets concurrency 50. “Reset tiers” restores the current profile mix.
 - Excel export: `GET /api/v1/admin/channel-loadtest/runs/:id/export` (finished runs only). Workbook sheets: 测试条件, 总览, 首字延迟, 总耗时, 成功率. Metric sheets are `构造输入大小(K) × n/p50/p75/p90` (success-rate sheet uses n/ok/rate). No SLA PASS/FAIL. Built by `loadtest.BuildExcelReport` (excelize).
 - `api_mode`: `chat_completions` (`/v1/chat/completions`) or `responses` (`/v1/responses`).
 - `stream_mode`: `auto` (profile mix), `stream`, or `sync`. Tier rows start as stream, then follow `stream_mode`.

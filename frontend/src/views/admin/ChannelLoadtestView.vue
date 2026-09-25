@@ -145,13 +145,12 @@
                 {{ t('admin.channelLoadtest.tierHint', { n: tierRequestCount }) }}
               </p>
               <button
-                v-if="tiers.length"
                 type="button"
                 class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                data-testid="clear-tiers"
-                @click="clearTiers"
+                data-testid="reset-tiers"
+                @click="resetTiersToProfile"
               >
-                {{ t('admin.channelLoadtest.clearTiers') }}
+                {{ t('admin.channelLoadtest.resetTiers') }}
               </button>
             </div>
 
@@ -184,13 +183,7 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.channelLoadtest.concurrency') }}
                 </label>
-                <input v-model.number="concurrency" type="number" min="1" max="80" class="input" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.channelLoadtest.total') }}
-                </label>
-                <input v-model.number="total" data-testid="loadtest-total" type="number" min="1" max="500" class="input" />
+                <input v-model.number="concurrency" type="number" min="1" max="80" class="input" data-testid="loadtest-concurrency" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -198,21 +191,8 @@
                 </label>
                 <input v-model.number="maxTokens" type="number" min="0" max="8000" class="input" />
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.channelLoadtest.sizeCap') }}
-                </label>
-                <input v-model.number="sizeCap" type="number" min="0" max="400000" class="input" />
-              </div>
-              <div class="col-span-2">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.channelLoadtest.inputTokens') }}
-                </label>
-                <input v-model.number="inputTokens" type="number" min="0" max="400000" class="input" />
-                <p class="mt-1 text-xs text-gray-500">{{ t('admin.channelLoadtest.inputTokensHint') }}</p>
-              </div>
             </div>
-            <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.sizeCapHint') }}</p>
+            <p class="text-xs text-gray-500">{{ t('admin.channelLoadtest.runKnobsHint') }}</p>
 
             <select v-model="tools" class="input">
               <option value="auto">{{ t('admin.channelLoadtest.toolsAuto') }}</option>
@@ -549,10 +529,7 @@ const kimiOnly = computed(() => {
 })
 const streamMode = ref<LoadtestStreamMode>('auto')
 const concurrency = ref(20)
-const total = ref(40)
 const maxTokens = ref(256)
-const sizeCap = ref(80000)
-const inputTokens = ref(0)
 interface TierDraft {
   inputTokens: number | string
   count: number | string
@@ -652,13 +629,16 @@ function removeTier(index: number) {
   tiers.value.splice(index, 1)
 }
 
-function clearTiers() {
-  tiers.value = []
+function resetTiersToProfile() {
+  applyProfilePreset(profile.value)
 }
 
 function collectTiers(): LoadtestTier[] | null {
   const filled = tiers.value.filter((row) => tierNumber(row.inputTokens) != null || tierNumber(row.count) != null)
-  if (!filled.length) return []
+  if (!filled.length) {
+    appStore.showError(t('admin.channelLoadtest.tiersRequired'))
+    return null
+  }
   if (filled.length > 64) {
     appStore.showError(t('admin.channelLoadtest.tierInvalid'))
     return null
@@ -685,11 +665,8 @@ function applyProfilePreset(p: LoadtestProfile) {
   const preset = presetForProfile(p)
   tiers.value = preset.tiers.map((row) => ({ inputTokens: row.input_tokens, count: row.count }))
   if (preset.streamMode) streamMode.value = preset.streamMode
-  if (preset.sizeCap != null) sizeCap.value = preset.sizeCap
-  if (preset.inputTokens != null) inputTokens.value = preset.inputTokens
   if (preset.tools) tools.value = preset.tools
   if (preset.concurrency != null) concurrency.value = preset.concurrency
-  if (preset.total != null) total.value = preset.total
 }
 
 function applySheetPreset() {
@@ -697,7 +674,6 @@ function applySheetPreset() {
   applyProfilePreset('user363-sla')
   timeUnit.value = 's'
   concurrency.value = 50
-  total.value = 100
 }
 
 watch(profile, (p) => {
@@ -772,14 +748,14 @@ async function startRun() {
       api_mode: apiMode.value,
       stream_mode: streamMode.value,
       concurrency: concurrency.value,
-      total: total.value,
+      total: plannedTiers.reduce((sum, row) => sum + row.count, 0),
       max_tokens: maxTokens.value,
-      size_cap: sizeCap.value,
-      input_tokens: inputTokens.value,
+      size_cap: 0,
+      input_tokens: 0,
       tools: tools.value,
-      confirm_cost: confirmCost.value
+      confirm_cost: confirmCost.value,
+      tiers: plannedTiers
     }
-    if (plannedTiers.length) payload.tiers = plannedTiers
     if (source.value === 'account') {
       if (!accountId.value) {
         appStore.showError(t('admin.channelLoadtest.account'))
