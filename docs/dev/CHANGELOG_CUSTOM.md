@@ -1,3 +1,17 @@
+## 2026-09-25 - deploy: production v0.1.301
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:0.1.301` (`latest`), digest `sha256:92d30f1e8e98cb5ef1c12b75f3fdfac4f0ad565ddfa510bec0bee03816ad4804`, revision `3c554ee0d`, healthy. `/health` ok.
+- Release run https://github.com/541968679/sub2api/actions/runs/36150011720. VERSION sync `0851458b4`. Only the main service was updated (`--skip-a2 --skip-invokeai`).
+- Ships channel loadtest traffic tiers + general profile, Excel export with units/dialog/timed filenames, and model-based api-mode auto-suggest.
+
+### Why
+Ship the loadtest UX/report batch to production after GHCR publish and preflight.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-25 - feat: loadtest Excel export dialog and timed filenames
 
 ### What
