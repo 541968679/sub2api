@@ -1,3 +1,17 @@
+## 2026-09-26 - deploy: production v0.1.302
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:0.1.302` (`latest`), digest `sha256:18ff1105316633d003bdde89bf16d9292e6eca0b4d163ea57b28d0a37cbdd029`, revision `2526dc0f0`, healthy. `/health` ok.
+- Release run https://github.com/541968679/sub2api/actions/runs/36249224759. VERSION sync `d5941054b`. Only the main service was updated (`--skip-a2 --skip-invokeai`).
+- Ships a wider group custom `/v1/models` picker: extra candidate IDs stay unchecked, and operators can type concrete model IDs.
+
+### Why
+Ship the group model-list picker so operators can publish model IDs outside the curated catalog.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-26 - feat: wider group /v1/models picker
 
 ### What
