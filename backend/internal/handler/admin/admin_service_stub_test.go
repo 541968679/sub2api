@@ -296,8 +296,8 @@ func (s *stubAdminService) GetGroup(ctx context.Context, id int64) (*service.Gro
 	return &group, nil
 }
 
-func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
-	return nil, nil
+func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) (service.ModelsListCandidateSet, error) {
+	return service.ModelsListCandidateSet{}, nil
 }
 
 func (s *stubAdminService) ValidateAccountGroupBindings(_ context.Context, _ []int64) error {

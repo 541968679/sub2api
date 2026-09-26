@@ -815,6 +815,27 @@
               moveModelsListItem(createModelsListState, fromIndex, toIndex)
           "
         />
+        <div v-if="createModelsListState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="createModelsListCustom"
+            type="text"
+            class="input flex-1"
+            autocomplete="off"
+            spellcheck="false"
+            data-testid="create-models-list-custom"
+            :placeholder="t('admin.groups.modelsList.addCustomPlaceholder')"
+            :disabled="createModelsListLoading"
+            @keydown.enter.prevent="addCreateModelsListCustom"
+          />
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="createModelsListLoading"
+            @click="addCreateModelsListCustom"
+          >
+            {{ t("admin.groups.modelsList.addCustom") }}
+          </button>
+        </div>
         <div
           v-if="createForm.platform === 'openai'"
           class="border-t pt-4"
@@ -2349,6 +2370,27 @@
               moveModelsListItem(editModelsListState, fromIndex, toIndex)
           "
         />
+        <div v-if="editModelsListState.enabled" class="mt-2 flex gap-2">
+          <input
+            v-model="editModelsListCustom"
+            type="text"
+            class="input flex-1"
+            autocomplete="off"
+            spellcheck="false"
+            data-testid="edit-models-list-custom"
+            :placeholder="t('admin.groups.modelsList.addCustomPlaceholder')"
+            :disabled="editModelsListLoading"
+            @keydown.enter.prevent="addEditModelsListCustom"
+          />
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="editModelsListLoading"
+            @click="addEditModelsListCustom"
+          >
+            {{ t("admin.groups.modelsList.addCustom") }}
+          </button>
+        </div>
         <div
           v-if="editForm.platform === 'openai'"
           class="border-t pt-4"
@@ -3600,6 +3642,7 @@ import {
   type MessagesDispatchMappingRow,
 } from "./groupsMessagesDispatch";
 import {
+  addCustomModelsListItems,
   buildModelsListConfig,
   createModelsListState as createInitialModelsListState,
   invertModelsListSelection,
@@ -3608,6 +3651,7 @@ import {
   selectAllModelsListItems,
   setModelsListCandidates,
   toggleModelsListItem,
+  type ModelsListAddError,
 } from "./groupsModelsList";
 import {
   addCustomModelAllowlistItem,
@@ -3935,6 +3979,8 @@ const createAllowlistState = reactive(createModelAllowlistState());
 const editAllowlistState = reactive(createModelAllowlistState());
 const createAllowlistCustom = ref("");
 const editAllowlistCustom = ref("");
+const createModelsListCustom = ref("");
+const editModelsListCustom = ref("");
 const createModelsListLoading = ref(false);
 const editModelsListLoading = ref(false);
 let createModelsListCandidatesRequestID = 0;
@@ -4272,6 +4318,41 @@ const addEditAllowlistCustom = () => {
   editAllowlistCustom.value = "";
 };
 
+const modelsListAddErrorMessage = (code: ModelsListAddError): string => {
+  switch (code) {
+    case "empty":
+      return t("admin.groups.modelsList.addErrorEmpty");
+    case "invalid":
+      return t("admin.groups.modelsList.addErrorInvalid");
+    case "duplicate":
+      return t("admin.groups.modelsList.addErrorDuplicate");
+  }
+};
+
+const addCreateModelsListCustom = () => {
+  const err = addCustomModelsListItems(
+    createModelsListState,
+    createModelsListCustom.value,
+  );
+  if (err) {
+    appStore.showError(modelsListAddErrorMessage(err));
+    return;
+  }
+  createModelsListCustom.value = "";
+};
+
+const addEditModelsListCustom = () => {
+  const err = addCustomModelsListItems(
+    editModelsListState,
+    editModelsListCustom.value,
+  );
+  if (err) {
+    appStore.showError(modelsListAddErrorMessage(err));
+    return;
+  }
+  editModelsListCustom.value = "";
+};
+
 const loadModelsListCandidates = async (
   mode: "create" | "edit",
   groupID: number,
@@ -4290,17 +4371,18 @@ const loadModelsListCandidates = async (
     mode === "create" ? createModelsListLoading : editModelsListLoading;
   loadingRef.value = true;
   try {
-    const models = await adminAPI.groups.getModelsListCandidates(
+    const candidates = await adminAPI.groups.getModelsListCandidates(
       groupID,
       platform,
     );
     if (!isCurrentRequest()) {
       return;
     }
-    setModelsListCandidates(state, models);
+    setModelsListCandidates(state, candidates.models, candidates.defaultSelected);
     setModelAllowlistCandidates(
       mode === "create" ? createAllowlistState : editAllowlistState,
-      models,
+      candidates.models,
+      candidates.defaultSelected,
     );
   } catch (error) {
     if (!isCurrentRequest()) {
@@ -4603,6 +4685,7 @@ const closeCreateModal = () => {
   resetModelsListState(createModelsListState);
   resetModelAllowlistState(createAllowlistState);
   createAllowlistCustom.value = "";
+  createModelsListCustom.value = "";
   createModelRoutingRules.value = [];
 };
 
@@ -4788,6 +4871,7 @@ const handleEdit = async (group: AdminGroup) => {
   resetModelsListState(editModelsListState, group.models_list_config);
   resetModelAllowlistState(editAllowlistState, group.model_allowlist);
   editAllowlistCustom.value = "";
+  editModelsListCustom.value = "";
   loadModelsListCandidates("edit", group.id, group.platform);
   editZone2Expanded.value = false;
   editZone3Expanded.value = false;
@@ -4809,6 +4893,7 @@ const closeEditModal = () => {
   resetModelsListState(editModelsListState);
   resetModelAllowlistState(editAllowlistState);
   editAllowlistCustom.value = "";
+  editModelsListCustom.value = "";
 };
 
 const handleUpdateGroup = async () => {
@@ -5001,6 +5086,7 @@ watch(
     }
     resetModelsListState(createModelsListState);
     resetModelAllowlistState(createAllowlistState);
+    createModelsListCustom.value = "";
     if (showCreateModal.value) {
       loadModelsListCandidates("create", 0, newVal);
     }
@@ -5033,6 +5119,7 @@ watch(
           ? editingGroup.value.model_allowlist
           : undefined,
       );
+      editModelsListCustom.value = "";
       loadModelsListCandidates("edit", editingGroup.value.id, newVal);
     }
   },

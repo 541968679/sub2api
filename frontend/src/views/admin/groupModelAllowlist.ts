@@ -39,6 +39,7 @@ export function resetModelAllowlistState(
 export function setModelAllowlistCandidates(
   state: ModelAllowlistState,
   candidates: string[],
+  defaultSelected?: string[] | null,
 ): void {
   const normalizedCandidates = normalizeModels(candidates)
   const currentSelected = new Set(
@@ -47,6 +48,8 @@ export function setModelAllowlistCandidates(
   const currentKnown = new Set(state.items.map((item) => item.id))
   const savedSelected = new Set(state.savedModels)
   const hasExistingItems = state.items.length > 0
+  const defaultSelectedSet =
+    defaultSelected == null ? null : new Set(normalizeModels(defaultSelected))
   const selectionOrder = normalizeModels([
     ...state.items.map((item) => item.id),
     ...state.savedModels,
@@ -58,7 +61,9 @@ export function setModelAllowlistCandidates(
       ? currentSelected.has(id)
       : state.savedModels.length > 0
         ? savedSelected.has(id)
-        : normalizedCandidates.includes(id)
+        : defaultSelectedSet
+          ? defaultSelectedSet.has(id)
+          : normalizedCandidates.includes(id)
 
     return {
       id,

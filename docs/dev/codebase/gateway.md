@@ -677,28 +677,30 @@ GET /v1/models with API key
   -> GatewayHandler.Models
   -> resolve group platform, including any force-platform context
   -> if platform has a curated discovery list:
-     -> OpenAI: gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-5.5, gpt-5.4, gpt-5.4-mini
-     -> Antigravity: claude-opus-4-8, claude-opus-4-7, claude-opus-4-6, claude-haiku-4-5, claude-sonnet-4-6
-     -> optionally narrow it with group.models_list_config
-     -> return without consulting account model_mapping
+     -> if models_list_config is enabled, that saved list is the display
+        source of truth, including IDs outside the curated catalog
+     -> a legacy full OpenAI default list is still expanded to the current catalog
+     -> otherwise return the curated discovery IDs
   -> GatewayService.GetAvailableModels(group, platform)
   -> if group.models_list_config.enabled && models is non-empty:
-     -> filter configured model IDs against available models
-     -> fall back to platform default IDs only when no account-derived models exist
-     -> return the configured order in OpenAI-compatible list shape
+     -> keep configured IDs that match account-derived or platform-default IDs
+     -> return the configured order
   -> otherwise return account-derived models or platform defaults
 ```
 
 The group custom models list is presentation-only. It changes the response body
 of `GET /v1/models` for that group, but it must not affect model allow/block
 checks, model mapping, account scheduling, billing, usage recording, or the
-Claude-GPT bridge. OpenAI and Antigravity have curated discovery lists that are
-not expanded by account mappings; the group custom list can only narrow those
-curated lists. The admin candidate endpoint
-`GET /api/v1/admin/groups/:id/models-list-candidates` uses the same curated
-lists for OpenAI and Antigravity, and uses schedulable account model mappings
-or platform defaults for other platforms. Saving the setting persists only
-`groups.models_list_config`.
+Claude-GPT bridge. On catalog platforms the saved custom list may contain IDs
+that are not in the curated discovery catalog. The admin candidate endpoint
+`GET /api/v1/admin/groups/:id/models-list-candidates` returns `models` (curated
+discovery, builtin snapshots, whitelist entries, domestic coding IDs on OpenAI
+groups, Antigravity mapping keys, and that group's concrete account
+`model_mapping` keys) and `default_selected` (the curated subset). The group
+editor can also add concrete model IDs that are absent from `models`. Wildcard
+patterns are not model-list entries. Saving the setting persists only
+`groups.models_list_config`. A new custom list checks `default_selected` so
+enabling the feature does not publish the wider candidate set by itself.
 
 When OpenAI curated discovery grows, stale custom lists that exactly represent a
 previous full default set are treated as compatibility lists, not as an explicit
@@ -879,7 +881,7 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 | OpenAI endpoint capabilities | `credentials.openai_capabilities` restricts OpenAI API-key endpoint scheduling for chat completions and embeddings. Missing config means default capabilities are allowed. This is independent from Images endpoint opt-out and Codex image-generation bridge settings. |
 | OpenAI API-key Responses route | `extra.openai_responses_mode` is the admin override for both downstream `/v1/responses` and inbound `/v1/chat/completions`. `auto` follows `extra.openai_responses_supported`; `force_responses` uses native `/v1/responses` (and still converts inbound Chat Completions); `force_chat_completions` uses the raw `/v1/chat/completions` path (and the Responses-to-Chat bridge for inbound `/v1/responses`). Manual mode takes precedence over later probe results. Production midstream accounts that already probe as Responses-capable stay on the conversion path until an operator flips this switch. This does not change WebSocket mode, endpoint scheduling eligibility, model mapping, billing, or usage accounting. |
 | OpenAI Ops endpoint attribution | `inbound_endpoint` records the normalized downstream route. `upstream_endpoint` prefers the normalized runtime endpoint recorded immediately before OpenAI/Grok transport, then falls back to platform derivation when no upstream transport was selected. Responses-to-Chat and raw Chat errors therefore record `/v1/chat/completions`, while native HTTP/passthrough/WS paths record `/v1/responses` (including supported HTTP subpaths). Each upstream error event snapshots its attempt endpoint, so recovered failover rows use the last failed attempt rather than a later successful account's route. Every account-switch attempt overwrites the runtime value so a previous Chat route cannot leak into a later native route. The admin error list renders differing values as `inbound -> upstream`; the detail modal keeps them in separate fields. |
-| Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. For OpenAI and Antigravity it can only narrow the curated discovery lists, except stale full-default OpenAI lists are expanded to include newly curated GPT-5.6 models. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
+| Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. The saved list is the display source of truth and may include IDs outside the curated catalog. Stale full-default OpenAI lists are still expanded to the current catalog. The admin picker offers a wider candidate set plus hand-entered concrete IDs; a new list pre-checks only the curated subset. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
 | Codex model discovery metadata | OpenAI `/v1/models` response objects include optional Codex client capability fields so custom-provider model pickers can recognize Responses and Chat Completions support. These fields are not authoritative for backend scheduling or billing. |
 | Codex models manifest | OpenAI-group requests to `/v1/models?client_version=...` and `/backend-api/codex/models` proxy the selected OpenAI OAuth account's ChatGPT manifest. API-key accounts are ineligible for this discovery path; ETag/304 and an 8 MiB response limit are preserved. |
 | Codex remote compact V2 API-key fallback | Admin Settings KV `codex_compact_v2_fallback_enabled` defaults **on** (missing key or any value other than `"false"`). UI: 系统设置 → 网关转发 → 「Codex 远程压缩兜底」; read via `SettingService.IsCodexCompactV2FallbackEnabled` and the 60s gateway-forwarding process cache; not a public setting and not `config.yaml`. On API-key `/v1/responses` only, the gateway rewrites `compaction_trigger` to a summary user message, expands historical `compaction` / `compaction_summary` / `context_compaction` to a visible `<conversation_summary>` user message (from `summary` or a minted `sub2api_compact_v2:` `encrypted_content` payload), and if the upstream returns 0 compaction items it **buffers** the SSE/JSON first and synthesizes exactly one `type=compaction` with both `summary_text` and a non-empty `encrypted_content`. Codex `ResponseItem::Compaction` requires `encrypted_content: String`; omitting it makes the client skip the item (`got 0 from 0`). Upstream `compaction` / `context_compaction` is passed through. Empty text is an explicit failure. `AccountTypeOAuth`, `PlatformGrok`, Claude-GPT bridge, and WebSocket compact are never rewritten. |

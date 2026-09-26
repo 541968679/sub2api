@@ -3125,14 +3125,21 @@ const enBase = {
       },
       modelsList: {
         title: 'Custom /v1/models List',
-        hint: 'Only changes the model list shown by /v1/models for API keys in this group. Scheduling, allowlists, model mapping, and billing are unchanged.',
+        hint: 'Only changes the model list shown by /v1/models for API keys in this group. Scheduling, allowlists, model mapping, and billing are unchanged. Model IDs missing from the candidates can be added by hand.',
         selectedCount: '{selected} / {total} selected',
         selectAll: 'Select all',
         invert: 'Invert',
         loading: 'Loading model candidates...',
-        empty: 'No model candidates available',
+        empty: 'No candidates yet. Add a model ID below.',
         moveUp: 'Move up',
-        moveDown: 'Move down'
+        moveDown: 'Move down',
+        filterPlaceholder: 'Filter models',
+        filterEmpty: 'No matching models',
+        addCustom: 'Add model',
+        addCustomPlaceholder: 'Model ID, or several separated by commas or spaces',
+        addErrorEmpty: 'Enter a model ID',
+        addErrorInvalid: 'Model IDs cannot contain spaces or *',
+        addErrorDuplicate: 'Those model IDs are already in the list'
       },
       modelAllowlist: {
         title: 'Model allowlist',
@@ -3144,6 +3151,8 @@ const enBase = {
         empty: 'No model candidates. You can add a custom entry below.',
         moveUp: 'Move up',
         moveDown: 'Move down',
+        filterPlaceholder: 'Filter models',
+        filterEmpty: 'No matching models',
         addCustom: 'Add entry',
         addCustomPlaceholder: 'e.g. gpt-5.5-*',
         addErrorEmpty: 'Enter a model entry',

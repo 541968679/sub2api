@@ -52,7 +52,7 @@ type AdminService interface {
 	GetAllGroups(ctx context.Context) ([]Group, error)
 	GetAllGroupsByPlatform(ctx context.Context, platform string) ([]Group, error)
 	GetGroup(ctx context.Context, id int64) (*Group, error)
-	GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error)
+	GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) (ModelsListCandidateSet, error)
 	CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error)
 	UpdateGroup(ctx context.Context, id int64, input *UpdateGroupInput) (*Group, error)
 	DeleteGroup(ctx context.Context, id int64) error
@@ -1761,12 +1761,12 @@ func (s *adminServiceImpl) GetGroup(ctx context.Context, id int64) (*Group, erro
 	return s.groupRepo.GetByID(ctx, id)
 }
 
-func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
+func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) (ModelsListCandidateSet, error) {
 	platform = strings.TrimSpace(platform)
 	if id > 0 {
 		group, err := s.groupRepo.GetByIDLite(ctx, id)
 		if err != nil {
-			return nil, err
+			return ModelsListCandidateSet{}, err
 		}
 		if platform == "" {
 			platform = group.Platform
@@ -1776,32 +1776,15 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		platform = PlatformAnthropic
 	}
 
-	if candidates, ok := GatewayModelDiscoveryIDsForPlatform(platform); ok {
-		// OpenAI groups may pin Grok text models in custom lists (at least
-		// canonical grok-4.5, plus other Grok text IDs for operators).
-		if platform == PlatformOpenAI {
-			candidates = MergeModelIDsPreferFirst(candidates, GrokTextModelIDsForOpenAIGroupAccess())
-			candidates = MergeModelIDsPreferFirst(candidates, CNCodingModelIDsForOpenAIGroupAccess())
-		}
-		return normalizeModelsListCandidates(candidates), nil
-	}
-
-	candidates := make([]string, 0)
+	var accountModelIDs []string
 	if s.accountRepo != nil && id > 0 {
 		accounts, err := s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, id, platform)
 		if err != nil {
-			return nil, err
+			return ModelsListCandidateSet{}, err
 		}
-		for _, account := range accounts {
-			for model := range account.GetModelMapping() {
-				candidates = append(candidates, model)
-			}
-		}
+		accountModelIDs = collectConcreteModelIDsFromAccounts(accounts)
 	}
-	if len(candidates) == 0 {
-		candidates = defaultModelsListCandidatesForPlatform(platform)
-	}
-	return normalizeModelsListCandidates(candidates), nil
+	return buildGroupModelsListCandidates(platform, accountModelIDs), nil
 }
 
 func defaultModelsListCandidatesForPlatform(platform string) []string {

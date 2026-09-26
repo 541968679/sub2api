@@ -93,23 +93,32 @@ export async function getById(id: number): Promise<AdminGroup> {
   return data
 }
 
+export interface ModelsListCandidates {
+  models: string[]
+  /** Curated IDs to check when the group has no saved custom list. Omitted by older servers. */
+  defaultSelected?: string[]
+}
+
 /**
  * Get candidate model IDs for a group's custom /v1/models list.
  * @param id - Group ID, or 0 for create form candidates by platform
  * @param platform - Optional platform override
- * @returns Candidate model IDs
+ * @returns Selectable model IDs plus the curated default selection
  */
 export async function getModelsListCandidates(
   id: number,
   platform?: GroupPlatform
-): Promise<string[]> {
-  const { data } = await apiClient.get<{ models: string[] }>(
+): Promise<ModelsListCandidates> {
+  const { data } = await apiClient.get<{ models?: string[]; default_selected?: string[] }>(
     `/admin/groups/${id}/models-list-candidates`,
     {
       params: platform ? { platform } : undefined
     }
   )
-  return data.models || []
+  return {
+    models: data.models || [],
+    defaultSelected: data.default_selected
+  }
 }
 
 /**

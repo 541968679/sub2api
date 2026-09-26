@@ -2981,14 +2981,21 @@ const zhBase = {
       },
       modelsList: {
         title: '/v1/models 自定义列表',
-        hint: '只影响该分组 API Key 调用 /v1/models 时展示的模型列表，不影响调度、白名单、模型映射或计费。',
+        hint: '只影响该分组 API Key 调用 /v1/models 时展示的模型列表，不影响调度、白名单、模型映射或计费。候选之外的模型 ID 可以手工添加。',
         selectedCount: '已选 {selected} / {total}',
         selectAll: '全选',
         invert: '反选',
         loading: '加载模型候选中...',
-        empty: '暂无可用模型候选',
+        empty: '暂无候选模型，可在下方手工添加模型 ID',
         moveUp: '上移',
-        moveDown: '下移'
+        moveDown: '下移',
+        filterPlaceholder: '筛选模型',
+        filterEmpty: '没有匹配的模型',
+        addCustom: '添加模型',
+        addCustomPlaceholder: '输入模型 ID，多个用逗号或空格分隔',
+        addErrorEmpty: '请输入模型 ID',
+        addErrorInvalid: '模型 ID 不能包含空格或通配符 *',
+        addErrorDuplicate: '这些模型 ID 已在列表中'
       },
       modelAllowlist: {
         title: '模型白名单',
@@ -3000,6 +3007,8 @@ const zhBase = {
         empty: '暂无候选模型，可在下方手工添加条目',
         moveUp: '上移',
         moveDown: '下移',
+        filterPlaceholder: '筛选模型',
+        filterEmpty: '没有匹配的模型',
         addCustom: '添加条目',
         addCustomPlaceholder: '例如 gpt-5.5-*',
         addErrorEmpty: '请输入模型条目',

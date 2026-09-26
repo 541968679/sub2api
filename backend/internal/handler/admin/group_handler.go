@@ -350,7 +350,7 @@ func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
 		return
 	}
 
-	models, err := h.adminService.GetGroupModelsListCandidates(
+	candidates, err := h.adminService.GetGroupModelsListCandidates(
 		c.Request.Context(),
 		groupID,
 		c.Query("platform"),
@@ -359,7 +359,10 @@ func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"models": models})
+	response.Success(c, gin.H{
+		"models":           candidates.Models,
+		"default_selected": candidates.DefaultSelected,
+	})
 }
 
 // Create handles creating a new group

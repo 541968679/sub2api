@@ -1,3 +1,25 @@
+## 2026-09-26 - feat: wider group /v1/models picker
+
+### What
+- Group custom `/v1/models` editing can add concrete model IDs that are not in the curated catalog, including several at once.
+- Candidate checkboxes now also include builtin snapshots (image, Codex, dated Claude aliases), domestic IDs missing from the OpenAI short list, Antigravity mapping keys, whitelist entries, and the group's account mapping keys. Wildcards stay out.
+- A new list still pre-checks only the previous curated set. The extra IDs start unchecked, and the list can be filtered.
+
+### Why
+The picker only offered the short discovery catalog, so operators could not publish model IDs the gateway already accepts in `models_list_config`.
+
+### Affected files
+`backend/internal/service/models_list_candidates.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/handler/admin/group_handler.go`,
+`frontend/src/components/admin/group/GroupModelsListConfigPanel.vue`,
+`frontend/src/views/admin/GroupsView.vue`,
+`frontend/src/views/admin/groupsModelsList.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-25 - deploy: production v0.1.301
 
 ### What

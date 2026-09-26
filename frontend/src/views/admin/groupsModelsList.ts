@@ -34,6 +34,7 @@ export function resetModelsListState(
 export function setModelsListCandidates(
   state: ModelsListState,
   candidates: string[],
+  defaultSelected?: string[] | null,
 ): void {
   const normalizedCandidates = normalizeModels(candidates);
   const currentSelected = new Set(
@@ -42,6 +43,8 @@ export function setModelsListCandidates(
   const currentKnown = new Set(state.items.map((item) => item.id));
   const savedSelected = new Set(state.savedModels);
   const hasExistingItems = state.items.length > 0;
+  const defaultSelectedSet =
+    defaultSelected == null ? null : new Set(normalizeModels(defaultSelected));
   const selectionOrder = normalizeModels([
     ...state.items.map((item) => item.id),
     ...state.savedModels,
@@ -53,7 +56,9 @@ export function setModelsListCandidates(
       ? currentSelected.has(id)
       : state.savedModels.length > 0
         ? savedSelected.has(id)
-        : normalizedCandidates.includes(id);
+        : defaultSelectedSet
+          ? defaultSelectedSet.has(id)
+          : normalizedCandidates.includes(id);
 
     return {
       id,
@@ -64,6 +69,57 @@ export function setModelsListCandidates(
           state.savedModels.length === 0),
     };
   });
+}
+
+export type ModelsListAddError = "empty" | "invalid" | "duplicate";
+
+export function addCustomModelsListItems(
+  state: ModelsListState,
+  raw: string,
+): ModelsListAddError | null {
+  const parts = raw
+    .split(/[\s,;，、]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return "empty";
+  }
+  if (parts.some((part) => !isConcreteModelID(part))) {
+    return "invalid";
+  }
+
+  let added = 0;
+  const seen = new Set(state.items.map((item) => item.id));
+  for (const part of parts) {
+    const existing = state.items.find((item) => item.id === part);
+    if (existing) {
+      if (!existing.selected) {
+        existing.selected = true;
+        added += 1;
+      }
+      continue;
+    }
+    if (seen.has(part)) {
+      continue;
+    }
+    seen.add(part);
+    state.items.push({ id: part, selected: true });
+    added += 1;
+  }
+  if (added > 0) {
+    state.items = state.items.slice();
+  }
+  return added === 0 ? "duplicate" : null;
+}
+
+function isConcreteModelID(id: string): boolean {
+  if (id.length === 0 || id.length > 128) {
+    return false;
+  }
+  if (id.includes("*") || /\s/.test(id)) {
+    return false;
+  }
+  return /[A-Za-z0-9]/.test(id);
 }
 
 export function buildModelsListConfig(state: ModelsListState): ModelsListConfig {
