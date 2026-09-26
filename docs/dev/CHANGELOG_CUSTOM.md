@@ -1,3 +1,17 @@
+## 2026-09-26 - deploy: production v0.1.303
+
+### What
+- Production main service is `ghcr.io/541968679/sub2api:0.1.303` (`latest`), digest `sha256:de666b07b50f5735d617bd8c490271dc9d0893a57aa76a10b014630c731565e6`, revision `f50224079`, healthy. `/health` ok.
+- Release run https://github.com/541968679/sub2api/actions/runs/36250107910. VERSION sync `16321ef1e`. Only the main service was updated (`--skip-a2 --skip-invokeai`).
+- Group custom `/v1/models` lists now apply on CCS picker groups. Auth snapshot v13 carries `models_list_config`.
+
+### Why
+v0.1.302 saved the list but `/v1/models` still returned the upstream union.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-26 - fix: honor custom /v1/models list on CCS picker groups
 
 ### What
