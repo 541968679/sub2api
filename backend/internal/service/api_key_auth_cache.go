@@ -101,6 +101,10 @@ type APIKeyAuthGroupSnapshot struct {
 	CcsImportModelPickerEnabled bool                              `json:"ccs_import_model_picker_enabled,omitempty"`
 	CcsImportDefaultModel       string                            `json:"ccs_import_default_model,omitempty"`
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+	// ModelsListConfig is the custom GET /v1/models list. It must ride in the
+	// auth snapshot; otherwise cached keys keep serving the unfiltered catalog.
+	ModelsListConfig GroupModelsListConfig `json:"models_list_config,omitempty"`
+	ModelAllowlist   GroupModelAllowlist   `json:"model_allowlist,omitempty"`
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`

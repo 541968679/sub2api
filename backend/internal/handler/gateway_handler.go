@@ -992,10 +992,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 // Models handles listing available models
 // GET /v1/models
-// Groups with CCS import model picker enabled return the live upstream union
-// (same IDs as ListCcsImportModels). Catalog platforms otherwise return the
-// curated display list, then the group custom-list filter. Other platforms
-// still union account mapping keys and fall back to hardcoded defaults.
+// An enabled group custom list is returned as-is for catalog platforms, even
+// when the CCS import picker is on. Otherwise groups with that picker return
+// the live upstream union. Other catalog platforms return the curated display
+// list. Non-catalog platforms still union account mapping keys and fall back
+// to hardcoded defaults, then filter by the custom list.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 
@@ -1008,6 +1009,20 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
 		platform = forcedPlatform
+	}
+
+	// A saved custom list is the display source of truth, including when the
+	// group also has the CCS import picker on. That picker otherwise replaces
+	// /v1/models with the live upstream union.
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
+		if _, catalog := service.GatewayModelDiscoveryIDsForPlatform(platform); catalog {
+			ids := service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
+			if apiKey.Group.ModelAllowlistEnabled() {
+				ids = apiKey.Group.ModelAllowlist.FilterForListing(ids)
+			}
+			writeModelsListForPlatform(c, platform, ids)
+			return
+		}
 	}
 
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CcsImportModelPickerEnabled {

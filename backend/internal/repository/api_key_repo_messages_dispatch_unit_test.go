@@ -105,3 +105,37 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesCcsImportPickerFields_SQLite(
 	require.True(t, got.Group.CcsImportModelPickerEnabled)
 	require.Equal(t, "glm-5.3", got.Group.CcsImportDefaultModel)
 }
+
+func TestAPIKeyRepository_GetByKeyForAuth_PreservesModelsListConfig_SQLite(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "getbykey-auth-models-list@test.com")
+
+	group, err := client.Group.Create().
+		SetName("g-auth-models-list").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetSubscriptionType(service.SubscriptionTypeStandard).
+		SetRateMultiplier(1).
+		SetModelsListConfig(service.GroupModelsListConfig{
+			Enabled: true,
+			Models:  []string{"deepseek-v4-flash", "deepseek-v4-pro"},
+		}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-models-list",
+		Name:    "Models List Key",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+
+	got, err := repo.GetByKeyForAuth(ctx, key.Key)
+	require.NoError(t, err)
+	require.NotNil(t, got.Group)
+	require.True(t, got.Group.CustomModelsListEnabled())
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, got.Group.ModelsListConfig.Models)
+}

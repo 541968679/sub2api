@@ -111,6 +111,38 @@ func TestGatewayHandlerModels_PickerEnabledSkipsFailedAccountAndKeepsDefault(t *
 	require.Equal(t, []string{"glm-5.3"}, ids)
 }
 
+func TestGatewayHandlerModels_PickerEnabledCustomListReplacesUpstreamUnion(t *testing.T) {
+	groupID := int64(49)
+	svc := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.SetAccountRepo(&pickerAccountRepoStub{
+		accounts: []service.Account{
+			{ID: 10, Platform: service.PlatformOpenAI},
+		},
+	})
+	svc.SetUpstreamModelsFetcher(pickerFetcherStub{
+		byID: map[int64][]string{
+			10: {"kimi-k2.5", "glm-5.3", "deepseek-v4-pro"},
+		},
+	})
+
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:                          groupID,
+			Platform:                    service.PlatformOpenAI,
+			CcsImportModelPickerEnabled: true,
+			CcsImportDefaultModel:       "glm-5.3",
+			ModelsListConfig: service.GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{"deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4.1-flash"},
+			},
+		},
+	}
+
+	ids := runGatewayModelsForTestWithService(t, apiKey, svc)
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4.1-flash"}, ids)
+}
+
 func TestGatewayHandlerModels_PickerEnabledWithoutFetcherKeepsDefaultNotGPTSeed(t *testing.T) {
 	groupID := int64(46)
 	apiKey := &service.APIKey{

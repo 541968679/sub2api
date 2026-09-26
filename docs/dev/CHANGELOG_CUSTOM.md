@@ -1,3 +1,20 @@
+## 2026-09-26 - fix: honor custom /v1/models list on CCS picker groups
+
+### What
+- Catalog groups with a custom `/v1/models` list now return that list even when CCS import model picker is enabled.
+- API-key auth loads `groups.models_list_config` and stores it in snapshot v13, so cached keys stop serving the unfiltered catalog.
+
+### Why
+Group 49 saved three DeepSeek IDs, but the picker path replaced `/v1/models` with the upstream union, and the auth query never selected the custom list.
+
+### Affected files
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/repository/api_key_repo.go`,
+`backend/internal/service/api_key_auth_cache.go`,
+`backend/internal/service/api_key_auth_cache_impl.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-26 - deploy: production v0.1.302
 
 ### What

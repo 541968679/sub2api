@@ -353,8 +353,9 @@ func RegisterGatewayRoutes(
 // omit that query param but still send Codex User-Agent / Originator headers;
 // without this branch they only get the OpenAI list and hide custom Grok slugs.
 //
-// Groups with CCS import model picker enabled skip this divert so GET /v1/models
-// always returns the live upstream union instead of the official GPT catalog.
+// Groups with CCS import model picker enabled skip this divert. GET /v1/models
+// then uses the group custom list when that is enabled, otherwise the live
+// upstream union, instead of the official GPT catalog.
 func shouldServeCodexModelsManifest(c *gin.Context) bool {
 	if groupCcsImportModelPickerEnabled(c) {
 		return false

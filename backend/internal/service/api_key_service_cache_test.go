@@ -311,6 +311,47 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesCcsImportPickerFields(t *testi
 	require.Equal(t, "glm-5.3", roundTrip.Group.CcsImportDefaultModel)
 }
 
+func TestAPIKeyService_SnapshotRoundTrip_PreservesModelsListConfig(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(49)
+	apiKey := &APIKey{
+		ID:      1,
+		UserID:  2,
+		GroupID: &groupID,
+		Key:     "k-models-list",
+		Status:  StatusActive,
+		User: &User{
+			ID:          2,
+			Status:      StatusActive,
+			Role:        RoleUser,
+			Balance:     10,
+			Concurrency: 3,
+		},
+		Group: &Group{
+			ID:       groupID,
+			Platform: PlatformOpenAI,
+			Status:   StatusActive,
+			ModelsListConfig: GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{"deepseek-v4-flash", "deepseek-v4-pro"},
+			},
+			ModelAllowlist: GroupModelAllowlist{
+				Enabled: true,
+				Models:  []string{"deepseek-v4-*"},
+			},
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.NotNil(t, roundTrip.Group)
+	require.True(t, roundTrip.Group.CustomModelsListEnabled())
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, roundTrip.Group.ModelsListConfig.Models)
+	require.True(t, roundTrip.Group.ModelAllowlistEnabled())
+	require.Equal(t, []string{"deepseek-v4-*"}, roundTrip.Group.ModelAllowlist.Models)
+}
+
 func TestAPIKeyService_SnapshotRoundTrip_PreservesAllowImageGeneration(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)

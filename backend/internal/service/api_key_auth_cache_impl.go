@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 12 // v12: include CCS import picker fields for GET /v1/models
+const apiKeyAuthSnapshotVersion = 13 // v13: include custom /v1/models list and model allowlist
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -286,6 +286,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			CcsImportModelPickerEnabled:     apiKey.Group.CcsImportModelPickerEnabled,
 			CcsImportDefaultModel:           apiKey.Group.CcsImportDefaultModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
+			ModelsListConfig:                apiKey.Group.ModelsListConfig,
+			ModelAllowlist:                  apiKey.Group.ModelAllowlist,
 			RPMLimit:                        apiKey.Group.RPMLimit,
 			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
 			PeakStart:                       apiKey.Group.PeakStart,
@@ -374,6 +376,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			CcsImportModelPickerEnabled:     snapshot.Group.CcsImportModelPickerEnabled,
 			CcsImportDefaultModel:           snapshot.Group.CcsImportDefaultModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
+			ModelsListConfig:                snapshot.Group.ModelsListConfig,
+			ModelAllowlist:                  snapshot.Group.ModelAllowlist,
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,
 			PeakStart:                       snapshot.Group.PeakStart,
