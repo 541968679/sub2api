@@ -855,7 +855,7 @@ const zhBase = {
     providerHints: {
       anthropic: '选择 Anthropic / Claude 的可用分组',
       openai: '选择 OpenAI / GPT 的可用分组',
-      domestic: '包含 DeepSeek、Kimi、智谱 GLM、MiniMax，以及挂在 OpenAI 平台上的国产分组',
+      domestic: '包含 DeepSeek、Kimi、智谱 GLM、MiniMax。OpenAI 分组只有在自定义模型列表已开启且全部属于同一家时才会出现在这里',
       other: '包含 Gemini、Grok、Antigravity'
     },
     domesticFamilies: {
@@ -863,9 +863,9 @@ const zhBase = {
       kimi: 'Kimi',
       deepseek: 'DeepSeek',
       minimax: 'MiniMax',
-      mixed: '国产聚合'
+      mixed: '国产模型'
     },
-    domesticMixedSection: '国产聚合',
+    domesticMixedSection: '国产模型',
     selectGroup: '选择分组',
     statusLabel: '状态',
     selectStatus: '选择状态',

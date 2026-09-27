@@ -12,8 +12,9 @@ export interface KeyGroupClassificationInput {
   models_list_config?: { enabled?: boolean; models?: string[] } | null
 }
 
-// Classify by the configured upstream platform, never by a group's display name,
-// except OpenAI-platform groups that are actually domestic offerings.
+// Platform decides the button. An OpenAI group moves to a domestic family only
+// when its enabled custom /v1/models list is entirely that family. Names and
+// the CCS import default are not used; both mislabel aggregator groups.
 const PROVIDER_BY_PLATFORM: Record<GroupPlatform, KeyGroupProvider> = {
   anthropic: 'anthropic',
   openai: 'openai',
@@ -57,24 +58,7 @@ export function domesticFamilyOf(
   input: KeyGroupClassificationInput
 ): DomesticFamily | null {
   if (input.platform !== 'openai') return null
-  return (
-    familyFromName(input.name || '') ||
-    familyFromModelID(input.ccs_import_default_model || '') ||
-    familyFromEnabledModelList(input.models_list_config)
-  )
-}
-
-function familyFromName(name: string): DomesticFamily | null {
-  const text = name.toLowerCase()
-  const hits: DomesticFamily[] = []
-  if (text.includes('deepseek')) hits.push('deepseek')
-  if (/kimi|moonshot|月之暗面/.test(text)) hits.push('kimi')
-  if (/glm|智谱/.test(text)) hits.push('glm')
-  if (text.includes('minimax')) hits.push('minimax')
-  if (hits.length > 1 || text.includes('聚合')) return 'mixed'
-  if (hits.length === 1) return hits[0]
-  if (text.includes('国产')) return 'mixed'
-  return null
+  return familyFromEnabledModelList(input.models_list_config)
 }
 
 function familyFromModelID(modelID: string): DomesticFamily | null {

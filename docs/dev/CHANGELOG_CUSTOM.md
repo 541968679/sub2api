@@ -1,3 +1,19 @@
+## 2026-09-27 - fix: stop guessing domestic key groups from names
+
+### What
+- OpenAI groups are no longer filed by display name, the word 聚合, or the CCS import default model.
+- A group leaves the OpenAI button only when its custom /v1/models list is enabled and every ID belongs to one domestic vendor. A mixed list is labeled 国产模型, not a guessed vendor.
+
+### Why
+Names such as “国产模型：聚合渠道” do not reliably say which vendor the group serves.
+
+### Affected files
+`frontend/src/utils/keyGroupProviders.ts`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-27 - ui: separate OpenAI-hosted domestic groups in key picker
 
 ### What

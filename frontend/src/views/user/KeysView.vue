@@ -1588,7 +1588,7 @@ const platformSectionLabel = (platform: string) => {
 }
 
 const domesticTagLabel = (family?: DomesticFamily | null) =>
-  family ? t(`keys.domesticFamilies.${family}`) : undefined
+  family && family !== 'mixed' ? t(`keys.domesticFamilies.${family}`) : undefined
 
 const domesticTag = (group: {
   platform: GroupPlatform
