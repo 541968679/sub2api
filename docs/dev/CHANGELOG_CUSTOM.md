@@ -1,34 +1,18 @@
-## 2026-09-27 - fix: stop guessing domestic key groups from names
+## 2026-09-27 - revert: keep OpenAI-platform groups on the OpenAI key button
 
 ### What
-- OpenAI groups are no longer filed by display name, the word 聚合, or the CCS import default model.
-- A group leaves the OpenAI button only when its custom /v1/models list is enabled and every ID belongs to one domestic vendor. A mixed list is labeled 国产模型, not a guessed vendor.
+- Removed the attempt to move OpenAI-platform groups into 国产模型 based on name, CCS default model, or custom model list.
+- A group's key-picker button follows its platform again. OpenAI-platform groups stay under OpenAI.
 
 ### Why
-Names such as “国产模型：聚合渠道” do not reliably say which vendor the group serves.
+Guessing a vendor from the group name or model list was unreliable and harder to use.
 
 ### Affected files
 `frontend/src/utils/keyGroupProviders.ts`,
-`frontend/src/views/user/KeysView.vue`,
-`frontend/src/i18n/locales/zh.ts`,
-`frontend/src/i18n/locales/en.ts`,
-this changelog.
-
-## 2026-09-27 - ui: separate OpenAI-hosted domestic groups in key picker
-
-### What
-- OpenAI-platform groups whose name, CCS default model, or enabled custom model list is domestic now appear under 国产模型, not OpenAI.
-- Those rows show a family tag (智谱 GLM, Kimi, DeepSeek, MiniMax, or 国产聚合) and their own section. The stored platform stays OpenAI.
-
-### Why
-Domestic relay groups are still created as platform=openai, so the provider buttons could not tell them apart from GPT groups.
-
-### Affected files
-`frontend/src/utils/keyGroupProviders.ts`,
-`frontend/src/utils/selectOptionGroups.ts`,
 `frontend/src/views/user/KeysView.vue`,
 `frontend/src/components/common/GroupBadge.vue`,
 `frontend/src/components/common/GroupOptionItem.vue`,
+`frontend/src/utils/selectOptionGroups.ts`,
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
 this changelog.

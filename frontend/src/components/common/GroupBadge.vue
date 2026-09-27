@@ -9,12 +9,6 @@
     <PlatformIcon v-if="platform" :platform="platform" size="sm" />
     <!-- Group name -->
     <span class="truncate">{{ name }}</span>
-    <span
-      v-if="tag"
-      class="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[10px] font-semibold leading-none text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-    >
-      {{ tag }}
-    </span>
     <!-- Right side label -->
     <span v-if="showLabel" :class="labelClass">
       <template v-if="hasCustomRate">
@@ -43,7 +37,6 @@ import PlatformIcon from './PlatformIcon.vue'
 interface Props {
   name: string
   platform?: GroupPlatform
-  tag?: string
   subscriptionType?: SubscriptionType
   rateMultiplier?: number
   userRateMultiplier?: number | null // 用户专属倍率

@@ -28,13 +28,13 @@ export function isSelectGroupHeader(option: unknown): option is PlatformSectionH
   return !!option && typeof option === 'object' && (option as { kind?: unknown }).kind === 'group'
 }
 
-export function sectionsByPlatform<T extends { platform?: string | null; sectionPlatform?: string | null }>(
+export function sectionsByPlatform<T extends { platform?: string | null }>(
   items: readonly T[],
   platformLabel: (platform: string) => string
 ): PlatformSection<T>[] {
   const buckets = new Map<string, T[]>()
   for (const item of items) {
-    const key = item.sectionPlatform || item.platform || 'other'
+    const key = item.platform || 'other'
     const bucket = buckets.get(key)
     if (bucket) bucket.push(item)
     else buckets.set(key, [item])

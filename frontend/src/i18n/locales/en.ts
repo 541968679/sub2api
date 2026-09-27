@@ -859,17 +859,9 @@ const enBase = {
     providerHints: {
       anthropic: 'Choose an available Anthropic / Claude group',
       openai: 'Choose an available OpenAI / GPT group',
-      domestic: 'Includes DeepSeek, Kimi, Zhipu GLM and MiniMax. An OpenAI group appears here only when its custom model list is on and every ID belongs to one vendor',
+      domestic: 'Includes DeepSeek, Kimi, Zhipu GLM and MiniMax',
       other: 'Includes Gemini, Grok and Antigravity'
     },
-    domesticFamilies: {
-      glm: 'Zhipu GLM',
-      kimi: 'Kimi',
-      deepseek: 'DeepSeek',
-      minimax: 'MiniMax',
-      mixed: 'Domestic models'
-    },
-    domesticMixedSection: 'Domestic models',
     selectGroup: 'Select a group',
     statusLabel: 'Status',
     selectStatus: 'Select status',
