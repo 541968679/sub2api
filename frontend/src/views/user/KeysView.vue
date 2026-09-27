@@ -78,8 +78,7 @@
               </div>
             </div>
             <EndpointPopover
-              v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
-              :api-base-url="publicSettings?.api_base_url || ''"
+              :api-base-url="unifiedApiEndpoint"
               :custom-endpoints="publicSettings?.custom_endpoints || []"
             />
           </div>
@@ -1043,7 +1042,7 @@
     <UseKeyModal
       :show="showUseKeyModal"
       :api-key="selectedKey?.key || ''"
-      :base-url="publicSettings?.api_base_url || ''"
+      :base-url="unifiedApiEndpoint"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
@@ -1266,6 +1265,7 @@ import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import { resolveUnifiedApiEndpoint } from '@/utils/apiEndpoint'
 import { platformBadgeLightClass } from '@/utils/platformColors'
 import {
   KEY_GROUP_PROVIDERS,
@@ -1508,6 +1508,12 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const unifiedApiEndpoint = computed(() =>
+  resolveUnifiedApiEndpoint(
+    publicSettings.value?.api_base_url,
+    typeof window === 'undefined' ? '' : window.location.origin
+  )
+)
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
@@ -2152,7 +2158,7 @@ const executeCcsImport = (
   clientType: CcSwitchClientType,
   selectedCodexModel?: string
 ) => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const baseUrl = unifiedApiEndpoint.value || window.location.origin
   const platform = row.group?.platform || 'anthropic'
 
   const usageScript = `({

@@ -1,3 +1,16 @@
+## 2026-09-27 - ui: show the relay endpoint on the API keys page
+
+### What
+- The API keys page always shows a copyable endpoint. A configured API base URL is used when set; otherwise the current site address is shown.
+
+### Why
+The endpoint chips were hidden whenever the admin API base URL was empty, so users could not copy the relay address from the keys page.
+
+### Affected files
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/utils/apiEndpoint.ts`,
+this changelog.
+
 ## 2026-09-27 - revert: keep OpenAI-platform groups on the OpenAI key button
 
 ### What
