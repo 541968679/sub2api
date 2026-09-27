@@ -8,7 +8,9 @@ const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'Ke
 
 describe('KeysView group picker sections', () => {
   it('sections the create-key select and the change-group menu by platform', () => {
-    expect(source).toContain(':options="groupPickerSelectOptions"')
+    expect(source).toContain(':options="formGroupOptions"')
+    expect(source).toContain('createProviderOptions')
+    expect(source).toContain('groupPickerSelectOptions')
     expect(source).toContain('v-for="section in filteredGroupSections"')
     expect(source).toContain('isSelectGroupHeader(option)')
     expect(source).toContain('sectionsByPlatform')

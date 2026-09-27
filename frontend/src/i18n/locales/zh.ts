@@ -368,7 +368,7 @@ const zhBase = {
     announcements: '公告',
     apiKeys: 'API接入',
     usage: '使用记录',
-    modelPricing: '计费规则',
+    modelPricing: '计费规则（模型广场）',
     pageContent: '页面内容',
     redeem: '兑换',
     affiliate: '邀请返利',
@@ -845,6 +845,19 @@ const zhBase = {
     nameLabel: '名称',
     namePlaceholder: '我的 API 密钥',
     groupLabel: '分组',
+    providerLabel: '厂商',
+    providers: {
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+      domestic: '国产模型',
+      other: '其他'
+    },
+    providerHints: {
+      anthropic: '选择 Anthropic / Claude 的可用分组',
+      openai: '选择 OpenAI / GPT 的可用分组',
+      domestic: '包含 DeepSeek、Kimi、智谱 GLM、MiniMax',
+      other: '包含 Gemini、Grok、Antigravity'
+    },
     selectGroup: '选择分组',
     statusLabel: '状态',
     selectStatus: '选择状态',

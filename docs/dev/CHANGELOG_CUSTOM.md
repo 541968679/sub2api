@@ -1,3 +1,19 @@
+## 2026-09-27 - ui: key provider buttons and billing nav label
+
+### What
+- The user sidebar item for `/pricing` is labeled 计费规则（模型广场）.
+- Creating an API key picks a provider with four buttons (Anthropic, OpenAI, 国产模型, 其他), then the group menu lists only that provider's groups.
+
+### Why
+The pricing entry should be recognizable as the model plaza billing page, and the create-key dialog should match upstream Sub2API's provider switch instead of one mixed dropdown.
+
+### Affected files
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/utils/keyGroupProviders.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-26 - deploy: production v0.1.303
 
 ### What

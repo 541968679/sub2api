@@ -369,7 +369,7 @@ const enBase = {
     announcements: 'Announcements',
     apiKeys: 'API Access',
     usage: 'Usage',
-    modelPricing: 'Billing Rules',
+    modelPricing: 'Billing Rules (Model Plaza)',
     pageContent: 'Page Content',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
@@ -849,6 +849,19 @@ const enBase = {
     nameLabel: 'Name',
     namePlaceholder: 'My API Key',
     groupLabel: 'Group',
+    providerLabel: 'Provider',
+    providers: {
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+      domestic: 'Chinese AI',
+      other: 'Other'
+    },
+    providerHints: {
+      anthropic: 'Choose an available Anthropic / Claude group',
+      openai: 'Choose an available OpenAI / GPT group',
+      domestic: 'Includes DeepSeek, Kimi, Zhipu GLM and MiniMax',
+      other: 'Includes Gemini, Grok and Antigravity'
+    },
     selectGroup: 'Select a group',
     statusLabel: 'Status',
     selectStatus: 'Select status',
