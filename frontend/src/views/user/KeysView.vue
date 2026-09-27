@@ -146,6 +146,7 @@
                   v-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
+                  :tag="domesticTag(row.group)"
                   :subscription-type="row.group.subscription_type"
                   :rate-multiplier="row.group.rate_multiplier"
                   :user-rate-multiplier="getUserDisplayRate(row.group.id)"
@@ -525,6 +526,7 @@
                 v-if="option && !isSelectGroupHeader(option)"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :tag="domesticTagLabel((option as unknown as GroupOption).domesticFamily)"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
@@ -544,6 +546,7 @@
                 v-else
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :tag="domesticTagLabel((option as unknown as GroupOption).domesticFamily)"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
@@ -1209,6 +1212,7 @@
               <GroupOptionItem
                 :name="option.label"
                 :platform="option.platform"
+                :tag="domesticTagLabel(option.domesticFamily)"
                 :subscription-type="option.subscriptionType"
                 :rate-multiplier="option.rate"
                 :user-rate-multiplier="option.userRate"
@@ -1270,7 +1274,10 @@ import { platformBadgeLightClass } from '@/utils/platformColors'
 import {
   KEY_GROUP_PROVIDERS,
   KEY_GROUP_PROVIDER_ICONS,
+  domesticFamilyOf,
+  domesticSectionPlatform,
   getKeyGroupProvider,
+  type DomesticFamily,
   type KeyGroupProvider
 } from '@/utils/keyGroupProviders'
 import {
@@ -1308,6 +1315,8 @@ interface GroupOption {
   peakRateMultiplier: number
   subscriptionType: SubscriptionType
   platform: GroupPlatform
+  sectionPlatform?: string
+  domesticFamily?: DomesticFamily | null
 }
 
 const appStore = useAppStore()
@@ -1572,10 +1581,21 @@ const statusOptions = computed(() => [
 ])
 
 const platformSectionLabel = (platform: string) => {
+  if (platform === 'domestic-mixed') return t('keys.domesticMixedSection')
   const key = `monitorCommon.providers.${platform}`
   const translated = t(key)
   return translated === key ? platform : translated
 }
+
+const domesticTagLabel = (family?: DomesticFamily | null) =>
+  family ? t(`keys.domesticFamilies.${family}`) : undefined
+
+const domesticTag = (group: {
+  platform: GroupPlatform
+  name?: string | null
+  ccs_import_default_model?: string | null
+  models_list_config?: { enabled?: boolean; models?: string[] } | null
+}) => domesticTagLabel(domesticFamilyOf(group))
 
 const asGroupPlatform = (platform: string): GroupPlatform => platform as GroupPlatform
 
@@ -1633,6 +1653,8 @@ const groupOptions = computed(() =>
     userRate: getUserDisplayRate(group.id),
     subscriptionType: group.subscription_type,
     platform: group.platform,
+    sectionPlatform: domesticSectionPlatform(group) ?? undefined,
+    domesticFamily: domesticFamilyOf(group),
     peakRateEnabled: group.peak_rate_enabled,
     peakStart: group.peak_start,
     peakEnd: group.peak_end,
@@ -1652,14 +1674,15 @@ const createProvider = ref<KeyGroupProvider>('anthropic')
 const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => ({
   value,
   label: t(`keys.providers.${value}`),
-  count: groups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
+  count: groups.value.filter((group) => getKeyGroupProvider(group) === value).length
 })))
 
 const formGroupOptions = computed<SelectOption[]>(() => {
   if (showEditModal.value) return groupPickerSelectOptions.value
-  const filtered = groupOptions.value.filter(
-    (group) => getKeyGroupProvider(group.platform) === createProvider.value
-  )
+  const filtered = groupOptions.value.filter((group) => {
+    const provider = group.domesticFamily ? 'domestic' : getKeyGroupProvider(group.platform)
+    return provider === createProvider.value
+  })
   return flattenPlatformSections(
     sectionsByPlatform(filtered, platformSectionLabel)
   ) as unknown as SelectOption[]

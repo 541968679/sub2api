@@ -1,3 +1,22 @@
+## 2026-09-27 - ui: separate OpenAI-hosted domestic groups in key picker
+
+### What
+- OpenAI-platform groups whose name, CCS default model, or enabled custom model list is domestic now appear under 国产模型, not OpenAI.
+- Those rows show a family tag (智谱 GLM, Kimi, DeepSeek, MiniMax, or 国产聚合) and their own section. The stored platform stays OpenAI.
+
+### Why
+Domestic relay groups are still created as platform=openai, so the provider buttons could not tell them apart from GPT groups.
+
+### Affected files
+`frontend/src/utils/keyGroupProviders.ts`,
+`frontend/src/utils/selectOptionGroups.ts`,
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/components/common/GroupBadge.vue`,
+`frontend/src/components/common/GroupOptionItem.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-27 - ui: key provider buttons and billing nav label
 
 ### What

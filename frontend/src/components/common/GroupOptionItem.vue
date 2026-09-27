@@ -9,6 +9,7 @@
       <GroupBadge
         :name="name"
         :platform="platform"
+        :tag="tag"
         :subscription-type="subscriptionType"
         :show-rate="false"
         class="groupOptionItemBadge"
@@ -69,6 +70,7 @@ import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 interface Props {
   name: string
   platform: GroupPlatform
+  tag?: string
   subscriptionType?: SubscriptionType
   rateMultiplier?: number
   userRateMultiplier?: number | null
