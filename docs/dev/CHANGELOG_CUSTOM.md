@@ -1,3 +1,16 @@
+## 2026-09-28 - fix: non-stream raw chat completions return JSON content type
+
+### What
+- When `stream: false` is answered by upstream SSE, the assembled `chat.completion` JSON is now sent as `Content-Type: application/json`.
+
+### Why
+The response header filter copied the upstream `text/event-stream` type, and Gin does not replace an existing Content-Type. new-api then parsed the JSON body as SSE, dropped it, and logged completion tokens as 0.
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+this changelog.
+
 ## 2026-09-27 - ui: show the relay endpoint on the API keys page
 
 ### What

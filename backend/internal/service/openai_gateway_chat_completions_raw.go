@@ -838,6 +838,10 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 		if s.responseHeaderFilter != nil && resp != nil {
 			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		}
+		// Upstream stream:false often still returns text/event-stream. The body
+		// written below is assembled chat.completion JSON. Gin will not replace
+		// a Content-Type that the header filter already copied.
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
 		}

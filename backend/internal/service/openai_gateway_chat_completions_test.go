@@ -1060,7 +1060,12 @@ func TestForwardAsRawChatCompletions_CustomBaseSyncBuffersSSE(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_raw_sse"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	cfg := rawChatCompletionsTestConfig()
+	svc := &OpenAIGatewayService{
+		cfg:                  cfg,
+		httpUpstream:         upstream,
+		responseHeaderFilter: compileResponseHeaderFilter(cfg),
+	}
 
 	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
 	require.NoError(t, err)
@@ -1069,7 +1074,9 @@ func TestForwardAsRawChatCompletions_CustomBaseSyncBuffersSSE(t *testing.T) {
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
 	require.Equal(t, 8, result.Usage.InputTokens)
 	require.Equal(t, 1, result.Usage.OutputTokens)
-	require.Contains(t, rec.Body.String(), "pong")
+	require.NotContains(t, rec.Body.String(), "data:")
+	require.Equal(t, "chat.completion", gjson.Get(rec.Body.String(), "object").String())
+	require.Equal(t, int64(1), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
 	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
 }
 
