@@ -5660,13 +5660,13 @@ const enBase = {
         capabilityEmbeddings: 'Embeddings',
         responsesRouteMode: 'Upstream endpoint routing',
         responsesRouteModeDesc:
-          'Chooses the upstream endpoint from the inbound path. Auto keeps today’s behavior: when Responses is supported or unprobed, inbound /v1/chat/completions still converts to /v1/responses. Native mapping is an explicit option and does not turn on just because both probes passed. This is not request-body passthrough or WS passthrough.',
+          'Chooses the upstream endpoint from the inbound path. The default is native mapping: inbound /v1/chat/completions stays Chat Completions, inbound /v1/responses stays Responses. Auto probe is an explicit option: when Responses is supported or unprobed, inbound Chat Completions still converts to /v1/responses. This is not request-body passthrough or WS passthrough.',
         responsesRouteAuto: 'Auto probe',
         responsesRouteForceResponses: 'Force /v1/responses',
         responsesRouteForceChatCompletions: 'Force /v1/chat/completions',
         responsesRoutePassthrough: 'Native mapping (inbound = upstream)',
         responsesRouteOverrideHint:
-          'Manual override (force Responses / force Chat Completions / native mapping) takes precedence over probing. Later probes will not change this selection. Native mapping does not fall back to a protocol bridge on probe failure.',
+          'This selection overrides the default native mapping. Auto probe follows the probe flags; force options do not change after later probes. Native mapping does not fall back to a protocol bridge on probe failure.',
         responsesProbeSupported: 'Probe result: native /v1/responses is supported',
         responsesProbeUnsupported: 'Probe result: native /v1/responses is unsupported',
         responsesProbeUnknown: 'Probe result: not probed yet',

@@ -1,3 +1,32 @@
+## 2026-09-29 - change: OpenAI API-key upstream routing defaults to native mapping
+
+### What
+- Missing / empty / invalid `openai_responses_mode` now means `passthrough` (inbound path = upstream path). Explicit `"auto"` still follows the Responses probe, including inbound Chat Completions → `/v1/responses`.
+- Create/edit UI defaults to 原样映射, lists it first, and always persists the selected mode so Auto remains selectable.
+
+### Why
+Compatible upstreams such as GLM were converting inbound `/v1/chat/completions` to `/v1/responses` because the UI stored Auto by deleting the key. Native mapping is the default customers expect.
+
+### Affected files
+`backend/internal/pkg/openai_compat/upstream_capability.go`,
+`backend/internal/pkg/openai_compat/upstream_capability_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+`backend/internal/service/openai_gateway_service_hotpath_test.go`,
+`frontend/src/utils/openaiResponsesMode.ts`,
+`frontend/src/utils/__tests__/openaiResponsesMode.spec.ts`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/__tests__/CreateAccountModal.spec.ts`,
+`frontend/src/components/account/__tests__/EditAccountModal.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/backend/openai-apikey-upstream-routing.md`,
+`docs/dev/codebase/gateway.md`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/README.md`,
+this changelog.
+
 ## 2026-09-29 - ops: production deploy v0.1.305
 
 ### What

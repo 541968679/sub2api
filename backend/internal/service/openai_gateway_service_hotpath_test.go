@@ -242,6 +242,7 @@ func TestOpenAIGatewayService_Forward_DoesNotInjectDefaultCodexInstructions(t *t
 			"base_url": "https://example.com",
 		},
 		Extra: map[string]any{
+			"openai_responses_mode":      "passthrough",
 			"openai_responses_supported": true,
 		},
 	}

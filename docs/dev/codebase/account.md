@@ -72,6 +72,10 @@ Hard still persists as today: Anthropic official 5h/7d window, Codex `used_perce
 
 Scheduler details: [gateway.md](./gateway.md#oauth-fleet-soft-429).
 
+## OpenAI API-key upstream endpoint routing
+
+`extra.openai_responses_mode` is the create/edit「上游端点路由」value. Missing / empty / invalid = `passthrough` (inbound = upstream). Persist explicit `auto` when the admin wants probe-following. Probe writes `openai_responses_supported` / `openai_chat_completions_supported` only. Distinct from `openai_passthrough`. See [gateway.md](./gateway.md#openai-api-key-upstream-endpoint-routing).
+
 ## New API user wallet
 
 Display-only prepaid balance for OpenAI/Anthropic API-key accounts that sit on a New API compatible host. Does not change `actual_cost`, quota deduction, or scheduler selection.
@@ -280,6 +284,8 @@ Official `api.openai.com` / `api.anthropic.com` try OpenAI-shape billing first.
 
 Auth: OpenAI Bearer; Anthropic uses existing `x-api-key` / Bearer scheme.
 Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0|false|off`.
+
+Ordinary usage reads skip a new probe while `extra.upstream_balance_at` is younger than 6 minutes. The account-cell balance refresh calls `GET /usage?force=true`, which bypasses that window. Saving a changed New API wallet access token or user id (`credentials.newapi_access_token` / `newapi_user_id`) also force-probes before the update response returns, then the usage cell reloads from the new stamp without a second upstream call.
 
 `UsageInfo` fields: `balance_usd`, `balance_*`, `burn_rate_per_hour`,
 `burn_rate_unit` (`usd`|`percent`), `burn_eta_seconds`, `burn_insufficient`.

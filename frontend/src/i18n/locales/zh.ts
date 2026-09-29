@@ -5368,13 +5368,13 @@ const zhBase = {
         capabilityEmbeddings: 'Embeddings',
         responsesRouteMode: '上游端点路由',
         responsesRouteModeDesc:
-          '按入站端点选择上游。自动探测保持今天行为：Responses 可用或未探测时，入站 /v1/chat/completions 仍转 /v1/responses。原样映射是显式选项，不会因为两路都探测通过而自动生效。与「请求体透传」「WS 透传」不是同一开关。',
+          '按入站端点选择上游。默认原样映射：入站 /v1/chat/completions 打上游 Chat Completions，入站 /v1/responses 打上游 Responses。自动探测是显式选项：Responses 可用或未探测时，入站 Chat Completions 仍转 /v1/responses。与「请求体透传」「WS 透传」不是同一开关。',
         responsesRouteAuto: '自动探测',
         responsesRouteForceResponses: '强制 /v1/responses',
         responsesRouteForceChatCompletions: '强制 /v1/chat/completions',
         responsesRoutePassthrough: '原样映射（入站=上游）',
         responsesRouteOverrideHint:
-          '人工覆盖（强制 Responses / 强制 Chat Completions / 原样映射）优先于自动探测，后续探测不会改变当前选择。原样映射失败时不会自动改桥。',
+          '当前选择覆盖默认原样映射。自动探测会按探测结果改路；强制项不会因后续探测改路。原样映射失败时不会自动改桥。',
         responsesProbeSupported: '自动探测结果：支持原生 /v1/responses',
         responsesProbeUnsupported: '自动探测结果：不支持原生 /v1/responses',
         responsesProbeUnknown: '自动探测结果：尚未探测',

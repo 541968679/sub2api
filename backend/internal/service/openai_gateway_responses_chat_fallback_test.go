@@ -664,6 +664,7 @@ func rawChatCompletionsTestAccount() *Account {
 			"api_key":  "sk-test",
 			"base_url": "http://upstream.example",
 		},
+		Extra: extraAutoResponsesSupported(),
 		Concurrency: 1,
 		Status:      StatusActive,
 		Schedulable: true,

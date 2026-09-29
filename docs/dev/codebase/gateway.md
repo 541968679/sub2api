@@ -9,6 +9,18 @@ Each forward hop starts `beginUpstreamResponseModelObservation`. SSE/JSON/WS pay
 
 Raw Chat Completions passthrough (`forwardAsRawChatCompletions`) and OpenAI Responses passthrough (`/v1/responses` SSE and JSON) fill an empty/missing client `model` (and `response.model`) with the **requested** model after observation. Missing JSON `model` is treated like `""` because Go clients unmarshal both to empty string. A non-empty upstream `model` is never overwritten. Dedicated `type=error` / error-object payloads are skipped. `"error": null` is a normal Responses/CC field and must still be filled. Ping frames and NDJSON objects (no `data:` prefix) are filled so clients that unmarshal every JSON object do not see `got ""`. CC→Responses conversion outbound chunks are filled at write time.
 
+## OpenAI API-key upstream endpoint routing
+
+`accounts.extra.openai_responses_mode` chooses `/v1/responses` vs `/v1/chat/completions` through `openai_compat.ResolveUpstreamAPI(inbound, extra)`.
+
+- Missing / empty / invalid mode = `passthrough`: inbound path = upstream path. Probe flags do not retarget.
+- Explicit `auto`: inbound Chat Completions converts to Responses when `openai_responses_supported` is true or unknown; `false` uses raw Chat Completions. Inbound Responses follows the same probe.
+- `force_responses` / `force_chat_completions` ignore probes.
+- Probe writes only the two support keys, never the mode.
+- Distinct from `openai_passthrough` (request-body passthrough) and WS passthrough.
+
+Create/edit UI defaults to 原样映射 and always persists the selected mode, including `auto`.
+
 ## Spark Shadow Routing
 
 > 策略真源见 [scheduler.md](./scheduler.md)。本节保留网关面契约，不替代手册。

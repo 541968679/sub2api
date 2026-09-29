@@ -40,16 +40,16 @@ func TestShouldUseResponsesAPI(t *testing.T) {
 		extra map[string]any
 		want  bool
 	}{
-		// 关键不变量：未探测必须返回 true（保留旧行为）
-		{"unknown defaults to true (preserve old behavior)", nil, true},
-		{"unknown empty defaults to true", map[string]any{}, true},
-		{"unknown wrong type defaults to true", map[string]any{ExtraKeyResponsesSupported: "yes"}, true},
+		{"missing extra defaults to passthrough", nil, false},
+		{"empty extra defaults to passthrough", map[string]any{}, false},
+		{"invalid mode defaults to passthrough", map[string]any{ExtraKeyResponsesSupported: "yes"}, false},
+		{"probe true without mode is passthrough", map[string]any{ExtraKeyResponsesSupported: true}, false},
+		{"probe false without mode is passthrough", map[string]any{ExtraKeyResponsesSupported: false}, false},
 
-		// 已探测：标记决定
-		{"explicitly supported", map[string]any{ExtraKeyResponsesSupported: true}, true},
-		{"explicitly unsupported", map[string]any{ExtraKeyResponsesSupported: false}, false},
+		{"explicit auto unknown converts", map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeAuto)}, true},
+		{"explicit auto supported converts", map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeAuto), ExtraKeyResponsesSupported: true}, true},
+		{"explicit auto unsupported uses CC", map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeAuto), ExtraKeyResponsesSupported: false}, false},
 
-		// 手动覆盖：覆盖自动探测结果
 		{"force responses overrides unsupported probe", map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeForceResponses), ExtraKeyResponsesSupported: false}, true},
 		{"force chat completions overrides supported probe", map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeForceChatCompletions), ExtraKeyResponsesSupported: true}, false},
 	}
@@ -70,13 +70,13 @@ func TestNormalizeResponsesSupportMode(t *testing.T) {
 		mode string
 		want ResponsesSupportMode
 	}{
-		{"empty", "", ResponsesSupportModeAuto},
+		{"empty", "", ResponsesSupportModePassthrough},
 		{"auto", "auto", ResponsesSupportModeAuto},
 		{"force responses", "force_responses", ResponsesSupportModeForceResponses},
 		{"force chat completions", "force_chat_completions", ResponsesSupportModeForceChatCompletions},
 		{"passthrough", "passthrough", ResponsesSupportModePassthrough},
-		{"invalid", "enabled", ResponsesSupportModeAuto},
-		{"native is not passthrough", "native", ResponsesSupportModeAuto},
+		{"invalid", "enabled", ResponsesSupportModePassthrough},
+		{"native follows default passthrough", "native", ResponsesSupportModePassthrough},
 	}
 
 	for _, tc := range tests {
@@ -124,9 +124,17 @@ func TestResolveChatCompletionsProbeSupport(t *testing.T) {
 }
 
 func TestResolveUpstreamAPI(t *testing.T) {
-	rTrue := map[string]any{ExtraKeyResponsesSupported: true}
-	rFalse := map[string]any{ExtraKeyResponsesSupported: false}
-	bothTrue := map[string]any{
+	probeTrue := map[string]any{ExtraKeyResponsesSupported: true}
+	autoTrue := map[string]any{
+		ExtraKeyResponsesMode:      string(ResponsesSupportModeAuto),
+		ExtraKeyResponsesSupported: true,
+	}
+	autoFalse := map[string]any{
+		ExtraKeyResponsesMode:      string(ResponsesSupportModeAuto),
+		ExtraKeyResponsesSupported: false,
+	}
+	autoBoth := map[string]any{
+		ExtraKeyResponsesMode:              string(ResponsesSupportModeAuto),
 		ExtraKeyResponsesSupported:         true,
 		ExtraKeyChatCompletionsSupported:   true,
 	}
@@ -147,16 +155,18 @@ func TestResolveUpstreamAPI(t *testing.T) {
 		extra   map[string]any
 		want    UpstreamEndpoint
 	}{
-		{"missing extra inbound CC", InboundChatCompletions, nil, UpstreamResponses},
+		{"missing extra inbound CC", InboundChatCompletions, nil, UpstreamChatCompletions},
 		{"missing extra inbound Responses", InboundResponses, nil, UpstreamResponses},
-		{"invalid mode stays auto", InboundChatCompletions, map[string]any{ExtraKeyResponsesMode: "native", ExtraKeyResponsesSupported: true}, UpstreamResponses},
-		{"auto Rsupp true inbound CC", InboundChatCompletions, rTrue, UpstreamResponses},
-		{"auto Rsupp true inbound Responses", InboundResponses, rTrue, UpstreamResponses},
-		{"auto Rsupp false inbound CC", InboundChatCompletions, rFalse, UpstreamChatCompletions},
-		{"auto Rsupp false inbound Responses", InboundResponses, rFalse, UpstreamChatCompletions},
-		{"auto both true inbound CC stays Responses", InboundChatCompletions, bothTrue, UpstreamResponses},
-		{"auto both true inbound Responses", InboundResponses, bothTrue, UpstreamResponses},
-		{"auto CCsupp false does not change CC path", InboundChatCompletions, map[string]any{ExtraKeyResponsesSupported: true, ExtraKeyChatCompletionsSupported: false}, UpstreamResponses},
+		{"invalid mode is passthrough", InboundChatCompletions, map[string]any{ExtraKeyResponsesMode: "native", ExtraKeyResponsesSupported: true}, UpstreamChatCompletions},
+		{"probe true without mode inbound CC", InboundChatCompletions, probeTrue, UpstreamChatCompletions},
+		{"probe true without mode inbound Responses", InboundResponses, probeTrue, UpstreamResponses},
+		{"auto Rsupp true inbound CC", InboundChatCompletions, autoTrue, UpstreamResponses},
+		{"auto Rsupp true inbound Responses", InboundResponses, autoTrue, UpstreamResponses},
+		{"auto Rsupp false inbound CC", InboundChatCompletions, autoFalse, UpstreamChatCompletions},
+		{"auto Rsupp false inbound Responses", InboundResponses, autoFalse, UpstreamChatCompletions},
+		{"auto both true inbound CC stays Responses", InboundChatCompletions, autoBoth, UpstreamResponses},
+		{"auto both true inbound Responses", InboundResponses, autoBoth, UpstreamResponses},
+		{"auto CCsupp false does not change CC path", InboundChatCompletions, map[string]any{ExtraKeyResponsesMode: string(ResponsesSupportModeAuto), ExtraKeyResponsesSupported: true, ExtraKeyChatCompletionsSupported: false}, UpstreamResponses},
 		{"passthrough inbound CC", InboundChatCompletions, passthroughBoth, UpstreamChatCompletions},
 		{"passthrough inbound Responses", InboundResponses, passthroughBoth, UpstreamResponses},
 		{"passthrough ignores probe false inbound Responses", InboundResponses, passthroughUnsupported, UpstreamResponses},
@@ -174,6 +184,18 @@ func TestResolveUpstreamAPI(t *testing.T) {
 				t.Errorf("ResolveUpstreamAPI(%v, %v) = %v, want %v", tc.inbound, tc.extra, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestResponsesSupportModeFromExtra(t *testing.T) {
+	if got := ResponsesSupportModeFromExtra(nil); got != ResponsesSupportModePassthrough {
+		t.Errorf("nil extra = %q, want passthrough", got)
+	}
+	if got := ResponsesSupportModeFromExtra(map[string]any{}); got != ResponsesSupportModePassthrough {
+		t.Errorf("empty extra = %q, want passthrough", got)
+	}
+	if got := ResponsesSupportModeFromExtra(map[string]any{ExtraKeyResponsesMode: "auto"}); got != ResponsesSupportModeAuto {
+		t.Errorf("explicit auto = %q, want auto", got)
 	}
 }
 

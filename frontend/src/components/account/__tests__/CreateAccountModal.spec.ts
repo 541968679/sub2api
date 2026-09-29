@@ -313,6 +313,28 @@ describe('CreateAccountModal', () => {
     )
   })
 
+  it('defaults a new OpenAI API key account to native upstream mapping', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="create-openai-responses-mode"]').element.value).toBe(
+      'passthrough'
+    )
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_responses_mode).toBe('passthrough')
+  })
+
+  it('persists explicit auto probe routing for a new OpenAI API key account', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-openai-responses-mode"]').setValue('auto')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_responses_mode).toBe('auto')
+  })
+
   it('can create an OpenAI API key account with native upstream mapping', async () => {
     const wrapper = await mountOpenAIAPIKeyModal()
 

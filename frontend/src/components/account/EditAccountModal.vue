@@ -1993,7 +1993,7 @@
           {{ t(openAIChatCompletionsProbeStatusKey) }}
         </p>
         <p
-          v-if="openAIResponsesMode !== 'auto'"
+          v-if="openAIResponsesMode !== DEFAULT_OPENAI_RESPONSES_MODE"
           class="mt-1 text-xs text-amber-600 dark:text-amber-400"
         >
           {{ t('admin.accounts.openai.responsesRouteOverrideHint') }}
@@ -2874,6 +2874,16 @@ import {
   resolveOpenAIWSModeFromExtra
 } from '@/utils/openaiWsMode'
 import {
+  DEFAULT_OPENAI_RESPONSES_MODE,
+  OPENAI_RESPONSES_MODE_AUTO,
+  OPENAI_RESPONSES_MODE_FORCE_CHAT_COMPLETIONS,
+  OPENAI_RESPONSES_MODE_FORCE_RESPONSES,
+  OPENAI_RESPONSES_MODE_PASSTHROUGH,
+  normalizeOpenAIResponsesMode,
+  persistOpenAIResponsesMode,
+  type OpenAIResponsesMode
+} from '@/utils/openaiResponsesMode'
+import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
@@ -3067,8 +3077,7 @@ const modelMappingStrictScheduling = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
-type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions' | 'passthrough'
-const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
+const openAIResponsesMode = ref<OpenAIResponsesMode>(DEFAULT_OPENAI_RESPONSES_MODE)
 const openAIResponsesProbeSupported = ref<boolean | null>(null)
 const openAIChatCompletionsProbeSupported = ref<boolean | null>(null)
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
@@ -3138,13 +3147,13 @@ const openAICompactModeOptions = computed(() => [
   { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
 ])
 const openAIResponsesModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.responsesRouteAuto') },
-  { value: 'force_responses', label: t('admin.accounts.openai.responsesRouteForceResponses') },
+  { value: OPENAI_RESPONSES_MODE_PASSTHROUGH, label: t('admin.accounts.openai.responsesRoutePassthrough') },
+  { value: OPENAI_RESPONSES_MODE_AUTO, label: t('admin.accounts.openai.responsesRouteAuto') },
+  { value: OPENAI_RESPONSES_MODE_FORCE_RESPONSES, label: t('admin.accounts.openai.responsesRouteForceResponses') },
   {
-    value: 'force_chat_completions',
+    value: OPENAI_RESPONSES_MODE_FORCE_CHAT_COMPLETIONS,
     label: t('admin.accounts.openai.responsesRouteForceChatCompletions')
-  },
-  { value: 'passthrough', label: t('admin.accounts.openai.responsesRoutePassthrough') }
+  }
 ])
 const openAIResponsesProbeStatusKey = computed(() => {
   if (openAIResponsesProbeSupported.value === true) {
@@ -3487,7 +3496,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openaiClaudeGPTBridgeEnabled.value = false
   grokOpenAIGroupAccessEnabled.value = false
   openAICompactMode.value = 'auto'
-  openAIResponsesMode.value = 'auto'
+  openAIResponsesMode.value = DEFAULT_OPENAI_RESPONSES_MODE
   openAIResponsesProbeSupported.value = null
   openAIChatCompletionsProbeSupported.value = null
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
@@ -3510,14 +3519,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
     openAIImagesEndpointEnabled.value = extra?.openai_images_endpoint_enabled !== false
     if (newAccount.type === 'apikey') {
-      const responsesMode = extra?.openai_responses_mode
-      if (
-        responsesMode === 'force_responses' ||
-        responsesMode === 'force_chat_completions' ||
-        responsesMode === 'passthrough'
-      ) {
-        openAIResponsesMode.value = responsesMode
-      }
+      openAIResponsesMode.value = normalizeOpenAIResponsesMode(extra?.openai_responses_mode)
       openAIResponsesProbeSupported.value =
         typeof extra?.openai_responses_supported === 'boolean'
           ? extra.openai_responses_supported
@@ -4866,11 +4868,7 @@ const handleSubmit = async () => {
         newExtra.openai_compact_mode = openAICompactMode.value
       }
       if (props.account.type === 'apikey') {
-        if (openAIResponsesMode.value === 'auto') {
-          delete newExtra.openai_responses_mode
-        } else {
-          newExtra.openai_responses_mode = openAIResponsesMode.value
-        }
+        persistOpenAIResponsesMode(newExtra, openAIResponsesMode.value)
       }
       if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {
         newExtra.auto_pause_5h_threshold = autoPause5hThreshold.value / 100

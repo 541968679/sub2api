@@ -116,9 +116,7 @@ func TestForwardAsChatCompletions_APIKeyPropagatesPromptCacheKeyInResponsesBody(
 		Credentials: map[string]any{
 			"api_key": "sk-compatible",
 		},
-		Extra: map[string]any{
-			"openai_responses_supported": true,
-		},
+		Extra: extraAutoResponsesSupported(),
 	}
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "cache-key-123", "gpt-5.4")
@@ -186,15 +184,20 @@ func TestForwardAsChatCompletions_APIKeyDoesNotInjectDefaultInstructions(t *test
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		"openai_responses_supported": true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "glm-5.3-flash")
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Equal(t, "", gjson.GetBytes(upstream.lastBody, "instructions").String())
 	require.NotContains(t, string(upstream.lastBody), "You are Codex")
+}
+
+func extraAutoResponsesSupported() map[string]any {
+	return map[string]any{
+		openai_compat.ExtraKeyResponsesMode:      string(openai_compat.ResponsesSupportModeAuto),
+		openai_compat.ExtraKeyResponsesSupported: true,
+	}
 }
 
 func chatCompletionsSpeedAPIKeyAccount(extra map[string]any) *Account {
@@ -230,9 +233,7 @@ func TestForwardAsChatCompletions_APIKeyAutoInjectsCompatPromptCacheKey(t *testi
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -253,9 +254,7 @@ func TestForwardAsChatCompletions_APIKeyDoesNotOverwriteClientSessionHeader(t *t
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -308,7 +307,7 @@ func TestForward_KimiK3InboundResponsesUsesChatCompletions(t *testing.T) {
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 }
 
-func TestForwardAsChatCompletions_UnknownProbeStillConvertsToResponses(t *testing.T) {
+func TestForwardAsChatCompletions_MissingModeUsesRawChat(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -320,6 +319,28 @@ func TestForwardAsChatCompletions_UnknownProbeStillConvertsToResponses(t *testin
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := chatCompletionsSpeedAPIKeyAccount(nil)
+
+	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
+	require.Error(t, err)
+	require.Equal(t, "https://api.openai.com/v1/chat/completions", upstream.lastReq.URL.String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
+}
+
+func TestForwardAsChatCompletions_AutoUnknownProbeStillConvertsToResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := chatCompletionsSpeedStopRecorder()
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
+		openai_compat.ExtraKeyResponsesMode: string(openai_compat.ResponsesSupportModeAuto),
+	})
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -338,9 +359,7 @@ func TestForwardAsChatCompletions_ReasoningEffortDoesNotAddSummaryAuto(t *testin
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -359,9 +378,7 @@ func TestForwardAsChatCompletions_APIKeyDoesNotOverwriteClientPromptCacheKey(t *
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -431,6 +448,7 @@ func TestForwardAsChatCompletions_AutoUnsupportedUsesRawChat(t *testing.T) {
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
+		openai_compat.ExtraKeyResponsesMode:            string(openai_compat.ResponsesSupportModeAuto),
 		openai_compat.ExtraKeyResponsesSupported:       false,
 		openai_compat.ExtraKeyChatCompletionsSupported: true,
 	})
@@ -452,6 +470,7 @@ func TestForwardAsChatCompletions_AutoBothSupportedStillConvertsToResponses(t *t
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
+		openai_compat.ExtraKeyResponsesMode:            string(openai_compat.ResponsesSupportModeAuto),
 		openai_compat.ExtraKeyResponsesSupported:       true,
 		openai_compat.ExtraKeyChatCompletionsSupported: true,
 	})
@@ -495,9 +514,7 @@ func TestForwardAsChatCompletions_APIKeyStreamKeepsUpstreamSSE(t *testing.T) {
 
 	upstream := chatCompletionsSpeedStopRecorder()
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -521,9 +538,7 @@ func TestForwardAsChatCompletions_APIKeySyncReadsNonStreamJSON(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
 	}}
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "cache-key-123", "gpt-5.4")
 	require.NoError(t, err)
@@ -970,9 +985,7 @@ func (r *pacedReader) Read(p []byte) (int, error) {
 }
 
 func chatCompletionsCustomBaseAPIKeyAccount() *Account {
-	account := chatCompletionsSpeedAPIKeyAccount(map[string]any{
-		openai_compat.ExtraKeyResponsesSupported: true,
-	})
+	account := chatCompletionsSpeedAPIKeyAccount(extraAutoResponsesSupported())
 	account.Credentials["base_url"] = "https://token-bits.example/v1"
 	return account
 }

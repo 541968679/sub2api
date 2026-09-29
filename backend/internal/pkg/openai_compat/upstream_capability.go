@@ -12,11 +12,11 @@
 // 设计取舍：
 //   - 不维护静态 host 白名单——避免新增厂商时必须改代码（讨论沉淀于
 //     pensieve/short-term/knowledge/upstream-capability-detection-design-tradeoffs）
-//   - 标记缺失时默认走 Responses，保持与重构前老代码完全一致的存量
-//     账号行为（"现状即证据"原则；详见
-//     pensieve/short-term/maxims/preserve-existing-runtime-behavior-when-replacing-logic-in-stateful-systems）
-//   - auto 在两路都可用时仍把入站 CC 转到 Responses；原样映射必须显式
-//     openai_responses_mode=passthrough，禁止生产默认突变
+//   - 缺 extra / 非法 mode 默认 passthrough（入站=上游）。兼容上游（GLM /
+//     DeepSeek / Kimi 等）多数只接受 Chat Completions；入站 CC 不应再被默认
+//     转成 /v1/responses。
+//   - 跟随探测必须显式 openai_responses_mode=auto。auto 在 Responses
+//     可用/未知时仍把入站 CC 转到 Responses。
 package openai_compat
 
 // AccountResponsesSupport 描述账号上游对某一 OpenAI HTTP 端点的探测状态。
@@ -26,7 +26,7 @@ type AccountResponsesSupport int
 
 const (
 	// ResponsesSupportUnknown 表示账号尚未完成能力探测（extra 字段缺失）。
-	// 上游路由层应按"现状即证据"原则默认走 Responses，保持与重构前一致。
+	// 仅在显式 auto 下按「未探测仍转 Responses」处理；缺 mode 本身走 passthrough。
 	ResponsesSupportUnknown AccountResponsesSupport = iota
 
 	// ResponsesSupportYes 探测确认上游支持该端点。
@@ -41,7 +41,7 @@ type ResponsesSupportMode string
 
 const (
 	// ResponsesSupportModeAuto 表示跟随自动探测结果（入站 CC 在 Responses
-	// 可用/未知时仍转 Responses，与历史行为一致）。
+	// 可用/未知时仍转 Responses）。必须显式写入 extra，缺省不是 auto。
 	ResponsesSupportModeAuto ResponsesSupportMode = "auto"
 
 	// ResponsesSupportModeForceResponses 强制使用 /v1/responses。
@@ -51,8 +51,11 @@ const (
 	ResponsesSupportModeForceChatCompletions ResponsesSupportMode = "force_chat_completions"
 
 	// ResponsesSupportModePassthrough 入站端点原样映射到上游（CC→CC 且
-	// Responses→Responses）。显式覆盖探测，失败不自动改桥。
+	// Responses→Responses）。失败不自动改桥。也是缺省/非法 mode 的运行时默认。
 	ResponsesSupportModePassthrough ResponsesSupportMode = "passthrough"
+
+	// DefaultResponsesSupportMode 是 extra 缺键或非法值时的运行时默认。
+	DefaultResponsesSupportMode = ResponsesSupportModePassthrough
 )
 
 // InboundEndpoint 是网关看到的入站协议面。两条入站路必须分开判定。
@@ -78,8 +81,8 @@ const (
 )
 
 // ExtraKeyResponsesMode 是 accounts.extra JSON 中存储手动覆盖模式的键名。
-// 值类型为 string：auto=跟随探测，force_responses=强制 Responses，
-// force_chat_completions=强制 Chat Completions，passthrough=入站=上游。
+// 值类型为 string：passthrough=入站=上游（缺省），auto=跟随探测，
+// force_responses=强制 Responses，force_chat_completions=强制 Chat Completions。
 const ExtraKeyResponsesMode = "openai_responses_mode"
 
 // ExtraKeyResponsesSupported 是 accounts.extra JSON 中存储 Responses 探测结果的键名。
@@ -91,9 +94,11 @@ const ExtraKeyResponsesSupported = "openai_responses_supported"
 const ExtraKeyChatCompletionsSupported = "openai_chat_completions_supported"
 
 // NormalizeResponsesSupportMode 归一化账号级路由覆盖模式。
-// 缺失或非法值按 auto 处理，以保持存量行为。禁止把未知字符串映射成 passthrough。
+// 缺失或非法值按 passthrough 处理。跟随探测必须是显式 "auto"。
 func NormalizeResponsesSupportMode(mode string) ResponsesSupportMode {
 	switch ResponsesSupportMode(mode) {
+	case ResponsesSupportModeAuto:
+		return ResponsesSupportModeAuto
 	case ResponsesSupportModeForceResponses:
 		return ResponsesSupportModeForceResponses
 	case ResponsesSupportModeForceChatCompletions:
@@ -101,14 +106,14 @@ func NormalizeResponsesSupportMode(mode string) ResponsesSupportMode {
 	case ResponsesSupportModePassthrough:
 		return ResponsesSupportModePassthrough
 	default:
-		return ResponsesSupportModeAuto
+		return DefaultResponsesSupportMode
 	}
 }
 
-// ResponsesSupportModeFromExtra 读取 extra 中的路由模式（缺省/非法为 auto）。
+// ResponsesSupportModeFromExtra 读取 extra 中的路由模式（缺省/非法为 passthrough）。
 func ResponsesSupportModeFromExtra(extra map[string]any) ResponsesSupportMode {
 	if extra == nil {
-		return ResponsesSupportModeAuto
+		return DefaultResponsesSupportMode
 	}
 	mode, _ := extra[ExtraKeyResponsesMode].(string)
 	return NormalizeResponsesSupportMode(mode)
@@ -164,7 +169,8 @@ func ResolveResponsesSupport(extra map[string]any) AccountResponsesSupport {
 
 // ResolveUpstreamAPI 按 (inbound, extra) 决定上游端点。
 //
-// CCsupp 探测结果不进入 auto 分支。缺 extra / 非法 mode / 未探测 = 今天的 auto+unknown。
+// CCsupp 探测结果不进入 auto 分支。缺 extra / 非法 mode = passthrough。
+// 显式 auto + 未探测 / Rsupp yes → inbound CC 仍转 Responses。
 func ResolveUpstreamAPI(inbound InboundEndpoint, extra map[string]any) UpstreamEndpoint {
 	switch ResponsesSupportModeFromExtra(extra) {
 	case ResponsesSupportModeForceResponses:

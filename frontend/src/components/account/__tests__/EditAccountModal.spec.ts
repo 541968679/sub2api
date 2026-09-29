@@ -210,7 +210,7 @@ describe('EditAccountModal', () => {
       '[data-testid="edit-openai-responses-mode"]'
     )
 
-    expect(modeSelect.element.value).toBe('auto')
+    expect(modeSelect.element.value).toBe('passthrough')
     expect(wrapper.get('[data-testid="edit-openai-responses-probe-status"]').text()).toContain(
       'admin.accounts.openai.responsesProbeUnsupported'
     )
@@ -222,6 +222,34 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
       openai_responses_mode: 'force_responses',
       openai_responses_supported: false,
+      preserved_setting: 'keep-me'
+    })
+  })
+
+  it('persists explicit auto probe routing', async () => {
+    const account = buildAccount()
+    account.extra = {
+      openai_responses_supported: true,
+      preserved_setting: 'keep-me'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const modeSelect = wrapper.get<HTMLSelectElement>(
+      '[data-testid="edit-openai-responses-mode"]'
+    )
+    expect(modeSelect.element.value).toBe('passthrough')
+
+    await modeSelect.setValue('auto')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_responses_mode: 'auto',
+      openai_responses_supported: true,
       preserved_setting: 'keep-me'
     })
   })
