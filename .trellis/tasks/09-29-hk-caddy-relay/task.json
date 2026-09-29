@@ -1,0 +1,32 @@
+{
+  "id": "hk-caddy-relay",
+  "name": "hk-caddy-relay",
+  "title": "Hong Kong Caddy reverse proxy",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "kayn",
+  "assignee": "kayn",
+  "createdAt": "2026-09-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "docs/dev/SERVERS.md",
+    "docs/dev/HK_RELAY.md",
+    "docs/dev/HK_RELAY_BUYING_GUIDE.md",
+    "docs/dev/hk-relay/Caddyfile",
+    "docs/dev/hk-relay/bootstrap.sh"
+  ],
+  "notes": "Phase-1 Caddy 2.11.4 on http://191.40.32.186:80, 2026-09-29. Domain/HTTPS and user cutover still open.",
+  "meta": {}
+}

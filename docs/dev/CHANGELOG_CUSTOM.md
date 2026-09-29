@@ -1,3 +1,60 @@
+## 2026-09-29 - ops: install Caddy on hk-relay (phase-1 HTTP)
+
+### What
+- Installed official Caddy 2.11.4 on `hk-relay` (`191.40.32.186`). Hostname, BBR, UFW 22/80/443, and key-only sshd are in place.
+- Phase-1 site is `http://191.40.32.186`: reverse proxy to `https://zerocode.kaynlab.com` with Host unchanged, `flush_interval -1`, 256 MB body, 3600s timeouts. No automatic HTTPS.
+- Operator checks from this workstation: `/v1/models` 401, public settings 200, 2 MB POST accepted, ~10.9 MB asset download.
+
+### Why
+Mainland clients still cannot use a domain. The IP HTTP listener is only for operator path tests. Customer cutover still needs `https://api.<new domain>`.
+
+### Affected files
+`docs/dev/HK_RELAY.md`,
+`docs/dev/SERVERS.md`,
+`docs/dev/hk-relay/Caddyfile`,
+`docs/dev/hk-relay/bootstrap.sh`,
+`docs/dev/hk-relay/smoke.sh`,
+`docs/dev/hk-relay/download-10mb.sh`,
+`.trellis/tasks/09-29-hk-caddy-relay/implement.md`,
+`.trellis/tasks/09-29-hk-caddy-relay/task.json`,
+this changelog.
+
+## 2026-09-29 - docs: Hong Kong relay host inventory
+
+### What
+- Recorded the delivered 云途 HK.TKO.C box as `hk-relay` at `191.40.32.186`.
+- Added a fleet table and a relay ops playbook so the Hong Kong Caddy host is not mixed with the Buffalo origin.
+
+### Why
+The relay is a second production machine with a different SSH key and no Docker stack. Leaving the IP only in chat would make later sessions log into the wrong host.
+
+### Affected files
+`docs/dev/SERVERS.md`,
+`docs/dev/HK_RELAY.md`,
+`docs/dev/PRODUCTION.md`,
+`docs/dev/DEPLOYMENT.md`,
+`docs/dev/HK_RELAY_BUYING_GUIDE.md`,
+`docs/dev/ARCHITECTURE.md`,
+`docs/dev/MAIN_SERVER_BUYING_GUIDE.md`,
+`AGENTS.md`,
+this changelog.
+
+## 2026-09-29 - docs: Hong Kong relay buying guide
+
+### What
+- Added a purchase writeup for a Hong Kong reverse-proxy VPS: demand, measured traffic, ranked plans, exclusions, cart checks, and cutover.
+- The first buy is 云途 Hong Kong TKO HK.TKO.C at ¥45/month: 4 vCPU, 4 GB, 300 Mbps, 1 TB, sold as best-effort mainland-optimized routing. VMISS Pro at C$16 is the second row. DMIT Premium STARTER at $79.90 stays the CN2 GIA upgrade after a failed evening test.
+- Tencent Cloud Hong Kong Lighthouse and Aliyun Hong Kong lightsail are out of the shortlist. Their cheap Hong Kong plans are peak-bandwidth instances without a mainland-optimized route.
+- The main-server buying guide now points at that writeup. The Buffalo origin stays in place.
+
+### Why
+Mainland clients cannot reliably resolve or reach the Buffalo origin. The relay only forwards client traffic of roughly 100–300 GB a month. A CN2 GIA gigabit plan is the wrong first purchase, and a Hong Kong box with no return-path optimization does not meet the line requirement.
+
+### Affected files
+`docs/dev/HK_RELAY_BUYING_GUIDE.md`,
+`docs/dev/MAIN_SERVER_BUYING_GUIDE.md`,
+this changelog.
+
 ## 2026-09-28 - fix: non-stream raw chat completions return JSON content type
 
 ### What
@@ -9,6 +66,23 @@ The response header filter copied the upstream `text/event-stream` type, and Gin
 ### Affected files
 `backend/internal/service/openai_gateway_chat_completions_raw.go`,
 `backend/internal/service/openai_gateway_chat_completions_test.go`,
+this changelog.
+
+## 2026-09-27 - fix: force upstream balance probe on wallet-token save and refresh
+
+### What
+- The account-list balance refresh button calls usage with `force=true`, so it no longer waits out the 6-minute snapshot.
+- Saving a changed New API wallet access token or user id probes upstream before the update response returns. The usage cell reloads when the new balance timestamp arrives.
+
+### Why
+An unlimited upstream key snapshot stayed on screen after the wallet token was saved, because the following usage read was still inside the 6-minute window and the refresh button did not bypass it.
+
+### Affected files
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/upstream_balance_probe_test.go`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`docs/dev/codebase/account.md`,
 this changelog.
 
 ## 2026-09-27 - ui: show the relay endpoint on the API keys page
@@ -124,6 +198,21 @@ The picker only offered the short discovery catalog, so operators could not publ
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
 `docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-09-26 - docs: smart-schedule reproduction spec
+
+### What
+- Added `docs/dev/codebase/smart-schedule.md`: closed-pool admission, six states, `EvalQuality`, probe/cooldown/soft-cooldown, pair slots, and public-schedule quality, with oracle cases.
+- `scheduler.md` stays the entry map and now points at that spec.
+
+### Why
+The existing scheduler handbook intentionally omits algorithms. A second implementer needs one document that matches the current hot path.
+
+### Affected files
+`docs/dev/codebase/smart-schedule.md`,
+`docs/dev/codebase/scheduler.md`,
+`docs/dev/codebase/README.md`,
 this changelog.
 
 ## 2026-09-25 - deploy: production v0.1.301

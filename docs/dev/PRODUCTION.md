@@ -8,13 +8,13 @@
 
 | 项目 | 值 |
 |------|----|
-| 生产服务器 | `root@172.245.247.80` |
+| 生产服务器（`buffalo-origin`） | `root@172.245.247.80` |
 | 本地 SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
 | Compose 目录 | `/opt/sub2api` |
 | Sub2API 主服务镜像 | `ghcr.io/541968679/sub2api:latest` |
 | 部署日志 | `/opt/sub2api/deploy.log` |
 
-侧车镜像与目录仍见 `DEPLOYMENT.md` §1.1，本文不重复。
+侧车镜像与目录仍见 `DEPLOYMENT.md` §1.1，本文不重复。机队名称与香港中转见 [`SERVERS.md`](SERVERS.md)；香港机 `hk-relay`（`191.40.32.186`）只跑 Caddy，compose / `update.sh` / 拉容器日志不要打到那台上，playbook 是 [`HK_RELAY.md`](HK_RELAY.md)。
 
 ## 事故顺序
 

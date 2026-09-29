@@ -107,6 +107,7 @@ code-exploration walk.
 |-------------|------------|
 | Unfamiliar code / change a module | Existing Start Here chain: `ARCHITECTURE.md` → `codebase/README.md` → `codebase/{module}.md` |
 | 生产 / 线上 / 报错 / 排查 / 日志 / incident | `docs/dev/PRODUCTION.md` — pull logs before reading or changing code |
+| 香港中转 / hk-relay / `191.40.32.186` | `docs/dev/HK_RELAY.md`；机队总表 `docs/dev/SERVERS.md`。不要在这台上 `docker compose` / `update.sh` |
 | Deploy / release process | `docs/dev/DEPLOYMENT.md` — not the same as an incident |
 | 从 Wei-Shaw/sub2api 取更新 / 上游同步窗口 / 移植旧同步分支 / 合并副本（同步） | `.cursor/rules/upstream-sync.mdc` then this file's **Upstream sync** section — assess before changing product code |
 
@@ -168,11 +169,21 @@ If the task includes 生产 / 线上 / 报错 / 排查 / 日志 / incident:
 
 | Item | Value |
 |------|-------|
-| Host | `root@172.245.247.80` |
+| Host | `root@172.245.247.80` (`buffalo-origin`) |
 | SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
 | Compose | `/opt/sub2api` |
 | Deploy log | `/opt/sub2api/deploy.log` |
 | Image | `ghcr.io/541968679/sub2api:latest` |
+
+Hong Kong relay is a second machine. Do not pull compose logs from it.
+
+| Item | Value |
+|------|-------|
+| Name | `hk-relay` |
+| Host | `root@191.40.32.186` |
+| SSH key | `%USERPROFILE%\.ssh\id_ed25519_yt_hk` / `~/.ssh/id_ed25519_yt_hk` |
+| Role | Caddy reverse proxy only |
+| Playbook | `docs/dev/HK_RELAY.md` |
 
 ```powershell
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps"
@@ -273,6 +284,8 @@ will override `backend/config.yaml`. If the backend unexpectedly binds to port
 - `docs/dev/SECONDARY_DEV.md` - secondary development guide.
 - `docs/dev/PRODUCTION.md` - production incident / log playbook (host, SSH,
   pull-logs-first).
+- `docs/dev/SERVERS.md` - production fleet names, IPs, SSH keys, and roles.
+- `docs/dev/HK_RELAY.md` - Hong Kong Caddy relay (`hk-relay`) ops.
 - `docs/dev/DEPLOYMENT.md` - deployment and operations guide.
 - `docs/dev/SECURITY_OPERATIONS.md` - credential rotation and security
   operations guide.

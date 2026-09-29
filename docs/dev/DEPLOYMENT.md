@@ -12,11 +12,11 @@
 
 线上排查 / 生产报错 / 拉日志：先读 `docs/dev/PRODUCTION.md`，先拉日志再看代码。本节继续管部署入口与发布历史。
 
-生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`；InvokeAI 侧车说明见 `docs/dev/INVOKEAI_SIDECAR.md`。
+生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。机队名称见 [`SERVERS.md`](SERVERS.md)。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`；InvokeAI 侧车说明见 `docs/dev/INVOKEAI_SIDECAR.md`。香港中转 `hk-relay`（`191.40.32.186`）不是这台 compose 主机，见 [`HK_RELAY.md`](HK_RELAY.md)。
 
 | 项目 | 值 |
 |------|----|
-| 生产服务器 | `root@172.245.247.80` |
+| 生产服务器（`buffalo-origin`） | `root@172.245.247.80` |
 | 本地 SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
 | Compose 目录 | `/opt/sub2api` |
 | Sub2API 主服务镜像 | `ghcr.io/541968679/sub2api:latest` |
