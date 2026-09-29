@@ -1,3 +1,16 @@
+## 2026-09-29 - ops: production deploy v0.1.305
+
+### What
+- Released and deployed `v0.1.305` (`16b3c0732`) as `ghcr.io/541968679/sub2api:latest`, digest `sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694`. Preflight `/health` passed; live container healthy; version label `0.1.305`.
+- Live soak on group 50 (`国产模型：glm专用分组`): 120 empty-instructions `/v1/responses` `"hi"` and 40 Chat Completions `"hi"` all HTTP 200, all GLM, 0 Codex. Traffic split across accounts 1767 and 1778. Control: 8 `/v1/responses` with Codex instructions still greeted as Codex (7/8 named Codex).
+
+### Why
+Confirm the gateway no longer synthesizes Codex persona on empty live `/v1/responses`, including the intermittent customer path.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-09-29 - fix: stop injecting Codex default instructions on live OpenAI forwards
 
 ### What
