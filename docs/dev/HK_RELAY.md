@@ -49,7 +49,7 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 
 - 已交付并完成第一期 Caddy。主机名 `hk-relay`，BBR + fq，UFW 只开 22/80/443，sshd 仅公钥（`PermitRootLogin prohibit-password`）。
 - Caddy 2.11.4 听 `*:80`，反代 `https://zerocode.kaynlab.com`，Host 仍为 `zerocode.kaynlab.com`，`flush_interval -1`，请求体 256 MB，读写超时 3600s。443 尚未监听（没有证书域名）。
-- 第一期入口：`http://191.40.32.186`（操作员测试）。Let's Encrypt 不签裸 IP。明文 HTTP 不发给用户。
+- 第一期入口：`http://191.40.32.186`。Let's Encrypt 不签裸 IP。用户「API接入」已展示这条地址，类型为「香港」。Authorization 仍是明文 HTTP，长期入口仍计划换成 `https://api.<新域名>`。
 - 本机已验证：`/v1/models` → 401 `API_KEY_REQUIRED`；`/api/v1/settings/public` → 200；2 MB POST 未被 413；约 10.9 MB 静态资源下载约 14s。流式 `chat/completions` 还要用你自己的 key 打一条。
 - 香港到源站 `curl -I https://zerocode.kaynlab.com` 为 HTTP/2 200，ping 约 228 ms。
 - 用户入口仍计划 `https://api.<新域名>`。域名未注册。权威 DNS 用 DNSPod 或阿里云，不用 Cloudflare NS。
@@ -63,7 +63,21 @@ curl.exe -sS -D - -o NUL -m 20 http://191.40.32.186/v1/models
 curl.exe -sS -D - -o NUL -m 20 http://191.40.32.186/api/v1/settings/public
 ```
 
-流式需要带你自己的 key，走 `http://191.40.32.186/v1/chat/completions`。Authorization 是明文，测完不要把这个 URL 发给用户。
+流式需要带你自己的 key，走 `http://191.40.32.186/v1/chat/completions`。Authorization 是明文。
+
+## API接入展示
+
+Settings KV `custom_endpoints`（源站 Postgres，本地同样一份）：
+
+```json
+[{"name":"香港","endpoint":"http://191.40.32.186","description":"大陆入口，香港中转"}]
+```
+
+- 用户「API接入」用现有 `EndpointPopover` 读 `GET /api/v1/settings/public`。生产已写入，当前线上前端会显示「香港」芯片。
+- 有香港行时，默认芯片文案改成「海外」。这段 i18n 在本地前端，需部署后生产才改名。
+- 不要用 admin `PUT /api/v1/admin/settings` 的部分字段更新：非 pointer 字段会被写成零值。改这一条用 SQL `UPDATE settings SET value=... WHERE key='custom_endpoints'`，或先 GET 整份再 PUT。
+- Windows/SSH 管道会把「香港」弄成 `??`。SQL 用 `U&'\9999\6E2F'` 这类 ASCII unicode 转义。
+- 第二期换成 `https://api.<域>` 时，改这一条 `endpoint`，不要再加一条同名香港。
 
 重装或改配置：
 

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useClipboard } from '@/composables/useClipboard'
 import type { CustomEndpoint } from '@/types'
+import { endpointChipName, hasHongKongCustomEndpoint } from '@/utils/apiEndpoint'
 
 const props = defineProps<{
   apiBaseUrl: string
@@ -17,16 +18,31 @@ let copiedResetTimer: number | undefined
 
 const allEndpoints = computed(() => {
   const items: Array<{ name: string; endpoint: string; description: string; isDefault: boolean }> = []
+  const hasHongKong = hasHongKongCustomEndpoint(props.customEndpoints)
   if (props.apiBaseUrl) {
     items.push({
-      name: t('keys.endpoints.title'),
+      name: endpointChipName({
+        isDefault: true,
+        name: '',
+        hasHongKong,
+        t,
+      }),
       endpoint: props.apiBaseUrl,
       description: '',
       isDefault: true,
     })
   }
   for (const ep of props.customEndpoints) {
-    items.push({ ...ep, isDefault: false })
+    items.push({
+      ...ep,
+      name: endpointChipName({
+        isDefault: false,
+        name: ep.name,
+        hasHongKong,
+        t,
+      }),
+      isDefault: false,
+    })
   }
   return items
 })

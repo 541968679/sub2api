@@ -1,3 +1,24 @@
+## 2026-09-29 - feat: show Hong Kong API endpoint on 接入 page
+
+### What
+- User「API接入」chips now include the Hong Kong Caddy entry from Settings KV `custom_endpoints`: type `香港`, URL `http://191.40.32.186`.
+- When that Hong Kong row exists, the origin chip is labeled `海外` with the existing `默认` badge. Names `香港` / `Hong Kong` / `hongkong` map through i18n.
+- Production and local `custom_endpoints` already hold that JSON. The `香港` chip is live on production with the current frontend. The `海外` relabel needs a frontend deploy.
+
+### Why
+Mainland clients need a typed Hong Kong base URL next to the overseas origin, without waiting for the HTTPS domain.
+
+### Affected files
+`frontend/src/utils/apiEndpoint.ts`,
+`frontend/src/utils/__tests__/apiEndpoint.spec.ts`,
+`frontend/src/components/keys/EndpointPopover.vue`,
+`frontend/src/components/keys/__tests__/EndpointPopover.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/HK_RELAY.md`,
+`.trellis/tasks/09-29-hk-caddy-relay/implement.md`,
+this changelog.
+
 ## 2026-09-29 - ops: install Caddy on hk-relay (phase-1 HTTP)
 
 ### What

@@ -818,6 +818,8 @@ const zhBase = {
     searchPlaceholder: '搜索名称或Key...',
     endpoints: {
       title: 'API 端点',
+      overseas: '海外',
+      hongKong: '香港',
       default: '默认',
       copied: '已复制',
       copiedHint: '已复制到剪贴板',
@@ -8039,7 +8041,7 @@ const zhBase = {
           description: '添加额外的 API 端点地址，用户可在「API Keys」页面快速复制',
           itemLabel: '端点 #{n}',
           name: '名称',
-          namePlaceholder: '如：OpenAI Compatible',
+          namePlaceholder: '如：香港',
           endpointUrl: '端点地址',
           endpointUrlPlaceholder: 'https://api2.example.com',
           descriptionLabel: '介绍',

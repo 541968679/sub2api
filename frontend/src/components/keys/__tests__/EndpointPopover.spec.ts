@@ -5,6 +5,8 @@ const copyToClipboard = vi.fn().mockResolvedValue(true)
 
 const messages: Record<string, string> = {
   'keys.endpoints.title': 'API 端点',
+  'keys.endpoints.overseas': '海外',
+  'keys.endpoints.hongKong': '香港',
   'keys.endpoints.default': '默认',
   'keys.endpoints.copied': '已复制',
   'keys.endpoints.copiedHint': '已复制到剪贴板',
@@ -65,5 +67,26 @@ describe('EndpointPopover', () => {
     expect(copyToClipboard).toHaveBeenCalledWith('https://default.example.com/v1', '已复制')
     expect(wrapper.text()).toContain('已复制到剪贴板')
     expect(wrapper.find('button[aria-label="已复制到剪贴板"]').exists()).toBe(true)
+  })
+
+  it('把默认端点标成海外，并把自定义端点标成香港', () => {
+    const wrapper = mount(EndpointPopover, {
+      props: {
+        apiBaseUrl: 'https://zerocode.example.com',
+        customEndpoints: [
+          {
+            name: '香港',
+            endpoint: 'http://191.40.32.186',
+            description: '大陆入口，香港中转',
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.text()).toContain('海外')
+    expect(wrapper.text()).toContain('默认')
+    expect(wrapper.text()).toContain('https://zerocode.example.com')
+    expect(wrapper.text()).toContain('香港')
+    expect(wrapper.text()).toContain('http://191.40.32.186')
   })
 })

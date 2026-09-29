@@ -822,6 +822,8 @@ const enBase = {
     searchPlaceholder: 'Search name or key...',
     endpoints: {
       title: 'API Endpoints',
+      overseas: 'Overseas',
+      hongKong: 'Hong Kong',
       default: 'Default',
       copied: 'Copied',
       copiedHint: 'Copied to clipboard',
@@ -8438,7 +8440,7 @@ const enBase = {
           description: 'Add additional API endpoint URLs for users to quickly copy on the API Keys page',
           itemLabel: 'Endpoint #{n}',
           name: 'Name',
-          namePlaceholder: 'e.g., OpenAI Compatible',
+          namePlaceholder: 'e.g., Hong Kong',
           endpointUrl: 'Endpoint URL',
           endpointUrlPlaceholder: 'https://api2.example.com',
           descriptionLabel: 'Description',
