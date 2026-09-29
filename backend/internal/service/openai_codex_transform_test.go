@@ -1263,21 +1263,18 @@ func TestApplyCodexOAuthTransform_CodexCLI_PreservesExistingInstructions(t *test
 	_ = result
 }
 
-func TestApplyCodexOAuthTransform_CodexCLI_SuppliesDefaultWhenEmpty(t *testing.T) {
-	// Codex CLI 场景：无 instructions 时补充默认值
-
+func TestApplyCodexOAuthTransform_CodexCLI_DoesNotSupplyDefaultWhenEmpty(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.1",
-		// 没有 instructions 字段
 	}
 
-	result := applyCodexOAuthTransform(reqBody, true, false) // isCodexCLI=true
+	result := applyCodexOAuthTransform(reqBody, true, false)
 
-	instructions, ok := reqBody["instructions"].(string)
-	require.True(t, ok)
-	require.NotEmpty(t, instructions)
-	require.Contains(t, instructions, "You are GPT-5.1 running in the Codex CLI")
-	require.True(t, result.Modified)
+	_, hasInstructions := reqBody["instructions"]
+	require.False(t, hasInstructions)
+	require.NotContains(t, fmt.Sprint(reqBody), "You are Codex")
+	require.NotContains(t, fmt.Sprint(reqBody), "You are GPT-5.1 running in the Codex CLI")
+	_ = result
 }
 
 func TestApplyCodexOAuthTransform_NonCodexCLI_PreservesExistingInstructions(t *testing.T) {

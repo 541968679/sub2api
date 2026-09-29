@@ -1,3 +1,25 @@
+## 2026-09-29 - fix: stop injecting Codex default instructions on live OpenAI forwards
+
+### What
+- Live `/v1/responses` no longer fills empty `instructions` with the embedded Codex CLI persona (`You are Codex, based on GPT-5...`).
+- OAuth Codex transform and Chat Completions→Responses conversion also skip that default fill. Clients that need Codex instructions still send them.
+- Admin 账号测试「常规请求」Responses payload no longer attaches `openai.DefaultInstructions`.
+
+### Why
+Customer `glm-5.3-flash` `"hi"` replies were greeting as Codex because the gateway synthesized Codex persona instructions on empty `/v1/responses` bodies (and the same text in account tests). Direct upstream probes without that field greet as Z.ai GLM.
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_codex_transform.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/account_test_service.go`,
+`backend/internal/service/openai_gateway_service_hotpath_test.go`,
+`backend/internal/service/openai_codex_transform_test.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+`backend/internal/service/account_test_service_openai_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-09-29 - ops: hide Hong Kong endpoint from API keys page
 
 ### What

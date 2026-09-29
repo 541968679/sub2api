@@ -164,8 +164,9 @@ var openAICodexOAuthUnsupportedFields = append([]string{
 
 func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact bool) codexTransformResult {
 	return applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
-		IsCodexCLI: isCodexCLI,
-		IsCompact:  isCompact,
+		IsCodexCLI:              isCodexCLI,
+		IsCompact:               isCompact,
+		SkipDefaultInstructions: true,
 	})
 }
 
@@ -270,7 +271,8 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		result.Modified = true
 	}
 
-	// instructions 处理逻辑：根据是否是 Codex CLI 分别调用不同方法
+	// Live traffic must not synthesize Codex persona instructions.
+	// Clients that need them (Codex CLI / CCS) already send the field.
 	if !opts.SkipDefaultInstructions && applyInstructions(reqBody, opts.IsCodexCLI) {
 		result.Modified = true
 	}

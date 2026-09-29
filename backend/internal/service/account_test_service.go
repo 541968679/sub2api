@@ -20,7 +20,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -1366,9 +1365,6 @@ func createOpenAITestPayloadWithText(modelID string, isOAuth bool, prompt string
 	if isOAuth {
 		payload["store"] = false
 	}
-
-	// All accounts require instructions for Responses API
-	payload["instructions"] = openai.DefaultInstructions
 
 	return payload
 }

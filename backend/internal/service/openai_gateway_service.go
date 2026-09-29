@@ -2842,14 +2842,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		patchDisabled = true
 	}
 
-	// 非透传模式下，instructions 为空时注入默认指令。
-	if isInstructionsEmpty(reqBody) {
-		defaultInstructions := defaultCodexSynthInstructions(reqModel)
-		reqBody["instructions"] = defaultInstructions
-		bodyModified = true
-		markPatchSet("instructions", defaultInstructions)
-	}
-
 	codexImageGenerationBridgeEnabled := isCodexCLI && s.isCodexImageGenerationBridgeEnabled(account)
 	setOpenAICodexImageGenerationBridgeResponseEnabled(c, codexImageGenerationBridgeEnabled)
 	if codexImageGenerationBridgeEnabled && ensureOpenAIResponsesImageGenerationTool(reqBody) {

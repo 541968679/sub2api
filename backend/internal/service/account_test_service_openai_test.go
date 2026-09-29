@@ -825,6 +825,7 @@ func TestAccountTestService_OpenAIAPIKeyExplicitResponsesOverridesForceChat(t *t
 	require.Equal(t, "gpt-5.4", body["model"])
 	require.NotNil(t, body["input"])
 	require.Nil(t, body["messages"])
+	require.Nil(t, body["instructions"])
 	raw, err := json.Marshal(body["input"])
 	require.NoError(t, err)
 	require.Contains(t, string(raw), "hello from re")
