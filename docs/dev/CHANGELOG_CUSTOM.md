@@ -1,3 +1,17 @@
+## 2026-09-29 - ops: hide Hong Kong endpoint from API keys page
+
+### What
+- Cleared production and local Settings KV `custom_endpoints` back to `[]`. User「API接入」no longer shows the Hong Kong chip.
+- Admins add it later at 系统设置 → 常规 → 自定义端点. HTTPS `api.<domain>` is still required before that URL goes to customers.
+
+### Why
+The HTTP IP should not sit on the public keys page. The existing admin custom-endpoints form is the switch.
+
+### Affected files
+`docs/dev/HK_RELAY.md`,
+`.trellis/tasks/09-29-hk-caddy-relay/implement.md`,
+this changelog.
+
 ## 2026-09-29 - feat: show Hong Kong API endpoint on 接入 page
 
 ### What
