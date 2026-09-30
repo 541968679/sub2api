@@ -1181,6 +1181,8 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 func TestNormalizeCodexModel_PreservesUnknownModels(t *testing.T) {
 	require.Equal(t, "gemini-3-flash-preview", normalizeCodexModel("gemini-3-flash-preview"))
 	require.Equal(t, "gpt-4.1", normalizeCodexModel("gpt-4.1"))
+	require.Equal(t, "gpt-6.1-sol", normalizeCodexModel("gpt-6.1-sol"))
+	require.Equal(t, "gpt-6.1-sol-high", normalizeCodexModel("gpt-6.1-sol-high"))
 }
 
 func TestNormalizeCodexModel_RemovedModelsFallbackToSupportedTargets(t *testing.T) {

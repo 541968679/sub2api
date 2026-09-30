@@ -45,6 +45,22 @@ var (
 		Mode:                            "chat",
 		SupportsPromptCaching:           true,
 	}
+	openAIGPT61SolFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:               2e-06,
+		InputCostPerTokenPriority:       4e-06,
+		OutputCostPerToken:              1e-05,
+		OutputCostPerTokenPriority:      2e-05,
+		CacheCreationInputTokenCost:     2.5e-06,
+		CacheReadInputTokenCost:         1e-07,
+		CacheReadInputTokenCostPriority: 2e-07,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2.0,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+		SupportsServiceTier:             true,
+	}
 	openAIGPT6SolFallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               2e-06,
 		InputCostPerTokenPriority:       4e-06,
@@ -828,6 +844,11 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 	switch {
+	case model == "gpt-6.1-sol" || strings.HasPrefix(model, "gpt-6.1-sol-"):
+		if pricing, ok := s.pricingData["gpt-6.1-sol"]; ok {
+			return pricing
+		}
+		return openAIGPT61SolFallbackPricing
 	case strings.HasPrefix(model, "gpt-6-sol"):
 		if pricing, ok := s.pricingData["gpt-6-sol"]; ok {
 			return pricing

@@ -159,6 +159,89 @@ func TestGetModelPricing_September2026Models(t *testing.T) {
 	require.InDelta(t, 8e-6, opus.CacheCreation1hPrice, 1e-15)
 }
 
+func TestGetModelPricing_GPT61SolLongContextKeepsCheaperCacheRead(t *testing.T) {
+	svc := newTestBillingService()
+
+	for _, model := range []string{"gpt-6.1-sol", "openai/gpt-6.1-sol", "gpt-6.1-sol-high", "gpt-6.1-sol-2026-09-29"} {
+		pricing, err := svc.GetModelPricing(model)
+		require.NoError(t, err, model)
+		require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-15, model)
+		require.InDelta(t, 4e-6, pricing.InputPricePerTokenPriority, 1e-15, model)
+		require.InDelta(t, 10e-6, pricing.OutputPricePerToken, 1e-15, model)
+		require.InDelta(t, 0.1e-6, pricing.CacheReadPricePerToken, 1e-15, model)
+		require.InDelta(t, 0.2e-6, pricing.CacheReadPricePerTokenPriority, 1e-15, model)
+		require.InDelta(t, 2.5e-6, pricing.CacheCreationPricePerToken, 1e-15, model)
+		require.Equal(t, 272000, pricing.LongContextInputThreshold, model)
+		require.InDelta(t, 2.0, pricing.LongContextInputMultiplier, 1e-12, model)
+		require.InDelta(t, 1.5, pricing.LongContextOutputMultiplier, 1e-12, model)
+	}
+}
+
+func TestGetModelPricing_GPT61SolDynamicPricingFillsLongContext(t *testing.T) {
+	svc := NewBillingService(&config.Config{}, &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"gpt-6.1-sol": {
+				InputCostPerToken:               2e-6,
+				InputCostPerTokenPriority:       4e-6,
+				OutputCostPerToken:              10e-6,
+				OutputCostPerTokenPriority:      20e-6,
+				CacheCreationInputTokenCost:     2.5e-6,
+				CacheReadInputTokenCost:         0.1e-6,
+				CacheReadInputTokenCostPriority: 0.2e-6,
+			},
+			"gpt-5.4": {
+				InputCostPerToken:  2.5e-6,
+				OutputCostPerToken: 15e-6,
+			},
+		},
+	})
+
+	for _, model := range []string{"gpt-6.1-sol", "gpt-6.1-sol-high"} {
+		pricing, err := svc.GetModelPricing(model)
+		require.NoError(t, err, model)
+		require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-15, model)
+		require.InDelta(t, 0.1e-6, pricing.CacheReadPricePerToken, 1e-15, model)
+		require.InDelta(t, 2.5e-6, pricing.CacheCreationPricePerToken, 1e-15, model)
+		require.Equal(t, 272000, pricing.LongContextInputThreshold, model)
+		require.InDelta(t, 2.0, pricing.LongContextInputMultiplier, 1e-12, model)
+		require.InDelta(t, 1.5, pricing.LongContextOutputMultiplier, 1e-12, model)
+	}
+}
+
+func TestCalculateCost_GPT61SolLongContextAppliesWholeSessionMultipliers(t *testing.T) {
+	svc := newTestBillingService()
+
+	tokens := UsageTokens{
+		InputTokens:         300000,
+		OutputTokens:        1000,
+		CacheReadTokens:     1000,
+		CacheCreationTokens: 1000,
+	}
+	cost, err := svc.CalculateCost("gpt-6.1-sol", tokens, 1.0)
+	require.NoError(t, err)
+
+	expectedInput := float64(tokens.InputTokens) * 2e-6 * 2.0
+	expectedOutput := float64(tokens.OutputTokens) * 10e-6 * 1.5
+	expectedCacheRead := float64(tokens.CacheReadTokens) * 0.1e-6 * 2.0
+	expectedCacheWrite := float64(tokens.CacheCreationTokens) * 2.5e-6 * 2.0
+	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
+	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
+	require.InDelta(t, expectedCacheRead, cost.CacheReadCost, 1e-10)
+	require.InDelta(t, expectedCacheWrite, cost.CacheCreationCost, 1e-10)
+	require.True(t, cost.LongContextApplied)
+	require.Equal(t, 272000, cost.LongContextInputThreshold)
+	require.InDelta(t, 2.0, cost.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, cost.LongContextOutputMultiplier, 1e-12)
+
+	atThreshold, err := svc.CalculateCost("gpt-6.1-sol", UsageTokens{
+		InputTokens:     172000,
+		CacheReadTokens: 100000,
+		OutputTokens:    10,
+	}, 1.0)
+	require.NoError(t, err)
+	require.False(t, atThreshold.LongContextApplied)
+}
+
 func TestGetModelPricing_UnknownOpenAIModelReturnsError(t *testing.T) {
 	svc := newTestBillingService()
 

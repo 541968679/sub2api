@@ -354,6 +354,19 @@ func (s *BillingService) initFallbackPricing() {
 	s.fallbackPrices["gpt-5.6-sol"] = newGPT56Fallback()
 	s.fallbackPrices["gpt-5.6-terra"] = newGPT56Fallback()
 	s.fallbackPrices["gpt-5.6-luna"] = newGPT56Fallback()
+	s.fallbackPrices["gpt-6.1-sol"] = &ModelPricing{
+		InputPricePerToken:             2e-6,   // $2 per MTok
+		InputPricePerTokenPriority:     4e-6,   // $4 per MTok
+		OutputPricePerToken:            10e-6,  // $10 per MTok
+		OutputPricePerTokenPriority:    20e-6,  // $20 per MTok
+		CacheCreationPricePerToken:     2.5e-6, // $2.50 per MTok
+		CacheReadPricePerToken:         0.1e-6, // $0.10 per MTok
+		CacheReadPricePerTokenPriority: 0.2e-6,
+		SupportsCacheBreakdown:         false,
+		LongContextInputThreshold:      openAIGPT54LongContextInputThreshold,
+		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
+		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
+	}
 	s.fallbackPrices["gpt-6-sol"] = &ModelPricing{
 		InputPricePerToken:             2e-6,   // $2 per MTok
 		InputPricePerTokenPriority:     4e-6,   // $4 per MTok
@@ -503,6 +516,9 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	}
 
 	// OpenAI 仅匹配已知 GPT-5/Codex 族，避免未知 OpenAI 型号误计价。
+	if isOpenAIGPT61SolBillingModel(modelLower) {
+		return s.fallbackPrices["gpt-6.1-sol"]
+	}
 	if normalized := normalizeKnownOpenAICodexModel(modelLower); normalized != "" {
 		switch normalized {
 		case "gpt-5.6":
@@ -511,6 +527,8 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 			return s.fallbackPrices["gpt-5.6-sol"]
 		case "gpt-5.6-terra":
 			return s.fallbackPrices["gpt-5.6-terra"]
+		case "gpt-6.1-sol":
+			return s.fallbackPrices["gpt-6.1-sol"]
 		case "gpt-6-sol":
 			return s.fallbackPrices["gpt-6-sol"]
 		case "gpt-6-luna":
@@ -893,7 +911,7 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 	}
 	normalized := normalizeKnownOpenAICodexModel(model)
 	needsOpenAICacheWriteDefault := normalized == "gpt-5.6" || normalized == "gpt-5.6-sol" || normalized == "gpt-5.6-terra" || normalized == "gpt-5.6-luna" ||
-		normalized == "gpt-6-sol" || normalized == "gpt-6-luna"
+		normalized == "gpt-6-sol" || normalized == "gpt-6-luna" || normalized == "gpt-6.1-sol" || isOpenAIGPT61SolBillingModel(model)
 	if pricing.LongContextInputThreshold > 0 && pricing.LongContextInputMultiplier > 0 && pricing.LongContextOutputMultiplier > 0 &&
 		(!needsOpenAICacheWriteDefault || pricing.CacheCreationPricePerToken > 0 || pricing.InputPricePerToken <= 0) {
 		return pricing
@@ -938,13 +956,28 @@ func (s *BillingService) shouldApplySessionLongContextPricing(tokens UsageTokens
 func isOpenAIGPT54Model(model string) bool {
 	// 仅当模型字符串实际属于 GPT-5/Codex 族时才做归一判定，避免 normalizeCodexModel
 	// 的默认兜底把非 OpenAI 模型（claude-*、gemini-*、gpt-4o）误识别为 gpt-5.4。
+	if isOpenAIGPT61SolBillingModel(model) {
+		return true
+	}
 	normalized := normalizeKnownOpenAICodexModel(model)
 	switch normalized {
-	case "gpt-5.4", "gpt-5.5", "gpt-5.5-pro", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-sol", "gpt-6-luna":
+	case "gpt-5.4", "gpt-5.5", "gpt-5.5-pro", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol":
 		return true
 	default:
 		return false
 	}
+}
+
+// isOpenAIGPT61SolBillingModel reports the gpt-6.1-sol billing ID, including
+// provider prefixes and known effort or date suffixes. It does not rewrite the
+// request model; gpt-6.1-sol-high stays gpt-6.1-sol-high for scheduling.
+func isOpenAIGPT61SolBillingModel(model string) bool {
+	id := canonicalizeOpenAIModelAliasSpelling(model)
+	if id == "gpt-6.1-sol" {
+		return true
+	}
+	suffix, ok := strings.CutPrefix(id, "gpt-6.1-sol-")
+	return ok && isKnownCodexModelSuffix(suffix)
 }
 
 // CalculateCostWithConfig 使用配置中的默认倍率计算费用

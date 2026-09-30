@@ -76,11 +76,13 @@ The loaded LiteLLM file already has the standard and Fast short-context prices,
 so no `global_model_pricing` row was inserted. A global row would flatten Fast
 to the single admin price.
 
-The 272K multipliers are applied only for models `isOpenAIGPT54Model` already
-knows (`gpt-6-sol`, `gpt-6-luna`, and the GPT-5.4 family). `gpt-6.1-sol` is not
-in that set, and the price parser does not read `*_above_272k_tokens` fields,
-so those requests currently bill at the short-context rates. Codex effort
-suffixes are not rewritten to `gpt-6.1-sol` yet.
+`gpt-6.1-sol` is on the same long-context list as `gpt-6-sol` and `gpt-6-luna`
+(`isOpenAIGPT54Model`). When input + cache read is above 272000, the whole
+request uses input, cache read, and cache write ×2 and output ×1.5. The price
+parser still does not read `*_above_272k_tokens`; this policy fills those
+multipliers. Cache read stays $0.10 per million tokens. Codex effort suffixes
+such as `gpt-6.1-sol-high` are not rewritten to the base ID. If that suffixed
+ID is billed, it uses these same unit prices and the same long-context policy.
 
 ## OpenAI GPT-5.6 Model Mapping (2026-07-10)
 

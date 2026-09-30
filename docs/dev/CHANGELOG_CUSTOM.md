@@ -1,3 +1,22 @@
+## 2026-09-30 - fix: bill GPT-6.1 Sol with the OpenAI long-context multipliers
+
+### What
+- `gpt-6.1-sol` is on the OpenAI long-context list. Input + cache read above 272000 bills the whole request at input/cache ×2 and output ×1.5.
+- Fallback and dynamic prices keep cache read at $0.10 per million tokens. A missing LiteLLM row no longer falls through to the GPT-5.4 default price.
+- Effort suffixes such as `gpt-6.1-sol-high` are still not rewritten to the base ID. When billed under the suffixed ID, they use the same unit prices and long-context policy.
+
+### Why
+The session long-context switch was already on for GPT-6 Sol and Luna. GPT-6.1 Sol uses the same 272K card, and the price file's `above_272k` fields are not what the biller reads.
+
+### Affected files
+`backend/internal/service/billing_service.go`,
+`backend/internal/service/billing_service_test.go`,
+`backend/internal/service/pricing_service.go`,
+`backend/internal/service/openai_model_alias.go`,
+`backend/internal/service/openai_codex_transform_test.go`,
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-30 - ops: add GPT-6.1 Sol to non-domestic OpenAI accounts
 
 ### What
