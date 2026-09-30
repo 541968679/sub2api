@@ -62,6 +62,18 @@ Customer `glm-5.3-flash` `"hi"` replies were greeting as Codex because the gatew
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-09-30 - ops: daytime direct probe of hk-relay from workstation
+
+### What
+- Cleared local `127.0.0.1:10808` proxy. ICMP 12/12 avg 132 ms; HTTPS `/v1/models` 15/15 401; keep-alive later requests ~310–330 ms. Path looks like China Mobile (`221.183` / `223.120`). Evening three-carrier still open.
+
+### Why
+Confirm mainland-side clients can hit `https://zerocode.kaynlab.asia` without the workstation proxy.
+
+### Affected files
+`docs/dev/HK_RELAY.md`,
+this changelog.
+
 ## 2026-09-30 - ops: hk-relay HTTPS live at zerocode.kaynlab.asia
 
 ### What

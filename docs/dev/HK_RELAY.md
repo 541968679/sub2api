@@ -53,6 +53,7 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 - 线下发给客户：`https://zerocode.kaynlab.asia`。操作员 HTTP IP `http://191.40.32.186` 仍开着，不要发给客户。用户「API接入」不展示香港芯片（`custom_endpoints` 仍为 `[]`）。
 - HTTPS 已验证：`/v1/models` → 401 `API_KEY_REQUIRED`；`/api/v1/settings/public` → 200。流式 `chat/completions` 还要用你自己的 key 打一条。
 - 香港到源站 `curl -I https://zerocode.kaynlab.com` 为 HTTP/2 200，ping 约 228 ms。
+- 2026-09-30 约 10:10 HKT，本机直连（清掉 `HTTP(S)_PROXY=127.0.0.1:10808`）测香港节点：ICMP 12/12 平均 132 ms（102–163）；TCP 80/443/22 各 5/5；HTTPS `/v1/models` 新建连接 15/15 均 401，中位合计约 1.0 s；keep-alive 后续约 310–330 ms。路由经中国移动 `221.183` / `223.120`（白天样本，不是晚高峰）。
 - 晚高峰电信 / 联通 / 移动流式测试未做。未切用户。源站 `trusted_proxies` 未写入香港 IP。
 - 本机对 `:22` 有时 `Test-NetConnection` 成功、有时 `ssh` 超时。超时不能单独当成机器宕机。
 
