@@ -1,6 +1,6 @@
-# hk-relay phase-1: operator HTTP on the public IPv4.
+# hk-relay: HTTPS customer/operator entry + leftover IP HTTP for operator tests.
+# Public URL to hand out: https://api.kaynlab.asia
 # Do not give http://191.40.32.186 to customers (Authorization is cleartext).
-# Phase-2: add https://api.<domain> and disable this site block.
 #
 # Live path on the box: /etc/caddy/Caddyfile
 # Copy: scp -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes docs/dev/hk-relay/Caddyfile root@191.40.32.186:/etc/caddy/Caddyfile
@@ -19,7 +19,7 @@
 	}
 }
 
-http://191.40.32.186 {
+(origin_proxy) {
 	request_body {
 		max_size 256MB
 	}
@@ -50,4 +50,12 @@ http://191.40.32.186 {
 		format json
 		level INFO
 	}
+}
+
+api.kaynlab.asia {
+	import origin_proxy
+}
+
+http://191.40.32.186 {
+	import origin_proxy
 }

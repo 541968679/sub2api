@@ -62,6 +62,20 @@ Customer `glm-5.3-flash` `"hi"` replies were greeting as Codex because the gatew
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-09-30 - ops: add api.kaynlab.asia HTTPS site on hk-relay
+
+### What
+- Caddy on `hk-relay` now has `api.kaynlab.asia` (automatic HTTPS) plus the operator HTTP IP site.
+- Domain registered at Dynadot 2026-09-30. Cert issuance waits on `api` A → `191.40.32.186` and `.asia` zone delegation.
+
+### Why
+Offline customer URL needs a real hostname and Let's Encrypt. The keys page stays without a Hong Kong chip.
+
+### Affected files
+`docs/dev/hk-relay/Caddyfile`,
+`docs/dev/HK_RELAY.md`,
+this changelog.
+
 ## 2026-09-29 - ops: hide Hong Kong endpoint from API keys page
 
 ### What

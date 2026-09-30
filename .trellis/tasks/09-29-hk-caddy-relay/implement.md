@@ -27,8 +27,8 @@
 4b. **API接入芯片**（2026-09-29 已撤回公开展示）  
    源站和本地 `custom_endpoints` 已清回 `[]`。香港 URL 改由管理员在「系统设置 → 常规 → 自定义端点」自行添加。HTTPS 域名到位后再填 `https://api.<域>`。
 
-5. **域名（第二期，用户切流前）**  
-   注册 `.com`/`.net`，NS 在 DNSPod/阿里云，`api.<域>` A `191.40.32.186` TTL 120。加上 HTTPS 站点块，再关掉或限制 IP 的明文 80。
+5. **域名（第二期）**  
+   `kaynlab.asia` 已在 Dynadot 注册（2026-09-30）。Caddy 已加 `api.kaynlab.asia` 并听 443。待 Dynadot 增加 A 记录 `api` → `191.40.32.186`，且 `.asia` 区委派离开 NXDOMAIN 后，Let's Encrypt 会自动重试。用户密钥页仍不展示该入口。
 
 6. **功能测试（域名）**  
    `https://api.<域>/v1/models` 证书匹配；再打一条流式。
