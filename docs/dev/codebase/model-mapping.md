@@ -60,6 +60,28 @@ Saved admin model catalogs replace these seeds. An empty catalog picks the new
 IDs up; a catalog already stored in settings does not grow until an admin adds
 the IDs.
 
+## GPT-6.1 Sol (2026-09-30)
+
+Official ID is `gpt-6.1-sol`. Standard API prices, USD per million tokens:
+input 2, cache read 0.10, cache write 2.50, output 10. Above 272K input tokens
+the official card is input 4, cache read 0.20, cache write 5, output 15.
+Fast is 2× the matching context band. Cache read is half of `gpt-6-sol`.
+
+`gpt-6` stays the Astra alias and is not rewritten to Sol. Claude-GPT bridge
+defaults stay on `gpt-5.5` / `gpt-5.4`.
+
+Production on 2026-09-30 appended the ID to the saved OpenAI catalog and added
+the identity mapping on OpenAI accounts outside groups 46–51 (国产模型相关分组).
+The loaded LiteLLM file already has the standard and Fast short-context prices,
+so no `global_model_pricing` row was inserted. A global row would flatten Fast
+to the single admin price.
+
+The 272K multipliers are applied only for models `isOpenAIGPT54Model` already
+knows (`gpt-6-sol`, `gpt-6-luna`, and the GPT-5.4 family). `gpt-6.1-sol` is not
+in that set, and the price parser does not read `*_above_272k_tokens` fields,
+so those requests currently bill at the short-context rates. Codex effort
+suffixes are not rewritten to `gpt-6.1-sol` yet.
+
 ## OpenAI GPT-5.6 Model Mapping (2026-07-10)
 
 OpenAI model lists and presets include `gpt-5.6-sol`, `gpt-5.6-terra`, and

@@ -1,3 +1,19 @@
+## 2026-09-30 - ops: add GPT-6.1 Sol to non-domestic OpenAI accounts
+
+### What
+- Added identity mapping `gpt-6.1-sol` → `gpt-6.1-sol` on 58 OpenAI accounts that are not in groups 46–51. Domestic accounts in those groups were left unchanged: 0 of them have the key. Scheduler snapshots match that split.
+- Appended `gpt-6.1-sol` to the saved `openai_model_catalog` display list and whitelist. `gpt-6` stays the Astra alias. Claude-GPT bridge defaults stay on `gpt-5.5` / `gpt-5.4`.
+- Live `/app/data/model_pricing.json` already matches the OpenAI card for standard and Fast short context. No `global_model_pricing` row and no user price override were added for this ID. The only `gpt-6*` global row remains Astra.
+- Standard, USD per million tokens: input $2, cached input $0.10, cache write $2.50, output $10. Fast short context is 2× ($4 / $0.20 / $5 / $20). Cache read is half of GPT-6 Sol.
+- The running image does not treat `gpt-6.1-sol` as a long-context model, so prompts over 272K input tokens still bill at the short-context rates. Effort suffixes such as `gpt-6.1-sol-high` are not rewritten to the base ID.
+
+### Why
+GPT-6.1 Sol is live. Explicit account whitelists would reject the new ID, and a saved catalog does not pick up new seed models on its own. A global price row would copy one admin price onto both standard and Fast and wipe the 2× Fast premium.
+
+### Affected files
+`docs/dev/codebase/model-mapping.md`,
+this changelog.
+
 ## 2026-09-29 - change: OpenAI API-key upstream routing defaults to native mapping
 
 ### What
