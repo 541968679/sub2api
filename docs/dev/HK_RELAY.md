@@ -49,9 +49,9 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 
 - 已交付并完成第一期 Caddy。主机名 `hk-relay`，BBR + fq，UFW 只开 22/80/443，sshd 仅公钥（`PermitRootLogin prohibit-password`）。
 - Caddy 2.11.4 反代 `https://zerocode.kaynlab.com`，Host 仍为 `zerocode.kaynlab.com`，`flush_interval -1`，请求体 256 MB，读写超时 3600s。
-- 域名 `kaynlab.asia` 于 2026-09-30 01:51 UTC 在 Dynadot 注册，NS 为 `ns1.dyna-ns.net` / `ns2.dyna-ns.net`。入口主机名定为 `zerocode.kaynlab.asia`。Caddy 已加上该站点块并监听 `:443`。Let's Encrypt 要等该名 A 记录指向 `191.40.32.186`（当前公开解析仍是停车页 `185.53.179.128`）。
-- 第一期入口：`http://191.40.32.186`（操作员）。用户「API接入」不展示香港芯片；线下发给客户用 HTTPS 域名。
-- 本机已验证：`/v1/models` → 401 `API_KEY_REQUIRED`；`/api/v1/settings/public` → 200；2 MB POST 未被 413；约 10.9 MB 静态资源下载约 14s。流式 `chat/completions` 还要用你自己的 key 打一条。
+- 域名 `kaynlab.asia` 于 2026-09-30 01:51 UTC 在 Dynadot 注册，NS 为 `ns1.dyna-ns.net` / `ns2.dyna-ns.net`。入口主机名 `zerocode.kaynlab.asia` A 记录 `191.40.32.186`。Let's Encrypt 证书已签发（CN=`zerocode.kaynlab.asia`，有效至 2026-12-29）。
+- 线下发给客户：`https://zerocode.kaynlab.asia`。操作员 HTTP IP `http://191.40.32.186` 仍开着，不要发给客户。用户「API接入」不展示香港芯片（`custom_endpoints` 仍为 `[]`）。
+- HTTPS 已验证：`/v1/models` → 401 `API_KEY_REQUIRED`；`/api/v1/settings/public` → 200。流式 `chat/completions` 还要用你自己的 key 打一条。
 - 香港到源站 `curl -I https://zerocode.kaynlab.com` 为 HTTP/2 200，ping 约 228 ms。
 - 晚高峰电信 / 联通 / 移动流式测试未做。未切用户。源站 `trusted_proxies` 未写入香港 IP。
 - 本机对 `:22` 有时 `Test-NetConnection` 成功、有时 `ssh` 超时。超时不能单独当成机器宕机。
@@ -59,11 +59,12 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 ## 操作员自测
 
 ```powershell
+curl.exe -sS -D - -o NUL -m 20 https://zerocode.kaynlab.asia/v1/models
+curl.exe -sS -D - -o NUL -m 20 https://zerocode.kaynlab.asia/api/v1/settings/public
 curl.exe -sS -D - -o NUL -m 20 http://191.40.32.186/v1/models
-curl.exe -sS -D - -o NUL -m 20 http://191.40.32.186/api/v1/settings/public
 ```
 
-流式需要带你自己的 key，走 `http://191.40.32.186/v1/chat/completions`。Authorization 是明文。
+流式带你自己的 key：`https://zerocode.kaynlab.asia/v1/chat/completions`。
 
 ## API接入展示
 

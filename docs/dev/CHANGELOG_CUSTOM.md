@@ -62,6 +62,14 @@ Customer `glm-5.3-flash` `"hi"` replies were greeting as Codex because the gatew
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-09-30 - ops: hk-relay HTTPS live at zerocode.kaynlab.asia
+
+### What
+- Public A for `zerocode.kaynlab.asia` is `191.40.32.186`. Let's Encrypt issued CN=`zerocode.kaynlab.asia` (valid until 2026-12-29). HTTPS `/v1/models` returns 401 `API_KEY_REQUIRED`; `/api/v1/settings/public` is 200; `custom_endpoints` remains `[]`.
+
+### Why
+The hostname saved at Dynadot is `zerocode`. Customers can be given `https://zerocode.kaynlab.asia` privately; the keys page stays without a Hong Kong chip.
+
 ## 2026-09-30 - ops: switch hk-relay HTTPS name to zerocode.kaynlab.asia
 
 ### What
