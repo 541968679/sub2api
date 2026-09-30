@@ -1,5 +1,5 @@
 # hk-relay: HTTPS customer/operator entry + leftover IP HTTP for operator tests.
-# Public URL to hand out: https://api.kaynlab.asia
+# Public URL to hand out: https://zerocode.kaynlab.asia
 # Do not give http://191.40.32.186 to customers (Authorization is cleartext).
 #
 # Live path on the box: /etc/caddy/Caddyfile
@@ -52,7 +52,7 @@
 	}
 }
 
-api.kaynlab.asia {
+zerocode.kaynlab.asia {
 	import origin_proxy
 }
 

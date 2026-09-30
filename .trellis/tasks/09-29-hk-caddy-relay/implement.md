@@ -28,7 +28,7 @@
    源站和本地 `custom_endpoints` 已清回 `[]`。香港 URL 改由管理员在「系统设置 → 常规 → 自定义端点」自行添加。HTTPS 域名到位后再填 `https://api.<域>`。
 
 5. **域名（第二期）**  
-   `kaynlab.asia` 已在 Dynadot 注册（2026-09-30）。Caddy 已加 `api.kaynlab.asia` 并听 443。待 Dynadot 增加 A 记录 `api` → `191.40.32.186`，且 `.asia` 区委派离开 NXDOMAIN 后，Let's Encrypt 会自动重试。用户密钥页仍不展示该入口。
+   `kaynlab.asia` 已在 Dynadot 注册（2026-09-30）。入口主机名 `zerocode.kaynlab.asia`。Caddy 已加该站点并听 443。待 A 记录改为 `191.40.32.186`（现在仍是停车页 `185.53.179.128`）后 Let's Encrypt 会自动重试。用户密钥页仍不展示该入口。
 
 6. **功能测试（域名）**  
    `https://api.<域>/v1/models` 证书匹配；再打一条流式。

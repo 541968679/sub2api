@@ -49,7 +49,7 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 
 - 已交付并完成第一期 Caddy。主机名 `hk-relay`，BBR + fq，UFW 只开 22/80/443，sshd 仅公钥（`PermitRootLogin prohibit-password`）。
 - Caddy 2.11.4 反代 `https://zerocode.kaynlab.com`，Host 仍为 `zerocode.kaynlab.com`，`flush_interval -1`，请求体 256 MB，读写超时 3600s。
-- 域名 `kaynlab.asia` 于 2026-09-30 01:51 UTC 在 Dynadot 注册，NS 为 `ns1.dyna-ns.net` / `ns2.dyna-ns.net`。计划入口 `https://api.kaynlab.asia`。Caddy 已加上该站点块并监听 `:443`。Let's Encrypt 要等 `api.kaynlab.asia` A 记录指向 `191.40.32.186`，且 `.asia` 区委派生效。
+- 域名 `kaynlab.asia` 于 2026-09-30 01:51 UTC 在 Dynadot 注册，NS 为 `ns1.dyna-ns.net` / `ns2.dyna-ns.net`。入口主机名定为 `zerocode.kaynlab.asia`。Caddy 已加上该站点块并监听 `:443`。Let's Encrypt 要等该名 A 记录指向 `191.40.32.186`（当前公开解析仍是停车页 `185.53.179.128`）。
 - 第一期入口：`http://191.40.32.186`（操作员）。用户「API接入」不展示香港芯片；线下发给客户用 HTTPS 域名。
 - 本机已验证：`/v1/models` → 401 `API_KEY_REQUIRED`；`/api/v1/settings/public` → 200；2 MB POST 未被 413；约 10.9 MB 静态资源下载约 14s。流式 `chat/completions` 还要用你自己的 key 打一条。
 - 香港到源站 `curl -I https://zerocode.kaynlab.com` 为 HTTP/2 200，ping 约 228 ms。
@@ -69,7 +69,7 @@ curl.exe -sS -D - -o NUL -m 20 http://191.40.32.186/api/v1/settings/public
 
 2026-09-29 已把源站和本地 `custom_endpoints` 清回 `[]`。用户「API接入」只显示默认海外地址。
 
-要重新展示香港入口：管理后台 → 系统设置 → 常规 → 自定义端点。名称填「香港」，地址填 `https://api.kaynlab.asia`，保存整页。有香港行时，本地前端会把默认芯片标成「海外」（需部署后生产才改名）。
+要重新展示香港入口：管理后台 → 系统设置 → 常规 → 自定义端点。名称填「香港」，地址填 `https://zerocode.kaynlab.asia`，保存整页。有香港行时，本地前端会把默认芯片标成「海外」（需部署后生产才改名）。
 
 不要用 admin `PUT /api/v1/admin/settings` 的部分字段更新。后台页面是整份表单再保存，这条路径是安全的。
 

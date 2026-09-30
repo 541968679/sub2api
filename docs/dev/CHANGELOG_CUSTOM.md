@@ -62,6 +62,19 @@ Customer `glm-5.3-flash` `"hi"` replies were greeting as Codex because the gatew
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-09-30 - ops: switch hk-relay HTTPS name to zerocode.kaynlab.asia
+
+### What
+- Caddy site block is `zerocode.kaynlab.asia`. Public DNS for that name is still Dynadot parking `185.53.179.128`; cert waits on A → `191.40.32.186`.
+
+### Why
+The hostname saved at Dynadot is `zerocode`, not `api`.
+
+### Affected files
+`docs/dev/hk-relay/Caddyfile`,
+`docs/dev/HK_RELAY.md`,
+this changelog.
+
 ## 2026-09-30 - ops: add api.kaynlab.asia HTTPS site on hk-relay
 
 ### What
