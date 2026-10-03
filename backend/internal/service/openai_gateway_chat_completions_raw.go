@@ -84,9 +84,13 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// kimi-k3 only, and only after the upstream model is known. Other models
 	// never read the switch. A reject is written here and is not sent upstream.
 	if isKimiK3UpstreamModel(upstreamModel) && s.kimiK3AdaptiveValidationEnabled(ctx) {
-		adapted, rejectMessage, changed := AdaptKimiK3ChatBody(upstreamBody)
+		adapted, rejectMessage, changed, budgetReject := AdaptKimiK3ChatBody(upstreamBody)
 		if rejectMessage != "" {
-			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", rejectMessage)
+			status := http.StatusBadRequest
+			if budgetReject {
+				status = http.StatusForbidden
+			}
+			writeChatCompletionsError(c, status, "invalid_request_error", rejectMessage)
 			return nil, fmt.Errorf("non-streaming openai protocol error: %s", rejectMessage)
 		}
 		if changed {

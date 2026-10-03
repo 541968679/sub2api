@@ -1,3 +1,19 @@
+## 2026-10-03 - gateway: Kimi K3 budget, output range, and message structure
+
+### What
+- With `kimi_k3_adaptive_validation_enabled` set to `true`, a kimi-k3 Chat Completions body now range-checks `max_completion_tokens` and `max_tokens`, counts input before forward, validates each message against the Kimi K3 message shape, and rejects an object `tool_choice`.
+- An integer above 1048576, a decimal, or scientific notation returns HTTP 400. Input plus the output budget above 1048576 returns HTTP 403. Bodies whose text bytes already fit in the window are not tokenized. Content above 8 MiB uses the existing byte approximation.
+- The old reject that fired only when the budget was exactly 1048576 is gone. Legal `video_url` object and string forms stay unchanged. A string `image_url` is still rewritten.
+
+### Why
+The live checker only special-cased two sample numbers and did not validate message structure. The customer contract is the whole range, the whole budget, and the whole message object.
+
+### Affected files
+`backend/internal/service/kimi_k3_adaptive_validation.go`,
+`backend/internal/service/kimi_k3_adaptive_validation_test.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+this changelog.
+
 ## 2026-10-03 - ops: deploy v0.1.306 and enable Kimi K3 adaptive validation
 
 ### What

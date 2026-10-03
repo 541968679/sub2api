@@ -38,21 +38,56 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 		name    string
 		body    string
 		reject  string
+		budget  bool
 		changed bool
 	}{
 		{name: "absent fields pass", body: `{"model":"kimi-k3","messages":[{"role":"user","content":"hi"}]}`},
-		{name: "max tokens field ignored", body: `{"model":"kimi-k3","max_tokens":999999999,"messages":[{"role":"user","content":"hi"}]}`},
-		{name: "budget below window", body: `{"model":"kimi-k3","max_completion_tokens":1048575,"messages":[{"role":"user","content":"hi"}]}`},
+		{name: "small budget passes", body: `{"model":"kimi-k3","max_completion_tokens":4096,"messages":[{"role":"user","content":"hi"}]}`},
 		{name: "full budget empty messages", body: `{"model":"kimi-k3","max_completion_tokens":1048576,"messages":[]}`},
 		{name: "full budget without messages", body: `{"model":"kimi-k3","max_completion_tokens":1048576}`},
 		{
 			name:   "full budget with a message",
 			body:   `{"model":"kimi-k3","max_completion_tokens":1048576,"messages":[{"role":"user","content":"hi"}]}`,
-			reject: "max_completion_tokens 1048576 plus a non-empty prompt exceeds the 1048576 context window",
+			budget: true,
+		},
+		{
+			name:   "smaller budget still sums input",
+			body:   `{"model":"kimi-k3","max_completion_tokens":1048570,"messages":[{"role":"user","content":"hello world this is a short prompt"}]}`,
+			budget: true,
+		},
+		{
+			name:   "max tokens over maximum",
+			body:   `{"model":"kimi-k3","max_tokens":1048578,"messages":[{"role":"user","content":"hi"}]}`,
+			reject: "max_tokens exceeds kimi-k3 maximum 1048576",
+		},
+		{
+			name:   "max completion decimal",
+			body:   `{"model":"kimi-k3","max_completion_tokens":1.5}`,
+			reject: "max_completion_tokens must be an integer from 0 to 1048576",
+		},
+		{
+			name:   "max completion scientific",
+			body:   `{"model":"kimi-k3","max_completion_tokens":1e6}`,
+			reject: "max_completion_tokens must be an integer from 0 to 1048576",
+		},
+		{
+			name:   "max completion negative",
+			body:   `{"model":"kimi-k3","max_completion_tokens":-1}`,
+			reject: "max_completion_tokens must be an integer from 0 to 1048576",
 		},
 		{
 			name:   "over maximum",
 			body:   `{"model":"kimi-k3","max_completion_tokens":1048577}`,
+			reject: "max_completion_tokens exceeds kimi-k3 maximum 1048576",
+		},
+		{
+			name:   "further over maximum",
+			body:   `{"model":"kimi-k3","max_completion_tokens":1048578}`,
+			reject: "max_completion_tokens exceeds kimi-k3 maximum 1048576",
+		},
+		{
+			name:   "far over maximum",
+			body:   `{"model":"kimi-k3","max_completion_tokens":2000000}`,
 			reject: "max_completion_tokens exceeds kimi-k3 maximum 1048576",
 		},
 		{name: "prediction content", body: `{"model":"kimi-k3","prediction":{"type":"content","content":"ok"}}`},
@@ -134,25 +169,90 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 			reject: "function name must match ^[a-zA-Z_][a-zA-Z0-9-_]{0,127}$",
 		},
 		{name: "non function tool skipped", body: `{"model":"kimi-k3","tools":[{"type":"builtin","function":{"name":"1tool"}}]}`},
-		{name: "history tool name skipped", body: `{"model":"kimi-k3","messages":[{"role":"assistant","tool_calls":[{"function":{"name":"1tool"}}]}]}`},
+		{name: "history tool name skipped", body: `{"model":"kimi-k3","messages":[{"role":"assistant","content":"ok","tool_calls":[{"function":{"name":"1tool"}}]}]}`},
 		{
 			name:   "prediction wins over reasoning",
 			body:   `{"model":"kimi-k3","prediction":{"type":"nope"},"reasoning_effort":"medium"}`,
 			reject: "prediction.type must be content",
 		},
+		{name: "non-empty content", body: `{"model":"kimi-k3","messages":[{"role":"user","content":"hi"}]}`},
+		{name: "dynamic tool message without content", body: `{"model":"kimi-k3","messages":[{"role":"system","tools":[{"type":"function","function":{"name":"Calculator","parameters":{"type":"object"}}}]},{"role":"user","content":"hi"}]}`},
+		{
+			name:   "dynamic tool message with content",
+			body:   `{"model":"kimi-k3","messages":[{"role":"system","content":"extra","tools":[{"type":"function","function":{"name":"Calculator","parameters":{"type":"object"}}}]}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{
+			name:   "missing role",
+			body:   `{"model":"kimi-k3","messages":[{"content":"hi"}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{
+			name:   "missing content",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user"}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{
+			name:   "empty content array",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":[]}]}`,
+			reject: "content must not be empty",
+		},
+		{
+			name:   "numeric content",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":1}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{
+			name:   "unknown content part",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":[{"type":"audio"}]}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{
+			name:   "tool message without call id",
+			body:   `{"model":"kimi-k3","messages":[{"role":"tool","content":"ok"}]}`,
+			reject: "message does not match the kimi-k3 message structure",
+		},
+		{name: "tool message with call id", body: `{"model":"kimi-k3","messages":[{"role":"tool","tool_call_id":"call_1","content":"ok"}]}`},
+		{name: "assistant reasoning content stays", body: `{"model":"kimi-k3","messages":[{"role":"assistant","content":"ok","reasoning_content":"thought"}]}`},
+		{
+			name:   "empty string content",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":""}]}`,
+			reject: "content must not be empty",
+		},
+		{
+			name:   "later empty string content",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":""}]}`,
+			reject: "content must not be empty",
+		},
+		{name: "tool choice auto", body: `{"model":"kimi-k3","tool_choice":"auto","messages":[{"role":"user","content":"hi"}]}`},
+		{name: "tool choice required", body: `{"model":"kimi-k3","tool_choice":"required","messages":[{"role":"user","content":"hi"}]}`},
+		{name: "tool choice none", body: `{"model":"kimi-k3","tool_choice":"none","messages":[{"role":"user","content":"hi"}]}`},
+		{
+			name:   "specified function tool choice",
+			body:   `{"model":"kimi-k3","messages":[{"role":"user","content":"今天北京的天气怎么样？"}],"tool_choice":{"type":"function","function":{"name":"get_weather"}}}`,
+			reject: "tool_choice 'specified' is incompatible with thinking enabled",
+		},
+		{name: "video object and string stay unchanged", body: `{"model":"kimi-k3","messages":[{"role":"user","content":[{"type":"video_url","video_url":{"url":"data:video/mp4;base64,obj"}},{"type":"video_url","video_url":"data:video/mp4;base64,str"}]}]}`},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, msg, changed := AdaptKimiK3ChatBody([]byte(tc.body))
-			require.Equal(t, tc.reject, msg)
+			out, msg, changed, budget := AdaptKimiK3ChatBody([]byte(tc.body))
+			require.Equal(t, tc.budget, budget)
+			if tc.budget {
+				require.Contains(t, msg, "output budget")
+				require.Contains(t, msg, "1048576")
+			} else {
+				require.Equal(t, tc.reject, msg)
+			}
 			require.False(t, changed)
 			require.True(t, bytes.Equal([]byte(tc.body), out))
 		})
 	}
 
 	original := []byte(`{"model":"kimi-k3","temperature":0,"messages":[{"role":"user","content":[{"type":"text","text":"see"},{"type":"image_url","image_url":"data:image/png;base64,abc"},{"type":"video_url","video_url":"data:video/mp4;base64,zzz"},{"type":"image_url","image_url":{"url":"data:image/png;base64,obj"}}]}]}`)
-	out, msg, changed := AdaptKimiK3ChatBody(original)
+	out, msg, changed, budget := AdaptKimiK3ChatBody(original)
+	require.False(t, budget)
 	require.Empty(t, msg)
 	require.True(t, changed)
 	require.True(t, strings.HasPrefix(string(out), `{"model":"kimi-k3","temperature":0,`))
@@ -163,10 +263,16 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,obj", gjson.GetBytes(out, "messages.0.content.3.image_url.url").String())
 
 	rejected := []byte(`{"model":"kimi-k3","max_completion_tokens":1048577,"messages":[{"role":"user","content":[{"type":"image_url","image_url":"data:image/png;base64,abc"}]}]}`)
-	out, msg, changed = AdaptKimiK3ChatBody(rejected)
+	out, msg, changed, budget = AdaptKimiK3ChatBody(rejected)
+	require.False(t, budget)
 	require.Equal(t, "max_completion_tokens exceeds kimi-k3 maximum 1048576", msg)
 	require.False(t, changed)
 	require.True(t, bytes.Equal(rejected, out))
+
+	huge := `{"model":"kimi-k3","max_completion_tokens":16,"messages":[{"role":"user","content":"` + strings.Repeat("x", (8<<20)+1) + `"}]}`
+	_, hugeMsg, _, hugeBudget := AdaptKimiK3ChatBody([]byte(huge))
+	require.True(t, hugeBudget)
+	require.Contains(t, hugeMsg, "output budget 16")
 }
 
 func TestKimiK3AdaptiveGateway(t *testing.T) {
@@ -184,12 +290,13 @@ func TestKimiK3AdaptiveGateway(t *testing.T) {
 	})
 
 	t.Run("switch on non kimi forwards illegal body", func(t *testing.T) {
-		body := []byte(`{"model":"gpt-5.4","reasoning_effort":"medium","top_logprobs":21}`)
+		body := []byte(`{"model":"gpt-5.4","reasoning_effort":"medium","top_logprobs":21,"max_tokens":1048577}`)
 		svcSettings := kimiK3AdaptiveSettingsForTest(t, "true")
 		rec, upstream := forwardKimiK3Adaptive(t, svcSettings, rawChatCompletionsTestAccount(), body)
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Equal(t, "medium", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
 		require.Equal(t, int64(21), gjson.GetBytes(upstream.lastBody, "top_logprobs").Int())
+		require.Equal(t, int64(1048577), gjson.GetBytes(upstream.lastBody, "max_tokens").Int())
 	})
 
 	t.Run("switch on mapped away from kimi-k3 forwards medium", func(t *testing.T) {
@@ -248,6 +355,69 @@ func TestKimiK3AdaptiveGateway(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Equal(t, "data:image/png;base64,abc", gjson.GetBytes(upstream.lastBody, "messages.0.content.0.image_url.url").String())
 		require.Equal(t, gjson.String, gjson.GetBytes(upstream.lastBody, "messages.0.content.1.video_url").Type)
+	})
+
+	t.Run("switch off forwards over-limit budget and illegal message", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","max_completion_tokens":1048577,"messages":[{"content":""}],"tool_choice":{"type":"function","function":{"name":"get_weather"}}}`)
+		rec, upstream := forwardKimiK3Adaptive(t, nil, rawChatCompletionsTestAccount(), body)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, int64(1048577), gjson.GetBytes(upstream.lastBody, "max_completion_tokens").Int())
+		require.Equal(t, "", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
+	})
+
+	t.Run("switch on budget overflow is 403", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","max_completion_tokens":1048576,"messages":[{"role":"user","content":"hi"}]}`)
+		upstream := &httpUpstreamRecorder{err: io.ErrClosedPipe}
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsForTest(t, "true"),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+		require.Error(t, err)
+		require.Empty(t, upstream.requests)
+		require.Equal(t, http.StatusForbidden, rec.Code)
+		require.Equal(t, "invalid_request_error", gjson.Get(rec.Body.String(), "error.type").String())
+		require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "output budget 1048576")
+	})
+
+	t.Run("switch on rejects empty content before upstream", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","messages":[{"role":"user","content":""}]}`)
+		upstream := &httpUpstreamRecorder{err: io.ErrClosedPipe}
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsForTest(t, "true"),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+		require.Error(t, err)
+		require.Empty(t, upstream.requests)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "content must not be empty", gjson.Get(rec.Body.String(), "error.message").String())
+	})
+
+	t.Run("switch on rejects specified tool choice before upstream", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","messages":[{"role":"user","content":"天气"}],"tool_choice":{"type":"function","function":{"name":"get_weather"}}}`)
+		upstream := &httpUpstreamRecorder{err: io.ErrClosedPipe}
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsForTest(t, "true"),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+		require.Error(t, err)
+		require.Empty(t, upstream.requests)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "tool_choice 'specified' is incompatible with thinking enabled")
 	})
 
 	t.Run("switch on allows 128 char name and top logprobs 1", func(t *testing.T) {
