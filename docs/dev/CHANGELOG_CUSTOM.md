@@ -1,3 +1,19 @@
+## 2026-10-03 - ops: deploy v0.1.306 and enable Kimi K3 adaptive validation
+
+### What
+- Deployed `ghcr.io/541968679/sub2api:latest` on new-origin. Tag `v0.1.306`, revision `deea5153cd0fb49fc6ecb650bce93a939b9be49e`, digest `sha256:bf88df6ed21cc99dade3eaf37ab02d9524ae3203582708e1f4d191b0800de8fe`. The container is healthy. Rollback digest is `sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694` (`v0.1.305`).
+- Created `/etc/sub2api-cutover-complete` and set `kimi_k3_adaptive_validation_enabled` to the string `true` before the new process started.
+- Retested `POST https://zerocode.kaynlab.asia/v1/chat/completions` for group 52 model `kimi-k3`. Illegal `max_completion_tokens`, `prediction.type`, `reasoning_effort`, `stop`, `top_logprobs`, and function names return HTTP 400 with the local messages. `top_logprobs=1`, a 128-character function name, a normal request, and a string `image_url` return HTTP 200. The accepted `top_logprobs=1` response still has no logprobs field. Temporary keys 786 and 787 were disabled.
+- The image also contains the commits already on main after `v0.1.305`: OpenAI API-key upstream routing defaults to native mapping, and `gpt-6.1-sol` uses the OpenAI long-context multipliers.
+
+### Why
+The switch ships off. Production has to store `true` before the new process starts, or the customer relay keeps forwarding the illegal Kimi K3 fields.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+this changelog.
+
 ## 2026-10-03 - gateway: Kimi K3 adaptive validation switch
 
 ### What
