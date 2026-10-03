@@ -1666,6 +1666,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAINewAPISlimCompleted] = strconv.FormatBool(settings.OpenAINewAPISlimCompleted)
 	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
 	updates[SettingKeyOpenAILongContextBillingEnabled] = strconv.FormatBool(settings.OpenAILongContextBillingEnabled)
+	updates[SettingKeyKimiK3AdaptiveValidationEnabled] = strconv.FormatBool(settings.KimiK3AdaptiveValidationEnabled)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
 	if err != nil {
@@ -1808,6 +1809,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 	})
 	refreshOpenAILongContextBillingCache(settings.OpenAILongContextBillingEnabled)
+	refreshKimiK3AdaptiveValidationCache(settings.KimiK3AdaptiveValidationEnabled)
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 		fingerprintUnification:       settings.EnableFingerprintUnification,
@@ -2623,6 +2625,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAINewAPISlimCompletedUserIDs:          "[]",
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingKeyOpenAILongContextBillingEnabled:           "true",
+		SettingKeyKimiK3AdaptiveValidationEnabled:           "false",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -3010,6 +3013,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAINewAPISlimCompletedUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAINewAPISlimCompletedUserIDs])
 	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 	result.OpenAILongContextBillingEnabled = parseOpenAILongContextBillingEnabled(settings[SettingKeyOpenAILongContextBillingEnabled])
+	result.KimiK3AdaptiveValidationEnabled = parseKimiK3AdaptiveValidationEnabled(settings[SettingKeyKimiK3AdaptiveValidationEnabled])
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])

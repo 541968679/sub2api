@@ -537,6 +537,7 @@ export interface SystemSettings {
   openai_newapi_slim_completed_user_ids: number[];
   codex_compact_v2_fallback_enabled: boolean;
   openai_long_context_billing_enabled: boolean;
+  kimi_k3_adaptive_validation_enabled: boolean;
   gateway_network_retry_max: number;
   web_search_emulation_enabled?: boolean;
 
@@ -780,6 +781,7 @@ export interface UpdateSettingsRequest {
   openai_newapi_slim_completed_user_ids?: number[];
   codex_compact_v2_fallback_enabled?: boolean;
   openai_long_context_billing_enabled?: boolean;
+  kimi_k3_adaptive_validation_enabled?: boolean;
   gateway_network_retry_max?: number;
   // Payment configuration
   payment_enabled?: boolean;
@@ -993,6 +995,7 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
       s.openai_newapi_slim_completed_user_ids || [],
     codex_compact_v2_fallback_enabled: s.codex_compact_v2_fallback_enabled !== false,
     openai_long_context_billing_enabled: s.openai_long_context_billing_enabled !== false,
+    kimi_k3_adaptive_validation_enabled: s.kimi_k3_adaptive_validation_enabled === true,
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:
       s.openai_claude_gpt_bridge_cache_display_settings,

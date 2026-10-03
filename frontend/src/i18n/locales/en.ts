@@ -8094,6 +8094,12 @@ const enBase = {
           enabled: 'Enable OpenAI long-context surcharge',
           enabledHint: 'When on, a session with Input + CacheRead strictly above 272000 bills input/cache at 2.0× and output at 1.5×. When off, base unit prices apply and usage logs keep long_context_applied=false. Channel interval pricing still disables this surcharge on its own. Gemini 200K excess-only doubling is unchanged.',
         },
+        kimiK3AdaptiveValidation: {
+          title: 'Kimi K3 adaptive validation',
+          description: 'Applies only to Chat Completions whose mapped upstream model is kimi-k3. Off by default.',
+          enabled: 'Enable Kimi K3 adaptive validation',
+          enabledHint: 'When on, max_completion_tokens, prediction, reasoning_effort, stop, top_logprobs, and function names outside the official Kimi K3 limits return HTTP 400 locally, and a string image_url becomes an object. Other models are forwarded unchanged, and logprobs are not invented. When off, the request body is forwarded as received.',
+        },
         riskControl: {
           title: 'Risk Control',
           description: 'Enable the content moderation menu and gateway audit entry point. Disabled by default.',

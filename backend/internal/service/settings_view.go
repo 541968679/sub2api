@@ -229,6 +229,9 @@ type SystemSettings struct {
 	// OpenAI session-level long-context billing (GPT-5.4/5.5/5.6). Default true.
 	OpenAILongContextBillingEnabled bool
 
+	// Kimi K3 Chat Completions adaptive validation. Default false.
+	KimiK3AdaptiveValidationEnabled bool
+
 	// Display-layer token amplify controls (admin "展示层" settings)
 	DisplayCacheTokenMaxMult         float64 // M, default 1.2
 	DisplayOutputResidualGrowthRatio float64 // α, default 1.0

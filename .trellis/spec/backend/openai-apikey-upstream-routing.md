@@ -77,6 +77,62 @@ Leave auto+unknown / `force_responses` converting kimi-k3 Chat Completions into 
 #### Correct
 Model or platform match short-circuits to the raw chat-completions upstream.
 
+## Scenario: kimi-k3 adaptive validation
+
+### 1. Scope / Trigger
+- Trigger: an admin turns on local checks for Kimi K3 Chat Completions when an upstream accepts parameters the official Kimi K3 API rejects.
+
+### 2. Signatures
+- Setting key `kimi_k3_adaptive_validation_enabled`. Only the stored string `true` enables it.
+- `AdaptKimiK3ChatBody(body []byte) (out []byte, rejectMessage string, changed bool)`
+- `OpenAIGatewayService.forwardAsRawChatCompletions` calls it after model mapping and the GLM reasoning-effort normalizer, and before fast policy and `GetAccessToken`.
+
+### 3. Contracts
+- Default off. A nil setting service, a missing key, a read error, and any value other than `true` leave the body unchanged.
+- Check the upstream model first. Read the switch only when that model, after case folding and one `vendor/` strip, is exactly `kimi-k3`. `a/b/kimi-k3` does not match.
+- `kimi-k2`, other vendors, Grok, and `/v1/responses` never enter this checker.
+- A non-empty `rejectMessage` is HTTP 400 `invalid_request_error`. The upstream transport is not called. The returned error keeps the `non-streaming openai protocol error:` prefix so the OpenAI handler does not append a second body.
+- Absent fields are skipped. Do not read `max_tokens`. Do not rewrite `reasoning_effort=medium` into `high`.
+- `max_completion_tokens > 1048576` rejects. `== 1048576` rejects only when `messages` is a non-empty array. Smaller budgets are not estimated.
+- `top_logprobs` integers 0 through 20 with JSON `logprobs: true` pass, including 1. Do not invent logprob arrays.
+- Function names match `^[a-zA-Z_][a-zA-Z0-9-_]{0,127}$`. 128 characters is legal. Do not walk message history.
+- A string content-part `image_url` becomes `{"url": <that string>}`. Object `image_url` and both `video_url` forms stay.
+- Admin system settings only. Not on `GET /api/v1/settings/public`. Admin save refreshes the 60 second cache immediately.
+
+### 4. Validation & Error Matrix
+- `max_completion_tokens exceeds kimi-k3 maximum 1048576`
+- `max_completion_tokens 1048576 plus a non-empty prompt exceeds the 1048576 context window`
+- `prediction.type must be content`
+- `reasoning_effort must be low, high, or max`
+- `stop string exceeds 32 bytes`
+- `stop supports at most 5 strings`
+- `stop must be a string or an array of strings`
+- `top_logprobs must be an integer from 0 to 20`
+- `top_logprobs requires logprobs=true`
+- `function name must match ^[a-zA-Z_][a-zA-Z0-9-_]{0,127}$`
+- The first failed rule wins. A reject does not also rewrite `image_url`.
+
+### 5. Good/Base/Bad Cases
+- Good: switch on, upstream model `kimi-k3`, `reasoning_effort=medium` → 400, no upstream request.
+- Good: switch on, string `image_url` → upstream sees `{"url":...}`; string `video_url` stays a string.
+- Base: switch missing → `kimi-k3` body forwarded unchanged, including `reasoning_effort=medium`.
+- Base: switch on, mapped upstream model `gpt-5.4` → illegal body forwarded unchanged.
+- Bad: applying the checker to every raw Chat Completions request.
+- Bad: rejecting `top_logprobs=1` or a 128-character function name.
+- Bad: turning the switch on in code or in a migration. Production stays off until an admin saves `true`.
+
+### 6. Tests Required
+- `TestSettingService_KimiK3AdaptiveValidationDefaultOff`
+- `TestKimiK3AdaptiveChatBody`
+- `TestKimiK3AdaptiveGateway`
+- Settings view submits `kimi_k3_adaptive_validation_enabled`.
+
+### 7. Wrong vs Correct
+#### Wrong
+Reject inside a general OpenAI validator, or synthesize `logprobs` content the upstream did not return.
+#### Correct
+One pure function, one default-off admin switch, and a `kimi-k3` model predicate on the raw Chat Completions path.
+
 ## Scenario: capability-probe model + targeted reprobe
 
 ### 1. Scope / Trigger

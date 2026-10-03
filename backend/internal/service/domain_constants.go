@@ -534,6 +534,10 @@ const (
 	// OpenAI GPT-5.4/5.5/5.6 session-level long-context multipliers.
 	// Default true. Missing/invalid values are treated as enabled. Not a public setting.
 	SettingKeyOpenAILongContextBillingEnabled = "openai_long_context_billing_enabled"
+	// SettingKeyKimiK3AdaptiveValidationEnabled is the admin switch for
+	// kimi-k3 Chat Completions parameter checks and the string image_url rewrite.
+	// Default false. Only the string "true" enables it. Not a public setting.
+	SettingKeyKimiK3AdaptiveValidationEnabled = "kimi_k3_adaptive_validation_enabled"
 	// SettingKeyDisplayCacheTokenMaxMult is the global cache_read display amplify cap (M).
 	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
 	// SettingKeyDisplayOutputResidualGrowthRatio is α: max extra output growth from cache residual.

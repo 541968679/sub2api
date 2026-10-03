@@ -260,6 +260,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAINewAPISlimCompletedUserIDs:                       settings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          settings.CodexCompactV2FallbackEnabled,
 		OpenAILongContextBillingEnabled:                        settings.OpenAILongContextBillingEnabled,
+		KimiK3AdaptiveValidationEnabled:                        settings.KimiK3AdaptiveValidationEnabled,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -601,6 +602,7 @@ type UpdateSettingsRequest struct {
 	OpenAINewAPISlimCompletedUserIDs    *[]int64 `json:"openai_newapi_slim_completed_user_ids"`
 	CodexCompactV2FallbackEnabled       *bool    `json:"codex_compact_v2_fallback_enabled"`
 	OpenAILongContextBillingEnabled     *bool    `json:"openai_long_context_billing_enabled"`
+	KimiK3AdaptiveValidationEnabled     *bool    `json:"kimi_k3_adaptive_validation_enabled"`
 	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
@@ -1579,6 +1581,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAILongContextBillingEnabled
 		}(),
+		KimiK3AdaptiveValidationEnabled: func() bool {
+			if req.KimiK3AdaptiveValidationEnabled != nil {
+				return *req.KimiK3AdaptiveValidationEnabled
+			}
+			return previousSettings.KimiK3AdaptiveValidationEnabled
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1995,6 +2003,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpenAINewAPISlimCompletedUserIDs:                       updatedSettings.OpenAINewAPISlimCompletedUserIDs,
 		CodexCompactV2FallbackEnabled:                          updatedSettings.CodexCompactV2FallbackEnabled,
 		OpenAILongContextBillingEnabled:                        updatedSettings.OpenAILongContextBillingEnabled,
+		KimiK3AdaptiveValidationEnabled:                        updatedSettings.KimiK3AdaptiveValidationEnabled,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
@@ -2456,6 +2465,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.OpenAILongContextBillingEnabled != after.OpenAILongContextBillingEnabled {
 		changed = append(changed, "openai_long_context_billing_enabled")
+	}
+	if before.KimiK3AdaptiveValidationEnabled != after.KimiK3AdaptiveValidationEnabled {
+		changed = append(changed, "kimi_k3_adaptive_validation_enabled")
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")

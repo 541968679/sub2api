@@ -1,3 +1,22 @@
+## 2026-10-03 - gateway: Kimi K3 adaptive validation switch
+
+### What
+- Added an admin switch, `kimi_k3_adaptive_validation_enabled`, on 系统设置 → 功能开关. It is off unless the stored value is the string `true`. It is not a public setting.
+- When the switch is on, raw Chat Completions whose mapped upstream model is `kimi-k3` reject illegal `max_completion_tokens`, `prediction.type`, `reasoning_effort`, `stop`, `top_logprobs`, and function names locally with HTTP 400. A string `image_url` is rewritten to `{"url":...}`. Other models are forwarded unchanged.
+
+### Why
+The Kimi K3 upstream accepts several parameter shapes the official Kimi API rejects. The gateway can enforce those limits without touching other models, and it cannot invent logprob arrays the upstream does not return.
+
+### Affected files
+`backend/internal/service/kimi_k3_adaptive_validation.go`,
+`backend/internal/service/setting_kimi_k3_adaptive.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-09-30 - fix: bill GPT-6.1 Sol with the OpenAI long-context multipliers
 
 ### What

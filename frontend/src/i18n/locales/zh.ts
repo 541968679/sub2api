@@ -7700,6 +7700,12 @@ const zhBase = {
           enabled: '启用 OpenAI 长上下文溢价',
           enabledHint: '开启后，Input + CacheRead 严格大于 272000 时整段会话 input/cache ×2.0、output ×1.5。关闭后按基础单价扣费，usage 不再标记 long_context_applied。渠道区间定价仍会自行覆盖该溢价。不影响 Gemini 200K 超额双倍。',
         },
+        kimiK3AdaptiveValidation: {
+          title: 'Kimi K3 自适应校验',
+          description: '只作用于 Chat Completions 里、映射之后的上游模型 kimi-k3。默认关闭。',
+          enabled: '启用 Kimi K3 自适应校验',
+          enabledHint: '开启后，超出官方约束的 max_completion_tokens、prediction、reasoning_effort、stop、top_logprobs 和函数名会在本地返回 400，字符串 image_url 会改成对象。其他模型原样转发，也不会补造 logprobs。关闭后请求体原样转发。',
+        },
         riskControl: {
           title: '风控中心',
           description: '启用内容审计菜单和全端点请求审核入口。默认关闭。',
