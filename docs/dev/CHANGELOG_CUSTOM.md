@@ -1,3 +1,16 @@
+## 2026-10-03 - ops: deploy v0.1.307
+
+### What
+- Deployed `ghcr.io/541968679/sub2api:latest` on new-origin. Tag `v0.1.307`, revision `51daf1dcfcf41b0e64c2738daa3e90707f430868`, digest `sha256:7afbe8c99d2dd59c0c4cb67b2939e549b63eb7ac129c298fef24b284bc31e9da`. The container is healthy. Rollback digest is `sha256:bf88df6ed21cc99dade3eaf37ab02d9524ae3203582708e1f4d191b0800de8fe` (`v0.1.306`). Release run `37113448636`.
+- Retested `POST https://zerocode.kaynlab.asia/v1/chat/completions` for `kimi-k3`. Over-limit `max_completion_tokens` and `max_tokens`, a decimal, empty and illegal messages, a dynamic-tool message with content, a tool message without `tool_call_id`, specified `tool_choice`, and `reasoning_effort=medium` return the local HTTP 400. A short prompt with budget 1048576 returns HTTP 403. A short legal request, `tool_choice=required`, a string image, and both video forms return HTTP 200. The temporary key was disabled and deleted.
+
+### Why
+The request-contract checks have to be on the live relay before the customer runs the same cases.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-03 - gateway: Kimi K3 budget, output range, and message structure
 
 ### What
