@@ -1,3 +1,18 @@
+## 2026-10-05 - gateway: default /v1/models uses account whitelist union
+
+### What
+- `GET /v1/models` now uses the sorted union of schedulable accounts' `model_mapping` keys in the API key's group as the default model list. An account with an empty whitelist does not add platform-catalog IDs. When no account in the group has a whitelist, the response still falls back to the platform catalog.
+- A saved group custom list (`models_list_config`) still replaces that default. The group model allowlist still filters the default when it is enabled.
+
+### Why
+Domestic groups stay on the OpenAI platform. The old default published the OpenAI display catalog, so those keys advertised GPT models that the accounts' whitelists do not contain.
+
+### Affected files
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/gateway_models_list_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-10-03 - ops: deploy v0.1.307
 
 ### What

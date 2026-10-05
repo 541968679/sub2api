@@ -693,6 +693,9 @@ GET /v1/models with API key
      -> that saved list is the display source of truth, including when the
         CCS import picker is on and including IDs outside the curated catalog
      -> a legacy full OpenAI default list is still expanded to the current catalog
+  -> else GatewayService.GetAvailableModels(group, platform)
+     -> non-empty: that union of account model_mapping keys is the default list
+        (empty account whitelists contribute nothing; they do not add the platform catalog)
   -> else if CCS import picker is on: live upstream union
   -> else if the platform has a curated discovery list: return those IDs
   -> GatewayService.GetAvailableModels(group, platform)

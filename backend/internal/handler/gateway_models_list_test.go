@@ -159,6 +159,104 @@ func TestGatewayHandlerModels_PickerEnabledWithoutFetcherKeepsDefaultNotGPTSeed(
 	require.Equal(t, []string{"glm-5.3"}, ids)
 }
 
+func TestGatewayHandlerModels_AccountWhitelistUnionReplacesOpenAICatalog(t *testing.T) {
+	groupID := int64(46)
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+		byGroup: map[int64][]service.Account{
+			groupID: {
+				{
+					ID:       10,
+					Platform: service.PlatformOpenAI,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"glm-5.3":           "glm-5.3",
+							"deepseek-v4-flash": "deepseek-v4-flash",
+						},
+					},
+				},
+				{
+					ID:       11,
+					Platform: service.PlatformOpenAI,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"kimi-k2.5": "kimi-k2.5",
+							"glm-5.3":   "glm-5.3",
+						},
+					},
+				},
+				{
+					ID:          12,
+					Platform:    service.PlatformOpenAI,
+					Credentials: map[string]any{},
+				},
+			},
+		},
+	})
+
+	ids := runGatewayModelsOnHandler(t, h, &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:                          groupID,
+			Platform:                    service.PlatformOpenAI,
+			CcsImportModelPickerEnabled: true,
+			CcsImportDefaultModel:       "glm-5.3",
+		},
+	})
+	require.Equal(t, []string{"deepseek-v4-flash", "glm-5.3", "kimi-k2.5"}, ids)
+}
+
+func TestGatewayHandlerModels_EmptyAccountWhitelistKeepsOpenAICatalog(t *testing.T) {
+	groupID := int64(1)
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+		byGroup: map[int64][]service.Account{
+			groupID: {
+				{ID: 10, Platform: service.PlatformOpenAI, Credentials: map[string]any{}},
+			},
+		},
+	})
+
+	ids := runGatewayModelsOnHandler(t, h, &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformOpenAI,
+		},
+	})
+	require.Equal(t, service.OpenAIDisplaySeed(), ids)
+}
+
+func TestGatewayHandlerModels_CustomListStillOverridesAccountWhitelist(t *testing.T) {
+	groupID := int64(46)
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{
+		byGroup: map[int64][]service.Account{
+			groupID: {
+				{
+					ID:       10,
+					Platform: service.PlatformOpenAI,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"glm-5.3": "glm-5.3",
+						},
+					},
+				},
+			},
+		},
+	})
+
+	ids := runGatewayModelsOnHandler(t, h, &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformOpenAI,
+			ModelsListConfig: service.GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{"kimi-k2.5", "deepseek-v4-pro"},
+			},
+		},
+	})
+	require.Equal(t, []string{"kimi-k2.5", "deepseek-v4-pro"}, ids)
+}
+
 func TestGatewayHandlerModels_OpenAICuratedDiscoveryList(t *testing.T) {
 	groupID := int64(1)
 	apiKey := &service.APIKey{
@@ -317,6 +415,19 @@ func TestGatewayHandlerAntigravityModels_CuratedDiscoveryList(t *testing.T) {
 		"claude-haiku-4-5",
 		"claude-sonnet-4-6",
 	}, decodeModelIDsForTest(t, recorder.Body.Bytes()))
+}
+
+func runGatewayModelsOnHandler(t *testing.T, h *GatewayHandler, apiKey *service.APIKey) []string {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), apiKey)
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	return decodeModelIDsForTest(t, recorder.Body.Bytes())
 }
 
 func runGatewayModelsForTest(t *testing.T, apiKey *service.APIKey) []string {

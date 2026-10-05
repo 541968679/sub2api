@@ -1025,6 +1025,18 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		}
 	}
 
+	// Default display source: union of this group's account model whitelists
+	// (credentials.model_mapping keys). An empty whitelist still means "all
+	// models" and does not contribute IDs. When every account is empty, fall
+	// through to the platform catalog.
+	if accountModels := h.groupAccountWhitelistModelIDs(c.Request.Context(), groupID, platform); len(accountModels) > 0 {
+		if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
+			accountModels = apiKey.Group.ModelAllowlist.FilterForListing(accountModels)
+		}
+		writeModelsListForPlatform(c, platform, accountModels)
+		return
+	}
+
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CcsImportModelPickerEnabled {
 		ids := h.ccsImportPickerModelIDs(c.Request.Context(), apiKey)
 		if apiKey.Group.ModelAllowlistEnabled() {
@@ -1094,6 +1106,16 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		"object": "list",
 		"data":   claude.DefaultModels,
 	})
+}
+
+// groupAccountWhitelistModelIDs is the default /v1/models source: the sorted
+// union of schedulable accounts' model_mapping keys in the group. Nil means
+// no account has a whitelist, so the caller keeps the platform catalog.
+func (h *GatewayHandler) groupAccountWhitelistModelIDs(ctx context.Context, groupID *int64, platform string) []string {
+	if h == nil || h.gatewayService == nil || groupID == nil {
+		return nil
+	}
+	return h.gatewayService.GetAvailableModels(ctx, groupID, platform)
 }
 
 func (h *GatewayHandler) ccsImportPickerModelIDs(ctx context.Context, apiKey *service.APIKey) []string {
