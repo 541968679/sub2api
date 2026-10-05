@@ -1,0 +1,62 @@
+name: Build linux/amd64 image
+
+# Publish one image for the production host (linux/amd64).
+# Do not tag :latest and do not push to the default branch.
+on:
+  push:
+    branches:
+      - release/0.2.0
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-amd64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image name
+        id: image
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/${owner}/sub2api" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push linux/amd64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ steps.image.outputs.name }}:0.2.0-proxy-sub
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          build-args: |
+            VERSION=0.2.0-proxy-sub
+            COMMIT=${{ github.sha }}
+            GOPROXY=https://proxy.golang.org,direct
+            GOSUMDB=sum.golang.org
+          labels: |
+            org.opencontainers.image.version=0.2.0-proxy-sub
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
