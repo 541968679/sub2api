@@ -12,7 +12,10 @@ env_file: /opt/sub2api/.env
 public_port: 8080
 health_url: http://127.0.0.1:8080/health
 image_variable: SUB2API_IMAGE
-default_image: weishaw/sub2api:0.2.0
+default_image: ghcr.io/541968679/sub2api:sha-83b387787b79ee4e82f6018e0a4abd72ca840dd1
+rollback_image: weishaw/sub2api:0.2.0
+image_platform: linux/amd64
+image_repository: ghcr.io/541968679/sub2api
 data_dirs:
   - /opt/sub2api/data
   - /opt/sub2api/postgres_data
@@ -22,5 +25,6 @@ log_files:
   - /opt/sub2api/backup.log
 notes:
   - Keep sshkey.pem local and untracked.
-  - Pin SUB2API_IMAGE to an explicit version tag before planned upgrades when possible.
-  - Updates must pull a published image and restart containers; do not build images on the production host.
+  - Pin SUB2API_IMAGE to the GHCR sha tag published by the release-branch workflow.
+  - Build only linux/amd64 on GitHub Actions. Do not build on a workstation or on the production host.
+  - Routine deploys pull that image and recreate only sub2api. Do not push the release line onto fork main.

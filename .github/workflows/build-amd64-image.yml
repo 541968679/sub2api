@@ -1,11 +1,18 @@
 name: Build linux/amd64 image
 
-# Publish one image for the production host (linux/amd64).
+# Publish one linux/amd64 image for the production host.
 # Do not tag :latest and do not push to the default branch.
+# Docs, inventory, production scripts, and this workflow file do not publish an image.
 on:
   push:
     branches:
-      - release/0.2.0
+      - 'release/**'
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'ops/**'
+      - 'deploy/production/**'
+      - '.github/workflows/build-amd64-image.yml'
 
 permissions:
   contents: read
@@ -37,7 +44,9 @@ jobs:
         id: image
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          version="${GITHUB_REF_NAME#release/}"
           echo "name=ghcr.io/${owner}/sub2api" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push linux/amd64
         uses: docker/build-push-action@v6
@@ -49,14 +58,14 @@ jobs:
           provenance: false
           sbom: false
           tags: |
-            ${{ steps.image.outputs.name }}:0.2.0-proxy-sub
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}
             ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
           build-args: |
-            VERSION=0.2.0-proxy-sub
+            VERSION=${{ steps.image.outputs.version }}
             COMMIT=${{ github.sha }}
             GOPROXY=https://proxy.golang.org,direct
             GOSUMDB=sum.golang.org
           labels: |
-            org.opencontainers.image.version=0.2.0-proxy-sub
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
