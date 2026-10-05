@@ -1,3 +1,16 @@
+## 2026-10-05 - ops: deploy v0.1.308
+
+### What
+- Deployed `ghcr.io/541968679/sub2api:latest` on new-origin. Tag `v0.1.308`, revision `17db2f5ad87dd089dcc8f45084d917e7816c3b95`, digest `sha256:9eba78c3254b77b35c46c5c9851f5c4503bbeecdf606841f0c01b198d3ce9c5e`. The container is healthy. Rollback digest is `sha256:7afbe8c99d2dd59c0c4cb67b2939e549b63eb7ac129c298fef24b284bc31e9da` (`v0.1.307`). Release run `37286623892`.
+- Public `https://zerocode.kaynlab.asia/health` returned ok.
+
+### Why
+Domestic OpenAI groups should advertise the union of their account model whitelists instead of the platform GPT catalog.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-05 - gateway: default /v1/models uses account whitelist union
 
 ### What
