@@ -195,6 +195,7 @@ export async function getProxyAccounts(id: number): Promise<ProxyAccountSummary[
  */
 export async function batchCreate(
   proxies: Array<{
+    name?: string
     protocol: string
     host: string
     port: number
@@ -208,7 +209,38 @@ export async function batchCreate(
   const { data } = await apiClient.post<{
     created: number
     skipped: number
-  }>('/admin/proxies/batch', { proxies })
+  }>('/admin/proxies/batch', { proxies }, { timeout: 60000 })
+  return data
+}
+
+export interface ParsedSubscriptionProxy {
+  name: string
+  protocol: 'http' | 'https' | 'socks5' | 'socks5h'
+  host: string
+  port: number
+  username?: string
+  password?: string
+}
+
+export interface ParsedSubscription {
+  proxies: ParsedSubscriptionProxy[]
+  format: string
+  unsupported: number
+  invalid: number
+  duplicate: number
+  truncated: boolean
+  skipped_protocols?: string[]
+}
+
+export async function parseSubscription(input: {
+  url: string
+  default_protocol?: string
+}): Promise<ParsedSubscription> {
+  const { data } = await apiClient.post<ParsedSubscription>(
+    '/admin/proxies/parse-subscription',
+    input,
+    { timeout: 20000 }
+  )
   return data
 }
 
@@ -269,6 +301,7 @@ export const proxiesAPI = {
   getStats,
   getProxyAccounts,
   batchCreate,
+  parseSubscription,
   batchDelete,
   exportData,
   importData

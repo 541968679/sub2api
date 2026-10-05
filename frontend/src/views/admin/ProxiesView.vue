@@ -377,7 +377,7 @@
       <div
         class="mb-6 flex items-center justify-between gap-3 border-b border-gray-200 dark:border-dark-600"
       >
-        <div class="flex min-w-0 shrink-0">
+        <div class="flex min-w-0 flex-wrap">
           <button
             type="button"
             @click="createMode = 'standard'"
@@ -415,6 +415,19 @@
               />
             </svg>
             {{ t('admin.proxies.batchAdd') }}
+          </button>
+          <button
+            type="button"
+            @click="createMode = 'subscription'"
+            :class="[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+              createMode === 'subscription'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+          >
+            <Icon name="link" size="sm" class="mr-1.5 inline" />
+            {{ t('admin.proxies.subscriptionAdd') }}
           </button>
         </div>
         <ProxyAdBanner />
@@ -531,7 +544,7 @@
       </form>
 
       <!-- Batch Add Form -->
-      <div v-else class="space-y-5">
+      <div v-else-if="createMode === 'batch'" class="space-y-5">
         <div>
           <label class="input-label">{{ t('admin.proxies.batchInput') }}</label>
           <textarea
@@ -589,6 +602,107 @@
 
       </div>
 
+      <!-- Subscription import -->
+      <div v-else class="space-y-5">
+        <div>
+          <label class="input-label">{{ t('admin.proxies.subscriptionURL') }}</label>
+          <input
+            v-model="subscriptionURL"
+            type="url"
+            class="input font-mono text-sm"
+            :placeholder="t('admin.proxies.subscriptionURLPlaceholder')"
+            @input="subscriptionResult = null"
+          />
+          <p class="input-hint mt-2">{{ t('admin.proxies.subscriptionURLHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.proxies.subscriptionDefaultProtocol') }}</label>
+          <Select
+            v-model="subscriptionDefaultProtocol"
+            :options="protocolSelectOptions"
+            @change="subscriptionResult = null"
+          />
+          <p class="input-hint mt-2">{{ t('admin.proxies.subscriptionDefaultProtocolHint') }}</p>
+        </div>
+        <div>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            :disabled="subscriptionParsing || !subscriptionURL.trim()"
+            @click="handleParseSubscription"
+          >
+            {{
+              subscriptionParsing
+                ? t('admin.proxies.subscriptionParsing')
+                : t('admin.proxies.subscriptionParse')
+            }}
+          </button>
+        </div>
+        <div v-if="subscriptionResult" class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700">
+          <div class="flex flex-wrap items-center gap-4 text-sm">
+            <div class="flex items-center gap-1.5">
+              <Icon name="checkCircle" size="sm" :stroke-width="2" class="text-primary-500" />
+              <span class="text-gray-700 dark:text-gray-300">
+                {{ t('admin.proxies.parsedCount', { count: subscriptionResult.proxies.length }) }}
+              </span>
+            </div>
+            <span v-if="subscriptionFormatLabel" class="text-gray-500 dark:text-gray-400">
+              {{ subscriptionFormatLabel }}
+            </span>
+            <div v-if="subscriptionResult.invalid > 0" class="flex items-center gap-1.5">
+              <Icon name="exclamationCircle" size="sm" :stroke-width="2" class="text-amber-500" />
+              <span class="text-amber-600 dark:text-amber-400">
+                {{ t('admin.proxies.invalidCount', { count: subscriptionResult.invalid }) }}
+              </span>
+            </div>
+            <div v-if="subscriptionResult.duplicate > 0" class="text-gray-500 dark:text-gray-400">
+              {{ t('admin.proxies.duplicateCount', { count: subscriptionResult.duplicate }) }}
+            </div>
+          </div>
+          <p v-if="subscriptionResult.unsupported > 0" class="mt-2 text-sm text-amber-600 dark:text-amber-400">
+            {{
+              t('admin.proxies.subscriptionUnsupported', {
+                count: subscriptionResult.unsupported,
+                protocols: subscriptionSkippedLabel
+              })
+            }}
+          </p>
+          <p v-if="subscriptionResult.proxies.length === 0" class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            {{ t('admin.proxies.subscriptionNone') }}
+          </p>
+          <p v-if="subscriptionResult.truncated" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('admin.proxies.subscriptionTruncated', { count: subscriptionResult.proxies.length }) }}
+          </p>
+          <ul v-if="subscriptionPreview.length > 0" class="mt-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+            <li
+              v-for="(node, index) in subscriptionPreview"
+              :key="`${node.protocol}-${node.host}-${node.port}-${index}`"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="truncate font-mono text-gray-800 dark:text-gray-100">
+                {{ node.protocol }}://{{ node.host }}:{{ node.port }}
+              </span>
+              <span class="flex min-w-0 items-center gap-2 text-gray-500 dark:text-gray-400">
+                <span class="truncate">{{ node.name }}</span>
+                <span v-if="node.username || node.password" class="badge badge-gray shrink-0">
+                  {{ t('admin.proxies.subscriptionPreviewAuth') }}
+                </span>
+              </span>
+            </li>
+          </ul>
+          <p
+            v-if="subscriptionResult.proxies.length > subscriptionPreview.length"
+            class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+          >
+            {{
+              t('admin.proxies.subscriptionMore', {
+                count: subscriptionResult.proxies.length - subscriptionPreview.length
+              })
+            }}
+          </p>
+        </div>
+      </div>
+
       <template #footer>
         <div class="flex justify-end gap-3">
           <button @click="closeCreateModal" type="button" class="btn btn-secondary">
@@ -624,7 +738,7 @@
             {{ submitting ? t('admin.proxies.creating') : t('common.create') }}
           </button>
           <button
-            v-else
+            v-else-if="createMode === 'batch'"
             @click="handleBatchCreate"
             type="button"
             :disabled="submitting || batchParseResult.valid === 0"
@@ -654,6 +768,21 @@
               submitting
                 ? t('admin.proxies.importing')
                 : t('admin.proxies.importProxies', { count: batchParseResult.valid })
+            }}
+          </button>
+          <button
+            v-else
+            type="button"
+            class="btn btn-primary"
+            :disabled="submitting || subscriptionParsing || !subscriptionResult || subscriptionResult.proxies.length === 0"
+            @click="handleSubscriptionImport"
+          >
+            {{
+              submitting
+                ? t('admin.proxies.importing')
+                : t('admin.proxies.subscriptionImport', {
+                    count: subscriptionResult?.proxies.length || 0
+                  })
             }}
           </button>
         </div>
@@ -968,6 +1097,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import type { ParsedSubscription } from '@/api/admin/proxies'
 import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -1105,7 +1235,7 @@ const qualityReportProxy = ref<Proxy | null>(null)
 const qualityReport = ref<ProxyQualityCheckResult | null>(null)
 
 // Batch import state
-const createMode = ref<'standard' | 'batch'>('standard')
+const createMode = ref<'standard' | 'batch' | 'subscription'>('standard')
 const batchInput = ref('')
 const batchParseResult = reactive({
   total: 0,
@@ -1120,6 +1250,10 @@ const batchParseResult = reactive({
     password: string
   }>
 })
+const subscriptionURL = ref('')
+const subscriptionDefaultProtocol = ref<ProxyProtocol>('http')
+const subscriptionParsing = ref(false)
+const subscriptionResult = ref<ParsedSubscription | null>(null)
 
 const createForm = reactive({
   name: '',
@@ -1268,6 +1402,10 @@ const closeCreateModal = () => {
   batchParseResult.invalid = 0
   batchParseResult.duplicate = 0
   batchParseResult.proxies = []
+  subscriptionURL.value = ''
+  subscriptionDefaultProtocol.value = 'http'
+  subscriptionParsing.value = false
+  subscriptionResult.value = null
 }
 
 const handleDataImported = () => {
@@ -1344,6 +1482,87 @@ const parseBatchInput = () => {
   batchParseResult.invalid = invalid
   batchParseResult.duplicate = duplicate
   batchParseResult.proxies = proxies
+}
+
+const subscriptionPreview = computed(() => subscriptionResult.value?.proxies.slice(0, 8) ?? [])
+const subscriptionFormatLabel = computed(() => {
+  const format = subscriptionResult.value?.format
+  if (!format || format === 'empty') return ''
+  const key = `admin.proxies.subscriptionFormat.${format}`
+  const label = t(key)
+  return label === key ? format : label
+})
+const subscriptionSkippedLabel = computed(() => {
+  const protocols = subscriptionResult.value?.skipped_protocols || []
+  return protocols.length > 0 ? ` (${protocols.join(', ')})` : ''
+})
+
+const subscriptionErrorMessage = (error: any) => {
+  const reason = error?.reason as string | undefined
+  if (reason === 'SUBSCRIPTION_BAD_STATUS') {
+    return t('admin.proxies.subscriptionBadStatus', { status: error?.metadata?.status || '' })
+  }
+  const keyByReason: Record<string, string> = {
+    SUBSCRIPTION_URL_INVALID: 'admin.proxies.subscriptionURLInvalid',
+    SUBSCRIPTION_FETCH_FAILED: 'admin.proxies.subscriptionFetchFailed',
+    SUBSCRIPTION_TOO_LARGE: 'admin.proxies.subscriptionTooLarge',
+    SUBSCRIPTION_EMPTY: 'admin.proxies.subscriptionEmpty',
+    SUBSCRIPTION_NOT_LIST: 'admin.proxies.subscriptionNotList'
+  }
+  const key = reason ? keyByReason[reason] : ''
+  return key ? t(key) : error?.message || t('admin.proxies.subscriptionFetchFailed')
+}
+
+const handleParseSubscription = async () => {
+  const url = subscriptionURL.value.trim()
+  if (!/^https?:\/\//i.test(url)) {
+    appStore.showError(t('admin.proxies.subscriptionURLInvalid'))
+    return
+  }
+  subscriptionParsing.value = true
+  try {
+    subscriptionResult.value = await adminAPI.proxies.parseSubscription({
+      url,
+      default_protocol: subscriptionDefaultProtocol.value
+    })
+  } catch (error: any) {
+    subscriptionResult.value = null
+    appStore.showError(subscriptionErrorMessage(error))
+  } finally {
+    subscriptionParsing.value = false
+  }
+}
+
+const handleSubscriptionImport = async () => {
+  const proxies = subscriptionResult.value?.proxies || []
+  if (proxies.length === 0) return
+
+  submitting.value = true
+  try {
+    const result = await adminAPI.proxies.batchCreate(
+      proxies.map((proxy) => ({
+        name: proxy.name,
+        protocol: proxy.protocol,
+        host: proxy.host,
+        port: proxy.port,
+        username: proxy.username || '',
+        password: proxy.password || ''
+      }))
+    )
+    const created = result.created || 0
+    const skipped = result.skipped || 0
+    if (created > 0) {
+      appStore.showSuccess(t('admin.proxies.batchImportSuccess', { created, skipped }))
+    } else {
+      appStore.showInfo(t('admin.proxies.batchImportAllSkipped', { skipped }))
+    }
+    closeCreateModal()
+    loadProxies()
+  } catch (error: any) {
+    appStore.showError(error?.message || error?.response?.data?.detail || t('admin.proxies.failedToImport'))
+  } finally {
+    submitting.value = false
+  }
 }
 
 const handleBatchCreate = async () => {
