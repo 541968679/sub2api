@@ -5,7 +5,7 @@
 | 名称 | 角色 | 公网 IPv4 | SSH | 用途 | Playbook |
 |------|------|-----------|-----|------|----------|
 | `new-origin` | 主站 / 写入 | `15.204.102.44` | `debian@15.204.102.44`，密钥 `id_ed25519_new_origin`，`sudo -n`。不要用 root 登录 | 跑 Sub2API、PostgreSQL、Redis。公网域名 `zerocode.kaynlab.com` | [`PRODUCTION.md`](PRODUCTION.md)、[`DEPLOYMENT.md`](DEPLOYMENT.md)、[`MAIN_SERVER_MIGRATION.md`](MAIN_SERVER_MIGRATION.md) |
-| `buffalo-origin` | 主库温备 / 旧 IP 反代 | `172.245.247.80` | `root@172.245.247.80`，密钥 `id_ed25519_sub2api` | Postgres 只读跟随新源站，槽名 `buffalo_standby`。主站应用不启动。Caddy 把旧 IP 上的 `zerocode.kaynlab.com` 转到新源站。第二套独立站点尚未部署 | [`MAIN_SERVER_MIGRATION.md`](MAIN_SERVER_MIGRATION.md) |
+| `buffalo-origin` | 主库温备 / 旧 IP 反代 / cyf | `172.245.247.80` | `root@172.245.247.80`，密钥 `id_ed25519_sub2api` | Postgres 只读跟随新源站，槽名 `buffalo_standby`。主站应用不启动。Caddy 把旧 IP 上的 `zerocode.kaynlab.com` 转到新源站。第二套在 `/opt/sub2api-cyf`，域名 `cyf.it.com`，回环端口 8081/5433/6380。DNS 还没指向这台，Caddy 还没加这个域名。主站切回前先停这套 | [`MAIN_SERVER_MIGRATION.md`](MAIN_SERVER_MIGRATION.md) |
 | `hk-relay` | 香港中转 | `191.40.32.186` | `root@191.40.32.186`，密钥 `id_ed25519_yt_hk` | 只跑 Caddy。大陆客户入口，反代到源站域名。不跑 Sub2API 和数据库 | [`HK_RELAY.md`](HK_RELAY.md) |
 
 ## 命名
@@ -21,7 +21,8 @@
 ## 不要混
 
 - 主站报错、compose、`update.sh`、GHCR 镜像只对 `new-origin`。
-- `buffalo-origin` 的 `/opt/sub2api` 是主库温备。不在这台跑 `update.sh`，不启动主站 `sub2api`，不 `pg_promote`，不删除槽 `buffalo_standby`。以后的第二套独立站点使用单独目录，不由这份 `update.sh` 更新。
+- `buffalo-origin` 的 `/opt/sub2api` 是主库温备。不在这台跑 `update.sh`，不启动主站 `sub2api`，不 `pg_promote`，不删除槽 `buffalo_standby`。
+- `/opt/sub2api-cyf` 是另一套空库，项目名 `sub2api-cyf`。不挂温备卷 `sub2api_postgres_data`，也不由 `/opt/sub2api/update.sh` 更新。管理员邮箱是 `sub2apiadmin@gmail.com`。密码只在该目录 `.env` 的 `ADMIN_PASSWORD`。公网入口等 `cyf.it.com` 的 A 记录指向 `172.245.247.80` 且没有 AAAA 之后，再改布法罗 Caddy。
 - `hk-relay` 没有 `/opt/sub2api`，不要在那台上 `docker compose` 或 `update.sh`。
 - 三把 SSH 密钥不要交叉：新源站 `id_ed25519_new_origin`，布法罗 `id_ed25519_sub2api`，香港中转 `id_ed25519_yt_hk`。
 - 换美国主站的采购见 [`MAIN_SERVER_BUYING_GUIDE.md`](MAIN_SERVER_BUYING_GUIDE.md)。迁移和应急切回见 [`MAIN_SERVER_MIGRATION.md`](MAIN_SERVER_MIGRATION.md)。买香港中转看 [`HK_RELAY_BUYING_GUIDE.md`](HK_RELAY_BUYING_GUIDE.md)。

@@ -133,10 +133,24 @@ Redis 只有 8 MB。应用停掉之后再拷，不必做在线复制。
 | 断线上限 | 槽最多多留 5 GB。按 2026-10-06 的速度大约一天。`wal_status=lost` 后要整库重做，不能拿旧目录硬提升 |
 | 布法罗应用 | 保持 `exited`。override 仍钉着 2026-10-01 的 `ghcr.io/541968679/sub2api@sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694`。新源站此后已继续发版，切回前要按下面的步骤对齐 digest |
 | 布法罗 Redis | 仍是切换前的旧快照，应急时不能用 |
-| 布法罗 Caddy | 现网把 `zerocode.kaynlab.com` 反代到 `10.88.0.2:8080`。切回文件是 `/root/sub2api-migration/Caddyfile.failover`，把该域名改回 `127.0.0.1:8080`。第二套独立站点尚未部署；它出现之后，两份 Caddy 文件都要保留那个站点，failover 仍只改 `zerocode` 的上游 |
-| 机器量级 | 布法罗约 6 GiB 内存，5 vCPU，根盘 96 GB。2026-10-06 剩余约 37 GB。只能应急，不能长期顶高峰，也不能和另一套满载服务同时顶主站流量 |
+| 布法罗 Caddy | 现网把 `zerocode.kaynlab.com` 反代到 `10.88.0.2:8080`。切回文件是 `/root/sub2api-migration/Caddyfile.failover`，把该域名改回 `127.0.0.1:8080`。`cyf.it.com` 还没写进这两份文件。加上之后，failover 仍只改 `zerocode` 的上游，cyf 保持 `127.0.0.1:8081` |
+| 机器量级 | 布法罗约 6 GiB 内存，5 vCPU，根盘 96 GB。2026-10-06 清掉旧镜像并拉起 cyf 之后，已用 33 GB，剩余约 58 GB。只能应急，不能长期顶高峰，也不能和另一套满载服务同时顶主站流量 |
 
 平时不要做：不要在布法罗启动主站 `sub2api`，不要在 `/opt/sub2api` 跑 `update.sh`，不要 `pg_promote`，不要删槽 `buffalo_standby`。布法罗上的 `pg-wg-proxy` 保持 disabled。不要执行 `/root/sub2api-migration/run-basebackup.sh`，那个脚本会先清空数据卷。`/etc/sub2api-cutover-complete` 已在 2026-10-03 为 `v0.1.306` 部署创建，不要删。新源站的 `update.sh` 只在明确要求部署时跑。
+
+## 第二套独立站点 cyf（2026-10-06）
+
+这套和温备无关。目录 `/opt/sub2api-cyf`，compose 项目 `sub2api-cyf`。容器是 `sub2api-cyf`、`sub2api-cyf-postgres`、`sub2api-cyf-redis`。端口只绑 `127.0.0.1:8081`、`127.0.0.1:5433`、`127.0.0.1:6380`。
+
+应用镜像与当时新源站正在跑的 digest 相同：`ghcr.io/541968679/sub2api@sha256:9eba78c3254b77b35c46c5c9851f5c4503bbeecdf606841f0c01b198d3ce9c5e`。Postgres 卷是 `sub2api-cyf_postgres_data`，`PGDATA=/var/lib/postgresql/data`。它不是副本，`pg_is_in_recovery()` 为假。库里只有自动安装的管理员 `sub2apiadmin@gmail.com`。密码和 `JWT_SECRET`、`TOTP_ENCRYPTION_KEY` 只在该目录 `.env`，和 `/opt/sub2api/.env` 不同。不要把温备那份 `sub2api_postgres_data` 挂进来，也不要恢复主站备份。
+
+布法罗上的标签 `ghcr.io/541968679/sub2api:latest` 仍指向温备钉住的 `sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694`。cyf 按 digest 引用新镜像，没有挪动这个标签。
+
+2026-10-06 18:03 +08 验收时，本机 `http://127.0.0.1:8081/health` 为 200，不带密钥的 `/v1/models` 为 401。温备仍是 `streaming`，槽 `buffalo_standby` 在主库上 `active=true`、`wal_status=reserved`。`zerocode.kaynlab.com` 经布法罗 `172.245.247.80` 仍是 `/health` 200、`/v1/models` 401。
+
+权威 DNS `ns5.it.com` 对 `cyf.it.com` 仍是 NXDOMAIN，所以没有改 `/etc/caddy/Caddyfile`，也没有改 failover 文件，更没有 reload。A 记录要指向 `172.245.247.80`，不要 AAAA，不要指到香港中转，也不要改 `zerocode.kaynlab.com`。记录生效之后再给两份 Caddy 加上 `cyf.it.com` → `127.0.0.1:8081`，`request_body max_size 256MB` 和 `flush_interval -1` 与现网 zerocode 块一致，validate 两份，只 reload 现网。
+
+这台机器的磁盘和 IP 是两套共用的。数据库和密钥分开，主机故障仍然一起受影响。主站应急切回前，先在 `/opt/sub2api-cyf` 执行 `docker compose stop`。
 
 问「温备还在不在」时，两边各看下面的 SQL。备库应是 `streaming`，主库槽应是 `active=true` 且 `wal_status` 不是 `lost`，`replay_lag` 应在 1 秒内。PG 18 的 `pg_stat_wal_receiver` 没有 `replay_lag` 和 `received_lsn`。
 
@@ -157,14 +171,14 @@ docker exec sub2api-postgres psql -U sub2api -d sub2api -c "SELECT pg_is_in_reco
 目标大约 15 分钟。香港中转跟着 `zerocode.kaynlab.com`，不用改中转配置。TTL 是 60 秒。布法罗是 5 vCPU 的小机器。切回去之后用户能用，高峰会比 OVH 慢。它是应急源站，不是长期源站。若第二套独立站点已经在跑，先停掉它，把 CPU 让给主站。
 
 1. SSH：`root@172.245.247.80`，密钥 `id_ed25519_sub2api`。用上一节的 SQL 确认备库仍是 `streaming`，或至少 `pg_is_in_recovery()` 为真且最后收日志的时间还在第 4 步的保留窗口内。
-2. 若 `/opt/sub2api-<slug>` 已存在并且 compose 在跑，在该目录停止应用、Postgres 和 Redis。没有这个目录就跳过。不要在 `/opt/sub2api` 里做这一步。
+2. 若 `/opt/sub2api-cyf` 的 compose 在跑，在该目录执行 `docker compose stop`，停掉应用、Postgres 和 Redis。不要在 `/opt/sub2api` 里做这一步。
 3. 新源站还连得上时：先停新机器上的 `sub2api`，只停应用，Postgres 和 Redis 继续跑。等 `replay_lag` 变成 0 再提升。
 4. 新源站还连得上时先看槽。`wal_status=lost` 就停止，不 `pg_promote`，改走整库重做。新源站连不上时，只用布法罗已经收到的日志：接收端仍是 `streaming`，或 `last_msg_receipt_time` 仍在保留窗口内，才提升。窗口按 WAL 约 5 GB/天、槽上限 5 GB 估算，大约一天。超出窗口就停止，最后一段没送到的写入不能靠提升找回来。
 5. 在布法罗提升：`docker exec sub2api-postgres psql -U sub2api -d sub2api -c "SELECT pg_promote();"` 然后确认 `pg_is_in_recovery()` 变成假。
 6. Redis。连得上新机器：在新机器上 `docker exec -e REDISCLI_AUTH sub2api-redis redis-cli SAVE`，把 RDB 拷进布法罗的 `sub2api_redis_data` 再启动 Redis。连不上：`docker exec -e REDISCLI_AUTH sub2api-redis redis-cli FLUSHALL`。布法罗上现有的 Redis 是 2026-10-01 04:20 UTC 的快照，不能直接给应用用。账单以 Postgres 为准。
 7. 对齐应用镜像后再启动，不要跑 `update.sh`，不要使用 `weishaw/sub2api:latest`。新源站可达时读取 `docker inspect sub2api --format '{{.Image}}'`。GHCR 也可达时，把该 digest 写进布法罗 `/opt/sub2api/docker-compose.override.yml` 的 `sub2api.image`，仓库必须是 `ghcr.io/541968679/sub2api`。GHCR 不可达时，用 override 里现有的 `sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694` 启动，并记下这是版本回退。然后只执行 `cd /opt/sub2api && docker compose up -d sub2api`。不要无服务名的 `docker compose up -d`，那会把 AIClient2API 和 InvokeAI 也拉起来。
 8. 本机烟测：`http://127.0.0.1:8080/health` 应返回 ok，不带 Key 的 `/v1/models` 应返回 401。
-9. 切换入口：`caddy validate --config /root/sub2api-migration/Caddyfile.failover` 通过后，再 `cp` 到 `/etc/caddy/Caddyfile` 并 `systemctl reload caddy`。这把 `zerocode.kaynlab.com` 改回 `127.0.0.1:8080`。第二套站点的块必须已经在这份 failover 文件里；阶段 1 还没有第二套域名，现有文件仍然正确。
+9. 切换入口：`caddy validate --config /root/sub2api-migration/Caddyfile.failover` 通过后，再 `cp` 到 `/etc/caddy/Caddyfile` 并 `systemctl reload caddy`。这把 `zerocode.kaynlab.com` 改回 `127.0.0.1:8080`。2026-10-06 两份文件都还没有 `cyf.it.com`。现网一旦加上这个站点，failover 文件里必须有同一块，上游仍是 `127.0.0.1:8081`，然后才能整份覆盖。否则这次复制会把 cyf 的入口丢掉。
 10. Cloudflare 把 `zerocode.kaynlab.com` 的 A 记录改回 `172.245.247.80`，TTL 60，灰色云朵，不要加 AAAA。
 
 提升之后不要再启动新机器上的 `sub2api`。两台同时写会把额度和账单记重。OVH 以后如果回来，先保持应用停止，再把它做成新的只读备库。

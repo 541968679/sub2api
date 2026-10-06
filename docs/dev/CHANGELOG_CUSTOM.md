@@ -1,3 +1,18 @@
+## 2026-10-06 - ops: start the cyf instance on buffalo
+
+### What
+- Started an independent Sub2API at /opt/sub2api-cyf on buffalo-origin. The compose project is sub2api-cyf. The app image is ghcr.io/541968679/sub2api@sha256:9eba78c3254b77b35c46c5c9851f5c4503bbeecdf606841f0c01b198d3ce9c5e, the digest that was running on new-origin. Postgres and Redis stay on the local pinned digests. Ports are 127.0.0.1:8081, 127.0.0.1:5433, and 127.0.0.1:6380.
+- The database is a new volume, sub2api-cyf_postgres_data, and is not in recovery. The only user is sub2apiadmin@gmail.com. Secrets were generated on the server and differ from /opt/sub2api/.env. The admin password stays in that .env.
+- Caddy was not edited or reloaded. Authoritative DNS for cyf.it.com was still NXDOMAIN. zerocode.kaynlab.com through buffalo still returned 200 on /health and 401 on /v1/models. The warm standby was still streaming on slot buffalo_standby.
+
+### Why
+The spare host now runs a second site with its own database while the main site's warm standby stays in recovery. Public HTTPS waits until cyf.it.com has an A record at 172.245.247.80 and no AAAA.
+
+### Affected files
+docs/dev/SERVERS.md,
+docs/dev/MAIN_SERVER_MIGRATION.md,
+this changelog.
+
 ## 2026-10-06 - ops: record buffalo as a warm standby
 
 ### What
