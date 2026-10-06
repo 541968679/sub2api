@@ -1,3 +1,17 @@
+## 2026-10-06 - ops: point cyf at api.cyf.it.com
+
+### What
+- The buffalo second site's public name is api.cyf.it.com. The directory stays /opt/sub2api-cyf.
+- The only admin user is now 2741018493@qq.com. The password was not reset. cyf.it.com is delegated to Spaceship, and api.cyf.it.com still has no address, so Caddy was not changed.
+
+### Why
+The operator corrected the hostname and the admin mailbox after the empty site was already installed.
+
+### Affected files
+docs/dev/SERVERS.md,
+docs/dev/MAIN_SERVER_MIGRATION.md,
+this changelog.
+
 ## 2026-10-06 - ops: start the cyf instance on buffalo
 
 ### What
