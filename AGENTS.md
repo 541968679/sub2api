@@ -167,9 +167,11 @@ If the task includes 生产 / 线上 / 报错 / 排查 / 日志 / incident:
 - MUST NOT search business code or change implementations first.
 - Wrong: Grep `gateway_handler.go` first. Right: SSH `tail` / `docker inspect` health first.
 
+The write origin is `new-origin`. Fleet roles live in `docs/dev/SERVERS.md`. The buffalo host below is the warm standby only: do not run `update.sh` there, and do not start its main `sub2api` container. Pull main-service logs from `debian@15.204.102.44` with key `id_ed25519_new_origin`.
+
 | Item | Value |
 |------|-------|
-| Host | `root@172.245.247.80` (`buffalo-origin`) |
+| Host | `root@172.245.247.80` (`buffalo-origin`, warm standby only) |
 | SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
 | Compose | `/opt/sub2api` |
 | Deploy log | `/opt/sub2api/deploy.log` |

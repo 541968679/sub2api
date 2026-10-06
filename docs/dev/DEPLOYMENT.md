@@ -14,10 +14,12 @@
 
 生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。机队名称见 [`SERVERS.md`](SERVERS.md)。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`；InvokeAI 侧车说明见 `docs/dev/INVOKEAI_SIDECAR.md`。香港中转 `hk-relay`（`191.40.32.186`）不是这台 compose 主机，见 [`HK_RELAY.md`](HK_RELAY.md)。
 
+2026-10-01 起主服务部署目标是 `new-origin`。`update.sh` 和 GHCR 拉取只在那台上做。`buffalo-origin` 是温备，不跑 `update.sh`，不启动主站应用。
+
 | 项目 | 值 |
 |------|----|
-| 生产服务器（`buffalo-origin`） | `root@172.245.247.80` |
-| 本地 SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
+| 主站（`new-origin`） | `debian@15.204.102.44`，密钥 `id_ed25519_new_origin`，`sudo -n` |
+| 温备（`buffalo-origin`） | `root@172.245.247.80`，密钥 `id_ed25519_sub2api`。不跑 `update.sh` |
 | Compose 目录 | `/opt/sub2api` |
 | Sub2API 主服务镜像 | `ghcr.io/541968679/sub2api:latest` |
 | Sub2API 镜像覆盖变量 | `SUB2API_IMAGE` |

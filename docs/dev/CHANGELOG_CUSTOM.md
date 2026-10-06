@@ -1,3 +1,21 @@
+## 2026-10-06 - ops: record buffalo as a warm standby
+
+### What
+- The fleet table lists `new-origin` as the write origin and `buffalo-origin` as the warm Postgres standby plus the old-IP proxy. Main-service `update.sh` and GHCR deploys stay on new-origin. Buffalo `/opt/sub2api` does not run `update.sh` and does not start the main app.
+- Failover steps now stop a future second compose project first, refuse `pg_promote` when slot `buffalo_standby` is `lost` or the standby is outside the about-one-day WAL window, and align the buffalo app image to the digest running on new-origin before start.
+- This change does not promote the standby or start the buffalo app. Live checks are recorded in `.trellis/tasks/10-06-buffalo-warm-recovery/research/verify.md`.
+
+### Why
+The spare has to stay a fast promote path while the same host is reserved for a separate Sub2API later. The old fleet and deploy notes still sent operators to buffalo for `update.sh` and main-service logs.
+
+### Affected files
+`docs/dev/SERVERS.md`,
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/PRODUCTION.md`,
+`docs/dev/DEPLOYMENT.md`,
+`AGENTS.md`,
+this changelog.
+
 ## 2026-10-05 - ops: deploy v0.1.308
 
 ### What

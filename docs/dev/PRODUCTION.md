@@ -16,6 +16,8 @@
 
 侧车镜像与目录仍见 `DEPLOYMENT.md` §1.1，本文不重复。机队名称与香港中转见 [`SERVERS.md`](SERVERS.md)；香港机 `hk-relay`（`191.40.32.186`）只跑 Caddy，compose / `update.sh` / 拉容器日志不要打到那台上，playbook 是 [`HK_RELAY.md`](HK_RELAY.md)。
 
+2026-10-06 起主站写入和主服务日志在 `new-origin`（`debian@15.204.102.44`，密钥 `id_ed25519_new_origin`，`sudo -n`）。下表和下面的命令核对的是温备 `buffalo-origin`。不要在布法罗跑 `update.sh`，不要把已退出的主站 `sub2api` 拉起来。
+
 ## 事故顺序
 
 1. 读本页（以及 always-apply 压缩入口）。
