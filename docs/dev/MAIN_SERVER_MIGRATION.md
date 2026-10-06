@@ -133,7 +133,7 @@ Redis 只有 8 MB。应用停掉之后再拷，不必做在线复制。
 | 断线上限 | 槽最多多留 5 GB。按 2026-10-06 的速度大约一天。`wal_status=lost` 后要整库重做，不能拿旧目录硬提升 |
 | 布法罗应用 | 保持 `exited`。override 仍钉着 2026-10-01 的 `ghcr.io/541968679/sub2api@sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694`。新源站此后已继续发版，切回前要按下面的步骤对齐 digest |
 | 布法罗 Redis | 仍是切换前的旧快照，应急时不能用 |
-| 布法罗 Caddy | 现网把 `zerocode.kaynlab.com` 反代到 `10.88.0.2:8080`。切回文件是 `/root/sub2api-migration/Caddyfile.failover`，把该域名改回 `127.0.0.1:8080`。`api.cyf.it.com` 还没写进这两份文件。加上之后，failover 仍只改 `zerocode` 的上游，cyf 保持 `127.0.0.1:8081` |
+| 布法罗 Caddy | 现网把 `zerocode.kaynlab.com` 反代到 `10.88.0.2:8080`。切回文件是 `/root/sub2api-migration/Caddyfile.failover`，把该域名改回 `127.0.0.1:8080`。两份文件都有 `cyf.it.com` → `127.0.0.1:8081`。failover 仍只改 `zerocode` 的上游，cyf 保持 `127.0.0.1:8081` |
 | 机器量级 | 布法罗约 6 GiB 内存，5 vCPU，根盘 96 GB。2026-10-06 清掉旧镜像并拉起 cyf 之后，已用 33 GB，剩余约 58 GB。只能应急，不能长期顶高峰，也不能和另一套满载服务同时顶主站流量 |
 
 平时不要做：不要在布法罗启动主站 `sub2api`，不要在 `/opt/sub2api` 跑 `update.sh`，不要 `pg_promote`，不要删槽 `buffalo_standby`。布法罗上的 `pg-wg-proxy` 保持 disabled。不要执行 `/root/sub2api-migration/run-basebackup.sh`，那个脚本会先清空数据卷。`/etc/sub2api-cutover-complete` 已在 2026-10-03 为 `v0.1.306` 部署创建，不要删。新源站的 `update.sh` 只在明确要求部署时跑。
@@ -148,7 +148,7 @@ Redis 只有 8 MB。应用停掉之后再拷，不必做在线复制。
 
 2026-10-06 18:03 +08 验收时，本机 `http://127.0.0.1:8081/health` 为 200，不带密钥的 `/v1/models` 为 401。温备仍是 `streaming`，槽 `buffalo_standby` 在主库上 `active=true`、`wal_status=reserved`。`zerocode.kaynlab.com` 经布法罗 `172.245.247.80` 仍是 `/health` 200、`/v1/models` 401。
 
-`cyf.it.com` 已委托给 Spaceship：`launch1.spaceship.net`、`launch2.spaceship.net`。2026-10-06 权威服务器对 `api.cyf.it.com` 仍是 NXDOMAIN，所以没有改 `/etc/caddy/Caddyfile`，也没有改 failover 文件，更没有 reload。要在 `cyf.it.com` 的解析里加主机记录 `api`、类型 A、值 `172.245.247.80`，不要 AAAA，不要指到香港中转，也不要改 `zerocode.kaynlab.com`，也不要改 `cyf.it.com` 根域上已有的 A 记录。记录生效之后再给两份 Caddy 加上 `api.cyf.it.com` → `127.0.0.1:8081`，`request_body max_size 256MB` 和 `flush_interval -1` 与现网 zerocode 块一致，validate 两份，只 reload 现网。
+2026-10-06 操作员把 `cyf.it.com` 的 A 记录指到 `172.245.247.80`，TTL 300，没有 AAAA。名称服务器仍是 `launch1.spaceship.net` 和 `launch2.spaceship.net`。`api.cyf.it.com` 仍不存在，证书签在 `cyf.it.com` 上。Let's Encrypt 证书使用者是 `cyf.it.com`，签发者 `YE1`，有效期到 2027-01-04 09:18:44 GMT。现网和 `/root/sub2api-migration/Caddyfile.failover` 都加了同一站点块，上游 `127.0.0.1:8081`，请求体 256MB，`flush_interval -1`。两份都 `caddy validate` 通过。只 reload 了现网，failover 没有装成现网。改前备份是 `/etc/caddy/Caddyfile.bak-cyf-20261006T101712Z` 和同名的 failover 备份。公网 `https://cyf.it.com/health` 为 200，不带密钥的 `/v1/models` 为 401。`zerocode.kaynlab.com` 经这台机器仍是 200 和 401，现网上游仍是 `10.88.0.2:8080`。
 
 这台机器的磁盘和 IP 是两套共用的。数据库和密钥分开，主机故障仍然一起受影响。主站应急切回前，先在 `/opt/sub2api-cyf` 执行 `docker compose stop`。
 
@@ -178,7 +178,7 @@ docker exec sub2api-postgres psql -U sub2api -d sub2api -c "SELECT pg_is_in_reco
 6. Redis。连得上新机器：在新机器上 `docker exec -e REDISCLI_AUTH sub2api-redis redis-cli SAVE`，把 RDB 拷进布法罗的 `sub2api_redis_data` 再启动 Redis。连不上：`docker exec -e REDISCLI_AUTH sub2api-redis redis-cli FLUSHALL`。布法罗上现有的 Redis 是 2026-10-01 04:20 UTC 的快照，不能直接给应用用。账单以 Postgres 为准。
 7. 对齐应用镜像后再启动，不要跑 `update.sh`，不要使用 `weishaw/sub2api:latest`。新源站可达时读取 `docker inspect sub2api --format '{{.Image}}'`。GHCR 也可达时，把该 digest 写进布法罗 `/opt/sub2api/docker-compose.override.yml` 的 `sub2api.image`，仓库必须是 `ghcr.io/541968679/sub2api`。GHCR 不可达时，用 override 里现有的 `sha256:fd11f651b5c4e150ba4e5bbabed0b5f799bd4b378ee28a7d45d9073d3ad37694` 启动，并记下这是版本回退。然后只执行 `cd /opt/sub2api && docker compose up -d sub2api`。不要无服务名的 `docker compose up -d`，那会把 AIClient2API 和 InvokeAI 也拉起来。
 8. 本机烟测：`http://127.0.0.1:8080/health` 应返回 ok，不带 Key 的 `/v1/models` 应返回 401。
-9. 切换入口：`caddy validate --config /root/sub2api-migration/Caddyfile.failover` 通过后，再 `cp` 到 `/etc/caddy/Caddyfile` 并 `systemctl reload caddy`。这把 `zerocode.kaynlab.com` 改回 `127.0.0.1:8080`。2026-10-06 两份文件都还没有 `api.cyf.it.com`。现网一旦加上这个站点，failover 文件里必须有同一块，上游仍是 `127.0.0.1:8081`，然后才能整份覆盖。否则这次复制会把 cyf 的入口丢掉。
+9. 切换入口：`caddy validate --config /root/sub2api-migration/Caddyfile.failover` 通过后，再 `cp` 到 `/etc/caddy/Caddyfile` 并 `systemctl reload caddy`。这把 `zerocode.kaynlab.com` 改回 `127.0.0.1:8080`。2026-10-06 两份文件都已经有 `cyf.it.com`，上游是 `127.0.0.1:8081`。整份覆盖前先确认 failover 里这块还在，否则这次复制会把 cyf 的入口丢掉。
 10. Cloudflare 把 `zerocode.kaynlab.com` 的 A 记录改回 `172.245.247.80`，TTL 60，灰色云朵，不要加 AAAA。
 
 提升之后不要再启动新机器上的 `sub2api`。两台同时写会把额度和账单记重。OVH 以后如果回来，先保持应用停止，再把它做成新的只读备库。

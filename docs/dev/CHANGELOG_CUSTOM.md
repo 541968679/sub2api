@@ -1,3 +1,17 @@
+## 2026-10-06 - ops: serve cyf.it.com from buffalo
+
+### What
+- Added cyf.it.com to the live buffalo Caddy file and to /root/sub2api-migration/Caddyfile.failover. Both proxy to 127.0.0.1:8081. Zerocode stays on 10.88.0.2:8080 in the live file and on 127.0.0.1:8080 in the failover file. Only the live file was reloaded.
+- Let's Encrypt issued a certificate for cyf.it.com, valid until 2027-01-04 09:18:44 GMT. Public /health returned 200 and unauthenticated /v1/models returned 401. The same two checks on zerocode.kaynlab.com through buffalo were unchanged.
+
+### Why
+The operator pointed the apex A record at 172.245.247.80 with no AAAA. api.cyf.it.com has no DNS record, so the certificate is for cyf.it.com.
+
+### Affected files
+docs/dev/SERVERS.md,
+docs/dev/MAIN_SERVER_MIGRATION.md,
+this changelog.
+
 ## 2026-10-06 - ops: point cyf at api.cyf.it.com
 
 ### What
