@@ -1,3 +1,16 @@
+## 2026-10-07 - fix(billing): settle usage when the API key is deleted mid-request
+
+### What
+- `applyUsageBillingEffects` ignores `service.ErrAPIKeyNotFound` from the API key quota and rate-limit counter updates. Any other error from those updates still aborts the transaction. Balance, subscription, and account-quota settlement are unchanged.
+
+### Why
+Soft-deleting a key that has a quota or rate limit while a request is in flight made those counter updates return `ErrAPIKeyNotFound` and rolled back the user balance and subscription charge. The deleted key's own counters are meaningless; the user and account side must still settle.
+
+### Affected files
+`backend/internal/repository/usage_billing_repo.go`,
+`backend/internal/repository/usage_billing_repo_unit_test.go`,
+this changelog.
+
 ## 2026-10-06 - ops: serve cyf.it.com from buffalo
 
 ### What
