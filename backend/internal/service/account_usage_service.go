@@ -353,6 +353,15 @@ func NewAccountUsageService(
 	}
 }
 
+// GetBatchUserBurnRateStats returns each user's trailing 5-minute balance burn rate.
+// BurnRatePerHour is recent actual_cost × 12. The admin users list sorts on that value.
+func (s *AccountUsageService) GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error) {
+	if s == nil || s.usageLogRepo == nil {
+		return nil, fmt.Errorf("usage log repository is not configured")
+	}
+	return s.usageLogRepo.GetBatchUserBurnRateStats(ctx, userIDs)
+}
+
 func (s *AccountUsageService) SetOpenAIQuotaService(quota *OpenAIQuotaService) {
 	s.openAIQuotaService = quota
 }

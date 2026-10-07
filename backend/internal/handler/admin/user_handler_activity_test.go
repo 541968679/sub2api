@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,7 @@ func (s *userConcurrencyCacheStub) GetUsersLoadBatch(_ context.Context, users []
 func (s *userConcurrencyCacheStub) CleanupExpiredAccountSlots(context.Context, int64) error {
 	return nil
 }
-func (s *userConcurrencyCacheStub) ClearAccountSlots(context.Context, int64) error { return nil }
+func (s *userConcurrencyCacheStub) ClearAccountSlots(context.Context, int64) error      { return nil }
 func (s *userConcurrencyCacheStub) CleanupExpiredAccountSlotKeys(context.Context) error { return nil }
 func (s *userConcurrencyCacheStub) CleanupStaleProcessSlots(context.Context, string) error {
 	return nil
@@ -196,6 +197,147 @@ func TestUserHandlerListSortsByCurrentConcurrency(t *testing.T) {
 	require.Equal(t, 1, resp.Data.Items[0].Concurrency)
 	require.Equal(t, int64(3), resp.Data.Items[1].ID)
 	require.Equal(t, 3, resp.Data.Items[1].CurrentConcurrency)
+}
+
+func TestUserHandlerListSortByConcurrencyColumnUsesLiveOccupancyNotLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 6, 15, 8, 0, 0, 0, time.UTC)
+	adminSvc := newStubAdminService()
+	adminSvc.users = []service.User{
+		{ID: 1, Email: "one@example.com", Concurrency: 100, Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+		{ID: 2, Email: "two@example.com", Concurrency: 1, Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+		{ID: 3, Email: "three@example.com", Concurrency: 50, Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+	}
+	concurrencyCache := &userConcurrencyCacheStub{
+		loads: map[int64]*service.UserLoadInfo{
+			1: {UserID: 1, CurrentConcurrency: 2},
+			2: {UserID: 2, CurrentConcurrency: 7},
+			3: {UserID: 3, CurrentConcurrency: 3},
+		},
+	}
+	handler := NewUserHandler(adminSvc, service.NewConcurrencyService(concurrencyCache))
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users?page=1&page_size=2&sort_by=concurrency&sort_order=desc",
+		nil,
+	)
+
+	handler.List(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "id", adminSvc.lastListUsers.sortBy)
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			Items []struct {
+				ID                 int64 `json:"id"`
+				Concurrency        int   `json:"concurrency"`
+				CurrentConcurrency int   `json:"current_concurrency"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Len(t, resp.Data.Items, 2)
+	require.Equal(t, int64(2), resp.Data.Items[0].ID)
+	require.Equal(t, 7, resp.Data.Items[0].CurrentConcurrency)
+	require.Equal(t, 1, resp.Data.Items[0].Concurrency)
+	require.Equal(t, int64(3), resp.Data.Items[1].ID)
+}
+
+type userBurnRateReaderStub struct {
+	stats map[int64]*usagestats.BatchUserBurnRateStats
+	ids   []int64
+	err   error
+}
+
+func (s *userBurnRateReaderStub) GetBatchUserBurnRateStats(_ context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error) {
+	s.ids = append([]int64(nil), userIDs...)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.stats, nil
+}
+
+func TestUserHandlerListSortsByBurnRate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 10, 7, 8, 0, 0, 0, time.UTC)
+	pinnedAt := now.Add(-time.Hour)
+	adminSvc := newStubAdminService()
+	adminSvc.users = []service.User{
+		{ID: 1, Email: "slow@example.com", Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+		{ID: 2, Email: "fast@example.com", Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+		{ID: 3, Email: "idle@example.com", Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+		{ID: 4, Email: "pinned@example.com", Status: service.StatusActive, PinnedAt: &pinnedAt, CreatedAt: now, UpdatedAt: now},
+	}
+	reader := &userBurnRateReaderStub{
+		stats: map[int64]*usagestats.BatchUserBurnRateStats{
+			1: {UserID: 1, BurnRatePerHour: 0.2},
+			2: {UserID: 2, BurnRatePerHour: 1.5},
+			4: {UserID: 4, BurnRatePerHour: 0.1},
+		},
+	}
+	handler := NewUserHandler(adminSvc, nil, reader)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users?page=1&page_size=2&sort_by=burn_rate&sort_order=desc",
+		nil,
+	)
+
+	handler.List(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "id", adminSvc.lastListUsers.sortBy)
+	require.Equal(t, "asc", adminSvc.lastListUsers.sortOrder)
+	require.ElementsMatch(t, []int64{1, 2, 3, 4}, reader.ids)
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			Items []struct {
+				ID int64 `json:"id"`
+			} `json:"items"`
+			Total int64 `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Equal(t, int64(4), resp.Data.Total)
+	require.Len(t, resp.Data.Items, 2)
+	require.Equal(t, int64(4), resp.Data.Items[0].ID)
+	require.Equal(t, int64(2), resp.Data.Items[1].ID)
+}
+
+func TestUserHandlerListSortByBurnRateReportsLookupFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 10, 7, 8, 0, 0, 0, time.UTC)
+	adminSvc := newStubAdminService()
+	adminSvc.users = []service.User{
+		{ID: 1, Email: "one@example.com", Status: service.StatusActive, CreatedAt: now, UpdatedAt: now},
+	}
+	handler := NewUserHandler(adminSvc, nil, &userBurnRateReaderStub{err: context.DeadlineExceeded})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users?sort_by=burn_rate&sort_order=desc",
+		nil,
+	)
+
+	handler.List(c)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 }
 
 func TestUserHandlerGetByIDIncludesActivityFields(t *testing.T) {

@@ -103,6 +103,9 @@ const DataTableStub = {
     <div>
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
+      <button data-test="sort-concurrency" @click="$emit('sort', 'current_concurrency', 'desc')">sort occupancy</button>
+      <button data-test="sort-concurrency-legacy" @click="$emit('sort', 'concurrency', 'asc')">sort limit</button>
+      <button data-test="sort-burn-rate" @click="$emit('sort', 'burn_rate', 'desc')">sort burn rate</button>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-email" :value="row.email" :row="row" />
         <slot name="cell-smart_schedule" :row="row" />
@@ -205,7 +208,7 @@ const mountUsersView = () => {
     const visibleColumns = columns.split(',')
     expect(visibleColumns.slice(-4, -1)).toEqual(['last_active_at', 'last_used_at', 'created_at'])
     expect(visibleColumns).not.toContain('last_login_at')
-    const concurrencyIdx = visibleColumns.indexOf('concurrency')
+    const concurrencyIdx = visibleColumns.indexOf('current_concurrency')
     expect(concurrencyIdx).toBeGreaterThanOrEqual(0)
     expect(visibleColumns[concurrencyIdx + 1]).toBe('smart_schedule')
     expect(visibleColumns[concurrencyIdx + 2]).toBe('schedule_pnl')
@@ -220,6 +223,82 @@ const mountUsersView = () => {
       20,
       expect.objectContaining({
         sort_by: 'last_used_at',
+        sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('sorts the concurrency column by live occupancy, including a legacy limit key', async () => {
+    localStorage.setItem(
+      'admin-users-table-sort-v2',
+      JSON.stringify({ key: 'concurrency', order: 'desc' })
+    )
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(listUsers).toHaveBeenCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'current_concurrency',
+        sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+
+    await wrapper.get('[data-test="sort-concurrency"]').trigger('click')
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'current_concurrency',
+        sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+
+    await wrapper.get('[data-test="sort-concurrency-legacy"]').trigger('click')
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'current_concurrency',
+        sort_order: 'asc'
+      }),
+      expect.any(Object)
+    )
+  })
+
+  it('sorts the burn rate column by trailing consumption speed', async () => {
+    localStorage.setItem('user-burn-rate-enabled', '1')
+    localStorage.setItem(
+      'admin-users-table-sort-v2',
+      JSON.stringify({ key: 'burn_rate', order: 'desc' })
+    )
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('burn_rate')
+    expect(listUsers).toHaveBeenCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'burn_rate',
+        sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
+
+    await wrapper.get('[data-test="sort-burn-rate"]').trigger('click')
+    await flushPromises()
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'burn_rate',
         sort_order: 'desc'
       }),
       expect.any(Object)

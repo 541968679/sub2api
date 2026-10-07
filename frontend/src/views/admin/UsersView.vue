@@ -346,7 +346,7 @@
           :loading="loading"
           :actions-count="8"
           :server-side-sort="true"
-          default-sort-key="concurrency"
+          default-sort-key="current_concurrency"
           default-sort-order="desc"
           :sort-storage-key="USER_SORT_STORAGE_KEY"
           @sort="handleSort"
@@ -556,7 +556,7 @@
             </div>
           </template>
 
-          <template #cell-concurrency="{ row }">
+          <template #cell-current_concurrency="{ row }">
             <UserConcurrencyCell
               :current="row.current_concurrency ?? 0"
               :max="row.concurrency"
@@ -1053,12 +1053,14 @@ const allColumns = computed<Column[]>(() => [
           label: t('admin.users.columns.burnRateWithUnit', {
             unit: burnRateUnitSuffix.value
           }),
-          sortable: false
+          // Trailing 5-minute actual cost, expressed per hour. $/min is the same order.
+          sortable: true
         } as Column
       ]
     : []),
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
-  { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
+  // Key is the live occupancy count. The cell still renders occupancy / limit.
+  { key: 'current_concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
   { key: 'schedule_pnl', label: t('admin.users.columns.schedulePnl'), sortable: false },
   { key: 'quality_ttft', label: t('admin.users.columns.quality'), sortable: false },
@@ -1081,11 +1083,11 @@ const toggleableColumns = computed(() =>
 const hiddenColumns = reactive<Set<string>>(new Set())
 
 // Default hidden columns (columns hidden by default on first load).
-// concurrency is visible by default so default sort-by-concurrency is meaningful.
+// current_concurrency is visible by default so the default occupancy sort is meaningful.
 const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions', 'usage']
 const REMOVED_COLUMNS = new Set(['last_login_at'])
 const MERGED_AWAY_COLUMNS = new Set(['quality_success_rate'])
-const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at', 'concurrency'])
+const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at', 'current_concurrency'])
 
 // localStorage key for column settings
 const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
@@ -1103,12 +1105,14 @@ const loadSavedColumns = () => {
       // Use default hidden columns on first load
       DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
     }
-    // Ensure concurrency stays visible (was previously hidden by default).
+    // Legacy column key was the configured limit. Keep the occupancy column visible.
     hiddenColumns.delete('concurrency')
+    hiddenColumns.delete('current_concurrency')
   } catch (e) {
     console.error('Failed to load saved columns:', e)
     DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
     hiddenColumns.delete('concurrency')
+    hiddenColumns.delete('current_concurrency')
   }
 }
 
@@ -1169,7 +1173,7 @@ const USER_SORT_STORAGE_KEY = 'admin-users-table-sort-v2'
 const USER_SORT_STORAGE_KEY_LEGACY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
   const fallback = { sort_by: 'current_concurrency', sort_order: 'desc' as 'asc' | 'desc' }
-  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'current_concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
+  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'burn_rate', 'concurrency', 'current_concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
   try {
     const raw = localStorage.getItem(USER_SORT_STORAGE_KEY) || localStorage.getItem(USER_SORT_STORAGE_KEY_LEGACY)
     if (!raw) return fallback

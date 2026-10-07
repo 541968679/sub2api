@@ -1,3 +1,37 @@
+## 2026-10-07 - feat: sort admin users by burn rate
+
+### What
+- The admin users 消耗速度 column sorts by the trailing 5-minute actual cost expressed as USD per hour (`burn_rate_per_hour`). The $/min display is the same order.
+- `GET /api/v1/admin/users?sort_by=burn_rate` loads the filtered users, reads that burn rate, and paginates in memory. Pinned users stay first. Users with no usage in the window sort as 0.
+- The column header is sortable while the 消耗速度 switch is on.
+
+### Why
+The column showed consumption speed and could not order the list by it.
+
+### Affected files
+`backend/internal/handler/admin/user_handler.go`,
+`backend/internal/handler/admin/user_handler_activity_test.go`,
+`backend/internal/service/account_usage_service.go`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/__tests__/UsersView.spec.ts`,
+this changelog.
+
+## 2026-10-07 - fix: sort admin users by live concurrency occupancy
+
+### What
+- The admin users table concurrency column now sorts by Redis in-use count (`current_concurrency`), not by the configured limit (`users.concurrency`).
+- `GET /api/v1/admin/users?sort_by=concurrency` uses that same occupancy sort. The limit remains visible as the badge denominator.
+
+### Why
+Clicking 并发数 ordered rows by the maximum concurrency limit. The badge shows occupancy / limit, and the list needs to order by the occupancy.
+
+### Affected files
+`backend/internal/handler/admin/user_handler.go`,
+`backend/internal/handler/admin/user_handler_activity_test.go`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/__tests__/UsersView.spec.ts`,
+this changelog.
+
 ## 2026-10-07 - fix(billing): settle usage when the API key is deleted mid-request
 
 ### What

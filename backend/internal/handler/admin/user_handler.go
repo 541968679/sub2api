@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,14 @@ type UserWithConcurrency struct {
 }
 
 const userCurrentConcurrencySortKey = "current_concurrency"
+const userBurnRateSortKey = "burn_rate"
 const userCurrentConcurrencySortFetchPageSize = 1000
+
+// userBurnRateStatsReader loads the trailing-window balance burn rate used by
+// the admin users table. *service.AccountUsageService implements it.
+type userBurnRateStatsReader interface {
+	GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error)
+}
 
 // UserHandler handles admin user management
 type UserHandler struct {
@@ -32,6 +40,7 @@ type UserHandler struct {
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
 	billingCache          service.BillingCache
 	accountUsageService   *service.AccountUsageService
+	burnRateReader        userBurnRateStatsReader
 	smartSchedule         *service.UserSmartScheduleService
 	schedulePnl           *service.SchedulePnlService
 	qualityMaintenance    *service.AccountQualityMaintenanceService
@@ -44,6 +53,7 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 	var userPlatformQuotaRepo service.UserPlatformQuotaRepository
 	var billingCache service.BillingCache
 	var accountUsageService *service.AccountUsageService
+	var burnRateReader userBurnRateStatsReader
 	var smartSchedule *service.UserSmartScheduleService
 	var schedulePnl *service.SchedulePnlService
 	var qualityMaintenance *service.AccountQualityMaintenanceService
@@ -56,6 +66,9 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 			billingCache = v
 		case *service.AccountUsageService:
 			accountUsageService = v
+			burnRateReader = v
+		case userBurnRateStatsReader:
+			burnRateReader = v
 		case *service.UserSmartScheduleService:
 			smartSchedule = v
 		case *service.SchedulePnlService:
@@ -72,6 +85,7 @@ func NewUserHandler(adminService service.AdminService, concurrencyService *servi
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		billingCache:          billingCache,
 		accountUsageService:   accountUsageService,
+		burnRateReader:        burnRateReader,
 		smartSchedule:         smartSchedule,
 		schedulePnl:           schedulePnl,
 		qualityMaintenance:    qualityMaintenance,
@@ -199,6 +213,10 @@ func (h *UserHandler) List(c *gin.Context) {
 		h.listSortedByCurrentConcurrency(c, page, pageSize, filters, sortOrder)
 		return
 	}
+	if isUserBurnRateSort(sortBy) {
+		h.listSortedByBurnRate(c, page, pageSize, filters, sortOrder)
+		return
+	}
 
 	users, total, err := h.adminService.ListUsers(c.Request.Context(), page, pageSize, filters, sortBy, sortOrder)
 	if err != nil {
@@ -211,18 +229,78 @@ func (h *UserHandler) List(c *gin.Context) {
 }
 
 func isUserCurrentConcurrencySort(sortBy string) bool {
-	return strings.EqualFold(strings.TrimSpace(sortBy), userCurrentConcurrencySortKey)
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case userCurrentConcurrencySortKey, "concurrency":
+		// The users table column is the live occupancy / configured limit pair.
+		// Both the explicit occupancy key and the legacy column key sort by the
+		// Redis in-use count. The configured limit stays on users.concurrency
+		// and is not an order key for this list.
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *UserHandler) listSortedByCurrentConcurrency(c *gin.Context, page, pageSize int, filters service.UserListFilters, sortOrder string) {
 	ctx := c.Request.Context()
+	allUsers, total, err := h.fetchUsersForInMemorySort(ctx, filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	loadInfo := h.getUsersLoadInfo(ctx, allUsers)
+	sortUsersByCurrentConcurrency(allUsers, loadInfo, sortOrder)
+
+	start, end := pageBounds(page, pageSize, len(allUsers))
+	pageUsers := allUsers[start:end]
+
+	response.Paginated(c, buildUsersWithConcurrency(pageUsers, loadInfo), total, page, pageSize)
+}
+
+func isUserBurnRateSort(sortBy string) bool {
+	return strings.EqualFold(strings.TrimSpace(sortBy), userBurnRateSortKey)
+}
+
+func (h *UserHandler) listSortedByBurnRate(c *gin.Context, page, pageSize int, filters service.UserListFilters, sortOrder string) {
+	ctx := c.Request.Context()
+	allUsers, total, err := h.fetchUsersForInMemorySort(ctx, filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	stats := map[int64]*usagestats.BatchUserBurnRateStats{}
+	if len(allUsers) > 0 {
+		if h.burnRateReader == nil {
+			response.Error(c, http.StatusInternalServerError, "Failed to get user burn rate stats")
+			return
+		}
+		userIDs := make([]int64, len(allUsers))
+		for i := range allUsers {
+			userIDs[i] = allUsers[i].ID
+		}
+		stats, err = h.burnRateReader.GetBatchUserBurnRateStats(ctx, userIDs)
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, "Failed to get user burn rate stats")
+			return
+		}
+	}
+	sortUsersByBurnRate(allUsers, stats, sortOrder)
+
+	start, end := pageBounds(page, pageSize, len(allUsers))
+	pageUsers := allUsers[start:end]
+	loadInfo := h.getUsersLoadInfo(ctx, pageUsers)
+	response.Paginated(c, buildUsersWithConcurrency(pageUsers, loadInfo), total, page, pageSize)
+}
+
+func (h *UserHandler) fetchUsersForInMemorySort(ctx context.Context, filters service.UserListFilters) ([]service.User, int64, error) {
 	allUsers := make([]service.User, 0)
 	var total int64
 	for fetchPage := 1; ; fetchPage++ {
 		users, pageTotal, err := h.adminService.ListUsers(ctx, fetchPage, userCurrentConcurrencySortFetchPageSize, filters, "id", pagination.SortOrderAsc)
 		if err != nil {
-			response.ErrorFrom(c, err)
-			return
+			return nil, 0, err
 		}
 		if fetchPage == 1 {
 			total = pageTotal
@@ -235,24 +313,22 @@ func (h *UserHandler) listSortedByCurrentConcurrency(c *gin.Context, page, pageS
 			break
 		}
 	}
+	return allUsers, total, nil
+}
 
-	loadInfo := h.getUsersLoadInfo(ctx, allUsers)
-	sortUsersByCurrentConcurrency(allUsers, loadInfo, sortOrder)
-
-	start := (page - 1) * pageSize
+func pageBounds(page, pageSize, length int) (start, end int) {
+	start = (page - 1) * pageSize
 	if start < 0 {
 		start = 0
 	}
-	end := start + pageSize
-	if start > len(allUsers) {
-		start = len(allUsers)
+	end = start + pageSize
+	if start > length {
+		start = length
 	}
-	if end > len(allUsers) {
-		end = len(allUsers)
+	if end > length {
+		end = length
 	}
-	pageUsers := allUsers[start:end]
-
-	response.Paginated(c, buildUsersWithConcurrency(pageUsers, loadInfo), total, page, pageSize)
+	return start, end
 }
 
 func (h *UserHandler) getUsersLoadInfo(ctx context.Context, users []service.User) map[int64]*service.UserLoadInfo {
@@ -284,6 +360,33 @@ func sortUsersByCurrentConcurrency(users []service.User, loadInfo map[int64]*ser
 		}
 		left := current(users[i].ID)
 		right := current(users[j].ID)
+		if left != right {
+			if order == pagination.SortOrderAsc {
+				return left < right
+			}
+			return left > right
+		}
+		if order == pagination.SortOrderAsc {
+			return users[i].ID < users[j].ID
+		}
+		return users[i].ID > users[j].ID
+	})
+}
+
+func sortUsersByBurnRate(users []service.User, stats map[int64]*usagestats.BatchUserBurnRateStats, sortOrder string) {
+	order := pagination.NormalizeSortOrder(sortOrder, pagination.SortOrderDesc)
+	rate := func(userID int64) float64 {
+		if info := stats[userID]; info != nil {
+			return info.BurnRatePerHour
+		}
+		return 0
+	}
+	sort.SliceStable(users, func(i, j int) bool {
+		if cmp, decided := comparePinnedAt(users[i].PinnedAt, users[j].PinnedAt); decided {
+			return cmp
+		}
+		left := rate(users[i].ID)
+		right := rate(users[j].ID)
 		if left != right {
 			if order == pagination.SortOrderAsc {
 				return left < right
