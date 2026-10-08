@@ -1,3 +1,15 @@
+## 2026-10-08 - ops: record production deploy of v0.1.311
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.311` (revision `4d28e9499`, digest `sha256:d17c67681c448f9a6f7de5e90aa1d1a19e51ca1ed20408cca5e6362627fecd52`). Preflight passed. Local and public `/health` returned ok. Postgres and Redis were not recreated.
+
+### Why
+Record the verified cutover of the Chat Completions auto-passthrough release.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-08 - feat: OpenAI auto passthrough covers Chat Completions
 
 ### What
