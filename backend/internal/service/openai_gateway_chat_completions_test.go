@@ -1017,8 +1017,10 @@ func TestForwardAsChatCompletions_CustomBaseSyncUsesUpstreamSSE(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}}
 	svc := &OpenAIGatewayService{cfg: chatCompletionsCustomBaseConfig(), httpUpstream: upstream}
+	account := chatCompletionsCustomBaseAPIKeyAccount()
+	account.Extra[extraKeySyncInboundUpstreamSSE] = true
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, chatCompletionsCustomBaseAPIKeyAccount(), body, "", "gpt-5.4")
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
@@ -1045,8 +1047,10 @@ func TestForwardAsChatCompletions_CustomBaseStillAcceptsUpstreamJSON(t *testing.
 		Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
 	}}
 	svc := &OpenAIGatewayService{cfg: chatCompletionsCustomBaseConfig(), httpUpstream: upstream}
+	account := chatCompletionsCustomBaseAPIKeyAccount()
+	account.Extra[extraKeySyncInboundUpstreamSSE] = true
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, chatCompletionsCustomBaseAPIKeyAccount(), body, "", "gpt-5.4")
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
 	require.NoError(t, err)
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
 	require.Equal(t, "text/event-stream", upstream.lastReq.Header.Get("Accept"))
@@ -1054,7 +1058,7 @@ func TestForwardAsChatCompletions_CustomBaseStillAcceptsUpstreamJSON(t *testing.
 	require.Contains(t, rec.Body.String(), "pong")
 }
 
-func TestForwardAsChatCompletions_ModeOffKeepsS2OnCustomBase(t *testing.T) {
+func TestForwardAsChatCompletions_CustomBaseSyncStaysUpstreamJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -1063,10 +1067,8 @@ func TestForwardAsChatCompletions_ModeOffKeepsS2OnCustomBase(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	cfg := chatCompletionsCustomBaseConfig()
-	cfg.Gateway.OpenAISyncInboundUpstreamSSEMode = "off"
 	upstream := chatCompletionsSpeedStopRecorder()
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+	svc := &OpenAIGatewayService{cfg: chatCompletionsCustomBaseConfig(), httpUpstream: upstream}
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, chatCompletionsCustomBaseAPIKeyAccount(), body, "", "gpt-5.4")
 	require.Error(t, err)
@@ -1103,7 +1105,10 @@ func TestForwardAsRawChatCompletions_CustomBaseSyncBuffersSSE(t *testing.T) {
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 	}
 
-	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	account := rawChatCompletionsTestAccount()
+	account.Extra[extraKeySyncInboundUpstreamSSE] = true
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
 	require.NoError(t, err)
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
 	require.Equal(t, "text/event-stream", upstream.lastReq.Header.Get("Accept"))
@@ -1114,6 +1119,25 @@ func TestForwardAsRawChatCompletions_CustomBaseSyncBuffersSSE(t *testing.T) {
 	require.Equal(t, "chat.completion", gjson.Get(rec.Body.String(), "object").String())
 	require.Equal(t, int64(1), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
 	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
+}
+
+func TestForwardAsRawChatCompletions_SyncStaysUpstreamJSONWithoutSwitch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := chatCompletionsSpeedStopRecorder()
+	cfg := rawChatCompletionsTestConfig()
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+
+	_, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.Error(t, err)
+	require.False(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Accept"))
 }
 
 func TestBufferRawChatCompletionsFromSSE_AssemblesToolCalls(t *testing.T) {

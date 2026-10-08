@@ -1,3 +1,32 @@
+## 2026-10-08 - feat: account switch for sync-to-upstream-stream
+
+### What
+- Removed `gateway.openai_sync_inbound_upstream_sse_mode`. A value left in `config.yaml` is ignored.
+- Sync Chat Completions stay upstream JSON unless the OpenAI API Key account extra `openai_sync_inbound_upstream_sse` is true. Custom `base_url` no longer turns this on. OAuth and Grok stay unchanged.
+- Account create and edit show 「同步请求转上游流式」 for OpenAI API Key accounts. The switch defaults off. Auto passthrough still forwards the body unchanged, so this switch does not apply while that one is on.
+
+### Why
+The old mode lived only in the server config file and silently converted every custom-base account. Operators need one account switch, off unless they turn it on.
+
+### Verification
+- `go test -tags=unit ./internal/config -run TestValidateConfigErrors -count=1`
+- `go test -tags=unit ./internal/service -run "TestShouldForceSyncInboundUpstreamSSE|TestForwardAsChatCompletions_CustomBase|TestForwardAsRawChatCompletions_CustomBase|TestForwardAsRawChatCompletions_SyncStays" -count=1`
+
+### Affected files
+`backend/internal/config/config.go`,
+`backend/internal/config/config_test.go`,
+`backend/internal/service/openai_gateway_sync_inbound_sse.go`,
+`backend/internal/service/openai_gateway_sync_inbound_sse_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_chat_completions_test.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-10-08 - ops: record production deploy of v0.1.311
 
 ### What

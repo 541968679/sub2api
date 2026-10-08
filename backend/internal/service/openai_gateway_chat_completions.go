@@ -275,12 +275,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	}
 
 	// 6. Build upstream request.
-	// API Key + client sync + official/empty base_url: keep S2 (upstream JSON).
-	// Custom midstream base_url: upstream SSE + local buffer so CF sees bytes.
+	// API Key + client sync: keep upstream JSON unless the account switch is on.
 	// OAuth transform already forced stream=true above.
 	upstreamStream := true
 	if account.Type == AccountTypeAPIKey && !clientStream {
-		if shouldForceSyncInboundUpstreamSSE(account, s.cfg, clientStream) {
+		if shouldForceSyncInboundUpstreamSSE(account, clientStream) {
 			if patched, setErr := sjson.SetBytes(responsesBody, "stream", true); setErr == nil {
 				responsesBody = patched
 			}

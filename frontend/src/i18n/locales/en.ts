@@ -5650,6 +5650,9 @@ const enBase = {
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account passthroughs /v1/chat/completions and /v1/responses. The gateway forwards the request and response and only swaps auth, while keeping billing, concurrency, audit, and necessary safety filtering.',
+        syncInboundUpstreamSSE: 'Send sync requests upstream as a stream',
+        syncInboundUpstreamSSEDesc:
+          'Off by default. When on, a sync Chat Completions request to this account is sent upstream as a stream and returned as one JSON object after the stream finishes. Downstream requests stay sync. This switch does not apply while auto passthrough is on.',
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           'Allow this OpenAI account to bind Antigravity groups and serve Claude /v1/messages requests through the current model mapping.',

@@ -132,7 +132,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 			addGrokOpenAIUsage(&bridgeUsage, usage)
 		}
 	}
-	forceUpstreamSSE := shouldForceSyncInboundUpstreamSSE(account, s.cfg, clientStream)
+	forceUpstreamSSE := shouldForceSyncInboundUpstreamSSE(account, clientStream)
 	if clientStream || forceUpstreamSSE {
 		var usageErr error
 		upstreamBody, usageErr = ensureOpenAIChatStreamUsage(upstreamBody)

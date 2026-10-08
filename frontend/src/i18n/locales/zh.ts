@@ -5358,6 +5358,9 @@ const zhBase = {
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号会透传 /v1/chat/completions 和 /v1/responses 的请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
+        syncInboundUpstreamSSE: '同步请求转上游流式',
+        syncInboundUpstreamSSEDesc:
+          '默认关闭。打开后，这个账号收到的同步 Chat Completions 会向上游要流式，网关收齐后再按一条 JSON 返回。下游请求不用改。自动透传开启时，这个开关不生效。',
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           '开启后可将该 OpenAI 账号绑定到 Antigravity 分组，并使用当前模型映射处理 Claude /v1/messages 请求。',
