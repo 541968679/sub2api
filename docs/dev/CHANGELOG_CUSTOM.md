@@ -1,3 +1,27 @@
+## 2026-10-08 - feat: OpenAI auto passthrough covers Chat Completions
+
+### What
+- An OpenAI API-key account with 自动透传（`accounts.extra.openai_passthrough`）now applies that switch to inbound `POST /v1/chat/completions`, including when upstream endpoint routing is `force_responses`.
+- The gateway posts the body to the account `/v1/chat/completions` URL, replaces `Authorization`, and returns the upstream status and body. It does not rewrite the model, run Kimi K3 local validation, inject `stream_options.include_usage`, hold a silent refusal, or record a truncated stream as a 502.
+- Client-facing Chat Completions usage still uses the raw display-token rewrite. Billing keeps the upstream counts captured before that rewrite. An upstream usage field that is 0 stays 0.
+- Account failover on this path is only HTTP 429 and 529. Pool-mode same-account retry stays on 429.
+- Inbound `/v1/responses` for Kimi models still converts to a messages body first. OAuth Chat Completions still converts to Responses.
+
+### Why
+The switch previously ran only inside the Responses forwarder. Kimi and other native Chat Completions accounts never reached it, so turning it on left local validation, usage injection, and the truncated-stream error frame in place.
+
+### Affected files
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_chat_completions_passthrough.go`,
+`backend/internal/service/openai_gateway_chat_completions_passthrough_test.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+`.trellis/spec/backend/openai-apikey-upstream-routing.md`,
+this changelog.
+
 ## 2026-10-07 - feat: sort admin users by burn rate
 
 ### What

@@ -18,6 +18,7 @@ Raw Chat Completions passthrough (`forwardAsRawChatCompletions`) and OpenAI Resp
 - `force_responses` / `force_chat_completions` ignore probes.
 - Probe writes only the two support keys, never the mode.
 - Distinct from `openai_passthrough` (request-body passthrough) and WS passthrough.
+- `openai_passthrough` on an OpenAI API-key account also covers inbound `POST /v1/chat/completions`. The body is posted to the account `/v1/chat/completions` URL with `Authorization` replaced. Model rewrite, Kimi K3 local validation, `stream_options.include_usage`, silent-refusal holdback, and truncated-stream failover do not run. Client-facing usage still uses the raw Chat Completions display-token rewrite after billing usage is captured from the original body. An upstream usage field that is 0 stays 0. Failover is only HTTP 429 and 529; pool-mode same-account retry stays on 429. Fast policy, content moderation, the header allowlist, billing, and concurrency still apply. Inbound `/v1/responses` for `kimi-*` still converts to a messages body first. OAuth Chat Completions still converts to Responses.
 
 Create/edit UI defaults to 原样映射 and always persists the selected mode, including `auto`.
 

@@ -63,6 +63,12 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 	clientStream := gjson.GetBytes(body, "stream").Bool()
 	serviceTier := extractOpenAIServiceTierFromBody(body)
+	// 自动透传只替换认证。模型改写、Kimi 本地校验、include_usage、
+	// 静默拒绝缓冲和缺收尾 502 都不跑。下游 usage 仍按展示倍率改写，
+	// 计费先取上游原文，上游为 0 的字段保持 0。
+	if account.IsOpenAIPassthroughEnabled() {
+		return s.forwardRawChatCompletionsPassthrough(ctx, c, account, body, originalModel, clientStream, startTime)
+	}
 
 	// 2. Resolve model mapping (same as ForwardAsChatCompletions)
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)

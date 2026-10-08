@@ -95,7 +95,12 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	// 显式 auto+未探测仍走下方 Responses 转换。
 	// kimi-k3 上游只接受原生 /v1/chat/completions，即使账号被标成支持
 	// Responses 或 force_responses，也不要把入站 CC 转成 /v1/responses。
+	// 账号「自动透传」优先于端点路由：API Key 入站 CC 直接原样打到
+	// /v1/chat/completions，不再做 CC→Responses 转换。
 	if account.Type == AccountTypeAPIKey {
+		if account.IsOpenAIPassthroughEnabled() {
+			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
+		}
 		requested := gjson.GetBytes(body, "model").String()
 		mapped := resolveOpenAIForwardModel(account, requested, defaultMappedModel)
 		upstreamModel := normalizeOpenAIModelForUpstream(account, mapped)

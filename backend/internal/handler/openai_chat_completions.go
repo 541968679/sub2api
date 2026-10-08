@@ -229,7 +229,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 
 		defaultMappedModel := resolveOpenAIForwardDefaultMappedModel(apiKey, c.GetString("openai_chat_completions_fallback_model"))
 		forwardBody := body
-		if channelMapping.Mapped {
+		// 自动透传不改请求体里的模型。渠道映射留在计费字段上，不写进上游 body。
+		if channelMapping.Mapped && !account.IsOpenAIPassthroughEnabled() {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
 		h.gatewayService.MaybeSetDisplayTokenMultipliers(c.Request.Context(), c, apiKey, reqModel)

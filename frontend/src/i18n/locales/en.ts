@@ -5649,7 +5649,7 @@ const enBase = {
         apiKeyHint: 'Your OpenAI API Key',
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
-          'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',
+          'When enabled, this OpenAI account passthroughs /v1/chat/completions and /v1/responses. The gateway forwards the request and response and only swaps auth, while keeping billing, concurrency, audit, and necessary safety filtering.',
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           'Allow this OpenAI account to bind Antigravity groups and serve Claude /v1/messages requests through the current model mapping.',

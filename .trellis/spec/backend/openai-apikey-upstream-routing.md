@@ -77,6 +77,53 @@ Leave auto+unknown / `force_responses` converting kimi-k3 Chat Completions into 
 #### Correct
 Model or platform match short-circuits to the raw chat-completions upstream.
 
+## Scenario: chat completions openai_passthrough
+
+### 1. Scope / Trigger
+- Trigger: an OpenAI API-key account has `accounts.extra.openai_passthrough` (legacy `openai_oauth_passthrough`) and the client posts `/v1/chat/completions`.
+
+### 2. Signatures
+- `Account.IsOpenAIPassthroughEnabled() bool`
+- `OpenAIGatewayService.ForwardAsChatCompletions` returns `forwardAsRawChatCompletions` before `ResolveUpstreamAPI` when the account is an API key and passthrough is on.
+- `forwardAsRawChatCompletions` then calls `forwardRawChatCompletionsPassthrough`.
+
+### 3. Contracts
+- No second switch. The same account flag covers Chat Completions and Responses.
+- Request body is forwarded except for fast-policy `service_tier` changes. Do not rewrite `model`, inject `stream_options.include_usage`, normalize GLM reasoning, or run `AdaptKimiK3ChatBody`.
+- Replace `Authorization`. Copy only `accept-language` and `user-agent`, then apply the account User-Agent and header overrides. Do not copy `X-Forwarded-For`.
+- Return the upstream status and body. Rewrite client-facing Chat Completions `usage` with the same display-token function as raw Chat Completions, after billing usage is captured from the original bytes. An upstream usage number that is 0 stays 0, including `prompt_tokens` / `completion_tokens` / `total_tokens` and cache-write fields. Do not fill an empty `model`, strip an empty tool-call id, hold output for silent refusal, or turn a clean end without `finish_reason` / `usage` / `[DONE]` into a 502.
+- Fail over only on 429 and 529. `RetryableOnSameAccount` is set only when pool mode is on and the status is pool-retryable (429, not 529).
+- A missing `model` is still a local 400 and does not call upstream.
+- Channel model replacement in the OpenAI Chat Completions handler does not rewrite the body while passthrough is on.
+- Inbound `/v1/responses` for `kimi-*` still converts to Chat Completions before the upstream call. OAuth inbound Chat Completions still converts to Responses.
+
+### 4. Validation & Error Matrix
+- Missing model → 400 `model is required`, no upstream request.
+- Upstream 400/401/500 → same status and raw body, no account switch.
+- Upstream 429/529 → `UpstreamFailoverError`. Pool mode retries the same account only for 429.
+
+### 5. Good/Base/Bad Cases
+- Good: passthrough + `force_responses` + `kimi-k3` inbound Chat Completions → `POST {base}/v1/chat/completions` with the original body, including empty message content, while Kimi adaptive validation is on.
+- Good: upstream SSE that ends after a content chunk → client receives that chunk and the call returns success.
+- Good: non-zero `prompt_tokens` / `completion_tokens` on the client body follow the display multipliers, while `ForwardResult.Usage` stays on the upstream counts. A field that arrived as 0 stays 0.
+- Base: passthrough off → raw Chat Completions still injects `include_usage` and records a truncated stream.
+- Bad: passthrough Chat Completions posts the body to `/v1/responses` or appends an SSE error after upstream bytes are already written.
+
+### 6. Tests Required
+- `TestForwardAsChatCompletions_PassthroughKeepsChatCompletionsBody`
+- `TestForwardAsRawChatCompletions_PassthroughReturnsUpstreamErrorsAsIs`
+- `TestForwardAsRawChatCompletions_PassthroughJSONKeepsEmptyModel`
+- `TestForwardAsRawChatCompletions_PassthroughRequiresModel`
+- `TestForwardAsRawChatCompletions_PassthroughKeepsZeroUsage`
+- `TestForwardAsRawChatCompletions_PassthroughKeepsZeroCompletion`
+- `TestRewriteOpenAIChatPassthroughDisplayUsage_ZeroStaysZero`
+
+### 7. Wrong vs Correct
+#### Wrong
+Leave `openai_passthrough` consulted only inside `Forward` (`/v1/responses`), so inbound Chat Completions still rewrites the body.
+#### Correct
+API-key passthrough enters `forwardRawChatCompletionsPassthrough` from `ForwardAsChatCompletions`.
+
 ## Scenario: kimi-k3 adaptive validation
 
 ### 1. Scope / Trigger
@@ -85,7 +132,7 @@ Model or platform match short-circuits to the raw chat-completions upstream.
 ### 2. Signatures
 - Setting key `kimi_k3_adaptive_validation_enabled`. Only the stored string `true` enables it.
 - `AdaptKimiK3ChatBody(body []byte) (out []byte, rejectMessage string, changed bool)`
-- `OpenAIGatewayService.forwardAsRawChatCompletions` calls it after model mapping and the GLM reasoning-effort normalizer, and before fast policy and `GetAccessToken`.
+- `OpenAIGatewayService.forwardAsRawChatCompletions` calls it after model mapping and the GLM reasoning-effort normalizer, and before fast policy and `GetAccessToken`. `IsOpenAIPassthroughEnabled` returns before that call.
 
 ### 3. Contracts
 - Default off. A nil setting service, a missing key, a read error, and any value other than `true` leave the body unchanged.

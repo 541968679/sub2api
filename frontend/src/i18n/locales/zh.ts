@@ -5357,7 +5357,7 @@ const zhBase = {
         apiKeyHint: '您的 OpenAI API Key',
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
-          '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
+          '开启后，该 OpenAI 账号会透传 /v1/chat/completions 和 /v1/responses 的请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           '开启后可将该 OpenAI 账号绑定到 Antigravity 分组，并使用当前模型映射处理 Claude /v1/messages 请求。',
