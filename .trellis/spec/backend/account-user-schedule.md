@@ -1,6 +1,6 @@
 # Account User Schedule + Pair Concurrency + Quality Gate
 
-## Scenario: independent allow / deny / pair-cap / quality-gate
+## Scenario: deny / pair-cap / quality-gate (allow list retired)
 
 ### 1. Scope / Trigger
 
@@ -11,8 +11,8 @@
 
 ### 2. Signatures
 
-- DB `account_schedule_users`: PK `(account_id, user_id)`; `allow bool`; `deny bool`; `max_concurrency int null` (`NULL` or `>= 1`); optional quality columns `quality_max_p50_ttft_ms`, `quality_min_success_rate`, `quality_min_success_samples`, `quality_min_ttft_samples`, `quality_condition` (`or`/`and`). A gate is enabled only when p50 or success rate is set; samples/condition are modifiers and must not create a map entry by themselves.
-- Domain: `Account.AllowUserIDs []int64`, `DenyUserIDs []int64`, `UserConcurrency map[int64]int`, `UserQualityGates map[int64]QualityHardCloseSettings`.
+- DB `account_schedule_users`: PK `(account_id, user_id)`; `allow bool` (retired, always written false, not loaded into admission); `deny bool`; `max_concurrency int null` (`NULL` or `>= 1`); optional quality columns `quality_max_p50_ttft_ms`, `quality_min_success_rate`, `quality_min_success_samples`, `quality_min_ttft_samples`, `quality_condition` (`or`/`and`). A gate is enabled only when p50 or success rate is set; samples/condition are modifiers and must not create a map entry by themselves. Do not drop the `allow` column.
+- Domain: `Account.AllowUserIDs []int64` is a retired decode field. Admission uses `DenyUserIDs []int64`, `UserConcurrency map[int64]int`, `UserQualityGates map[int64]QualityHardCloseSettings`.
 - `Account.AllowsScheduleUser(userID int64) bool` — identity only.
 - `Account.QualityGateBlocksUser(userID int64, stats *AccountQualityStats) bool`
 - `Account.AdmitsScheduleUser(userID int64, stats *AccountQualityStats) bool` — identity plus quality gate.
@@ -20,8 +20,8 @@
 - Redis pair slot: `concurrency:account_user:{accountID}:{userID}:{platform}` (zset). Empty platform is `_`. Pair Get/Acquire use a 90s live window + current process prefix (not the account-slot 15min TTL). `ClearAccountSlots` also deletes `concurrency:account_user:{accountID}:*`. Detached Get ctx must copy `ScheduleLookupPlatform` so hydrate does not read `_`.
 - Redis live quality: `account-quality:last-n:{accountID}` is the \(Q_a\) source of truth (site-wide N, all users; TTL 7d). Completions ingest and project JSON to `account-quality:live:{accountID}` (no resume fields). Reader = selection `Get` (prefers last-N, then legacy live JSON). Cache miss / nil stats fail open. The 5-minute tick must not `Replace` live from a 15-minute SQL window. Pair cooldown stays on \(Q_{a,u}\), not this account cell. Admin user-list quality is a separate Redis window `user-quality:last-n:{userID}` (\(Q_u\), same N, this user across all accounts) and does not feed gates or hard-close.
 - Redis resume overlay (Track A): `account-quality:resume:{accountID}` (HASH, TTL 20m). `MarkUserResume` / `MarkAccountResume` write HASH fields only (`u:{userID}`, `a`). `Get` merges the overlay onto last-N / live stats. Do not SCAN-delete last-N keys. Resume HASH must survive even when an account has no last-N key. Legacy live JSON `resume_users` / `account_resume_until` is migrated with `HSETNX` then stripped from the live key. This overlay is **not** the smart-schedule 豁免期.
-- Admin update JSON fields: `allow_user_ids`, `deny_user_ids`, `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, `user_quality_gate_patch`.
-- Legacy write still accepted: `user_schedule_mode` + `schedule_user_ids` (replaces one list, does not clear caps or gates).
+- Admin update JSON fields: `deny_user_ids`, `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, `user_quality_gate_patch`. `allow_user_ids` is still decoded and ignored. It must not 400 and must not clear deny, caps, or gates.
+- Legacy write still accepted: `user_schedule_mode` + `schedule_user_ids`. `deny` replaces the deny list and does not clear caps or gates. `unrestricted` clears the deny list and does not clear caps or gates. `allow` is accepted and ignored, including an empty id list, and must not clear deny, caps, or gates.
 - Admin UI may save/apply the site-wide quality threshold template (`GET/PUT /admin/settings/quality-hard-close` metric fields). The template is not stored per user and must not include `user_id`. Apply fills the current gate form only; persist still goes through `user_quality_gates` / `user_quality_gate_patch`. User-gate forms expose p50 / success rate / two sample floors / condition. They do not have `pause_minutes`. **立即恢复** (`POST /admin/accounts/:id/quality-resume` `{user_id}`) keeps the gate and writes a 15-minute resume-HASH grace (`u:{userID}`). While the grace is active, `QualityGateBlocksUser` does not block that pair. Account hard-close **立即恢复调度** / `recover-state` writes HASH field `a` (`account_resume_until` after merge) so the next tick does not re-pause on the same window.
 
 ### 3. Contracts
@@ -32,7 +32,7 @@ Write (pointers; omitted = no write; empty slice = clear that set):
 
 | Field | Semantics |
 | --- | --- |
-| `allow_user_ids` | Replace allow set |
+| `allow_user_ids` | Ignored. Does not write `allow=true` and does not mark the schedule dirty |
 | `deny_user_ids` | Replace deny set |
 | `user_concurrencies` | Replace-all caps (`max_concurrency >= 1`) |
 | `user_concurrency_patch` | Merge one user; `max_concurrency` null/0 deletes that cap |
@@ -41,9 +41,9 @@ Write (pointers; omitted = no write; empty slice = clear that set):
 
 Defaults when a gate is enabled: condition `or`, success samples 20, TTFT samples 10 (independent floors; this is not `account_quality_window_n`). Unconfigured metrics are not judged; under-sampled metrics are not judged. Reuse `EvaluateAccountQualityHardClose` breach rules with `Enabled=true` (no pause). User gates still read live \(Q_a\); they do not use pair `quality_window_n`.
 
-Bulk may send allow/deny (or legacy mode+ids). Bulk must not send `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, or `user_quality_gate_patch`. Bulk allow/deny must keep existing caps and gates.
+Bulk may send deny (or legacy mode+ids). Bulk `allow_user_ids` and legacy `mode=allow` are ignored. Bulk must not send `user_concurrencies`, `user_concurrency_patch`, `user_quality_gates`, or `user_quality_gate_patch`. Bulk deny must keep existing caps and gates.
 
-Snapshot meta must copy `AllowUserIDs`, `DenyUserIDs`, `UserConcurrency`, `UserQualityGates`. A missing field unmarshals empty for that field only: old snapshots without `UserQualityGates` have no gates (fail open), and still honor allow/deny/caps. Until `account_changed`, do not treat a missing gate map as unrestricted identity. A gate map entry requires at least one judged metric (p50 or success rate); samples/condition are modifiers. last-N ingest is the live write path; do not `Replace`+SCAN-delete last-N. Active resume HASH keys must survive, including when no last-N keys exist. `Get` / ingest-time hard-close must merge resume so `EvaluateHardClose` sees `account_resume_until`.
+Snapshot meta must copy `AllowUserIDs`, `DenyUserIDs`, `UserConcurrency`, `UserQualityGates` so old Redis values still decode. Admission ignores `AllowUserIDs`. A missing field unmarshals empty for that field only: old snapshots without `UserQualityGates` have no gates (fail open), and still honor deny/caps. Until `account_changed`, do not treat a missing gate map as unrestricted identity. A gate map entry requires at least one judged metric (p50 or success rate); samples/condition are modifiers. last-N ingest is the live write path; do not `Replace`+SCAN-delete last-N. Active resume HASH keys must survive, including when no last-N keys exist. `Get` / ingest-time hard-close must merge resume so `EvaluateHardClose` sees `account_resume_until`.
 
 ### 4. Validation & Error Matrix
 
@@ -58,13 +58,14 @@ Snapshot meta must copy `AllowUserIDs`, `DenyUserIDs`, `UserConcurrency`, `UserQ
 | Bulk writes caps | `BULK_USER_CONCURRENCY_FORBIDDEN` |
 | Bulk writes gates | `BULK_USER_QUALITY_GATE_FORBIDDEN` |
 | Legacy `schedule_user_ids` without `user_schedule_mode` | `USER_SCHEDULE_MODE_REQUIRED` |
-| Legacy allow/deny with empty ids | `USER_SCHEDULE_USERS_REQUIRED` |
+| Legacy deny with empty ids | `USER_SCHEDULE_USERS_REQUIRED` |
+| Legacy `mode=allow`, with or without ids | Accepted and ignored. No schedule rewrite |
 
-Runtime (not HTTP): `userID<=0` and any rule exists (allow/deny/cap/gate) → fail closed. Deny hit → reject. Nonempty allow miss → reject. Quality breach → admission fail, clear sticky, reselect; never pair-full / WaitPlan. Pair-full → exclude + reselect, never WaitPlan/429 for that reason alone. Live quality cache miss → do not block.
+Runtime (not HTTP): `userID<=0` and any deny/cap/gate rule exists → fail closed. A leftover allow list does not fail-close. Deny hit → reject. Quality breach → admission fail, clear sticky, reselect; never pair-full / WaitPlan. Pair-full → exclude + reselect, never WaitPlan/429 for that reason alone. Live quality cache miss → do not block.
 
 ### 5. Good / Base / Bad Cases
 
-- Good: allow `[16]` + cap `{16:5}` → user 16 schedulable, pair max 5; user 7 rejected.
+- Good: leftover allow `[16]` + cap `{16:5}` → user 16 and user 7 are both identity-admitted; user 16 pair max is 5. The allow slice does not reject user 7.
 - Base: all four empty → same as unrestricted (account + user global only).
 - Good: deny `[16]` + cap `{16:5}` → user 16 rejected; cap ignored.
 - Good: quality-gate-only user 16 + live p50 breach → user 16 excluded; other users still get the account; `schedulable` unchanged.
@@ -76,11 +77,11 @@ Runtime (not HTTP): `userID<=0` and any rule exists (allow/deny/cap/gate) → fa
 
 ### 6. Tests Required
 
-- `AllowsScheduleUser`: unrestricted / deny+cap / allow+cap / allow miss+cap / `userID=0` with any rule including quality-gate-only / empty allow / empty deny.
+- `AllowsScheduleUser`: unrestricted / deny+cap / leftover allow does not exclude / leftover allow does not fail-close `userID=0` / `userID=0` with deny, cap, or quality-gate-only / empty deny.
 - `QualityGateBlocksUser` / `AdmitsScheduleUser`: breach / under-sampled / nil stats / no gate / or vs and / quality-gate-only `userID=0`.
 - Pair-full reselect on Anthropic/Gemini, OpenAI advanced scheduler, OpenAI `LoadBatchEnabled=false`, and model-routing wait loop (must not WaitPlan).
 - Sticky: identity deny or quality-gate block clears pin; pair-full keeps pin.
-- Admin: replace-all vs patch; legacy mode+ids does not clear caps or gates; bulk rejects cap and gate fields; restore-default writes four empties.
+- Admin: replace-all vs patch; legacy deny mode+ids does not clear caps or gates; legacy `mode=allow` and `allow_user_ids` do not rewrite the schedule; bulk rejects cap and gate fields; restore-default clears deny, caps, and gates.
 - Snapshot: `buildSchedulerMetadataAccount` copies the four fields.
 - Maintenance: tick `Replace`s live stats (sampled rows persist; empty-sample rows are included so Redis can DEL).
 
@@ -162,7 +163,7 @@ Resume (`state=resumed` / 豁免期) is **manual only**. It `HDEL`s that pair’
 
 `pinned` (长期豁免) is **manual only**. Enter (`state=pinned` only): `HDEL` cooldown, clear probe mark, `ClearPairResume` (do **not** write pair `u:`/`w:`, do **not** write Track A resume), `HSET` pin mark, **keep** pair windows. Full member cap. Windows may keep ingesting. **Never evaluate, never `StartCooldown`** until the admin leaves. Leave requires an explicit next state (`paused` / `cooling` / `probing` / `selectable` / `resumed`). **No implicit timeout**. Cooldown expiry still → `probing`, never `pinned`.
 
-Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s allow/deny/gate/cap; `paused` reject (account stays in the pool); **`pinned` admit and skip evaluate / `StartCooldown`** (check pin **before** leftover cooldown); active cooldown reject; pair 豁免期 `smart-schedule:resume` `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover pair resume during probing still evaluates (graduate); probing vs selectable then judge **only** `Q_{a,u}` (pair windows) via `EvalQuality`. Do not read `account-quality:resume` here. Unfilled metrics stay pending (do not pass, do not fail). `ok_samples < N成功率` does not judge success; `ttft_samples < N` does not judge that fan’s p50 (K/C ready at K/C). Smart-schedule `quality_condition` is ignored. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool. Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap; follow_n desired = N成功率). `pinned` uses the member cap, not the probe cap. Account hard-close / `IsSchedulable()` still applies (whole-account gate). Otherwise the legacy scenario in this file. Do not fold pause, probing, or pin into `IsSchedulable()`. Do not backfill existing pairs on deploy.
+Hot path (`admitsScheduleUser`): `EnabledPolicy` hit → pool miss reject; pool hit ignores that pair’s deny/gate/cap (the account allow list is retired and is not an admission rule); `paused` reject (account stays in the pool); **`pinned` admit and skip evaluate / `StartCooldown`** (check pin **before** leftover cooldown); active cooldown reject; pair 豁免期 `smart-schedule:resume` `u:`/`w:` fail-open (no evaluate, no graduate) **only when not probing**; leftover pair resume during probing still evaluates (graduate); probing vs selectable then judge **only** `Q_{a,u}` (pair windows) via `EvalQuality`. Do not read `account-quality:resume` here. Unfilled metrics stay pending (do not pass, do not fail). `ok_samples < N成功率` does not judge success; `ttft_samples < N` does not judge that fan’s p50 (K/C ready at K/C). Smart-schedule `quality_condition` is ignored. Selectable breach → `HSETNX` cooldown then reject. Probing may graduate (keep windows) or cool. Pair cap uses pool member N, except while probing (`resolvePairSlotAcquire` / pair occupancy must honor probe cap; follow_n desired = N成功率). `pinned` uses the member cap, not the probe cap. Account hard-close / `IsSchedulable()` still applies (whole-account gate). Otherwise the legacy scenario in this file. Do not fold pause, probing, or pin into `IsSchedulable()`. Do not backfill existing pairs on deploy.
 
 Ingest: failure → `W_ok` only; sync success without first token → `W_ok` only; streaming success with `true_first_token_ms` or `first_token_ms` → both. `W_ok` uses the same counted-error policy as account track (`schedule_use_failover_error_rate`) via `ClassifyOpsErrorRateCalibers`. Empty `schedule_error_whitelist` matches pre-feature production: Recovered stays off schedule unless the failover toggle is on; Claude–GPT bridge and the legacy `IsAccountQualityRoutingModelMiss` rail stay hardcoded excludes. New families (client request 400, 400 URF, long context, pair concurrency, unrestricted group-no-account, routing 503, protocol mismatch) write `Success=false` unless checked. Full families: `ops-schedule-error-caliber.md`. Cooling / paused pairs do not ingest. `pinned` pairs **do** ingest and must not evaluate / `StartCooldown`. `will_cool` on the pool row uses pair windows + saved thresholds, not account 15m cells; skip `will_cool` while pinned.
 
@@ -182,7 +183,7 @@ Ingest: failure → `W_ok` only; sync success without first token → `W_ok` onl
 ### 5. Good / Base / Bad Cases
 
 - Good: OpenAI enabled + pool `[A,B]` + A pair-window p50 breach (full N) → A excluded and cooled; B still selectable; Anthropic requests for the same user stay legacy. Account 15m live breach alone must not cool.
-- Base: no policy rows → identical to the allow/deny/gate/cap scenario above.
+- Base: no policy rows → identical to the deny/gate/cap scenario above.
 - Good: last pool member CASCADE-deleted → `EnabledPolicy` nil → legacy, not platform-wide empty reject.
 - Good: platform `soft_cooldown=true`, pair A cooling, pair B (same user/platform, not cooling) completes with a full passing soft window → A goes **selectable** via `soft_cooldown_end` (not 考察); wall-clock minutes still bound the wait if the window never meets. Hard expiry still `EnterProbe`.
 - Bad: copy OpenAI members onto Gemini. Bad: `Expire` a shared cooldown HASH down to a shorter user’s TTL. Bad: snapshot-copy user policy. Bad: treat `pairQualityBlocks==false` as a soft meet. Bad: write the cooling request into that pair’s own new soft window.

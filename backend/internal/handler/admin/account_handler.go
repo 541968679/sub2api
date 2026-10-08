@@ -166,7 +166,7 @@ type UpdateAccountRequest struct {
 	ConfirmMixedChannelRisk *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 	UserScheduleMode        *string                         `json:"user_schedule_mode"`
 	ScheduleUserIDs         *[]int64                        `json:"schedule_user_ids"`
-	AllowUserIDs            *[]int64                        `json:"allow_user_ids"`
+	AllowUserIDs            *[]int64                        `json:"allow_user_ids"` // retired: decoded so old clients do not 400; service ignores it
 	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
 	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
@@ -201,7 +201,7 @@ type BulkUpdateAccountsRequest struct {
 	ConfirmMixedChannelRisk *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 	UserScheduleMode        *string                         `json:"user_schedule_mode"`
 	ScheduleUserIDs         *[]int64                        `json:"schedule_user_ids"`
-	AllowUserIDs            *[]int64                        `json:"allow_user_ids"`
+	AllowUserIDs            *[]int64                        `json:"allow_user_ids"` // retired: decoded so old clients do not 400; service ignores it
 	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
 	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
@@ -1040,6 +1040,10 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	var beforeCredentials map[string]any
+	if existing, getErr := h.adminService.GetAccount(c.Request.Context(), accountID); getErr == nil && existing != nil {
+		beforeCredentials = existing.Credentials
+	}
 	if req.RateMultiplier != nil && *req.RateMultiplier < 0 {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
 		return
@@ -1094,6 +1098,16 @@ func (h *AccountHandler) Update(c *gin.Context) {
 
 		response.ErrorFrom(c, err)
 		return
+	}
+
+	// Saving the New API wallet token/user id must re-probe immediately. The
+	// 6-minute usage cache would otherwise keep the previous key snapshot.
+	if h.accountUsageService != nil && service.UpstreamBalanceWalletCredentialsChanged(beforeCredentials, account.Credentials) {
+		if _, probeErr := h.accountUsageService.GetUsage(c.Request.Context(), account.ID, true); probeErr != nil {
+			slog.Warn("upstream_balance_probe_after_wallet_save_failed", "account_id", account.ID, "error", probeErr)
+		} else if fresh, freshErr := h.adminService.GetAccount(c.Request.Context(), account.ID); freshErr == nil && fresh != nil {
+			account = fresh
+		}
 	}
 
 	// OpenAI APIKey: credentials 修改后重新探测上游能力（base_url/api_key 可能变更）。

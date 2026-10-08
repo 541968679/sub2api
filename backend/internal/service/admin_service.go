@@ -3317,10 +3317,17 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		return nil, infraerrors.BadRequest("BULK_USER_QUALITY_GATE_FORBIDDEN", "bulk update cannot overwrite per-user quality gates")
 	}
 
-	writeSchedule := input.AllowUserIDs != nil || input.DenyUserIDs != nil || input.UserScheduleMode != nil || input.ScheduleUserIDs != nil
+	legacyMode := ""
+	if input.UserScheduleMode != nil {
+		legacyMode = NormalizeUserScheduleMode(*input.UserScheduleMode)
+	}
+	// allow_user_ids and legacy mode=allow are retired. Ignoring them keeps
+	// an existing deny list; they must not mark the schedule dirty.
 	useLegacySchedule := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
-		input.AllowUserIDs == nil && input.DenyUserIDs == nil
-	var legacyAllow, legacyDeny []int64
+		input.DenyUserIDs == nil &&
+		legacyMode != UserScheduleModeAllow
+	writeSchedule := input.DenyUserIDs != nil || useLegacySchedule
+	var legacyDeny []int64
 	if useLegacySchedule {
 		if input.UserScheduleMode == nil {
 			return nil, infraerrors.BadRequest("USER_SCHEDULE_MODE_REQUIRED", "user_schedule_mode is required when schedule_user_ids is set")
@@ -3334,12 +3341,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			return nil, err
 		}
 		repoUpdates.UserScheduleMode = &normalized
-		legacyAllow, legacyDeny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
-	}
-	if input.AllowUserIDs != nil {
-		if err := s.validateKnownUserIDs(ctx, *input.AllowUserIDs); err != nil {
-			return nil, err
-		}
+		_, legacyDeny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
 	}
 	if input.DenyUserIDs != nil {
 		if err := s.validateKnownUserIDs(ctx, *input.DenyUserIDs); err != nil {
@@ -3393,26 +3395,21 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		}
 		if writeSchedule {
 			existing := scheduleByID[accountID]
-			allow := []int64(nil)
 			deny := []int64(nil)
 			var caps map[int64]int
 			var gates map[int64]QualityHardCloseSettings
 			if existing != nil {
-				allow = append([]int64(nil), existing.AllowUserIDs...)
 				deny = append([]int64(nil), existing.DenyUserIDs...)
 				caps = copyUserConcurrencyMap(existing.UserConcurrency)
 				gates = copyUserQualityGates(existing.UserQualityGates)
 			}
 			if useLegacySchedule {
-				allow, deny = append([]int64(nil), legacyAllow...), append([]int64(nil), legacyDeny...)
-			}
-			if input.AllowUserIDs != nil {
-				allow = normalizeScheduleUserIDs(*input.AllowUserIDs)
+				deny = append([]int64(nil), legacyDeny...)
 			}
 			if input.DenyUserIDs != nil {
 				deny = normalizeScheduleUserIDs(*input.DenyUserIDs)
 			}
-			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, buildAccountUserScheduleWrite(allow, deny, caps, gates)); err != nil {
+			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, buildAccountUserScheduleWrite(nil, deny, caps, gates)); err != nil {
 				entry.Success = false
 				entry.Error = err.Error()
 				result.Failed++

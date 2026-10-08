@@ -1464,6 +1464,7 @@ export interface UpdateAccountRequest {
   confirm_mixed_channel_risk?: boolean
   user_schedule_mode?: 'unrestricted' | 'allow' | 'deny'
   schedule_user_ids?: number[]
+  /** Retired whitelist. The admin UI does not send it. The server accepts and ignores it. */
   allow_user_ids?: number[]
   deny_user_ids?: number[]
   user_concurrencies?: UserConcurrencyEntry[]

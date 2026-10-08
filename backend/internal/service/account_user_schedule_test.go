@@ -21,11 +21,12 @@ func TestAccount_AllowsScheduleUser(t *testing.T) {
 		require.True(t, (&Account{UserScheduleMode: ""}).AllowsScheduleUser(99))
 	})
 
-	t.Run("allow hit and miss", func(t *testing.T) {
+	t.Run("leftover allow list does not exclude", func(t *testing.T) {
 		t.Parallel()
 		acc := &Account{AllowUserIDs: []int64{16, 42}}
 		require.True(t, acc.AllowsScheduleUser(16))
-		require.False(t, acc.AllowsScheduleUser(7))
+		require.True(t, acc.AllowsScheduleUser(7))
+		require.True(t, acc.AllowsScheduleUser(0))
 	})
 
 	t.Run("deny hit and miss", func(t *testing.T) {
@@ -37,7 +38,7 @@ func TestAccount_AllowsScheduleUser(t *testing.T) {
 
 	t.Run("userID zero fail closed when any rule exists", func(t *testing.T) {
 		t.Parallel()
-		require.False(t, (&Account{AllowUserIDs: []int64{16}}).AllowsScheduleUser(0))
+		require.True(t, (&Account{AllowUserIDs: []int64{16}}).AllowsScheduleUser(0))
 		require.False(t, (&Account{DenyUserIDs: []int64{16}}).AllowsScheduleUser(0))
 		require.False(t, (&Account{UserConcurrency: map[int64]int{16: 5}}).AllowsScheduleUser(0))
 		p50 := 1500
@@ -70,15 +71,33 @@ func TestAccount_AllowsScheduleUser(t *testing.T) {
 		require.Equal(t, 5, acc.PairMaxConcurrency(16))
 	})
 
-	t.Run("allow list nonempty excludes outsiders even with a cap", func(t *testing.T) {
+	t.Run("leftover allow list does not exclude a capped outsider", func(t *testing.T) {
 		t.Parallel()
 		acc := &Account{
 			AllowUserIDs:    []int64{16},
 			UserConcurrency: map[int64]int{7: 3},
 		}
-		require.False(t, acc.AllowsScheduleUser(7))
+		require.True(t, acc.AllowsScheduleUser(7))
 		require.Equal(t, 3, acc.PairMaxConcurrency(7))
+		require.False(t, acc.AllowsScheduleUser(0))
 	})
+}
+
+func TestAccount_DeriveLegacyUserScheduleDropsAllowList(t *testing.T) {
+	t.Parallel()
+
+	allowOnly := &Account{AllowUserIDs: []int64{16, 42}, UserScheduleMode: UserScheduleModeAllow}
+	allowOnly.DeriveLegacyUserSchedule()
+	require.Empty(t, allowOnly.AllowUserIDs)
+	require.Equal(t, UserScheduleModeUnrestricted, allowOnly.UserScheduleMode)
+	require.Empty(t, allowOnly.ScheduleUserIDs)
+
+	denied := &Account{AllowUserIDs: []int64{16}, DenyUserIDs: []int64{7}}
+	denied.DeriveLegacyUserSchedule()
+	require.Empty(t, denied.AllowUserIDs)
+	require.Equal(t, []int64{7}, denied.DenyUserIDs)
+	require.Equal(t, UserScheduleModeDeny, denied.UserScheduleMode)
+	require.Equal(t, []int64{7}, denied.ScheduleUserIDs)
 }
 
 func TestAccount_PairMaxConcurrency(t *testing.T) {

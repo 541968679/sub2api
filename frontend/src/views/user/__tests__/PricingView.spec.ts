@@ -218,6 +218,45 @@ describe('PricingView', () => {
     expect(getAvailable).toHaveBeenCalledTimes(1)
   })
 
+  it('hides exclusive groups from the rate table', async () => {
+    getAvailable.mockResolvedValue([
+      groupsFixture[0],
+      {
+        ...groupsFixture[0],
+        id: 22,
+        name: 'VIP Exclusive',
+        rate_multiplier: 0.4,
+        is_exclusive: true
+      }
+    ])
+
+    const wrapper = mount(PricingView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="pricing-group-row-11"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Claude Standard')
+    expect(wrapper.find('[data-test="pricing-group-row-22"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('VIP Exclusive')
+    expect(wrapper.text()).not.toContain('×0.4')
+  })
+
+  it('shows the empty state when every available group is exclusive', async () => {
+    getAvailable.mockResolvedValue([
+      {
+        ...groupsFixture[0],
+        id: 22,
+        name: 'VIP Exclusive',
+        is_exclusive: true
+      }
+    ])
+
+    const wrapper = mount(PricingView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="pricing-groups-empty"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('VIP Exclusive')
+  })
+
   it('searches model names and jumps to the matching tab', async () => {
     const wrapper = mount(PricingView)
     await flushPromises()

@@ -66,13 +66,14 @@ type Account struct {
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
 
 	// UserScheduleMode is a leftover exclusive-mode field derived from the
-	// independent lists for leftover readers. Hot-path admission uses
-	// AllowUserIDs / DenyUserIDs / UserConcurrency / UserQualityGates.
+	// deny list for leftover readers. Hot-path admission uses DenyUserIDs /
+	// UserConcurrency / UserQualityGates. The allow list is retired.
 	UserScheduleMode string
 	// ScheduleUserIDs is the leftover union of listed users. Not used on the
 	// new hot path.
 	ScheduleUserIDs []int64
-	// AllowUserIDs is the independent allow list. Empty means no whitelist.
+	// AllowUserIDs is a retired whitelist. Admission ignores it. Writes never
+	// persist it. Old Redis snapshots may still decode the field.
 	AllowUserIDs []int64
 	// DenyUserIDs is the independent deny list. Empty means nobody is denied.
 	DenyUserIDs []int64

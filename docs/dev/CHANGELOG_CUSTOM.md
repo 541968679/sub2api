@@ -27,6 +27,25 @@ The old mode lived only in the server config file and silently converted every c
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-10-08 - feat: account stability usage card
+
+### What
+- The account stability dialog now has two top cards. 稳定性 keeps the quality curve and hard-close form. 用量 shows this account’s actual spend, standard cost, and account cost beside the token trend (input, output, cache creation, cache read, cache hit rate).
+- The usage card defaults to today at hourly granularity and reuses the admin usage trend and usage stats APIs filtered by account id.
+
+### Why
+Operators opening one account’s stability window need that account’s token and cost series without leaving for the site-wide usage page.
+
+### Affected files
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/components/account/AccountStabilityUsagePanel.vue`,
+`frontend/src/components/account/__tests__/AccountStabilityDialog.spec.ts`,
+`frontend/src/components/account/__tests__/AccountStabilityUsagePanel.spec.ts`,
+`frontend/src/components/charts/TokenUsageTrend.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-10-08 - ops: record production deploy of v0.1.311
 
 ### What
@@ -108,6 +127,36 @@ Soft-deleting a key that has a quota or rate limit while a request is in flight 
 ### Affected files
 `backend/internal/repository/usage_billing_repo.go`,
 `backend/internal/repository/usage_billing_repo_unit_test.go`,
+this changelog.
+
+## 2026-10-06 - remove the residual account user allow list
+
+### What
+- Scheduling no longer treats `AllowUserIDs` as a whitelist. A deny hit, a pair cap, and a quality gate still decide admission. `userID <= 0` fail-closes only for those remaining rules.
+- Admin update and bulk update accept `allow_user_ids` and legacy `user_schedule_mode=allow`, then ignore them. That does not clear a deny list, pair caps, or quality gates, and it does not return 400.
+- `SyncScheduleUsers` never writes `allow=true`. Loading an account does not copy the allow column into `AllowUserIDs`.
+- The bulk editor no longer has an allow-list checkbox. The account list no longer renders an allow chip. Deny, pair cap, and quality chips stay.
+- Migration `254_clear_account_user_allowlist.sql` sets leftover `allow` bits to false, deletes rows that have no deny, cap, or quality gate, and sets `user_schedule_mode='allow'` back to `unrestricted`. The column stays.
+
+### Why
+The single-account editor had already stopped sending the whitelist, but admission and bulk edit still enforced leftover rows. Group 45 kept returning routing 503s for that reason.
+
+### Affected files
+backend/internal/service/account.go,
+backend/internal/service/account_user_schedule.go,
+backend/internal/service/admin_account_user_schedule.go,
+backend/internal/service/admin_service.go,
+backend/internal/repository/account_repo.go,
+backend/internal/handler/admin/account_handler.go,
+backend/ent/schema/account_schedule_user.go,
+backend/migrations/254_clear_account_user_allowlist.sql,
+frontend/src/components/account/BulkEditAccountModal.vue,
+frontend/src/components/account/AccountUserScheduleCell.vue,
+frontend/src/i18n/locales/zh.ts,
+frontend/src/i18n/locales/en.ts,
+frontend/src/types/index.ts,
+docs/dev/codebase/gateway.md,
+.trellis/spec/backend/account-user-schedule.md,
 this changelog.
 
 ## 2026-10-06 - ops: serve cyf.it.com from buffalo
@@ -199,6 +248,21 @@ Domestic groups stay on the OpenAI platform. The old default published the OpenA
 `docs/dev/codebase/gateway.md`,
 this changelog.
 
+## 2026-10-04 - pricing: hide exclusive groups on billing rules
+
+### What
+- The user billing-rules page (`/pricing`) group-rate table now lists only public groups. Groups with `is_exclusive` stay available for API-key binding and are omitted from this table. If every available group is exclusive, the table shows the public-group empty state.
+
+### Why
+Exclusive group rates are assigned per user and should not appear on the shared billing-rules rate list.
+
+### Affected files
+`frontend/src/views/user/PricingView.vue`,
+`frontend/src/views/user/__tests__/PricingView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-10-03 - ops: deploy v0.1.307
 
 ### What
@@ -274,6 +338,102 @@ The Kimi K3 upstream accepts several parameter shapes the official Kimi API reje
 `frontend/src/views/admin/SettingsView.vue`,
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-10-01 - ops: stream a read-only standby on buffalo
+
+### What
+- Replaced the diverged buffalo Postgres directory with a base backup from new-origin and left it in recovery. Slot name is `buffalo_standby`, replay lag about 0.16s. The buffalo app stays stopped. Its Caddy still proxies the old IP to the new origin.
+- Wrote the reverse failover steps: promote, replace Redis, start the pinned image, reload the staged Caddy file, then point the A record back at `172.245.247.80`.
+
+### Why
+If the OVH origin is banned or unreachable, the spare has to already hold current billing data. A one-time 16 GB copy is followed by WAL only, about 80 MB/hour in the sample after cutover, with a 5 GB slot cap.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/SERVERS.md`,
+this changelog.
+
+## 2026-10-01 - ops: keep buffalo as an unwired emergency spare
+
+### What
+- Recorded that buffalo stays after the cutover. The frozen pre-promote database cannot take writes. A reverse Postgres hot standby is the failover path and is not built yet.
+
+### Why
+If the OVH origin is banned or unreachable, the return path has to already be a replica. The earlier seven-day retire plan does not cover that.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+this changelog.
+
+## 2026-10-01 - ops: point zerocode.kaynlab.com at new-origin
+
+### What
+- Verified the Cloudflare A record for `zerocode.kaynlab.com` is `15.204.102.44` with TTL 60 on both authoritative nameservers. There is no AAAA. A recursive lookup followed, and `/health` on the new address returned ok.
+
+### Why
+The app was already serving through the old Caddy proxy. This record sends new lookups straight to the new origin.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/SERVERS.md`,
+this changelog.
+
+## 2026-10-01 - ops: cut the origin app over to new-origin
+
+### What
+- Stopped `sub2api` on buffalo, promoted the Postgres standby, copied Redis, and started the pinned image on `new-origin`.
+- Pointed buffalo Caddy at `10.88.0.2:8080` and started Caddy on the new host. Public `/health` and the Hong Kong relay's unauthenticated `/v1/models` succeeded.
+- Dropped the idle `new_origin` replication slot. The Cloudflare A record still points at `172.245.247.80`.
+
+### Why
+The write path had to move in one step. Keeping the old Caddy as a proxy ends the user-visible outage before DNS changes.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/SERVERS.md`,
+this changelog.
+
+## 2026-10-01 - ops: confirm zerocode A record TTL is 60
+
+### What
+- Checked Cloudflare authoritative DNS after the panel save. `zerocode.kaynlab.com` A is still `172.245.247.80` with TTL 60. There is no AAAA.
+
+### Why
+The previous TTL was 300 seconds. Caches only need that long to pick up the shorter TTL before the address changes.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+this changelog.
+
+## 2026-10-01 - ops: prepare new-origin before the traffic cut
+
+### What
+- Set the new host hostname to `new-origin` and finished the pre-cutover work: Docker, Caddy, time sync, firewall, WireGuard, a streaming Postgres 18 standby, pinned image digests, the app data volume, and the Caddy certificate store.
+- Left the new Caddy stopped, did not copy Redis, did not start `sub2api`, and did not change the A record target. At the end of host prep the TTL was still 300.
+
+### Why
+The downtime window should only stop the app, promote the standby, copy Redis, smoke-test, and move the edge.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/SERVERS.md`,
+this changelog.
+
+## 2026-10-01 - docs: record the main-server migration plan
+
+### What
+- Wrote the bare-metal cutover: pre-seed Postgres, one write source, at most 30 minutes of downtime.
+- The new origin installs Debian 13.7 amd64. Debian 12 is oldstable and is not the install image.
+- Generated a dedicated ed25519 key at `%USERPROFILE%\.ssh\id_ed25519_new_origin`. The public key is in the migration doc. The private key stays on this machine.
+
+### Why
+The replacement server is purchased. The operator is installing the OS before the host has an IP in the fleet table.
+
+### Affected files
+`docs/dev/MAIN_SERVER_MIGRATION.md`,
+`docs/dev/SERVERS.md`,
+`docs/dev/MAIN_SERVER_BUYING_GUIDE.md`,
 this changelog.
 
 ## 2026-09-30 - fix: bill GPT-6.1 Sol with the OpenAI long-context multipliers

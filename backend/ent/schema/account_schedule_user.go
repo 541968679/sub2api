@@ -13,9 +13,10 @@ import (
 )
 
 // AccountScheduleUser holds the edge schema for account_schedule_users.
-// A row exists when the user is on the allow list, deny list, has a
-// pair-level max concurrency, and/or has a quality gate for this account.
-// The four attributes are independent.
+// A row exists when the user is on the deny list, has a pair-level max
+// concurrency, and/or has a quality gate for this account.
+// The allow column remains so old rows and Ent stay valid. New writes keep
+// it false, and admission does not read it.
 type AccountScheduleUser struct {
 	ent.Schema
 }

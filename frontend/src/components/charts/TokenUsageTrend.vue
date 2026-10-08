@@ -3,15 +3,16 @@
     <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
       {{ t('admin.dashboard.tokenUsageTrend') }}
     </h3>
-    <div v-if="loading" class="flex h-48 items-center justify-center">
+    <div v-if="loading" class="flex items-center justify-center" :class="heightClass">
       <LoadingSpinner />
     </div>
-    <div v-else-if="trendData.length > 0 && chartData" class="h-48">
+    <div v-else-if="trendData.length > 0 && chartData" :class="heightClass">
       <Line :data="chartData" :options="lineOptions" />
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      :class="heightClass"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
@@ -49,11 +50,17 @@ ChartJS.register(
 
 const { t } = useI18n()
 
-const props = defineProps<{
-  trendData: TrendDataPoint[]
-  loading?: boolean
-  showCacheWrite?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    trendData: TrendDataPoint[]
+    loading?: boolean
+    showCacheWrite?: boolean
+    heightClass?: string
+  }>(),
+  {
+    heightClass: 'h-48'
+  }
+)
 
 const isDarkMode = computed(() => {
   return document.documentElement.classList.contains('dark')

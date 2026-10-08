@@ -1493,7 +1493,7 @@ const isAnthropicOAuthOrSetupToken = computed(() => {
   return props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
 })
 
-const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean }) => {
+const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean; force?: boolean }) => {
   if (!shouldFetchUsage.value) return
 
   // Check cache
@@ -1510,9 +1510,14 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
-    const fetchFn = () => options?.source
-      ? adminAPI.accounts.getUsage(props.account.id, options.source)
-      : adminAPI.accounts.getUsage(props.account.id)
+    const fetchFn = () => {
+      if (options?.force) {
+        return adminAPI.accounts.getUsage(props.account.id, options.source ?? 'active', { force: true })
+      }
+      return options?.source
+        ? adminAPI.accounts.getUsage(props.account.id, options.source)
+        : adminAPI.accounts.getUsage(props.account.id)
+    }
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
@@ -1900,7 +1905,7 @@ const saveDisplayBalance = async () => {
 const refreshBalanceFromUpstream = async () => {
   balanceRefreshLoading.value = true
   try {
-    const next = await adminAPI.accounts.getUsage(props.account.id, 'active')
+    const next = await adminAPI.accounts.getUsage(props.account.id, 'active', { force: true })
     usageInfo.value = next
     _usageCache.set(props.account.id, { data: next, ts: Date.now() })
   } catch (e: any) {
@@ -2006,6 +2011,24 @@ onMounted(() => {
   const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
   requestAutoLoad(source)
 })
+
+function upstreamBalanceStamp(account: Account): string {
+  const extra = account.extra as Record<string, unknown> | undefined
+  const raw = extra?.upstream_balance_at
+  return typeof raw === 'string' ? raw : ''
+}
+
+watch(
+  () => upstreamBalanceStamp(props.account),
+  (nextStamp, prevStamp) => {
+    if (!prevStamp || nextStamp === prevStamp) return
+    if (!isBalanceEligibleApiKey.value) return
+    _usageCache.delete(props.account.id)
+    loadUsage({ bypassCache: true }).catch((e) => {
+      console.error('Failed to reload usage after balance stamp change:', e)
+    })
+  }
+)
 
 watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return

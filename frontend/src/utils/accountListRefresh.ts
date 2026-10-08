@@ -13,7 +13,6 @@ export function scheduleUsersRefreshKey(users: AccountScheduleUser[] | undefined
     .sort((left, right) => left.id - right.id)
     .map((user) => [
       user.id,
-      user.allow ? 1 : 0,
       user.deny ? 1 : 0,
       user.max_concurrency ?? '',
       user.quality_max_p50_ttft_ms ?? '',

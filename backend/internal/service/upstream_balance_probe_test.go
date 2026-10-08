@@ -255,6 +255,28 @@ func TestOriginFromBaseURL(t *testing.T) {
 	require.Equal(t, "https://api.token-bits.com", originFromBaseURL("https://api.token-bits.com"))
 }
 
+func TestUpstreamBalanceWalletCredentialsChanged(t *testing.T) {
+	t.Parallel()
+	same := map[string]any{
+		credentialKeyNewAPIAccessToken: "wallet-tok",
+		credentialKeyNewAPIUserID:      "8828",
+	}
+	require.False(t, UpstreamBalanceWalletCredentialsChanged(same, map[string]any{
+		credentialKeyNewAPIAccessToken: "wallet-tok",
+		credentialKeyNewAPIUserID:      float64(8828),
+	}))
+	require.False(t, UpstreamBalanceWalletCredentialsChanged(
+		map[string]any{"api_key": "sk-old", credentialKeyNewAPIAccessToken: "wallet-tok", credentialKeyNewAPIUserID: "8828"},
+		map[string]any{"api_key": "sk-new", credentialKeyNewAPIAccessToken: "wallet-tok", credentialKeyNewAPIUserID: "8828"},
+	))
+	require.True(t, UpstreamBalanceWalletCredentialsChanged(nil, same))
+	require.True(t, UpstreamBalanceWalletCredentialsChanged(same, map[string]any{
+		credentialKeyNewAPIAccessToken: "other-tok",
+		credentialKeyNewAPIUserID:      "8828",
+	}))
+	require.True(t, UpstreamBalanceWalletCredentialsChanged(same, map[string]any{}))
+}
+
 func TestNewAPIUserWalletCreds(t *testing.T) {
 	t.Parallel()
 	token, userID, ok := newAPIUserWalletCreds(nil)

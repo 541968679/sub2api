@@ -186,7 +186,9 @@ func validateUserQualityGateFields(p50 *int, rate *float64, minSuccess, minTTFT 
 func applyLegacyUserScheduleLists(mode string, ids []int64) ([]int64, []int64) {
 	switch NormalizeUserScheduleMode(mode) {
 	case UserScheduleModeAllow:
-		return normalizeScheduleUserIDs(ids), nil
+		// Retired. Callers must not apply this result: nil deny would clear
+		// an existing deny list. resolve/bulk skip mode=allow before this.
+		return nil, nil
 	case UserScheduleModeDeny:
 		return nil, normalizeScheduleUserIDs(ids)
 	default:
@@ -199,7 +201,7 @@ func scheduleUserUnionIDs(account Account) []int64 {
 }
 
 func stampScheduleUserFlags(account Account, ref ScheduleUserRef) ScheduleUserRef {
-	ref.Allow = containsScheduleUserID(account.AllowUserIDs, ref.ID)
+	ref.Allow = false
 	ref.Deny = containsScheduleUserID(account.DenyUserIDs, ref.ID)
 	if n := account.PairMaxConcurrency(ref.ID); n >= 1 {
 		ref.MaxConcurrency = &n
@@ -266,19 +268,13 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 	if current == nil || input == nil {
 		return AccountUserScheduleWrite{}, false, nil
 	}
-	allow := append([]int64(nil), current.AllowUserIDs...)
 	deny := append([]int64(nil), current.DenyUserIDs...)
 	caps := copyUserConcurrencyMap(current.UserConcurrency)
 	gates := copyUserQualityGates(current.UserQualityGates)
 	changed := false
 
-	if input.AllowUserIDs != nil {
-		allow = normalizeScheduleUserIDs(*input.AllowUserIDs)
-		if err := s.validateKnownUserIDs(ctx, allow); err != nil {
-			return AccountUserScheduleWrite{}, false, err
-		}
-		changed = true
-	}
+	// allow_user_ids is retired. Ignore it so an old client cannot clear deny,
+	// caps, or gates, and cannot 400 on an unknown whitelist id.
 	if input.DenyUserIDs != nil {
 		deny = normalizeScheduleUserIDs(*input.DenyUserIDs)
 		if err := s.validateKnownUserIDs(ctx, deny); err != nil {
@@ -325,14 +321,15 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 		changed = true
 	}
 
+	mode := current.UserScheduleMode
+	if input.UserScheduleMode != nil {
+		mode = *input.UserScheduleMode
+	}
 	useLegacy := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
-		input.AllowUserIDs == nil && input.DenyUserIDs == nil
+		input.DenyUserIDs == nil &&
+		NormalizeUserScheduleMode(mode) != UserScheduleModeAllow
 	if useLegacy {
-		mode := current.UserScheduleMode
 		ids := current.ScheduleUserIDs
-		if input.UserScheduleMode != nil {
-			mode = *input.UserScheduleMode
-		}
 		if input.ScheduleUserIDs != nil {
 			ids = *input.ScheduleUserIDs
 		}
@@ -340,14 +337,14 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 		if err != nil {
 			return AccountUserScheduleWrite{}, false, err
 		}
-		allow, deny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
+		_, deny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
 		changed = true
 	}
 
 	if !changed {
 		return AccountUserScheduleWrite{}, false, nil
 	}
-	return buildAccountUserScheduleWrite(allow, deny, caps, gates), true, nil
+	return buildAccountUserScheduleWrite(nil, deny, caps, gates), true, nil
 }
 
 func applyAccountUserScheduleWrite(account *Account, write AccountUserScheduleWrite) {

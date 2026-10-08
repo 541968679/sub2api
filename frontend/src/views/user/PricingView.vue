@@ -187,7 +187,7 @@
               {{ groupsError }}
             </div>
             <div
-              v-else-if="!groups.length"
+              v-else-if="!visibleGroups.length"
               class="py-10 text-center text-sm text-gray-500 dark:text-gray-400"
               data-test="pricing-groups-empty"
             >
@@ -207,7 +207,7 @@
                 </thead>
                 <tbody>
                   <tr
-                    v-for="group in groups"
+                    v-for="group in visibleGroups"
                     :key="group.id"
                     class="border-t border-gray-200 dark:border-dark-700"
                     :data-test="'pricing-group-row-' + group.id"
@@ -268,6 +268,8 @@ const modelSearch = ref('')
 const groups = ref<Group[]>([])
 const groupsLoading = ref(false)
 const groupsError = ref('')
+// 计费规则只公开展示公开分组倍率。专属分组仍可通过密钥绑定使用，但不出现在这张表里。
+const visibleGroups = computed(() => groups.value.filter((group) => !group.is_exclusive))
 
 marked.setOptions({ breaks: true, gfm: true })
 

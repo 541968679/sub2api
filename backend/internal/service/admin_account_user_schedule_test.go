@@ -16,20 +16,19 @@ func TestAdminService_UpdateAccount_UserScheduleAllowRequiresUsers(t *testing.T)
 
 	repo := &accountRepoStubForBulkUpdate{
 		getByIDAccounts: map[int64]*Account{
-			1: {ID: 1, Name: "acc", Status: StatusActive, UserScheduleMode: UserScheduleModeUnrestricted},
+			1: {ID: 1, Name: "acc", Status: StatusActive, UserScheduleMode: UserScheduleModeUnrestricted, DenyUserIDs: []int64{42}},
 		},
 	}
 	svc := &adminServiceImpl{accountRepo: repo}
 	mode := UserScheduleModeAllow
 	ids := []int64{}
 
-	_, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
+	updated, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
 		UserScheduleMode: &mode,
 		ScheduleUserIDs:  &ids,
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "at least one user id")
-	require.Nil(t, repo.lastUpdated)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
 	require.Empty(t, repo.syncScheduleCalls)
 }
 
@@ -52,10 +51,8 @@ func TestAdminService_UpdateAccount_UserScheduleAllowWrites(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
-	require.Equal(t, UserScheduleModeAllow, updated.UserScheduleMode)
-	require.Equal(t, []int64{16, 42}, repo.syncScheduleCalls[1].AllowUserIDs)
-	require.Empty(t, repo.syncScheduleCalls[1].DenyUserIDs)
-	require.Empty(t, repo.syncScheduleCalls[1].UserConcurrency)
+	require.Equal(t, UserScheduleModeUnrestricted, updated.UserScheduleMode)
+	require.Empty(t, repo.syncScheduleCalls)
 }
 
 func TestAdminService_BulkUpdateAccounts_UserScheduleOmitDoesNotWrite(t *testing.T) {
@@ -137,7 +134,7 @@ func TestAdminService_UpdateAccount_UserScheduleIndependentListsAndCaps(t *testi
 	})
 	require.NoError(t, err)
 	require.NotNil(t, updated)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.Equal(t, []int64{42}, repo.syncScheduleCalls[1].DenyUserIDs)
 	require.Equal(t, map[int64]int{16: 5}, repo.syncScheduleCalls[1].UserConcurrency)
 }
@@ -164,9 +161,7 @@ func TestAdminService_UpdateAccount_UserScheduleLegacyAllowDoesNotClearCaps(t *t
 		ScheduleUserIDs:  &ids,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
-	require.Empty(t, repo.syncScheduleCalls[1].DenyUserIDs)
-	require.Equal(t, map[int64]int{16: 5}, repo.syncScheduleCalls[1].UserConcurrency)
+	require.Empty(t, repo.syncScheduleCalls)
 }
 
 func TestAdminService_UpdateAccount_UserScheduleRestoreDefaultClearsFour(t *testing.T) {
@@ -222,11 +217,11 @@ func TestAdminService_UpdateAccount_UserScheduleConcurrencyPatch(t *testing.T) {
 	zero := 0
 
 	_, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
-		Name: "acc",
+		Name:                 "acc",
 		UserConcurrencyPatch: &UserConcurrencyPatch{UserID: 16, MaxConcurrency: &zero},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.Empty(t, repo.syncScheduleCalls[1].UserConcurrency)
 }
 
@@ -249,11 +244,7 @@ func TestAdminService_BulkUpdateAccounts_UserScheduleAllowOverwriteKeepsCaps(t *
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
-	require.Equal(t, []int64{9}, repo.syncScheduleCalls[1].DenyUserIDs)
-	require.Equal(t, map[int64]int{16: 4}, repo.syncScheduleCalls[1].UserConcurrency)
-	require.Equal(t, []int64{8}, repo.syncScheduleCalls[2].DenyUserIDs)
-	require.Equal(t, map[int64]int{7: 2}, repo.syncScheduleCalls[2].UserConcurrency)
+	require.Empty(t, repo.syncScheduleCalls)
 }
 
 func TestAdminService_BulkUpdateAccounts_UserScheduleRejectsConcurrencyOverwrite(t *testing.T) {
@@ -280,7 +271,7 @@ func TestAdminService_ValidateUserScheduleWrite_UnknownUserRejected(t *testing.T
 	}
 	svc := &adminServiceImpl{accountRepo: repo}
 
-	_, _, err := svc.validateUserScheduleWrite(context.Background(), UserScheduleModeAllow, []int64{16, 99})
+	_, _, err := svc.validateUserScheduleWrite(context.Background(), UserScheduleModeDeny, []int64{16, 99})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unknown user id")
 }
@@ -314,18 +305,18 @@ func TestAdminService_UpdateAccount_UserQualityGateReplaceAndPatch(t *testing.T)
 		UserQualityGates: &gates,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.NotNil(t, repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
 	require.Equal(t, 1500, *repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
 	require.Equal(t, QualityHardCloseConditionOr, repo.syncScheduleCalls[1].UserQualityGates[16].Condition)
 
 	clearP50 := (*int)(nil)
 	_, err = svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
-		Name: "acc",
+		Name:                 "acc",
 		UserQualityGatePatch: &UserQualityGatePatch{UserID: 16, MaxP50TTFTMs: clearP50},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.Empty(t, repo.syncScheduleCalls[1].UserQualityGates)
 }
 
@@ -352,7 +343,7 @@ func TestAdminService_UpdateAccount_UserQualityGateConditionOnlyIsNotAGate(t *te
 		UserQualityGates: &gates,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.Empty(t, repo.syncScheduleCalls[1].UserQualityGates)
 }
 
@@ -403,9 +394,7 @@ func TestAdminService_UpdateAccount_UserScheduleLegacyAllowDoesNotClearGates(t *
 		ScheduleUserIDs:  &ids,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
-	require.NotNil(t, repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
-	require.Equal(t, 1800, *repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
+	require.Empty(t, repo.syncScheduleCalls)
 }
 
 func TestAdminService_BulkUpdateAccounts_UserScheduleRejectsQualityGateOverwrite(t *testing.T) {
@@ -449,8 +438,5 @@ func TestAdminService_BulkUpdateAccounts_UserScheduleAllowOverwriteKeepsGates(t 
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
-	require.Equal(t, []int64{9}, repo.syncScheduleCalls[1].DenyUserIDs)
-	require.NotNil(t, repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
-	require.Equal(t, 1600, *repo.syncScheduleCalls[1].UserQualityGates[16].MaxP50TTFTMs)
+	require.Empty(t, repo.syncScheduleCalls)
 }

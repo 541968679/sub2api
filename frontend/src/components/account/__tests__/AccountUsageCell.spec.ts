@@ -1505,4 +1505,78 @@ describe('AccountUsageCell', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="account-balance-save"]').exists()).toBe(false)
   })
+
+  it('balance refresh forces an immediate upstream probe', async () => {
+    getUsage.mockResolvedValue({
+      balance_usd: 0,
+      balance_unlimited: true,
+      balance_updated_at: '2026-09-27T13:26:06Z'
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 1773,
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_at: '2026-09-27T13:26:06Z' }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+    getUsage.mockClear()
+
+    await wrapper.get('[data-testid="account-balance-refresh"]').trigger('click')
+    await flushPromises()
+
+    expect(getUsage).toHaveBeenCalledWith(1773, 'active', { force: true })
+  })
+
+  it('reloads usage when a saved wallet probe writes a new balance stamp', async () => {
+    const account = makeAccount({
+      id: 1774,
+      platform: 'openai',
+      type: 'apikey',
+      extra: { upstream_balance_at: '2026-09-27T13:26:06Z', upstream_balance_usd: 0 }
+    })
+    getUsage.mockResolvedValue({
+      balance_usd: 0,
+      balance_unlimited: true,
+      balance_updated_at: '2026-09-27T13:26:06Z'
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: { account },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+    getUsage.mockClear()
+    getUsage.mockResolvedValue({
+      balance_usd: 5,
+      balance_unlimited: false,
+      balance_updated_at: '2026-09-27T13:32:00Z'
+    })
+
+    await wrapper.setProps({
+      account: {
+        ...account,
+        extra: { upstream_balance_at: '2026-09-27T13:32:00Z', upstream_balance_usd: 5 }
+      }
+    })
+    await flushPromises()
+
+    expect(getUsage).toHaveBeenCalledWith(1774)
+    expect(wrapper.get('[data-testid="account-balance-display"]').text()).toContain('5.00')
+  })
 })

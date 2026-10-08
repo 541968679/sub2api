@@ -193,7 +193,11 @@ function mountDialog(account: Account | null = makeAccount()) {
           props: ['title', 'description'],
           template: '<div data-test="stability-empty">{{ title }} {{ description }}</div>'
         },
-        LoadingSpinner: true
+        LoadingSpinner: true,
+        AccountStabilityUsagePanel: {
+          props: ['accountId'],
+          template: '<div data-test="stability-usage-panel">{{ accountId }}</div>'
+        }
       }
     }
   })
@@ -645,5 +649,26 @@ describe('AccountStabilityDialog', () => {
     expect(updateQualityHardCloseSettings).toHaveBeenCalledWith(
       expect.objectContaining({ schedule_use_failover_error_rate: true })
     )
+  })
+
+  it('switches to the usage panel from the top cards and hides the hard-close save button', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="stability-view-quality"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="stability-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="stability-usage-panel"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="stability-save"]').exists()).toBe(true)
+
+    await wrapper.get('[data-test="stability-view-usage"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="stability-empty"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="stability-usage-panel"]').text()).toBe('12')
+    expect(wrapper.find('[data-test="stability-save"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="stability-view-quality"]').trigger('click')
+    expect(wrapper.get('[data-test="stability-empty"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="stability-save"]').exists()).toBe(true)
   })
 })

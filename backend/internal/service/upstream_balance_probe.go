@@ -305,12 +305,31 @@ func newAPIUserWalletCreds(account *Account) (token, userID string, ok bool) {
 	if account == nil {
 		return "", "", false
 	}
-	token = strings.TrimSpace(account.GetCredential(credentialKeyNewAPIAccessToken))
-	id := account.GetCredentialAsInt64(credentialKeyNewAPIUserID)
-	if token == "" || id < 1 {
+	token, userID = upstreamBalanceWalletIdentity(account.Credentials)
+	if token == "" || userID == "" {
 		return "", "", false
 	}
-	return token, strconv.FormatInt(id, 10), true
+	return token, userID, true
+}
+
+func upstreamBalanceWalletIdentity(creds map[string]any) (token, userID string) {
+	if len(creds) == 0 {
+		return "", ""
+	}
+	account := &Account{Credentials: creds}
+	token = strings.TrimSpace(account.GetCredential(credentialKeyNewAPIAccessToken))
+	if id := account.GetCredentialAsInt64(credentialKeyNewAPIUserID); id > 0 {
+		userID = strconv.FormatInt(id, 10)
+	}
+	return token, userID
+}
+
+// UpstreamBalanceWalletCredentialsChanged reports whether the New API wallet
+// access token or user id changed. Other credential edits do not count.
+func UpstreamBalanceWalletCredentialsChanged(before, after map[string]any) bool {
+	beforeToken, beforeUserID := upstreamBalanceWalletIdentity(before)
+	afterToken, afterUserID := upstreamBalanceWalletIdentity(after)
+	return beforeToken != afterToken || beforeUserID != afterUserID
 }
 
 type newAPIUserSelfResponse struct {

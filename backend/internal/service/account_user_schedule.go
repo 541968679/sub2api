@@ -107,43 +107,39 @@ func (a *Account) hasUserScheduleRules() bool {
 	if a == nil {
 		return false
 	}
-	return len(a.AllowUserIDs) > 0 || len(a.DenyUserIDs) > 0 || len(a.UserConcurrency) > 0 || len(a.UserQualityGates) > 0
+	// AllowUserIDs is retired and must not fail-close userID<=0.
+	return len(a.DenyUserIDs) > 0 || len(a.UserConcurrency) > 0 || len(a.UserQualityGates) > 0
 }
 
 // DeriveLegacyUserSchedule fills leftover exclusive-mode fields from the
-// independent lists so old readers keep a best-effort view. Both lists
-// nonempty cannot be expressed as a single mode; those stay unrestricted
-// and leftover readers must not use mode as admission truth.
+// deny list so old readers keep a best-effort view. The allow list is not
+// an admission rule and is cleared here.
 func (a *Account) DeriveLegacyUserSchedule() {
 	if a == nil {
 		return
 	}
-	allow := normalizeScheduleUserIDs(a.AllowUserIDs)
 	deny := normalizeScheduleUserIDs(a.DenyUserIDs)
-	a.AllowUserIDs = allow
+	a.AllowUserIDs = nil
 	a.DenyUserIDs = deny
 	a.UserConcurrency = normalizeUserConcurrencyMap(a.UserConcurrency)
 	a.UserQualityGates = copyUserQualityGates(a.UserQualityGates)
-	switch {
-	case len(allow) > 0 && len(deny) == 0:
-		a.UserScheduleMode = UserScheduleModeAllow
-		a.ScheduleUserIDs = append([]int64(nil), allow...)
-	case len(deny) > 0 && len(allow) == 0:
+	if len(deny) > 0 {
 		a.UserScheduleMode = UserScheduleModeDeny
 		a.ScheduleUserIDs = append([]int64(nil), deny...)
-	default:
-		a.UserScheduleMode = UserScheduleModeUnrestricted
-		a.ScheduleUserIDs = unionScheduleUserIDs(allow, deny, concurrencyUserIDs(a.UserConcurrency), qualityGateUserIDs(a.UserQualityGates))
+		return
 	}
+	a.UserScheduleMode = UserScheduleModeUnrestricted
+	a.ScheduleUserIDs = unionScheduleUserIDs(nil, concurrencyUserIDs(a.UserConcurrency), qualityGateUserIDs(a.UserQualityGates))
 }
 
 // AllowsScheduleUser reports whether this account may be scheduled for userID.
 //
 // Priority:
-//  1. userID<=0 and any allow/deny/pair-cap/quality-gate rule exists → false (fail closed)
+//  1. userID<=0 and any deny/pair-cap/quality-gate rule exists → false (fail closed)
 //  2. deny list hit → false (cap ignored)
-//  3. allow list nonempty and miss → false (cap ignored)
-//  4. else true
+//  3. else true
+//
+// A decoded AllowUserIDs slice is ignored. Old snapshots must not keep a whitelist.
 func (a *Account) AllowsScheduleUser(userID int64) bool {
 	if a == nil {
 		return false
@@ -152,9 +148,6 @@ func (a *Account) AllowsScheduleUser(userID int64) bool {
 		return !a.hasUserScheduleRules()
 	}
 	if containsScheduleUserID(a.DenyUserIDs, userID) {
-		return false
-	}
-	if len(a.AllowUserIDs) > 0 && !containsScheduleUserID(a.AllowUserIDs, userID) {
 		return false
 	}
 	return true
@@ -330,9 +323,9 @@ func copyUserConcurrencyMap(in map[int64]int) map[int64]int {
 	return out
 }
 
-func buildAccountUserScheduleWrite(allow, deny []int64, caps map[int64]int, gates map[int64]QualityHardCloseSettings) AccountUserScheduleWrite {
+func buildAccountUserScheduleWrite(_, deny []int64, caps map[int64]int, gates map[int64]QualityHardCloseSettings) AccountUserScheduleWrite {
 	return AccountUserScheduleWrite{
-		AllowUserIDs:     normalizeScheduleUserIDs(allow),
+		AllowUserIDs:     nil,
 		DenyUserIDs:      normalizeScheduleUserIDs(deny),
 		UserConcurrency:  copyUserConcurrencyMap(caps),
 		UserQualityGates: copyUserQualityGates(gates),

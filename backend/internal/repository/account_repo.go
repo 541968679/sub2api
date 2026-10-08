@@ -1216,11 +1216,7 @@ func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int
 		order = append(order, userID)
 		return spec
 	}
-	for _, userID := range write.AllowUserIDs {
-		if spec := addUser(userID); spec != nil {
-			spec.allow = true
-		}
-	}
+	// AllowUserIDs is retired. Never persist allow=true.
 	for _, userID := range write.DenyUserIDs {
 		if spec := addUser(userID); spec != nil {
 			spec.deny = true
@@ -2238,9 +2234,6 @@ func (r *accountRepository) loadAccountUserSchedules(ctx context.Context, accoun
 			continue
 		}
 		spec := out[entry.AccountID]
-		if entry.Allow {
-			spec.AllowUserIDs = append(spec.AllowUserIDs, entry.UserID)
-		}
 		if entry.Deny {
 			spec.DenyUserIDs = append(spec.DenyUserIDs, entry.UserID)
 		}
@@ -2265,7 +2258,7 @@ func applyAccountUserSchedule(account *service.Account, spec service.AccountUser
 	if account == nil {
 		return
 	}
-	account.AllowUserIDs = spec.AllowUserIDs
+	account.AllowUserIDs = nil
 	account.DenyUserIDs = spec.DenyUserIDs
 	account.UserConcurrency = spec.UserConcurrency
 	account.UserQualityGates = spec.UserQualityGates

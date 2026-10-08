@@ -11,12 +11,6 @@
           :title="userChipTitle(user)"
         >
         <span
-          v-if="user.allow"
-          class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-        >
-          {{ t('admin.accounts.userSchedule.modeAllow') }}
-        </span>
-        <span
           v-if="user.deny"
           class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
         >
@@ -173,12 +167,6 @@
               class="flex items-center gap-1.5"
               :title="userChipTitle(user)"
             >
-              <span
-                v-if="user.allow"
-                class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-              >
-                {{ t('admin.accounts.userSchedule.modeAllow') }}
-              </span>
               <span
                 v-if="user.deny"
                 class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"

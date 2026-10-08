@@ -5,7 +5,8 @@
 ### 1. Scope / Trigger
 
 - Trigger: changing account selection, sticky session, failover exclude, scheduler snapshot/outbox, smart-schedule admission, OAuth fleet soft 429, `fallback_only`, or OpenAI scheduler scoring.
-- Canonical: `docs/dev/codebase/scheduler.md` (map + forbidden + file pointers; not an algorithm dump).
+- Canonical map: `docs/dev/codebase/scheduler.md` (forbidden + file pointers; not an algorithm dump).
+- Reproduction spec: `docs/dev/codebase/smart-schedule.md` (admission, six states, EvalQuality, Redis). Do not paste that spec back into the map.
 - Do not implement from `account.md` / `gateway.md` / this file alone.
 
 ### 2. Adjacent specs

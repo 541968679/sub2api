@@ -15,23 +15,22 @@ func TestGatewayService_StickyUserScheduleDeniedClearsBinding(t *testing.T) {
 	t.Parallel()
 
 	denied := &Account{
-		ID:               1,
-		Platform:         PlatformAnthropic,
-		Type:             AccountTypeAPIKey,
-		Status:           StatusActive,
-		Schedulable:      true,
-		Concurrency:      5,
-		AllowUserIDs: []int64{99},
+		ID:          1,
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 5,
+		DenyUserIDs: []int64{16},
 	}
 	allowed := &Account{
-		ID:               2,
-		Platform:         PlatformAnthropic,
-		Type:             AccountTypeAPIKey,
-		Status:           StatusActive,
-		Schedulable:      true,
-		Concurrency:      5,
-		Priority:         1,
-		AllowUserIDs: []int64{16},
+		ID:          2,
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 5,
+		Priority:    1,
 	}
 	repo := &mockAccountRepoForPlatform{
 		accounts:     []Account{*denied, *allowed},
@@ -184,7 +183,7 @@ func TestSelectAccount_UserQualityGateFilters(t *testing.T) {
 	require.Equal(t, int64(1), other.ID, "user without a gate should still take the better-priority gated account")
 }
 
-func TestSelectAccount_UserScheduleAllowFilters(t *testing.T) {
+func TestSelectAccount_LegacyAllowListDoesNotFilter(t *testing.T) {
 	t.Parallel()
 
 	allowHit := Account{
@@ -218,7 +217,7 @@ func TestSelectAccount_UserScheduleAllowFilters(t *testing.T) {
 	account, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(1), account.ID, "best-priority allow miss must be skipped; allow hit should win")
+	require.Equal(t, int64(2), account.ID, "leftover allow lists must not skip the better-priority account")
 }
 
 func TestSelectAccount_UserScheduleDenyFilters(t *testing.T) {
@@ -301,7 +300,7 @@ func TestSelectAccount_UserScheduleUserIDZeroSkipsRestricted(t *testing.T) {
 	account, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(3), account.ID, "userID=0 must skip allow/deny/quality-gate-only accounts and keep unrestricted")
+	require.Equal(t, int64(1), account.ID, "userID=0 must skip deny and quality-gate accounts; a leftover allow list is not a rule")
 }
 
 func TestOpenAISelectAccount_UserScheduleStickyEscape(t *testing.T) {

@@ -1562,23 +1562,6 @@
             <div class="space-y-4" id="bulk-edit-user-schedule">
               <div>
                 <div class="mb-2 flex items-center justify-between">
-                  <label class="input-label mb-0" for="bulk-edit-user-schedule-allow-enabled">
-                    {{ t('admin.accounts.userSchedule.enableAllowWrite') }}
-                  </label>
-                  <input
-                    v-model="enableAllowSchedule"
-                    id="bulk-edit-user-schedule-allow-enabled"
-                    type="checkbox"
-                    data-testid="bulk-edit-user-schedule-allow-enabled"
-                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                </div>
-                <div :class="!enableAllowSchedule && 'pointer-events-none opacity-50'" data-testid="bulk-edit-user-schedule-allow-picker">
-                  <OpenAIFastPolicyUserSelector v-model="allowUserIds" />
-                </div>
-              </div>
-              <div>
-                <div class="mb-2 flex items-center justify-between">
                   <label class="input-label mb-0" for="bulk-edit-user-schedule-deny-enabled">
                     {{ t('admin.accounts.userSchedule.enableDenyWrite') }}
                   </label>
@@ -1833,7 +1816,6 @@ const enableStatus = ref(false)
 const enableFallbackOnly = ref(false)
 const enableModelMappingStrictScheduling = ref(false)
 const enableGroups = ref(false)
-const enableAllowSchedule = ref(false)
 const enableDenySchedule = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIClaudeGPTBridge = ref(false)
@@ -1902,7 +1884,6 @@ const status = ref<'active' | 'inactive'>('active')
 const fallbackOnly = ref(false)
 const modelMappingStrictScheduling = ref(false)
 const groupIds = ref<number[]>([])
-const allowUserIds = ref<number[]>([])
 const denyUserIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
@@ -2285,9 +2266,6 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.group_ids = groupIds.value
   }
 
-  if (enableAllowSchedule.value) {
-    updates.allow_user_ids = [...allowUserIds.value]
-  }
   if (enableDenySchedule.value) {
     updates.deny_user_ids = [...denyUserIds.value]
   }
@@ -2423,9 +2401,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
 }
 
 const restoreBulkUserScheduleDefault = () => {
-  enableAllowSchedule.value = true
   enableDenySchedule.value = true
-  allowUserIds.value = []
   denyUserIds.value = []
 }
 
@@ -2495,7 +2471,6 @@ const handleSubmit = async () => {
     enableFallbackOnly.value ||
     enableModelMappingStrictScheduling.value ||
     enableGroups.value ||
-    enableAllowSchedule.value ||
     enableDenySchedule.value ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
@@ -2624,7 +2599,6 @@ watch(
       enableFallbackOnly.value = false
       enableModelMappingStrictScheduling.value = false
       enableGroups.value = false
-      enableAllowSchedule.value = false
       enableDenySchedule.value = false
       zone2Expanded.value = true
       zoneScheduleExpanded.value = false
@@ -2665,7 +2639,6 @@ watch(
       fallbackOnly.value = false
       modelMappingStrictScheduling.value = false
       groupIds.value = []
-      allowUserIds.value = []
       denyUserIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF

@@ -5,11 +5,47 @@
     width="extra-wide"
     @close="emit('close')"
   >
-    <div v-if="loading" class="flex h-72 items-center justify-center">
-      <LoadingSpinner />
-    </div>
+    <div class="space-y-5">
+      <div class="grid grid-cols-2 gap-3" data-test="stability-view-switch">
+        <button
+          type="button"
+          data-test="stability-view-quality"
+          class="rounded-xl border px-4 py-3 text-left transition"
+          :class="activeView === 'quality'
+            ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500 dark:border-primary-400 dark:bg-primary-950/40'
+            : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800'"
+          @click="activeView = 'quality'"
+        >
+          <div class="text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.accounts.stability.viewQuality') }}
+          </div>
+          <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.stability.viewQualityHint') }}
+          </div>
+        </button>
+        <button
+          type="button"
+          data-test="stability-view-usage"
+          class="rounded-xl border px-4 py-3 text-left transition"
+          :class="activeView === 'usage'
+            ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500 dark:border-primary-400 dark:bg-primary-950/40'
+            : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800'"
+          @click="activeView = 'usage'"
+        >
+          <div class="text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.accounts.stability.viewUsage') }}
+          </div>
+          <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.stability.viewUsageHint') }}
+          </div>
+        </button>
+      </div>
 
-    <div v-else class="space-y-5">
+      <div v-if="activeView === 'quality' && loading" class="flex h-72 items-center justify-center">
+        <LoadingSpinner />
+      </div>
+
+      <template v-else-if="activeView === 'quality'">
       <div
         v-if="showPauseBanner"
         data-test="quality-pause-banner"
@@ -306,6 +342,12 @@
           </div>
         </div>
       </section>
+      </template>
+
+      <AccountStabilityUsagePanel
+        v-else-if="account"
+        :account-id="account.id"
+      />
     </div>
 
     <template #footer>
@@ -313,6 +355,7 @@
         {{ t('common.cancel') }}
       </button>
       <button
+        v-if="activeView === 'quality'"
         type="button"
         class="btn btn-primary"
         data-test="stability-save"
@@ -350,6 +393,7 @@ import type {
   QualityHardCloseCondition
 } from '@/api/admin/accounts'
 import type { QualityHardCloseSettings } from '@/api/admin/settings'
+import AccountStabilityUsagePanel from '@/components/account/AccountStabilityUsagePanel.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -399,6 +443,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const loading = ref(false)
+const activeView = ref<'quality' | 'usage'>('quality')
 const saving = ref(false)
 const templateBusy = ref(false)
 const resumeBusy = ref(false)
@@ -818,6 +863,7 @@ watch(
   () => [props.show, props.account?.id] as const,
   ([open]) => {
     if (open && props.account) {
+      activeView.value = 'quality'
       void load()
     }
   },

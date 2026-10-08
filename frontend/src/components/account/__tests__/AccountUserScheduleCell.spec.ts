@@ -83,7 +83,7 @@ describe('AccountUserScheduleCell', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeAllow')
   })
 
-  it('allow 显示模式标签和用户邮箱', () => {
+  it('残留 allow 标记不再显示允许名单，仍显示邮箱', () => {
     const wrapper = mount(AccountUserScheduleCell, {
       props: {
         account: makeAccount({
@@ -91,7 +91,7 @@ describe('AccountUserScheduleCell', () => {
         })
       }
     })
-    expect(wrapper.text()).toContain('admin.accounts.userSchedule.modeAllow')
+    expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeAllow')
     expect(wrapper.text()).toContain('a@x.com')
   })
 
