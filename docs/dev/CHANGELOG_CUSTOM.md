@@ -1,3 +1,15 @@
+## 2026-10-08 - ops: record production deploy of v0.1.312
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.312` (revision `efcda9b18`, digest `sha256:77a7dc9f0d5cbde3ce9523b183d41b240a3cc1b12c6848c7302637c594f9a1ea`). Release run `37778350035`. VERSION sync `0ab98e42f`. Preflight passed. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.311` digest `sha256:d17c67681c448f9a6f7de5e90aa1d1a19e51ca1ed20408cca5e6362627fecd52`.
+
+### Why
+Record the verified cutover of the account sync-to-stream switch, allow-list retirement, stability usage card, exclusive-group pricing hide, and New API wallet re-probe change.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-08 - feat: account switch for sync-to-upstream-stream
 
 ### What
