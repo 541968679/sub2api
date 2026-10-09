@@ -5,6 +5,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 const {
   updateAccountMock,
   checkMixedChannelRiskMock,
+  listNewAPIWalletSourcesMock,
   getQualityHardCloseSettings,
   updateQualityHardCloseSettings,
   resumeUserQuality,
@@ -12,6 +13,7 @@ const {
 } = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
   checkMixedChannelRiskMock: vi.fn(),
+  listNewAPIWalletSourcesMock: vi.fn().mockResolvedValue([]),
   getQualityHardCloseSettings: vi.fn(),
   updateQualityHardCloseSettings: vi.fn(),
   resumeUserQuality: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       update: updateAccountMock,
       checkMixedChannelRisk: checkMixedChannelRiskMock,
+      listNewAPIWalletSources: listNewAPIWalletSourcesMock,
       resumeUserQuality
     },
     settings: {
@@ -909,5 +912,44 @@ describe('EditAccountModal', () => {
     const cleared = updateAccountMock.mock.calls[2]?.[1]?.credentials as Record<string, unknown>
     expect(cleared.newapi_access_token).toBeUndefined()
     expect(cleared.newapi_user_id).toBeUndefined()
+  })
+
+  it('reuses a same-origin New API wallet without sending the access token', async () => {
+    listNewAPIWalletSourcesMock.mockResolvedValue([
+      {
+        id: 1773,
+        name: 'zzs国模glm',
+        platform: 'openai',
+        origin: 'https://zzshu.cc',
+        user_id: '8828'
+      }
+    ])
+    const account = buildAccount()
+    account.credentials = { api_key: 'sk-test', base_url: 'https://zzshu.cc/v1' }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await flushPromises()
+
+    expect(wrapper.get<HTMLInputElement>('[data-testid="newapi-wallet-user-id"]').element.value).toBe(
+      '8828'
+    )
+    expect(wrapper.get('[data-testid="newapi-wallet-source-hint"]').attributes('data-match')).toBe(
+      'auto'
+    )
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    const payload = updateAccountMock.mock.calls[0]?.[1]
+    expect(payload?.newapi_wallet_source_account_id).toBe(1773)
+    expect(payload?.credentials).toMatchObject({
+      api_key: 'sk-test',
+      base_url: 'https://zzshu.cc/v1',
+      newapi_user_id: '8828'
+    })
+    expect(payload?.credentials?.newapi_access_token).toBeUndefined()
   })
 })

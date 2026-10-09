@@ -434,6 +434,10 @@ func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.A
 	return &account, nil
 }
 
+func (s *stubAdminService) ListNewAPIWalletSources(ctx context.Context) ([]service.NewAPIWalletSource, error) {
+	return []service.NewAPIWalletSource{}, nil
+}
+
 func (s *stubAdminService) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
 	out := make([]*service.Account, 0, len(ids))
 	for _, id := range ids {

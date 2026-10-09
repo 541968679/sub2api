@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -911,6 +912,50 @@ func (r *accountRepository) ListActive(ctx context.Context) ([]service.Account, 
 	}
 	return r.accountsToService(ctx, accounts)
 }
+
+func (r *accountRepository) ListNewAPIWalletSources(ctx context.Context) ([]service.NewAPIWalletSource, error) {
+	rows, err := r.client.Account.Query().
+		Where(
+			dbaccount.TypeEQ(service.AccountTypeAPIKey),
+			dbaccount.PlatformIn(service.PlatformOpenAI, service.PlatformAnthropic),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				s.Where(entsql.And(
+					sqljson.HasKey(dbaccount.FieldCredentials, sqljson.Path("newapi_user_id")),
+					sqljson.HasKey(dbaccount.FieldCredentials, sqljson.Path("newapi_access_token")),
+				))
+			}),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.NewAPIWalletSource, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		src, ok := service.NewAPIWalletSourceFromAccount(&service.Account{
+			ID:          row.ID,
+			Name:        row.Name,
+			Platform:    row.Platform,
+			Type:        row.Type,
+			Credentials: row.Credentials,
+		})
+		if !ok {
+			continue
+		}
+		out = append(out, src)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name == out[j].Name {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out, nil
+}
+
+var _ service.NewAPIWalletSourceLister = (*accountRepository)(nil)
 
 func (r *accountRepository) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	accounts, err := r.client.Account.Query().

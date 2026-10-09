@@ -81,6 +81,9 @@ type AdminService interface {
 	ListOpenAISchedulableAccountsForSchedulerScore(ctx context.Context, groupID *int64) ([]Account, error)
 	GetAccount(ctx context.Context, id int64) (*Account, error)
 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
+	// ListNewAPIWalletSources returns picker rows for accounts that already
+	// store a New API user id and access token. Rows omit the token and api key.
+	ListNewAPIWalletSources(ctx context.Context) ([]NewAPIWalletSource, error)
 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
 	ValidateAccountGroupBindings(ctx context.Context, groupIDs []int64) error
 	UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error)
@@ -2773,6 +2776,24 @@ func isAccountListLite(ctx context.Context) bool {
 }
 
 // Account management implementations
+func (s *adminServiceImpl) ListNewAPIWalletSources(ctx context.Context) ([]NewAPIWalletSource, error) {
+	if s == nil || s.accountRepo == nil {
+		return []NewAPIWalletSource{}, nil
+	}
+	lister, ok := s.accountRepo.(NewAPIWalletSourceLister)
+	if !ok {
+		return nil, infraerrors.InternalServer("NEWAPI_WALLET_SOURCES_UNAVAILABLE", "wallet source list is unavailable")
+	}
+	sources, err := lister.ListNewAPIWalletSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if sources == nil {
+		return []NewAPIWalletSource{}, nil
+	}
+	return sources, nil
+}
+
 func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
 	accounts, result, err := s.accountRepo.ListWithFilters(ctx, params, platform, accountType, status, search, groupID, privacyMode)

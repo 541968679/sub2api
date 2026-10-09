@@ -5705,7 +5705,18 @@ const zhBase = {
         accessTokenPlaceholder: '个人中心生成的访问令牌，不是 sk-',
         accessTokenKeep: '已保存，留空不改',
         clear: '清除钱包凭据',
-        clearHint: '清除后这张号回到令牌额度探测。'
+        clearHint: '清除后这张号回到令牌额度探测。',
+        reuse: '沿用其他账号',
+        manual: '手动填写',
+        sameOriginGroup: '同站点',
+        otherGroup: '其他站点',
+        option: '{name} · {origin} · 用户 {userId}',
+        reuseHint: '保存时复制所选账号的用户 ID 和访问令牌，不会改那张账号。',
+        matched: '已按 Base URL 匹配到 {name}（用户 {userId}）。',
+        matchedPeers: '已按 Base URL 匹配到 {name}（用户 {userId}）。同站点还有 {count} 个账号使用同一钱包，可以改选。',
+        ambiguous: '同站点有 {count} 个不同的钱包，请选一个。',
+        tokenFromSource: '保存时复制所选账号的访问令牌',
+        loadFailed: '没能加载可沿用的账号，仍可手动填写。'
       },
       // Upstream type
       upstream: {
@@ -6983,6 +6994,7 @@ const zhBase = {
         phase: '阶段',
         id: 'ID：',
         typeUpstream: '上游',
+        typeGateway: '网关',
         caliberUserExcluded: '未计入用户错误率',
         caliberUserIncluded: '计入用户错误率',
         caliberCompareIncluded: '计入对照口径',
@@ -7004,6 +7016,7 @@ const zhBase = {
       // Error Details Modal
       errorDetails: {
         upstreamErrors: '上游错误',
+        gatewayErrors: '网关错误',
         requestErrors: '请求错误',
         includeRecovered: '包含 Recovered（上游已救回）',
         includeRecoveredHint:
@@ -7139,6 +7152,8 @@ const zhBase = {
         message: '消息',
         upstreamOriginal: '上游原文',
         upstreamJSON: '上游 JSON',
+        gatewayOriginal: '网关原文',
+        gatewayJSON: '网关 JSON',
         downstreamJSON: '下游错误 JSON',
         downstreamMapped: '下游映射',
         basicInfo: '基本信息',

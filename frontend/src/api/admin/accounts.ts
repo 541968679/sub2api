@@ -130,6 +130,20 @@ export async function getById(id: number): Promise<Account> {
   return data
 }
 
+export interface NewAPIWalletSource {
+  id: number
+  name: string
+  platform: string
+  origin: string
+  user_id: string
+}
+
+/** Donors that already store a New API user id and access token. The token is not returned. */
+export async function listNewAPIWalletSources(): Promise<NewAPIWalletSource[]> {
+  const { data } = await apiClient.get<NewAPIWalletSource[]>('/admin/accounts/newapi-wallet-sources')
+  return data
+}
+
 /**
  * Create new account
  * @param accountData - Account data
@@ -1455,6 +1469,7 @@ export const accountsAPI = {
   list,
   listWithEtag,
   getById,
+  listNewAPIWalletSources,
   create,
   update,
   checkMixedChannelRisk,

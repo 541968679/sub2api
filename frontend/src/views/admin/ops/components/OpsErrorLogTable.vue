@@ -280,6 +280,7 @@ import {
   formatOpsListSecondary,
   formatOpsListTitle
 } from '../utils/errorDetailResponse'
+import { isGatewayLocalTimeoutLog } from '../utils/gatewayLocalTimeout'
 
 const { t } = useI18n()
 
@@ -355,6 +356,9 @@ function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {
 
   if (isRecoveredRow(log)) {
     return { label: t('admin.ops.errorLog.typeRecovered'), className: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-500/30' }
+  }
+  if (isGatewayLocalTimeoutLog(log)) {
+    return { label: t('admin.ops.errorLog.typeGateway'), className: 'bg-gray-100 text-gray-800 ring-gray-600/20 dark:bg-dark-700 dark:text-gray-200 dark:ring-dark-500/40' }
   }
   if (isUpstreamRow(log)) {
     return { label: t('admin.ops.errorLog.typeUpstream'), className: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-500/30' }

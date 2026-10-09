@@ -6011,7 +6011,18 @@ const enBase = {
         accessTokenPlaceholder: 'Profile access token, not the sk- key',
         accessTokenKeep: 'Saved; leave empty to keep',
         clear: 'Clear wallet credentials',
-        clearHint: 'After clearing, this account falls back to token-quota probing.'
+        clearHint: 'After clearing, this account falls back to token-quota probing.',
+        reuse: 'Reuse another account',
+        manual: 'Enter manually',
+        sameOriginGroup: 'Same site',
+        otherGroup: 'Other sites',
+        option: '{name} · {origin} · user {userId}',
+        reuseHint: 'Save copies that account’s user ID and access token. The other account is left unchanged.',
+        matched: 'Matched {name} (user {userId}) from the Base URL.',
+        matchedPeers: 'Matched {name} (user {userId}) from the Base URL. {count} other accounts on this site use the same wallet.',
+        ambiguous: 'This site has {count} different wallets. Choose one.',
+        tokenFromSource: 'Save copies the selected account’s access token',
+        loadFailed: 'Could not load accounts to reuse. You can still enter the wallet by hand.'
       },
       // Upstream type
       upstream: {
@@ -7380,6 +7391,7 @@ const enBase = {
         phase: 'Phase',
         id: 'ID:',
         typeUpstream: 'Upstream',
+        typeGateway: 'Gateway',
         caliberUserExcluded: 'Not in user error rate',
         caliberUserIncluded: 'In user error rate',
         caliberCompareIncluded: 'In comparison caliber',
@@ -7401,6 +7413,7 @@ const enBase = {
       // Error Details Modal
       errorDetails: {
         upstreamErrors: 'Upstream Errors',
+        gatewayErrors: 'Gateway errors',
         requestErrors: 'Request Errors',
         includeRecovered: 'Include Recovered (upstream rescued)',
         includeRecoveredHint:
@@ -7536,6 +7549,8 @@ const enBase = {
         message: 'Message',
         upstreamOriginal: 'Upstream original',
         upstreamJSON: 'Upstream JSON',
+        gatewayOriginal: 'Gateway original',
+        gatewayJSON: 'Gateway JSON',
         downstreamJSON: 'Downstream error JSON',
         downstreamMapped: 'Downstream mapped',
         basicInfo: 'Basic Info',

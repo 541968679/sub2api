@@ -827,6 +827,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				}
 			}
 
+			applyGatewayLocalTimeoutClass(entry)
 			enqueueOpsErrorLog(ops, entry)
 			return
 		}
@@ -1034,6 +1035,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			entry.ClientIP = &clientIP
 		}
 
+		applyGatewayLocalTimeoutClass(entry)
 		enqueueOpsErrorLog(ops, entry)
 	}
 }
@@ -1138,6 +1140,7 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 	if clientIP := strings.TrimSpace(ip.GetClientIP(c)); clientIP != "" {
 		entry.ClientIP = &clientIP
 	}
+	applyGatewayLocalTimeoutClass(entry)
 	enqueueOpsErrorLog(ops, entry)
 }
 
@@ -1490,6 +1493,77 @@ func classifyOpsErrorSource(phase string, message string) string {
 		}
 		return "gateway"
 	}
+}
+
+// gatewayLocalTimeoutNeedles are failures this gateway raises when its own
+// wait/idle limit expires. They are not an upstream HTTP status.
+var gatewayLocalTimeoutNeedles = []string{
+	service.OpenAIHeaderWaitTimeoutMarker,
+	service.OpenAIFirstUsefulFrameTimeoutMarker,
+	"stream data interval timeout",
+	"image stream data interval timeout",
+	"upstream stream idle for",
+}
+
+func isGatewayLocalTimeoutText(parts ...string) bool {
+	blob := strings.ToLower(strings.Join(parts, "\n"))
+	if strings.TrimSpace(blob) == "" {
+		return false
+	}
+	for _, needle := range gatewayLocalTimeoutNeedles {
+		if strings.Contains(blob, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func gatewayLocalTimeoutParts(entry *service.OpsInsertErrorLogInput) []string {
+	if entry == nil {
+		return nil
+	}
+	parts := []string{entry.ErrorMessage, entry.ErrorBody}
+	if entry.UpstreamErrorMessage != nil {
+		parts = append(parts, *entry.UpstreamErrorMessage)
+	}
+	if entry.UpstreamErrorDetail != nil {
+		parts = append(parts, *entry.UpstreamErrorDetail)
+	}
+	for _, ev := range entry.UpstreamErrors {
+		if ev == nil {
+			continue
+		}
+		parts = append(parts, ev.Message, ev.Detail)
+	}
+	return parts
+}
+
+// applyGatewayLocalTimeoutClass keeps a self-imposed wait/idle timeout off the
+// upstream/provider mark. Recovered rows keep phase=upstream so the 已救回
+// caliber still matches; owner and source still say this gateway.
+func applyGatewayLocalTimeoutClass(entry *service.OpsInsertErrorLogInput) {
+	if entry == nil || !isGatewayLocalTimeoutText(gatewayLocalTimeoutParts(entry)...) {
+		return
+	}
+	entry.ErrorOwner = "platform"
+	entry.ErrorSource = "gateway"
+	if service.IsRecoveredOpsError(entry.ErrorPhase, entry.StatusCode, entry.ErrorMessage) {
+		return
+	}
+	entry.ErrorPhase = "internal"
+}
+
+// noteGatewayLocalTimeoutOps keeps the real gateway timeout text when the
+// client response is later rewritten to a generic upstream wrapper.
+func noteGatewayLocalTimeoutOps(c *gin.Context, err error) {
+	if c == nil || err == nil {
+		return
+	}
+	msg := strings.TrimSpace(err.Error())
+	if msg == "" || !isGatewayLocalTimeoutText(msg) {
+		return
+	}
+	service.SetOpsUpstreamError(c, 0, msg, "")
 }
 
 func truncateString(s string, max int) string {

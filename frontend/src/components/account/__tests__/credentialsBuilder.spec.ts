@@ -3,8 +3,11 @@ import {
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
   applyNewAPIWalletCredentials,
+  decideNewAPIWalletReuse,
   hasNewAPIWalletToken,
   isNewAPIWalletEligible,
+  newAPIWalletOrigin,
+  newAPIWalletReuseRequested,
   readNewAPIWalletUserId,
   applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
@@ -319,5 +322,48 @@ describe('New API wallet credentials', () => {
     }
     applyNewAPIWalletCredentials(creds, { userId: '952', accessToken: '', clear: true }, creds)
     expect(creds).toEqual({ api_key: 'sk' })
+  })
+
+  it('omits the token when reusing another account', () => {
+    const creds: Record<string, unknown> = {
+      api_key: 'sk',
+      newapi_access_token: 'saved-token',
+      newapi_user_id: '1'
+    }
+    applyNewAPIWalletCredentials(
+      creds,
+      { userId: '8828', accessToken: '', clear: false, reuseSource: true },
+      creds
+    )
+    expect(creds).toEqual({ api_key: 'sk', newapi_user_id: '8828' })
+  })
+
+  it('matches wallet donors by base URL origin', () => {
+    const sources = [
+      { id: 20, name: 'later', platform: 'openai', origin: 'https://zzshu.cc/v1/', user_id: '8828' },
+      { id: 10, name: 'earlier', platform: 'openai', origin: 'https://ZZSHU.cc', user_id: '8828' },
+      { id: 11, name: 'other', platform: 'anthropic', origin: 'https://other.example', user_id: '3' },
+      { id: 12, name: 'self', platform: 'openai', origin: 'https://zzshu.cc', user_id: '8828' }
+    ]
+    expect(newAPIWalletOrigin('https://zzshu.cc/v1/')).toBe('https://zzshu.cc')
+    const decision = decideNewAPIWalletReuse(sources, 'https://zzshu.cc/V1', 12)
+    expect(decision.auto?.id).toBe(10)
+    expect(decision.sameOrigin.map((row) => row.id)).toEqual([20, 10])
+    expect(decision.others.map((row) => row.id)).toEqual([11])
+    expect(decision.distinctUserCount).toBe(1)
+
+    const ambiguous = decideNewAPIWalletReuse(
+      [
+        ...sources,
+        { id: 30, name: 'second wallet', platform: 'openai', origin: 'https://zzshu.cc', user_id: '9' }
+      ],
+      'https://zzshu.cc',
+      null
+    )
+    expect(ambiguous.auto).toBeNull()
+    expect(ambiguous.distinctUserCount).toBe(2)
+    expect(newAPIWalletReuseRequested(10, '', false)).toBe(true)
+    expect(newAPIWalletReuseRequested(10, 'typed', false)).toBe(false)
+    expect(newAPIWalletReuseRequested(10, '', true)).toBe(false)
   })
 })

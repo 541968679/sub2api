@@ -1380,6 +1380,8 @@
           v-if="isNewAPIWalletEligible(form.platform, form.type)"
           v-model:user-id="createNewAPIWalletUserId"
           v-model:access-token="createNewAPIWalletAccessToken"
+          v-model:source-account-id="createNewAPIWalletSourceAccountId"
+          :base-url="apiKeyBaseUrl"
           @clear="clearCreateNewAPIWalletFields"
         />
 
@@ -3893,6 +3895,7 @@ import {
   validateHeaderOverrideRows,
   applyNewAPIWalletCredentials,
   isNewAPIWalletEligible,
+  newAPIWalletReuseRequested,
   type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
@@ -4042,10 +4045,12 @@ const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
 const createNewAPIWalletUserId = ref('')
 const createNewAPIWalletAccessToken = ref('')
+const createNewAPIWalletSourceAccountId = ref<number | null>(null)
 
 const clearCreateNewAPIWalletFields = () => {
   createNewAPIWalletUserId.value = ''
   createNewAPIWalletAccessToken.value = ''
+  createNewAPIWalletSourceAccountId.value = null
 }
 
 const syncPreviewCredentials = computed(() => {
@@ -5152,6 +5157,7 @@ const resetForm = () => {
   apiKeyValue.value = ''
   createNewAPIWalletUserId.value = ''
   createNewAPIWalletAccessToken.value = ''
+  createNewAPIWalletSourceAccountId.value = null
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -5636,11 +5642,18 @@ const handleSubmit = async () => {
   }
 
   applyPoolModeCredentials(credentials)
+  const reuseWalletSource =
+    isNewAPIWalletEligible(form.platform, form.type) &&
+    newAPIWalletReuseRequested(
+      createNewAPIWalletSourceAccountId.value,
+      createNewAPIWalletAccessToken.value
+    )
   if (isNewAPIWalletEligible(form.platform, form.type)) {
     applyNewAPIWalletCredentials(credentials, {
       userId: createNewAPIWalletUserId.value,
       accessToken: createNewAPIWalletAccessToken.value,
-      clear: false
+      clear: false,
+      reuseSource: reuseWalletSource
     })
   }
 
@@ -5674,7 +5687,10 @@ const handleSubmit = async () => {
     ...form,
     group_ids: form.group_ids,
     extra,
-    auto_pause_on_expired: autoPauseOnExpired.value
+    auto_pause_on_expired: autoPauseOnExpired.value,
+    ...(reuseWalletSource && createNewAPIWalletSourceAccountId.value
+      ? { newapi_wallet_source_account_id: createNewAPIWalletSourceAccountId.value }
+      : {})
   })
 }
 

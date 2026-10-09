@@ -157,6 +157,45 @@ describe('OpsErrorLogTable', () => {
     expect(wrapper.html()).not.toContain('error_body')
   })
 
+  it('labels a gateway-imposed timeout as gateway even when the stored phase is upstream', () => {
+    const timeout: OpsErrorLog = {
+      ...row,
+      id: 5,
+      status_code: 502,
+      phase: 'upstream',
+      type: 'upstream_error',
+      error_owner: 'provider',
+      error_source: 'upstream_http',
+      message: 'Upstream service temporarily unavailable',
+      upstream_error_message: 'openai_header_wait_timeout waited_ms=90001'
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [timeout], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
+    })
+    expect(wrapper.text()).toContain('admin.ops.errorLog.typeGateway')
+    expect(wrapper.text()).not.toContain('admin.ops.errorLog.typeUpstream')
+  })
+
+  it('keeps a provider HTTP failure labeled upstream', () => {
+    const upstream: OpsErrorLog = {
+      ...row,
+      id: 6,
+      status_code: 502,
+      phase: 'upstream',
+      type: 'upstream_error',
+      error_owner: 'provider',
+      message: 'Upstream service temporarily unavailable',
+      upstream_error_message: 'provider returned 503 overloaded'
+    }
+    const wrapper = mount(OpsErrorLogTable, {
+      props: { rows: [upstream], total: 1, loading: false, page: 1, pageSize: 20 },
+      global: { stubs: { Pagination: true, ElTooltip: TooltipStub, AddScheduleErrorWhitelistDialog: true } }
+    })
+    expect(wrapper.text()).toContain('admin.ops.errorLog.typeUpstream')
+    expect(wrapper.text()).not.toContain('admin.ops.errorLog.typeGateway')
+  })
+
   it('offers add-to-whitelist on each row', () => {
     const wrapper = mount(OpsErrorLogTable, {
       props: { rows: [row], total: 1, loading: false, page: 1, pageSize: 20 },

@@ -30,6 +30,7 @@ List contract (`/errors` and `/request-errors`):
   - `counted_in_account_schedule_rate`: follows `quality_hard_close_settings.schedule_use_failover_error_rate` (default false → Recovered stays out of the schedule rate).
 - `is_recovered` plus those flags drive Usage / Ops badges: Recovered always「未计入用户错误率」; schedule chip says whether the row entered **current** `ErrorCount`.
 - Schedule ErrorCount also follows Settings KV `schedule_error_whitelist`: 7 preset families plus `custom[]` (literal AND rules). `POST /admin/settings/schedule-error-whitelist/from-error` builds a rule from an `ops_error_logs` row. 502 `upstream request failed` cannot be excluded. Attention / user / compare rates do not follow the whitelist.
+- Gateway-owned wait/idle limits are not upstream failures. `applyGatewayLocalTimeoutClass` matches `openai_header_wait_timeout`, `openai_first_useful_frame_timeout`, `stream data interval timeout`, `image stream data interval timeout`, and `upstream stream idle for` in the client message, body, or upstream fields. New terminal rows store `error_owner=platform`, `error_source=gateway`, `error_phase=internal`. Recovered rows keep `error_phase=upstream` so the 已救回 caliber still matches, but owner/source are still platform/gateway. The list badge and detail headings say 网关 from the same text, including rows already stored as upstream.
 
 Do not repeat the SSH playbook here.
 
@@ -55,8 +56,8 @@ Do not repeat the SSH playbook here.
 | Repository | `backend/internal/repository/concurrency_cache.go` | Scans existing account slot keys for periodic expired-member cleanup. |
 | Capture | `backend/internal/service/ops_upstream_context.go` | `recordOpsUpstreamAttempt` writes raw upstream message/JSON/code for Ops only; merge ignores empty detail, generic client sentences, and mapped `upstream_error` wrapper JSON. A specific hop with no `error.code` (header-wait timeout) replaces sticky `provider_error_code` so Recovered rows do not join another hop's code with this hop's message. |
 | Frontend API | `frontend/src/api/admin/ops.ts` | Metric type union and admin API calls. |
-| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue` | List「响应内容」primary = upstream original; secondary = downstream mapped sentence. |
-| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue` | Detail shows upstream original, upstream JSON, and downstream JSON as three blocks. |
+| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue` | List「响应内容」primary = upstream original; secondary = downstream mapped sentence. A gateway-owned timeout badge is 网关, not 上游. |
+| Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue` | Detail shows original text, JSON, and downstream JSON as three blocks. Gateway-owned timeouts use 网关原文 / 网关 JSON. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue` | Metric picker definitions and recommended thresholds. |
 
 ## Core Flow

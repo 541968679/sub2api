@@ -500,6 +500,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 				}
+				noteGatewayLocalTimeoutOps(c, err)
 				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),
@@ -901,6 +902,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 				}
+				noteGatewayLocalTimeoutOps(c, err)
 				wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
 				forwardFailedFields := []zap.Field{
 					zap.Int64("account_id", account.ID),

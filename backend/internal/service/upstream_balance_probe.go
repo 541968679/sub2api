@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	httpclient "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
 )
 
@@ -330,6 +331,82 @@ func UpstreamBalanceWalletCredentialsChanged(before, after map[string]any) bool 
 	beforeToken, beforeUserID := upstreamBalanceWalletIdentity(before)
 	afterToken, afterUserID := upstreamBalanceWalletIdentity(after)
 	return beforeToken != afterToken || beforeUserID != afterUserID
+}
+
+// NewAPIWalletSource is one admin picker row. It never includes the access token or api key.
+type NewAPIWalletSource struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+	Origin   string `json:"origin"`
+	UserID   string `json:"user_id"`
+}
+
+// NewAPIWalletSourceLister is the account-repository query behind the picker.
+// It stays off AccountRepository so unrelated stubs do not grow a method.
+type NewAPIWalletSourceLister interface {
+	ListNewAPIWalletSources(ctx context.Context) ([]NewAPIWalletSource, error)
+}
+
+// NewAPIWalletTokenPresent reports whether credentials already include a wallet access token.
+func NewAPIWalletTokenPresent(credentials map[string]any) bool {
+	token, _ := upstreamBalanceWalletIdentity(credentials)
+	return token != ""
+}
+
+// NewAPIWalletSourceFromAccount returns a picker row when the account is an
+// OpenAI or Anthropic API key with both wallet fields set.
+func NewAPIWalletSourceFromAccount(account *Account) (NewAPIWalletSource, bool) {
+	if account == nil || account.Type != AccountTypeAPIKey {
+		return NewAPIWalletSource{}, false
+	}
+	if account.Platform != PlatformOpenAI && account.Platform != PlatformAnthropic {
+		return NewAPIWalletSource{}, false
+	}
+	token, userID := upstreamBalanceWalletIdentity(account.Credentials)
+	if token == "" || userID == "" {
+		return NewAPIWalletSource{}, false
+	}
+	origin := originFromBaseURL(ResolveUpstreamBalanceBaseURL(account))
+	if origin == "" {
+		return NewAPIWalletSource{}, false
+	}
+	return NewAPIWalletSource{
+		ID:       account.ID,
+		Name:     account.Name,
+		Platform: account.Platform,
+		Origin:   origin,
+		UserID:   userID,
+	}, true
+}
+
+// FillNewAPIWalletFromSource copies the donor wallet user id and access token
+// into a new credentials map. The input map is not modified. A destination
+// that already has an access token is returned unchanged. A destination user
+// id that differs from the donor is rejected.
+func FillNewAPIWalletFromSource(credentials map[string]any, source *Account) (map[string]any, error) {
+	if NewAPIWalletTokenPresent(credentials) {
+		return credentials, nil
+	}
+	src, ok := NewAPIWalletSourceFromAccount(source)
+	if !ok || source == nil {
+		return credentials, infraerrors.BadRequest("NEWAPI_WALLET_SOURCE_INVALID", "selected account has no New API wallet credentials")
+	}
+	token, _ := upstreamBalanceWalletIdentity(source.Credentials)
+	if token == "" {
+		return credentials, infraerrors.BadRequest("NEWAPI_WALLET_SOURCE_INVALID", "selected account has no New API wallet credentials")
+	}
+	_, existingUserID := upstreamBalanceWalletIdentity(credentials)
+	if existingUserID != "" && existingUserID != src.UserID {
+		return credentials, infraerrors.BadRequest("NEWAPI_WALLET_SOURCE_USER_MISMATCH", "New API user id does not match the selected account")
+	}
+	out := make(map[string]any, len(credentials)+2)
+	for key, value := range credentials {
+		out[key] = value
+	}
+	out[credentialKeyNewAPIAccessToken] = token
+	out[credentialKeyNewAPIUserID] = src.UserID
+	return out, nil
 }
 
 type newAPIUserSelfResponse struct {

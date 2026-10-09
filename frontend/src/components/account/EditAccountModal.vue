@@ -115,9 +115,13 @@
         </div>
         <NewAPIWalletFields
           v-if="isNewAPIWalletEligible(account.platform, account.type)"
+          :key="account.id"
           v-model:user-id="editNewAPIWalletUserId"
           v-model:access-token="editNewAPIWalletAccessToken"
+          v-model:source-account-id="editNewAPIWalletSourceAccountId"
           :has-saved-token="editNewAPIWalletHasSavedToken"
+          :base-url="editBaseUrl"
+          :exclude-account-id="account.id"
           @clear="clearNewAPIWalletFields"
         />
       </div>
@@ -2885,6 +2889,7 @@ import {
   applyNewAPIWalletCredentials,
   hasNewAPIWalletToken,
   isNewAPIWalletEligible,
+  newAPIWalletReuseRequested,
   readNewAPIWalletUserId,
   type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
@@ -2986,12 +2991,14 @@ const editNewAPIWalletUserId = ref('')
 const editNewAPIWalletAccessToken = ref('')
 const editNewAPIWalletHasSavedToken = ref(false)
 const editNewAPIWalletCleared = ref(false)
+const editNewAPIWalletSourceAccountId = ref<number | null>(null)
 
 const clearNewAPIWalletFields = () => {
   editNewAPIWalletUserId.value = ''
   editNewAPIWalletAccessToken.value = ''
   editNewAPIWalletHasSavedToken.value = false
   editNewAPIWalletCleared.value = true
+  editNewAPIWalletSourceAccountId.value = null
 }
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
@@ -3728,6 +3735,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editNewAPIWalletAccessToken.value = ''
     editNewAPIWalletHasSavedToken.value = hasNewAPIWalletToken(credentials)
     editNewAPIWalletCleared.value = false
+    editNewAPIWalletSourceAccountId.value = null
   } else if (newAccount.type === 'bedrock' && newAccount.credentials) {
     const bedrockCreds = newAccount.credentials as Record<string, unknown>
     const authMode = (bedrockCreds.auth_mode as string) || 'sigv4'
@@ -3797,6 +3805,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editNewAPIWalletAccessToken.value = ''
     editNewAPIWalletHasSavedToken.value = false
     editNewAPIWalletCleared.value = false
+    editNewAPIWalletSourceAccountId.value = null
   }
 
   // After flags + group_ids are hydrated, drop invalid bridge-only groups.
@@ -4540,15 +4549,24 @@ const handleSubmit = async () => {
       // Add intercept warmup requests setting
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
       if (isNewAPIWalletEligible(props.account.platform, props.account.type)) {
+        const reuseWalletSource = newAPIWalletReuseRequested(
+          editNewAPIWalletSourceAccountId.value,
+          editNewAPIWalletAccessToken.value,
+          editNewAPIWalletCleared.value
+        )
         applyNewAPIWalletCredentials(
           newCredentials,
           {
             userId: editNewAPIWalletUserId.value,
             accessToken: editNewAPIWalletAccessToken.value,
-            clear: editNewAPIWalletCleared.value
+            clear: editNewAPIWalletCleared.value,
+            reuseSource: reuseWalletSource
           },
           currentCredentials
         )
+        if (reuseWalletSource && editNewAPIWalletSourceAccountId.value) {
+          updatePayload.newapi_wallet_source_account_id = editNewAPIWalletSourceAccountId.value
+        }
       }
       if (!applyTempUnschedConfig(newCredentials)) {
         return

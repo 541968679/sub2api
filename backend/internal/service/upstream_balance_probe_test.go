@@ -277,6 +277,74 @@ func TestUpstreamBalanceWalletCredentialsChanged(t *testing.T) {
 	require.True(t, UpstreamBalanceWalletCredentialsChanged(same, map[string]any{}))
 }
 
+func TestNewAPIWalletSourceFromAccountAndFill(t *testing.T) {
+	t.Parallel()
+	donor := &Account{
+		ID:       1773,
+		Name:     "zzs",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                      "sk-donor",
+			"base_url":                     "https://zzshu.cc/v1",
+			credentialKeyNewAPIAccessToken: "wallet-tok",
+			credentialKeyNewAPIUserID:      float64(8828),
+		},
+	}
+	src, ok := NewAPIWalletSourceFromAccount(donor)
+	require.True(t, ok)
+	require.Equal(t, NewAPIWalletSource{
+		ID:       1773,
+		Name:     "zzs",
+		Platform: PlatformOpenAI,
+		Origin:   "https://zzshu.cc",
+		UserID:   "8828",
+	}, src)
+	raw, err := json.Marshal(src)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "wallet-tok")
+	require.NotContains(t, string(raw), "sk-donor")
+	require.NotContains(t, string(raw), "access_token")
+
+	original := map[string]any{
+		"api_key":  "sk-self",
+		"base_url": "https://zzshu.cc",
+	}
+	filled, err := FillNewAPIWalletFromSource(original, donor)
+	require.NoError(t, err)
+	require.Equal(t, "sk-self", filled["api_key"])
+	require.Equal(t, "wallet-tok", filled[credentialKeyNewAPIAccessToken])
+	require.Equal(t, "8828", filled[credentialKeyNewAPIUserID])
+	_, copied := original[credentialKeyNewAPIAccessToken]
+	require.False(t, copied)
+
+	kept := map[string]any{
+		credentialKeyNewAPIAccessToken: "keep-me",
+		credentialKeyNewAPIUserID:      "8828",
+	}
+	unchanged, err := FillNewAPIWalletFromSource(kept, donor)
+	require.NoError(t, err)
+	require.Equal(t, "keep-me", unchanged[credentialKeyNewAPIAccessToken])
+
+	mismatch := map[string]any{credentialKeyNewAPIUserID: "1"}
+	_, err = FillNewAPIWalletFromSource(mismatch, donor)
+	require.Error(t, err)
+	_, leaked := mismatch[credentialKeyNewAPIAccessToken]
+	require.False(t, leaked)
+
+	_, ok = NewAPIWalletSourceFromAccount(&Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			credentialKeyNewAPIAccessToken: "wallet-tok",
+			credentialKeyNewAPIUserID:      "8828",
+		},
+	})
+	require.False(t, ok)
+	_, err = FillNewAPIWalletFromSource(map[string]any{}, &Account{Type: AccountTypeOAuth})
+	require.Error(t, err)
+}
+
 func TestNewAPIUserWalletCreds(t *testing.T) {
 	t.Parallel()
 	token, userID, ok := newAPIUserWalletCreds(nil)

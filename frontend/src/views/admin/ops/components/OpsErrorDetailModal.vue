@@ -40,10 +40,10 @@
 
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
           <div class="text-xs font-bold uppercase tracking-wider text-gray-400">
-            {{ isUpstreamError(detail) ? t('admin.ops.errorDetail.account') : t('admin.ops.errorDetail.user') }}
+            {{ showsAccountSubject(detail) ? t('admin.ops.errorDetail.account') : t('admin.ops.errorDetail.user') }}
           </div>
           <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-            <template v-if="isUpstreamError(detail)">
+            <template v-if="showsAccountSubject(detail)">
               {{ detail.account_name || (detail.account_id != null ? String(detail.account_id) : '—') }}
             </template>
             <template v-else>
@@ -120,11 +120,11 @@
 
       <div class="space-y-4">
         <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
-          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.upstreamOriginal') }}</h3>
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t(originalHeadingKey) }}</h3>
           <p class="mt-4 break-words text-sm font-medium text-gray-900 dark:text-white">{{ upstreamOriginal || '—' }}</p>
         </div>
         <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
-          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.upstreamJSON') }}</h3>
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t(jsonHeadingKey) }}</h3>
           <pre class="mt-4 max-h-[360px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(upstreamJSON || '') }}</code></pre>
         </div>
         <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
@@ -136,7 +136,7 @@
       <!-- Upstream errors list (only for request errors) -->
       <div v-if="showUpstreamList" class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetails.upstreamErrors') }}</h3>
+          <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t(correlatedHeadingKey) }}</h3>
           <div class="text-xs text-gray-500 dark:text-gray-400" v-if="correlatedUpstreamLoading">{{ t('common.loading') }}</div>
         </div>
 
@@ -153,7 +153,8 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="text-xs font-black text-gray-900 dark:text-white">
                 #{{ idx + 1 }}
-                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ ev.type }}</span>
+                <span v-if="isGatewayHop(ev)" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ t('admin.ops.errorLog.typeGateway') }}</span>
+                <span v-else-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ ev.type }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <div class="font-mono text-xs text-gray-500 dark:text-gray-400">
@@ -238,6 +239,7 @@ import {
   resolveDownstreamJSON,
   resolveUpstreamJSON
 } from '../utils/errorDetailResponse'
+import { isGatewayLocalTimeoutLog } from '../utils/gatewayLocalTimeout'
 
 interface Props {
   show: boolean
@@ -280,11 +282,27 @@ const title = computed(() => {
 const emptyText = computed(() => t('admin.ops.errorDetail.noErrorSelected'))
 
 function isUpstreamError(d: OpsErrorDetail | null): boolean {
-  if (!d) return false
+  if (!d || isGatewayLocalTimeoutLog(d)) return false
   const phase = String(d.phase || '').toLowerCase()
   const owner = String(d.error_owner || '').toLowerCase()
   return phase === 'upstream' && owner === 'provider'
 }
+
+function showsAccountSubject(d: OpsErrorDetail | null): boolean {
+  return isUpstreamError(d) || isGatewayLocalTimeoutLog(d)
+}
+
+function isGatewayHop(ev: OpsErrorDetail): boolean {
+  return isGatewayLocalTimeoutLog(ev)
+}
+
+const gatewayLocalTimeout = computed(() => isGatewayLocalTimeoutLog(detail.value))
+const originalHeadingKey = computed(() =>
+  gatewayLocalTimeout.value ? 'admin.ops.errorDetail.gatewayOriginal' : 'admin.ops.errorDetail.upstreamOriginal'
+)
+const jsonHeadingKey = computed(() =>
+  gatewayLocalTimeout.value ? 'admin.ops.errorDetail.gatewayJSON' : 'admin.ops.errorDetail.upstreamJSON'
+)
 
 function formatRequestTypeLabel(type: number | null | undefined): string {
   switch (type) {
@@ -315,6 +333,14 @@ const correlatedUpstream = ref<OpsErrorDetail[]>([])
 const correlatedUpstreamLoading = ref(false)
 
 const correlatedUpstreamErrors = computed<OpsErrorDetail[]>(() => correlatedUpstream.value)
+
+const correlatedHeadingKey = computed(() => {
+  const items = correlatedUpstreamErrors.value
+  if (items.length > 0 && items.every((item) => isGatewayLocalTimeoutLog(item))) {
+    return 'admin.ops.errorDetails.gatewayErrors'
+  }
+  return 'admin.ops.errorDetails.upstreamErrors'
+})
 
 const expandedUpstreamDetailIds = ref(new Set<number>())
 

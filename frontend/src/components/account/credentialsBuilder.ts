@@ -210,8 +210,70 @@ export function applyHeaderOverride(
 export const NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY = 'newapi_access_token'
 export const NEWAPI_USER_ID_CREDENTIAL_KEY = 'newapi_user_id'
 
+export interface NewAPIWalletSource {
+  id: number
+  name: string
+  platform: string
+  origin: string
+  user_id: string
+}
+
+export interface NewAPIWalletReuseDecision {
+  sameOrigin: NewAPIWalletSource[]
+  others: NewAPIWalletSource[]
+  auto: NewAPIWalletSource | null
+  distinctUserCount: number
+}
+
 export function isNewAPIWalletEligible(platform?: string, type?: string): boolean {
   return type === 'apikey' && (platform === 'openai' || platform === 'anthropic')
+}
+
+/** Probe origin: trim, drop one trailing /v1. Comparison also lowercases. */
+export function newAPIWalletOrigin(baseUrl: string): string {
+  let base = baseUrl.trim().replace(/\/+$/, '')
+  if (base.toLowerCase().endsWith('/v1')) {
+    base = base.slice(0, -3).replace(/\/+$/, '')
+  }
+  return base
+}
+
+export function canonicalNewAPIWalletOrigin(baseUrl: string): string {
+  return newAPIWalletOrigin(baseUrl).toLowerCase()
+}
+
+export function decideNewAPIWalletReuse(
+  sources: readonly NewAPIWalletSource[],
+  baseUrl: string,
+  excludeAccountId?: number | null
+): NewAPIWalletReuseDecision {
+  const visible = sources.filter((row) => row.id !== excludeAccountId && row.user_id.trim() !== '')
+  const origin = canonicalNewAPIWalletOrigin(baseUrl)
+  const sameOrigin =
+    origin === ''
+      ? []
+      : visible.filter((row) => canonicalNewAPIWalletOrigin(row.origin) === origin)
+  const sameIds = new Set(sameOrigin.map((row) => row.id))
+  const others = visible.filter((row) => !sameIds.has(row.id))
+  const userIds = new Set(sameOrigin.map((row) => row.user_id))
+  const auto =
+    userIds.size === 1
+      ? [...sameOrigin].sort((a, b) => a.id - b.id)[0] ?? null
+      : null
+  return {
+    sameOrigin,
+    others,
+    auto,
+    distinctUserCount: userIds.size
+  }
+}
+
+export function newAPIWalletReuseRequested(
+  sourceAccountId: number | null | undefined,
+  accessToken: string,
+  clear = false
+): boolean {
+  return !clear && sourceAccountId != null && sourceAccountId > 0 && accessToken.trim() === ''
 }
 
 export function readNewAPIWalletUserId(credentials?: Record<string, unknown> | null): string {
@@ -226,7 +288,7 @@ export function hasNewAPIWalletToken(credentials?: Record<string, unknown> | nul
 
 export function applyNewAPIWalletCredentials(
   credentials: Record<string, unknown>,
-  input: { userId: string; accessToken: string; clear: boolean },
+  input: { userId: string; accessToken: string; clear: boolean; reuseSource?: boolean },
   existing?: Record<string, unknown> | null
 ): void {
   if (input.clear) {
@@ -241,6 +303,10 @@ export function applyNewAPIWalletCredentials(
     delete credentials[NEWAPI_USER_ID_CREDENTIAL_KEY]
   }
   const token = input.accessToken.trim()
+  if (input.reuseSource && !token) {
+    delete credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY]
+    return
+  }
   if (token) {
     credentials[NEWAPI_ACCESS_TOKEN_CREDENTIAL_KEY] = token
   } else if (hasNewAPIWalletToken(existing)) {

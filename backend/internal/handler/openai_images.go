@@ -299,6 +299,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			}
 			upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
 			wroteFallback := false
+			noteGatewayLocalTimeoutOps(c, err)
 			if !upstreamErrorAlreadyCommunicated {
 				wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)
 			}

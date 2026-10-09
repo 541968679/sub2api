@@ -1,3 +1,63 @@
+## 2026-10-09 - fix: gateway-imposed timeouts are not upstream errors
+
+### What
+- Ops error rows whose text is a gateway-owned wait or idle limit (`openai_header_wait_timeout`, `openai_first_useful_frame_timeout`, `stream data interval timeout`, `image stream data interval timeout`, `upstream stream idle for`) are stored as owner `platform` and source `gateway`. Terminal rows use phase `internal`. Recovered rows keep phase `upstream` so the rescued-request caliber still matches.
+- A plain forward error with that text is recorded before the client body is rewritten to a generic upstream wrapper.
+- The admin error list badge and error detail headings say 网关 for those rows, including rows already stored as upstream.
+
+### Why
+Our own header-wait, first-useful-frame, and stream-idle limits were classified from the client `upstream_error` wrapper, so the error detail showed them as upstream failures.
+
+### Affected files
+`backend/internal/handler/ops_error_logger.go`,
+`backend/internal/handler/ops_error_logger_gateway_timeout_test.go`,
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/gateway_handler_chat_completions.go`,
+`backend/internal/handler/gateway_handler_responses.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+`backend/internal/handler/openai_images.go`,
+`frontend/src/views/admin/ops/utils/gatewayLocalTimeout.ts`,
+`frontend/src/views/admin/ops/utils/__tests__/gatewayLocalTimeout.spec.ts`,
+`frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`,
+`frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue`,
+`frontend/src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`
+
+## 2026-10-09 - feat: reuse New API wallet credentials in account edit
+
+### What
+- OpenAI and Anthropic API-key create/edit can reuse another account's New API user id and system access token.
+- The wallet block lists accounts that already have both fields. Choosing one fills the user id. Save copies both fields onto this account and does not change the donor.
+- A typed base URL auto-selects when that site origin matches exactly one New API user id. Several accounts can share that id. More than one user id on the same origin stays a manual choice.
+- The donor list never includes the access token or the account API key. A token typed in the form is saved as typed.
+
+### Why
+Many accounts on the same New API site share one user id and access token. Re-entering both on every account was easy to skip, so wallet balance stayed on the token-quota probe.
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/upstream_balance_probe_test.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/repository/account_repo.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/admin/admin_service_stub_test.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/components/account/credentialsBuilder.ts`,
+`frontend/src/components/account/NewAPIWalletFields.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/__tests__/credentialsBuilder.spec.ts`,
+`frontend/src/components/account/__tests__/NewAPIWalletFields.spec.ts`,
+`frontend/src/components/account/__tests__/EditAccountModal.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/types/index.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-10-09 - feat: stability usage cache rates are percentages
 
 ### What

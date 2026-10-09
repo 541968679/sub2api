@@ -143,35 +143,39 @@ type CreateAccountRequest struct {
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
 	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	// NewAPIWalletSourceAccountID copies newapi_user_id and newapi_access_token
+	// from that account when this request does not already include an access token.
+	NewAPIWalletSourceAccountID *int64 `json:"newapi_wallet_source_account_id"`
 }
 
 // UpdateAccountRequest represents update account request
 // 使用指针类型来区分"未提供"和"设置为0"
 type UpdateAccountRequest struct {
-	Name                    string                          `json:"name"`
-	Notes                   *string                         `json:"notes"`
-	Type                    string                          `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
-	Credentials             map[string]any                  `json:"credentials"`
-	Extra                   map[string]any                  `json:"extra"`
-	ProxyID                 *int64                          `json:"proxy_id"`
-	Concurrency             *int                            `json:"concurrency"`
-	Priority                *int                            `json:"priority"`
-	RateMultiplier          *float64                        `json:"rate_multiplier"`
-	UpstreamRateMultiplier  *float64                        `json:"upstream_rate_multiplier"`
-	LoadFactor              *int                            `json:"load_factor"`
-	Status                  string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
-	GroupIDs                *[]int64                        `json:"group_ids"`
-	ExpiresAt               *int64                          `json:"expires_at"`
-	AutoPauseOnExpired      *bool                           `json:"auto_pause_on_expired"`
-	ConfirmMixedChannelRisk *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
-	UserScheduleMode        *string                         `json:"user_schedule_mode"`
-	ScheduleUserIDs         *[]int64                        `json:"schedule_user_ids"`
-	AllowUserIDs            *[]int64                        `json:"allow_user_ids"` // retired: decoded so old clients do not 400; service ignores it
-	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
-	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
-	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
-	UserQualityGates        *[]service.UserQualityGateEntry `json:"user_quality_gates"`
-	UserQualityGatePatch    *service.UserQualityGatePatch   `json:"user_quality_gate_patch"`
+	Name                        string                          `json:"name"`
+	Notes                       *string                         `json:"notes"`
+	Type                        string                          `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Credentials                 map[string]any                  `json:"credentials"`
+	Extra                       map[string]any                  `json:"extra"`
+	ProxyID                     *int64                          `json:"proxy_id"`
+	Concurrency                 *int                            `json:"concurrency"`
+	Priority                    *int                            `json:"priority"`
+	RateMultiplier              *float64                        `json:"rate_multiplier"`
+	UpstreamRateMultiplier      *float64                        `json:"upstream_rate_multiplier"`
+	LoadFactor                  *int                            `json:"load_factor"`
+	Status                      string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
+	GroupIDs                    *[]int64                        `json:"group_ids"`
+	ExpiresAt                   *int64                          `json:"expires_at"`
+	AutoPauseOnExpired          *bool                           `json:"auto_pause_on_expired"`
+	ConfirmMixedChannelRisk     *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	UserScheduleMode            *string                         `json:"user_schedule_mode"`
+	ScheduleUserIDs             *[]int64                        `json:"schedule_user_ids"`
+	AllowUserIDs                *[]int64                        `json:"allow_user_ids"` // retired: decoded so old clients do not 400; service ignores it
+	DenyUserIDs                 *[]int64                        `json:"deny_user_ids"`
+	UserConcurrencies           *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
+	UserConcurrencyPatch        *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
+	UserQualityGates            *[]service.UserQualityGateEntry `json:"user_quality_gates"`
+	UserQualityGatePatch        *service.UserQualityGatePatch   `json:"user_quality_gate_patch"`
+	NewAPIWalletSourceAccountID *int64                          `json:"newapi_wallet_source_account_id"`
 }
 
 // UpdateRefreshTokenRequest represents a manual refresh-token replacement request.
@@ -970,12 +974,16 @@ func (h *AccountHandler) Create(c *gin.Context) {
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
 	result, err := executeAdminIdempotent(c, "admin.accounts.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		credentials, mergeErr := h.applyNewAPIWalletSource(ctx, req.Credentials, req.NewAPIWalletSourceAccountID)
+		if mergeErr != nil {
+			return nil, mergeErr
+		}
 		account, execErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
 			Name:                   req.Name,
 			Notes:                  req.Notes,
 			Platform:               req.Platform,
 			Type:                   req.Type,
-			Credentials:            req.Credentials,
+			Credentials:            credentials,
 			Extra:                  req.Extra,
 			ProxyID:                req.ProxyID,
 			AutoAssignProxy:        req.AutoAssignProxy,
@@ -1026,6 +1034,37 @@ func (h *AccountHandler) Create(c *gin.Context) {
 	response.Success(c, result.Data)
 }
 
+// ListNewAPIWalletSources returns accounts that already have New API wallet
+// credentials. The payload is id, name, platform, origin, and user id.
+// GET /api/v1/admin/accounts/newapi-wallet-sources
+func (h *AccountHandler) ListNewAPIWalletSources(c *gin.Context) {
+	sources, err := h.adminService.ListNewAPIWalletSources(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if sources == nil {
+		sources = []service.NewAPIWalletSource{}
+	}
+	response.Success(c, sources)
+}
+
+// applyNewAPIWalletSource copies a donor account's wallet user id and access
+// token into credentials when this request did not include an access token.
+func (h *AccountHandler) applyNewAPIWalletSource(ctx context.Context, credentials map[string]any, sourceID *int64) (map[string]any, error) {
+	if h == nil || sourceID == nil || *sourceID <= 0 || credentials == nil {
+		return credentials, nil
+	}
+	if service.NewAPIWalletTokenPresent(credentials) {
+		return credentials, nil
+	}
+	source, err := h.adminService.GetAccount(ctx, *sourceID)
+	if err != nil {
+		return nil, err
+	}
+	return service.FillNewAPIWalletFromSource(credentials, source)
+}
+
 // Update handles updating an account
 // PUT /api/v1/admin/accounts/:id
 func (h *AccountHandler) Update(c *gin.Context) {
@@ -1054,6 +1093,13 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	}
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
+
+	credentials, mergeErr := h.applyNewAPIWalletSource(c.Request.Context(), req.Credentials, req.NewAPIWalletSourceAccountID)
+	if mergeErr != nil {
+		response.ErrorFrom(c, mergeErr)
+		return
+	}
+	req.Credentials = credentials
 
 	// 确定是否跳过混合渠道检查
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk

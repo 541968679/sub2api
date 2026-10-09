@@ -569,6 +569,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			}
 			h.reportOpenAIAccountScheduleResult(c, account.ID, false, nil)
 			upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
+			noteGatewayLocalTimeoutOps(c, err)
 			wroteFallback := false
 			if !upstreamErrorAlreadyCommunicated {
 				wroteFallback = h.ensureForwardErrorResponse(c, streamStarted)

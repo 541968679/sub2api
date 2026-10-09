@@ -1442,6 +1442,8 @@ export interface CreateAccountRequest {
   expires_at?: number | null
   auto_pause_on_expired?: boolean
   confirm_mixed_channel_risk?: boolean
+  /** Copy New API wallet user id and access token from this account on save. */
+  newapi_wallet_source_account_id?: number
 }
 
 export interface UpdateAccountRequest {
@@ -1471,6 +1473,8 @@ export interface UpdateAccountRequest {
   user_concurrency_patch?: UserConcurrencyPatch
   user_quality_gates?: UserQualityGateEntry[]
   user_quality_gate_patch?: UserQualityGatePatch
+  /** Copy New API wallet user id and access token from this account on save. */
+  newapi_wallet_source_account_id?: number
 }
 
 export interface CheckMixedChannelRequest {
