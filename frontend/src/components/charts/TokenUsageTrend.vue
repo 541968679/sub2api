@@ -58,7 +58,8 @@ const props = withDefaults(
     heightClass?: string
   }>(),
   {
-    heightClass: 'h-48'
+    heightClass: 'h-48',
+    showCacheWrite: true
   }
 )
 
@@ -83,66 +84,80 @@ interface TrendDataset {
   backgroundColor: string
   fill: boolean
   tension: number
+  borderWidth: number
+  pointRadius: number
+  pointHoverRadius: number
+  // Chart.js draws a higher order first, underneath later series.
+  order: number
   borderDash?: number[]
   yAxisID?: string
+}
+
+function tokenLine(partial: Pick<TrendDataset, 'label' | 'data' | 'borderColor'> & Partial<TrendDataset>): TrendDataset {
+  return {
+    backgroundColor: 'transparent',
+    fill: false,
+    tension: 0.3,
+    borderWidth: 2,
+    pointRadius: 2,
+    pointHoverRadius: 3,
+    order: 1,
+    ...partial
+  }
 }
 
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
 
   const datasets: TrendDataset[] = [
-    {
+    tokenLine({
       label: 'Input',
       data: props.trendData.map((d) => d.input_tokens),
       borderColor: chartColors.value.input,
-      backgroundColor: `${chartColors.value.input}20`,
-      fill: true,
-      tension: 0.3
-    },
-    {
+      order: 2
+    }),
+    tokenLine({
       label: 'Output',
       data: props.trendData.map((d) => d.output_tokens),
       borderColor: chartColors.value.output,
-      backgroundColor: `${chartColors.value.output}20`,
-      fill: true,
-      tension: 0.3
-    }
+      order: 2
+    })
   ]
 
-  if (props.showCacheWrite !== false) {
-    datasets.push({
-      label: 'Cache Creation',
-      data: props.trendData.map((d) => d.cache_creation_tokens),
-      borderColor: chartColors.value.cacheCreation,
-      backgroundColor: `${chartColors.value.cacheCreation}20`,
+  datasets.push(
+    tokenLine({
+      label: 'Cache Read',
+      data: props.trendData.map((d) => d.cache_read_tokens),
+      borderColor: chartColors.value.cacheRead,
+      backgroundColor: `${chartColors.value.cacheRead}33`,
       fill: true,
-      tension: 0.3
+      order: 3
     })
-  }
-
-  datasets.push({
-    label: 'Cache Read',
-    data: props.trendData.map((d) => d.cache_read_tokens),
-    borderColor: chartColors.value.cacheRead,
-    backgroundColor: `${chartColors.value.cacheRead}20`,
-    fill: true,
-    tension: 0.3
-  })
+  )
 
   if (props.showCacheWrite !== false) {
-    datasets.push({
-      label: 'Cache Hit Rate',
-      data: props.trendData.map((d) => {
-        const total = d.cache_read_tokens + d.cache_creation_tokens
-        return total > 0 ? (d.cache_read_tokens / total) * 100 : 0
-      }),
-      borderColor: chartColors.value.cacheHitRate,
-      backgroundColor: `${chartColors.value.cacheHitRate}20`,
-      borderDash: [5, 5],
-      fill: false,
-      tension: 0.3,
-      yAxisID: 'yPercent'
-    })
+    datasets.push(
+      tokenLine({
+        label: 'Cache Creation',
+        data: props.trendData.map((d) => d.cache_creation_tokens || 0),
+        borderColor: chartColors.value.cacheCreation,
+        borderWidth: 2.5,
+        order: 0
+      })
+    )
+    datasets.push(
+      tokenLine({
+        label: 'Cache Hit Rate',
+        data: props.trendData.map((d) => {
+          const total = d.cache_read_tokens + d.cache_creation_tokens
+          return total > 0 ? (d.cache_read_tokens / total) * 100 : 0
+        }),
+        borderColor: chartColors.value.cacheHitRate,
+        borderDash: [5, 5],
+        order: 0,
+        yAxisID: 'yPercent'
+      })
+    )
   }
 
   return {
@@ -165,7 +180,9 @@ const lineOptions = computed(() => ({
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
-        padding: 15,
+        boxWidth: 8,
+        boxHeight: 8,
+        padding: 12,
         font: {
           size: 11
         }

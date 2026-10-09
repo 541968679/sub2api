@@ -608,6 +608,65 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryTrendCountsCacheReads(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("COUNT\\(\\*\\) FILTER \\(WHERE cache_read_tokens > 0\\)").
+		WithArgs(start, end, int64(12)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost", "cache_hit_requests",
+		}).AddRow(
+			"2026-10-08 11",
+			int64(4), int64(100), int64(20), int64(5), int64(40), int64(165),
+			1.0, 2.0, int64(1),
+		).AddRow(
+			"2026-10-08 12",
+			int64(2), int64(10), int64(0), int64(0), int64(0), int64(10),
+			0.0, 0.0, int64(0),
+		))
+
+	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "hour", 0, 0, 12, 0, "", nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, trend, 2)
+	require.NotNil(t, trend[0].CacheHitRequests)
+	require.Equal(t, int64(1), *trend[0].CacheHitRequests)
+	require.NotNil(t, trend[1].CacheHitRequests)
+	require.Equal(t, int64(0), *trend[1].CacheHitRequests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryAggregateTrendLeavesCacheHitRequestsNull(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("NULL::bigint AS cache_hit_requests").
+		WithArgs(start, end).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost", "cache_hit_requests",
+		}).AddRow(
+			"2026-10-08 11",
+			int64(4), int64(100), int64(20), int64(5), int64(40), int64(165),
+			1.0, 2.0, nil,
+		))
+
+	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "hour", 0, 0, 0, 0, "", nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, trend, 1)
+	require.Nil(t, trend[0].CacheHitRequests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}

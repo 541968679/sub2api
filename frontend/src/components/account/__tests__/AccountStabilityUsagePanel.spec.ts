@@ -30,8 +30,8 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-const TokenUsageTrendStub = defineComponent({
-  name: 'TokenUsageTrend',
+const UsageChartStub = defineComponent({
+  name: 'AccountStabilityUsageChart',
   props: {
     trendData: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false }
@@ -63,7 +63,7 @@ function mountPanel() {
     props: { accountId: 12 },
     global: {
       stubs: {
-        TokenUsageTrend: TokenUsageTrendStub,
+        AccountStabilityUsageChart: UsageChartStub,
         DateRangePicker: DateRangePickerStub,
         Select: SelectStub
       }
@@ -138,6 +138,41 @@ describe('AccountStabilityUsagePanel', () => {
     expect(wrapper.get('[data-test="stability-usage-account"]').text()).toContain('$2.79')
     expect(wrapper.get('[data-test="token-trend"]').text()).toBe('1')
     expect(wrapper.get('[data-test="usage-granularity"]').text()).toBe('hour')
+    expect(wrapper.get('[data-test="stability-cache-request-rate-value"]').text()).toBe('25.0%')
+    expect(wrapper.get('[data-test="stability-cache-request-rate-fraction"]').text()).toContain('1 / 4')
+    expect(wrapper.get('[data-test="stability-cache-token-ratio-value"]').text()).toBe('24.2%')
+    expect(wrapper.get('[data-test="stability-cache-token-ratio-fraction"]').text()).toContain('40 / 165')
+    expect(wrapper.get('[data-test="stability-cache-request-rate"]').text()).toContain(
+      'admin.accounts.stability.usageCacheRequestRateHint'
+    )
+  })
+
+  it('shows an em dash when the range has no requests or tokens', async () => {
+    getStats.mockResolvedValue({
+      total_requests: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_tokens: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      total_actual_cost: 0,
+      total_account_cost: 0,
+      average_duration_ms: 0,
+      total_cache_read_tokens: 0,
+      total_cache_creation_tokens: 0,
+      cache_hit_requests: 0,
+      cache_read_rate: 0,
+      cache_creation_rate: 0,
+      request_hit_rate: 0
+    })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="stability-cache-request-rate-value"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-cache-request-rate-fraction"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-cache-token-ratio-value"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-cache-token-ratio-fraction"]').text()).toBe('—')
   })
 
   it('clears the series and reports a load failure', async () => {
@@ -149,5 +184,7 @@ describe('AccountStabilityUsagePanel', () => {
     expect(showError).toHaveBeenCalled()
     expect(wrapper.get('[data-test="token-trend"]').text()).toBe('0')
     expect(wrapper.get('[data-test="stability-usage-actual"]').text()).toContain('$0.0000')
+    expect(wrapper.get('[data-test="stability-cache-request-rate-value"]').text()).toBe('—')
+    expect(wrapper.get('[data-test="stability-cache-token-ratio-value"]').text()).toBe('—')
   })
 })

@@ -1,3 +1,31 @@
+## 2026-10-09 - feat: stability usage cache rates are percentages
+
+### What
+- The account stability 用量 card now shows two percentages for the open account. 缓存读取率 is requests with `cache_read_tokens > 0` divided by all requests. 缓存读取比例 is cache-read tokens divided by total tokens (input + output + cache creation + cache read).
+- Each card shows the percent and the numerator / denominator. A zero denominator, or a missing request count, stays an em dash.
+- The usage chart plots both rates on a 0–100% axis, with the same formulas in the tooltip. Input, output, and cache creation stay token volumes. Raw cache-read volume is not a series on this chart.
+- Admin usage trend buckets from `usage_logs` now include `cache_hit_requests`. Preaggregated dashboard buckets leave that field null. The site-wide token trend still plots cache read as a token volume. Cache Creation stays visible there: the series defaults on, and the gold line is drawn above the cache-read area.
+
+### Why
+Operators need the share of requests that actually read cache, and the share of tokens that were cache reads. A raw cache-read token count does not answer either question.
+
+### Affected files
+`backend/internal/pkg/usagestats/usage_log_types.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/usage_log_repo_request_type_test.go`,
+`frontend/src/types/index.ts`,
+`frontend/src/utils/cacheReadRates.ts`,
+`frontend/src/utils/__tests__/cacheReadRates.spec.ts`,
+`frontend/src/components/account/AccountStabilityUsageChart.vue`,
+`frontend/src/components/account/AccountStabilityUsagePanel.vue`,
+`frontend/src/components/account/__tests__/AccountStabilityUsageChart.spec.ts`,
+`frontend/src/components/account/__tests__/AccountStabilityUsagePanel.spec.ts`,
+`frontend/src/components/charts/TokenUsageTrend.vue`,
+`frontend/src/components/charts/__tests__/TokenUsageTrend.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-10-08 - ops: record production deploy of v0.1.312
 
 ### What
@@ -44,6 +72,7 @@ this changelog.
 ### What
 - The account stability dialog now has two top cards. 稳定性 keeps the quality curve and hard-close form. 用量 shows this account’s actual spend, standard cost, and account cost beside the token trend (input, output, cache creation, cache read, cache hit rate).
 - The usage card defaults to today at hourly granularity and reuses the admin usage trend and usage stats APIs filtered by account id.
+- Cache Creation stays on by default. An omitted `showCacheWrite` flag was treated as false, so the series was dropped. The gold line is unfilled and drawn above the Cache Read area.
 
 ### Why
 Operators opening one account’s stability window need that account’s token and cost series without leaving for the site-wide usage page.
@@ -54,6 +83,7 @@ Operators opening one account’s stability window need that account’s token a
 `frontend/src/components/account/__tests__/AccountStabilityDialog.spec.ts`,
 `frontend/src/components/account/__tests__/AccountStabilityUsagePanel.spec.ts`,
 `frontend/src/components/charts/TokenUsageTrend.vue`,
+`frontend/src/components/charts/__tests__/TokenUsageTrend.spec.ts`,
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
 this changelog.

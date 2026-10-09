@@ -5266,12 +5266,24 @@ const enBase = {
         viewQuality: 'Stability',
         viewQualityHint: 'Quality curve, error rates, and hard-close',
         viewUsage: 'Usage',
-        viewUsageHint: 'Token trend and cost',
+        viewUsageHint: 'Cache request rate, cache-read share, and cost',
         usageActual: 'Actual spend',
         usageStandard: 'Standard',
         usageAccount: 'Account cost',
         usageRangeHint: 'Totals for this account in the selected range',
-        usageLoadFailed: 'Failed to load account usage'
+        usageLoadFailed: 'Failed to load account usage',
+        usageChartTitle: 'Usage and cache reads',
+        usageInput: 'Input',
+        usageOutput: 'Output',
+        usageCacheCreation: 'Cache creation',
+        usageCacheRequestRate: 'Cache request rate',
+        usageCacheRequestRateHint:
+          'Requests with a cache read ÷ all requests. A cache read means cache_read_tokens > 0. Cache creation alone does not count.',
+        usageCacheRequestRateUnit: 'requests',
+        usageCacheTokenRatio: 'Cache read share',
+        usageCacheTokenRatioHint:
+          'Cache-read tokens ÷ total tokens. Total tokens = input + output + cache creation + cache read.',
+        usageCacheTokenRatioUnit: 'tokens'
       },
       publicQuality: {
         title: 'Public schedule quality',

@@ -90,6 +90,9 @@ type TrendDataPoint struct {
 	TotalTokens         int64   `json:"total_tokens"`
 	Cost                float64 `json:"cost"`        // 标准计费
 	ActualCost          float64 `json:"actual_cost"` // 实际扣除
+	// CacheHitRequests 是该桶里 cache_read_tokens > 0 的请求数。
+	// 预聚合小时/日表没有逐请求计数，此时为 null，不能当成 0%。
+	CacheHitRequests *int64 `json:"cache_hit_requests"`
 }
 
 // ModelStat represents usage statistics for a single model

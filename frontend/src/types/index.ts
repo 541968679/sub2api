@@ -1924,6 +1924,8 @@ export interface TrendDataPoint {
   total_tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
+  // 该桶里 cache_read_tokens > 0 的请求数。预聚合趋势没有这个计数时为 null。
+  cache_hit_requests?: number | null
 }
 
 export interface ModelStat {

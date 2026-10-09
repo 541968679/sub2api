@@ -14,6 +14,51 @@
       </p>
     </div>
 
+    <div class="grid gap-3 sm:grid-cols-2">
+      <article
+        class="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-dark-600 dark:bg-dark-800"
+        data-test="stability-cache-request-rate"
+      >
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.usageCacheRequestRate') }}
+        </p>
+        <p
+          class="mt-1 font-mono text-2xl font-semibold text-gray-900 dark:text-white"
+          data-test="stability-cache-request-rate-value"
+        >
+          {{ formatCachePercent(requestRate) }}
+        </p>
+        <p class="mt-1 text-sm text-gray-700 dark:text-gray-200" data-test="stability-cache-request-rate-fraction">
+          {{ requestFraction ?? '—' }}
+          <span v-if="requestFraction">{{ t('admin.accounts.stability.usageCacheRequestRateUnit') }}</span>
+        </p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.usageCacheRequestRateHint') }}
+        </p>
+      </article>
+      <article
+        class="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-dark-600 dark:bg-dark-800"
+        data-test="stability-cache-token-ratio"
+      >
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.usageCacheTokenRatio') }}
+        </p>
+        <p
+          class="mt-1 font-mono text-2xl font-semibold text-gray-900 dark:text-white"
+          data-test="stability-cache-token-ratio-value"
+        >
+          {{ formatCachePercent(tokenRatio) }}
+        </p>
+        <p class="mt-1 text-sm text-gray-700 dark:text-gray-200" data-test="stability-cache-token-ratio-fraction">
+          {{ tokenFraction ?? '—' }}
+          <span v-if="tokenFraction">{{ t('admin.accounts.stability.usageCacheTokenRatioUnit') }}</span>
+        </p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.stability.usageCacheTokenRatioHint') }}
+        </p>
+      </article>
+    </div>
+
     <div class="grid items-start gap-4 lg:grid-cols-[11rem_minmax(0,1fr)]">
       <div class="grid grid-cols-3 gap-2 lg:grid-cols-1">
         <div
@@ -28,7 +73,7 @@
           </p>
         </div>
       </div>
-      <TokenUsageTrend :trend-data="trend" :loading="loading" height-class="h-80" />
+      <AccountStabilityUsageChart :trend-data="trend" :loading="loading" height-class="h-80" />
     </div>
   </section>
 </template>
@@ -38,12 +83,13 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
+import AccountStabilityUsageChart from '@/components/account/AccountStabilityUsageChart.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
-import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import { useAppStore } from '@/stores/app'
 import type { TrendDataPoint } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { cacheReadTokenPercent, cacheRequestHitPercent, formatCachePercent, formatRateFraction } from '@/utils/cacheReadRates'
 
 const props = defineProps<{
   accountId: number
@@ -81,6 +127,19 @@ function formatCost(value: number | undefined | null): string {
   if (safe >= 0.01) return safe.toFixed(3)
   return safe.toFixed(4)
 }
+
+const requestRate = computed(() =>
+  cacheRequestHitPercent(stats.value?.cache_hit_requests, stats.value?.total_requests)
+)
+const tokenRatio = computed(() =>
+  cacheReadTokenPercent(stats.value?.total_cache_read_tokens, stats.value?.total_tokens)
+)
+const requestFraction = computed(() =>
+  formatRateFraction(stats.value?.cache_hit_requests, stats.value?.total_requests)
+)
+const tokenFraction = computed(() =>
+  formatRateFraction(stats.value?.total_cache_read_tokens, stats.value?.total_tokens)
+)
 
 const costCards = computed(() => [
   {
