@@ -1,3 +1,15 @@
+## 2026-10-09 - ops: record production deploy of v0.1.313
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.313` (revision `b67121d4c`, digest `sha256:9625facd24475ae8c1effc82e125b96a3057850e25ca86d5fa140235a5219f10`). Release run `37953534131`. VERSION sync `e0be5bc71`. Preflight passed. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.312` digest `sha256:77a7dc9f0d5cbde3ce9523b183d41b240a3cc1b12c6848c7302637c594f9a1ea`.
+
+### Why
+Record the verified cutover of New API wallet reuse, gateway-timeout ops labels, and the stability cache-rate percentages.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-09 - fix: gateway-imposed timeouts are not upstream errors
 
 ### What
