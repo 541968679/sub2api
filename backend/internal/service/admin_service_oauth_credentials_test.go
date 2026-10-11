@@ -66,3 +66,22 @@ func TestPreserveOAuthSecretCredentialsKeepsIncomingTokens(t *testing.T) {
 	require.Equal(t, "old-rt", out["refresh_token"])
 	require.Equal(t, "plus", out["plan_type"])
 }
+
+func TestPreserveOAuthSecretCredentialsKeepsTokenRhythmSession(t *testing.T) {
+	t.Parallel()
+
+	out := preserveOAuthSecretCredentials(
+		map[string]any{
+			"api_key":                    "sk_tr_old",
+			"tokenrhythm_session_token":  "sess_old",
+			"tokenrhythm_refresh_token":  "rf_old",
+		},
+		map[string]any{
+			"api_key": "sk_tr_new",
+			"base_url": "https://tokenrhythm.studio",
+		},
+	)
+	require.Equal(t, "sk_tr_new", out["api_key"])
+	require.Equal(t, "sess_old", out["tokenrhythm_session_token"])
+	require.Equal(t, "rf_old", out["tokenrhythm_refresh_token"])
+}

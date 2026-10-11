@@ -1336,6 +1336,8 @@ export interface AccountUsageInfo {
   balance_subscription_usd?: number | null
   balance_updated_at?: string | null
   balance_source?: string
+  /** CNY for a Token Rhythm wallet snapshot. Empty means the balance figures are USD. */
+  balance_currency?: string
   balance_error?: string
   /** New API unlimited_quota tokens */
   balance_unlimited?: boolean
@@ -1346,7 +1348,7 @@ export interface AccountUsageInfo {
 
   /** Burn-rate / remaining-time prediction. */
   burn_rate_per_hour?: number | null
-  /** usd | percent | fleet_units */
+  /** usd | cny | percent | fleet_units */
   burn_rate_unit?: string
   burn_eta_seconds?: number | null
   burn_sample_count?: number

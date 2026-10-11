@@ -257,7 +257,9 @@ type UsageInfo struct {
 	BalanceSubscriptionUSD *float64   `json:"balance_subscription_usd,omitempty"`
 	BalanceUpdatedAt       *time.Time `json:"balance_updated_at,omitempty"`
 	BalanceSource          string     `json:"balance_source,omitempty"`
-	BalanceError           string     `json:"balance_error,omitempty"`
+	// BalanceCurrency is CNY for Token Rhythm wallet probes. Empty means USD.
+	BalanceCurrency string `json:"balance_currency,omitempty"`
+	BalanceError    string `json:"balance_error,omitempty"`
 	// BalanceUnlimited is true for New API tokens with unlimited_quota.
 	BalanceUnlimited bool `json:"balance_unlimited,omitempty"`
 	// BalanceUsedUSD is spent amount (auto from upstream and/or last display value).
@@ -682,7 +684,11 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 
 	// Append balance sample only after a successful probe of a finite balance.
 	// Unlimited tokens skip burn-rate sampling (no meaningful remaining).
-	samples := ParseBurnSamplesFromExtra(account.Extra, burnKindBalanceUSD)
+	sampleKind := burnKindBalanceUSD
+	if strings.EqualFold(strings.TrimSpace(usage.BalanceCurrency), "CNY") {
+		sampleKind = burnKindBalanceCNY
+	}
+	samples := ParseBurnSamplesFromExtra(account.Extra, sampleKind)
 	if probedOK && usage.BalanceUSD != nil && !usage.BalanceUnlimited {
 		sampleT := now
 		if usage.BalanceUpdatedAt != nil {
@@ -691,9 +697,9 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 		samples = AppendBurnSample(samples, BurnSample{
 			T:    sampleT,
 			V:    *usage.BalanceUSD,
-			Kind: burnKindBalanceUSD,
+			Kind: sampleKind,
 		}, burnSampleRingMax)
-		serialized := SerializeBurnSamples(mergeBurnSamplesByKind(account.Extra, samples, burnKindBalanceUSD))
+		serialized := SerializeBurnSamples(mergeBurnSamplesByKind(account.Extra, samples, sampleKind))
 		if s.accountRepo != nil {
 			if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
 				extraKeyBurnSamples: serialized,
@@ -707,7 +713,11 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 		account.Extra[extraKeyBurnSamples] = serialized
 	}
 	if !usage.BalanceUnlimited && (usage.BalanceUSD != nil || len(samples) > 0) {
-		ApplyBurnRateToUsage(usage, ComputeBurnRate(samples, now, burnRateMinSpan), "usd")
+		unit := "usd"
+		if strings.EqualFold(strings.TrimSpace(usage.BalanceCurrency), "CNY") {
+			unit = "cny"
+		}
+		ApplyBurnRateToUsage(usage, ComputeBurnRate(samples, now, burnRateMinSpan), unit)
 	}
 
 	// Optional local today stats for API key cells.
@@ -757,6 +767,9 @@ func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
 	}
 	if src, ok := account.Extra[extraKeyUpstreamBalanceSrc].(string); ok {
 		usage.BalanceSource = src
+	}
+	if currency, ok := account.Extra[extraKeyUpstreamBalanceCurrency].(string); ok {
+		usage.BalanceCurrency = strings.ToUpper(strings.TrimSpace(currency))
 	}
 	if errStr, ok := account.Extra[extraKeyUpstreamBalanceErr].(string); ok && errStr != "" {
 		usage.BalanceError = errStr
@@ -810,6 +823,7 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 	updates[extraKeyUpstreamBalanceUSD] = probe.BalanceUSD
 	updates[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
 	updates[extraKeyUpstreamBalanceSrc] = probe.Source
+	updates[extraKeyUpstreamBalanceCurrency] = strings.ToUpper(strings.TrimSpace(probe.Currency))
 	updates[extraKeyUpstreamBalanceErr] = ""
 	updates[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
 	if probe.HasUsed {
@@ -825,6 +839,7 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 		account.Extra[extraKeyUpstreamBalanceUSD] = probe.BalanceUSD
 		account.Extra[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
 		account.Extra[extraKeyUpstreamBalanceSrc] = probe.Source
+		account.Extra[extraKeyUpstreamBalanceCurrency] = strings.ToUpper(strings.TrimSpace(probe.Currency))
 		account.Extra[extraKeyUpstreamBalanceErr] = ""
 		account.Extra[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
 		if probe.HasUsed {
@@ -862,6 +877,7 @@ func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
 		t := probe.FetchedAt
 		usage.BalanceUpdatedAt = &t
 		usage.BalanceSource = probe.Source
+		usage.BalanceCurrency = strings.ToUpper(strings.TrimSpace(probe.Currency))
 		usage.BalanceUnlimited = probe.Unlimited
 		usage.BalanceError = ""
 		if probe.HasUsed {

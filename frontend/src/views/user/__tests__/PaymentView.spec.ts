@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
+import { ONLINE_PAYMENT_CHECKOUT_HIDDEN } from '../paymentCheckoutMode'
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -434,5 +435,31 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toContain('weixin://wxpay/bizpayurl?pr=fallback-native')
+  })
+})
+
+describe('PaymentView card shop replacement', () => {
+  beforeEach(() => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
+    window.localStorage.clear()
+  })
+
+  it.skipIf(!ONLINE_PAYMENT_CHECKOUT_HIDDEN)('hides online checkout and shows the card shop redeem panel', async () => {
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.html()).toContain('card-shop-redeem-panel')
+    expect(wrapper.html()).not.toContain('payment-method-selector')
+    expect(wrapper.html()).not.toContain('amount-input')
   })
 })

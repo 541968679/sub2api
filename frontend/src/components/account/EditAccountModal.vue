@@ -2895,6 +2895,7 @@ import {
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
+import { parseAPIKeyImport, platformDefaultAPIKeyBaseURL, resolveAPIKeyImportBaseURL } from '@/components/account/apikeyBatchParse'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
@@ -4488,10 +4489,26 @@ const handleSubmit = async () => {
         base_url: newBaseUrl
       }
 
-      // Handle API key
+      // Handle API key. A plain key keeps the saved session. A bundle replaces the key and any session it carries.
       if (editApiKey.value.trim()) {
-        // User provided a new API key
-        newCredentials.api_key = editApiKey.value.trim()
+        const parsed = parseAPIKeyImport(editApiKey.value)
+        if (parsed.entries.length !== 1 || parsed.errors.length > 0) {
+          appStore.showError(t('admin.accounts.apiKeyBatch.editOneOnly'))
+          return
+        }
+        const entry = parsed.entries[0]
+        newCredentials.api_key = entry.apiKey
+        if (entry.sessionToken) {
+          newCredentials.tokenrhythm_session_token = entry.sessionToken
+          newCredentials.base_url = resolveAPIKeyImportBaseURL(
+            editBaseUrl.value,
+            platformDefaultAPIKeyBaseURL(props.account.platform),
+            true
+          )
+        }
+        if (entry.refreshToken) {
+          newCredentials.tokenrhythm_refresh_token = entry.refreshToken
+        }
       } else if (currentCredentials.api_key) {
         // Preserve existing api_key
         newCredentials.api_key = currentCredentials.api_key

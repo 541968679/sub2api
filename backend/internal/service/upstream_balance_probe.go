@@ -29,9 +29,14 @@ const (
 	balanceSourceNewAPIUserSelf = "newapi_user_self"
 	// New API wallet remaining plus GET /api/subscription/self remaining (or subscription-only).
 	balanceSourceNewAPIWalletSubscription = "newapi_wallet_subscription"
+	// Token Rhythm wallet: GET {origin}/api/wallet/summary with the sess_ bearer.
+	// The number is CNY. It is stored in the same balance field the usage window reads.
+	balanceSourceTokenRhythmWallet = "tokenrhythm_wallet"
 
-	credentialKeyNewAPIAccessToken = "newapi_access_token"
-	credentialKeyNewAPIUserID      = "newapi_user_id"
+	credentialKeyNewAPIAccessToken  = "newapi_access_token"
+	credentialKeyNewAPIUserID       = "newapi_user_id"
+	credentialKeyTokenRhythmSession = "tokenrhythm_session_token"
+	credentialKeyTokenRhythmRefresh = "tokenrhythm_refresh_token"
 
 	// Default New API quota unit: 500000 internal units == $1 USD (from /api/status.quota_per_unit).
 	defaultNewAPIQuotaPerUnit = 500000.0
@@ -47,6 +52,8 @@ type UpstreamBalanceResult struct {
 	HasUsed bool
 	// Unlimited is true when the upstream token has unlimited quota (New API).
 	Unlimited bool
+	// Currency is set when the probed number is not USD. Token Rhythm uses CNY.
+	Currency string
 	// WalletUSD / HasWallet are the New API /api/user/self remaining (clamped ≥ 0).
 	WalletUSD float64
 	HasWallet bool
@@ -161,11 +168,13 @@ func originFromBaseURL(baseURL string) string {
 // ProbeUpstreamBalance fetches prepaid-style balance via compatible billing APIs.
 //
 // Probe order:
-//  0. GET {origin}/api/user/self when credentials.newapi_access_token + newapi_user_id are set
-//  1. GET {base}/v1/usage  → balance / remaining (Sub2API / ZeroCode)
-//  2. GET {origin}/api/usage/token → New API token_usage (token-bits / one-api)
-//  3. GET {base}/v1/dashboard/billing/credit_grants
-//  4. subscription + usage (OpenAI-shape hard_limit - spent)
+//
+//	0a. GET {origin}/api/wallet/summary when credentials.tokenrhythm_session_token is set
+//	0. GET {origin}/api/user/self when credentials.newapi_access_token + newapi_user_id are set
+//	1. GET {base}/v1/usage  → balance / remaining (Sub2API / ZeroCode)
+//	2. GET {origin}/api/usage/token → New API token_usage (token-bits / one-api)
+//	3. GET {base}/v1/dashboard/billing/credit_grants
+//	4. subscription + usage (OpenAI-shape hard_limit - spent)
 //
 // Official OpenAI/Anthropic hosts skip steps 1–2 first unless step 0 applies.
 func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalanceResult {
@@ -181,7 +190,8 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 	}
 
 	apiKey := strings.TrimSpace(account.GetCredential("api_key"))
-	if apiKey == "" {
+	sessionToken := strings.TrimSpace(account.GetCredential(credentialKeyTokenRhythmSession))
+	if apiKey == "" && sessionToken == "" {
 		result.Error = "missing api_key"
 		return result
 	}
@@ -215,6 +225,15 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 			result.Error = result.Error + "; " + probeErr
 		} else {
 			result.Error = probeErr
+		}
+	}
+
+	if sessionToken != "" {
+		if wallet, ok, probeErr := fetchTokenRhythmWallet(ctx, client, sessionToken, baseURL); ok {
+			wallet.FetchedAt = result.FetchedAt
+			return wallet
+		} else {
+			appendErr(probeErr)
 		}
 	}
 
@@ -838,6 +857,92 @@ func fetchSubscriptionUsageBalance(ctx context.Context, client *http.Client, acc
 	}
 	balance = hardLimit - used
 	return balance, used, true, true, ""
+}
+
+func fetchTokenRhythmWallet(ctx context.Context, client *http.Client, sessionToken, baseURL string) (UpstreamBalanceResult, bool, string) {
+	origin := originFromBaseURL(baseURL)
+	if origin == "" {
+		return UpstreamBalanceResult{}, false, "tokenrhythm wallet: missing base_url"
+	}
+	body, status, err := doBalanceGETBearer(ctx, client, sessionToken, origin+"/api/wallet/summary")
+	if err != nil {
+		return UpstreamBalanceResult{}, false, "tokenrhythm wallet: " + err.Error()
+	}
+	if status != http.StatusOK {
+		return UpstreamBalanceResult{}, false, fmt.Sprintf("tokenrhythm wallet status %d", status)
+	}
+	if looksLikeHTML(body) {
+		return UpstreamBalanceResult{}, false, "tokenrhythm wallet returned HTML"
+	}
+	available, currency, ok, probeErr := parseTokenRhythmBalance(body, "availableBalanceCny")
+	if !ok {
+		return UpstreamBalanceResult{}, false, probeErr
+	}
+	result := UpstreamBalanceResult{
+		BalanceUSD: available,
+		Currency:   currency,
+		Source:     balanceSourceTokenRhythmWallet,
+	}
+	if usedBody, usedStatus, usedErr := doBalanceGETBearer(ctx, client, sessionToken, origin+"/api/usage-summary"); usedErr == nil && usedStatus == http.StatusOK && !looksLikeHTML(usedBody) {
+		if used, _, usedOK, _ := parseTokenRhythmBalance(usedBody, "costCny"); usedOK {
+			result.UsedUSD = used
+			result.HasUsed = true
+		}
+	}
+	return result, true, ""
+}
+
+func parseTokenRhythmBalance(body []byte, amountField string) (amount float64, currency string, ok bool, errMsg string) {
+	var raw struct {
+		Code    int             `json:"code"`
+		Data    json.RawMessage `json:"data"`
+		Message string          `json:"message"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return 0, "", false, "tokenrhythm wallet decode failed"
+	}
+	if raw.Code != 0 {
+		msg := strings.TrimSpace(raw.Message)
+		if msg == "" {
+			msg = "tokenrhythm wallet rejected"
+		}
+		return 0, "", false, truncateForErr([]byte(msg), 160)
+	}
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(raw.Data, &data); err != nil {
+		return 0, "", false, "tokenrhythm wallet decode failed"
+	}
+	amount, amountOK := parseLooseFloat(data[amountField])
+	if !amountOK {
+		return 0, "", false, "tokenrhythm wallet: balance missing"
+	}
+	if currencyRaw, exists := data["currency"]; exists {
+		_ = json.Unmarshal(currencyRaw, &currency)
+	}
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		currency = "CNY"
+	}
+	return amount, currency, true, ""
+}
+
+func parseLooseFloat(raw json.RawMessage) (float64, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, false
+	}
+	var n float64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, false
+	}
+	n, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 func doBalanceGET(ctx context.Context, client *http.Client, account *Account, apiKey, url string) ([]byte, int, error) {

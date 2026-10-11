@@ -108,6 +108,7 @@ import {
   hasSchedulePnlWindow,
   isOauthAccountType,
   oauthSevenDayQuota,
+  pairAccountBalanceCurrency,
   pairAccountBalanceUpdatedAt,
   pairAccountBalanceUsd,
   supportsPairBalanceProbe
@@ -132,8 +133,13 @@ const oauthQuota = computed(() => oauthSevenDayQuota(props.account))
 const hasToday = computed(() => hasSchedulePnlWindow(props.summary?.today))
 const canProbeBalance = computed(() => supportsPairBalanceProbe(props.account))
 const balanceUsd = computed(() => (isOauth.value ? null : pairAccountBalanceUsd(props.account)))
+const balanceCurrency = computed(() => pairAccountBalanceCurrency(props.account))
 const showBody = computed(() => hasToday.value || isOauth.value || balanceUsd.value != null || canProbeBalance.value)
-const balanceText = computed(() => formatSchedulePnlUsdPlain(balanceUsd.value))
+const balanceText = computed(() => {
+  const text = formatSchedulePnlUsdPlain(balanceUsd.value)
+  if (balanceCurrency.value === 'CNY' && text.startsWith('$')) return `¥${text.slice(1)}`
+  return text
+})
 const updatedText = computed(() => {
   const at = pairAccountBalanceUpdatedAt(props.account)
   if (!at) return t('admin.users.schedulePnl.balanceNeverUpdated')
@@ -149,9 +155,10 @@ const marginClass = computed(() => {
     ? 'text-emerald-600 dark:text-emerald-400'
     : 'text-red-600 dark:text-red-400'
 })
-const burnCompare = computed(() =>
-  isOauth.value ? null : compareBalanceBurnToCost(props.account, props.todayStats?.cost)
-)
+const burnCompare = computed(() => {
+  if (isOauth.value || balanceCurrency.value === 'CNY') return null
+  return compareBalanceBurnToCost(props.account, props.todayStats?.cost)
+})
 const burnLine = computed(() => {
   const cmp = burnCompare.value
   if (!cmp) return ''

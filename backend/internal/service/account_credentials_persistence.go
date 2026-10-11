@@ -76,12 +76,15 @@ var oauthSecretCredentialKeys = []string{
 	"agent_runtime_id",
 	"agent_private_key",
 	"task_id",
+	"tokenrhythm_session_token",
+	"tokenrhythm_refresh_token",
 }
 
 func IsSensitiveCredentialKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
 	case "access_token", "refresh_token", "id_token", "chatgpt_session_token",
-		"agent_private_key", "api_key", "session_key", "cookie":
+		"agent_private_key", "api_key", "session_key", "cookie",
+		"tokenrhythm_session_token", "tokenrhythm_refresh_token":
 		return true
 	default:
 		return false

@@ -779,3 +779,48 @@ func TestProbeUpstreamBalance_NewAPIUserSelfUnauthorizedFallsBack(t *testing.T) 
 	require.Equal(t, 0.0, result.BalanceUSD)
 	require.NotContains(t, result.Error, walletTok)
 }
+
+func TestProbeUpstreamBalance_TokenRhythmSession(t *testing.T) {
+	t.Parallel()
+	const session = "sess_test_token"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "Bearer "+session, r.Header.Get("Authorization"))
+		switch r.URL.Path {
+		case "/api/wallet/summary":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0,
+				"data": map[string]any{
+					"currency":            "CNY",
+					"availableBalanceCny": "75.99990100",
+				},
+			})
+		case "/api/usage-summary":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0,
+				"data": map[string]any{"costCny": "0.00009900", "currency": "CNY"},
+			})
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":                       "sk_tr_test",
+			"base_url":                      srv.URL + "/v1",
+			credentialKeyTokenRhythmSession: session,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error)
+	require.Equal(t, balanceSourceTokenRhythmWallet, result.Source)
+	require.Equal(t, "CNY", result.Currency)
+	require.InDelta(t, 75.999901, result.BalanceUSD, 0.000001)
+	require.True(t, result.HasUsed)
+	require.InDelta(t, 0.000099, result.UsedUSD, 0.0000001)
+	require.NotContains(t, result.Error, session)
+}

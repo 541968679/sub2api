@@ -20,17 +20,37 @@
         class="whitespace-pre-line font-semibold leading-8 text-lg sm:text-xl"
         :class="title ? 'mt-1.5' : ''"
       >
-        {{ text }}
+        <template v-if="linkify">
+          <template v-for="(part, index) in linkedParts" :key="index">
+            <a
+              v-if="part.href"
+              :href="part.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="break-all underline decoration-emerald-400/80 underline-offset-4 hover:decoration-emerald-700"
+            >{{ part.text }}</a>
+            <template v-else>{{ part.text }}</template>
+          </template>
+        </template>
+        <template v-else>{{ text }}</template>
       </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
+import { linkifyHttpText } from '@/utils/httpTextLinks'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   text: string
   title?: string
-}>()
+  /** Turn the first safe http(s) URLs into links. Plain text stays escaped. */
+  linkify?: boolean
+}>(), {
+  linkify: false,
+})
+
+const linkedParts = computed(() => linkifyHttpText(props.text))
 </script>

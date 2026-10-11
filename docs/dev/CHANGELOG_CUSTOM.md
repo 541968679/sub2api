@@ -1,17 +1,26 @@
-## 2026-10-11 - feat: split domestic groups out of the OpenAI account filter
+## 2026-10-11 - feat: replace in-app checkout with card-shop redeem
 
 ### What
-- On the account list, choosing the OpenAI platform shows a second group dropdown that only lists domestic-model groups (国产 / 国模 / Kimi / GLM / DeepSeek / Qwen, and the same vendors on a dedicated platform).
-- The original group dropdown keeps GPT and other groups. Both dropdowns still write the same group filter. Other platforms keep the single dropdown.
+- `/purchase` hides amount, payment method, bonus tiers, subscription checkout, and create-order while `ONLINE_PAYMENT_CHECKOUT_HIDDEN` is true.
+- That page now shows balance, active subscriptions, a card-shop button, and on-page redeem. The button uses the first http(s) link in the purchase-page notice. The redeem page uses the same button for its buy notice.
+- An in-progress WeChat return still opens the existing payment status panel. Set the constant to false to restore in-app checkout.
 
 ### Why
-Domestic OpenAI groups sorted to the bottom of the one group dropdown, so picking Kimi or GLM meant scrolling past every GPT group.
+The live payment provider is paused and customers buy redeem codes on the card shop. The old checkout buttons were still on the page.
 
 ### Affected files
-`frontend/src/components/admin/account/AccountTableFilters.vue`,
-`frontend/src/utils/domesticAccountGroups.ts`,
+`frontend/src/views/user/paymentCheckoutMode.ts`,
+`frontend/src/views/user/PaymentView.vue`,
+`frontend/src/views/user/RedeemView.vue`,
+`frontend/src/components/user/CardShopRedeemPanel.vue`,
+`frontend/src/components/user/CardShopBuyCard.vue`,
+`frontend/src/components/user/InlineRedeemCard.vue`,
+`frontend/src/components/common/SoftNoticeBanner.vue`,
+`frontend/src/utils/httpTextLinks.ts`,
 `frontend/src/i18n/locales/zh.ts`,
 `frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/payment.md`,
+`docs/dev/codebase/redeem.md`,
 this changelog.
 
 ## 2026-10-11 - fix: hide upstream completion ids on raw Chat Completions
@@ -29,6 +38,48 @@ K3 self-hosted responses were forwarding quarkmux completion ids, so clients cou
 `backend/internal/service/openai_gateway_chat_completions_raw.go`,
 `backend/internal/service/openai_gateway_chat_completions_passthrough.go`,
 `docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-10-11 - feat: split domestic groups out of the OpenAI account filter
+
+### What
+- On the account list, choosing the OpenAI platform shows a second group dropdown that only lists domestic-model groups (国产 / 国模 / Kimi / GLM / DeepSeek / Qwen, and the same vendors on a dedicated platform).
+- The original group dropdown keeps GPT and other groups. Both dropdowns still write the same group filter. Other platforms keep the single dropdown.
+
+### Why
+Domestic OpenAI groups sorted to the bottom of the one group dropdown, so picking Kimi or GLM meant scrolling past every GPT group.
+
+### Affected files
+`frontend/src/components/admin/account/AccountTableFilters.vue`,
+`frontend/src/utils/domesticAccountGroups.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-10-10 - feat: batch-create API keys and show Token Rhythm CNY balance
+
+### What
+- The add-account API key field accepts one account per line. A plain key stays one account. A `----` or `|` line can carry a session, a key, an optional refresh token, and a numeric hint. The hint is not the balance. More than one line creates that many accounts through the existing batch API, 20 at a time, named from the typed prefix plus the key tail.
+- A session is stored on that account and the usage window probes `tokenrhythm` wallet balance. The amount is CNY: the cell shows `¥`, and the smart-schedule profit cell does not compare it with USD cost. A plain key edit keeps a saved session.
+
+### Why
+Bulk vendor credentials were one-by-one, and the pasted trailing number was a stale hint. Each key remains its own account so scheduling, concurrency, and usage stay on the current path.
+
+### Affected files
+`frontend/src/components/account/apikeyBatchParse.ts`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`frontend/src/components/admin/user/SmartSchedulePnlCell.vue`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/types/index.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_credentials_persistence.go`,
+`backend/internal/service/burn_rate.go`,
+`docs/dev/codebase/account.md`,
 this changelog.
 
 ## 2026-10-09 - ops: record production deploy of v0.1.313

@@ -1579,4 +1579,37 @@ describe('AccountUsageCell', () => {
     expect(getUsage).toHaveBeenCalledWith(1774)
     expect(wrapper.get('[data-testid="account-balance-display"]').text()).toContain('5.00')
   })
+
+  it('shows a CNY balance with a yuan sign and does not fall back to dollars', async () => {
+    getUsage.mockResolvedValue({
+      balance_usd: 9.5,
+      balance_currency: 'CNY',
+      balance_unlimited: false,
+      burn_rate_per_hour: 1.2,
+      burn_rate_unit: 'cny',
+      burn_insufficient: false
+    })
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9101,
+          platform: 'openai',
+          type: 'apikey',
+          extra: { upstream_balance_currency: 'CNY', upstream_balance_usd: 9.5 }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+    const hero = wrapper.get('[data-testid="account-balance-display"]').text()
+    expect(hero).toContain('¥9.50')
+    expect(hero).not.toContain('$')
+    expect(wrapper.text()).toContain('burnRateCny')
+  })
 })

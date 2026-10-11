@@ -1,10 +1,10 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-2xl space-y-6">
-      <SoftNoticeBanner
+      <CardShopBuyCard
         v-if="buyNotice"
-        :title="t('redeem.buyNoticeTitle')"
-        :text="buyNotice"
+        :notice="buyNotice"
+        :notice-title="t('redeem.buyNoticeTitle')"
       />
 
       <!-- Current Balance Card -->
@@ -356,7 +356,7 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem, type RedeemResult } from '@/api'
 import { redeemPageAPI } from '@/api/redeemPage'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import SoftNoticeBanner from '@/components/common/SoftNoticeBanner.vue'
+import CardShopBuyCard from '@/components/user/CardShopBuyCard.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 

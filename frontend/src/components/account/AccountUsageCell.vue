@@ -1718,6 +1718,20 @@ function formatBalanceUSD(value: number): string {
   return value.toFixed(2)
 }
 
+const balanceCurrency = computed(() => {
+  const fromUsage = usageInfo.value?.balance_currency?.trim().toUpperCase()
+  if (fromUsage) return fromUsage
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const fromExtra = extra?.upstream_balance_currency
+  return typeof fromExtra === 'string' ? fromExtra.trim().toUpperCase() : ''
+})
+
+const balanceSymbol = computed(() => (balanceCurrency.value === 'CNY' ? '¥' : '$'))
+
+function formatBalanceAmount(value: number): string {
+  return `${balanceSymbol.value}${formatBalanceUSD(value)}`
+}
+
 const showBalanceEditor = ref(false)
 const editUsedInput = ref('')
 const editTotalInput = ref('')
@@ -1758,12 +1772,12 @@ const balanceHeroText = computed(() => {
 
   // Preferred: used / total (display-only prepaid package).
   if (used != null && total != null) {
-    return `$${formatBalanceUSD(used)} / $${formatBalanceUSD(total)}`
+    return `${formatBalanceAmount(used)} / ${formatBalanceAmount(total)}`
   }
   // Unlimited upstream: never show "无限" alone — fall back to used.
   if (info?.balance_unlimited) {
     if (used != null) {
-      return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceUSD(used) })
+      return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceAmount(used) })
     }
     return t('admin.accounts.usageWindow.balanceUnlimitedNoUsed')
   }
@@ -1771,12 +1785,12 @@ const balanceHeroText = computed(() => {
   if (info?.balance_usd != null) {
     if (used != null && total == null) {
       // Optional: show remaining with used hint in title only.
-      return `$${formatBalanceUSD(info.balance_usd)}`
+      return formatBalanceAmount(info.balance_usd)
     }
-    return `$${formatBalanceUSD(info.balance_usd)}`
+    return formatBalanceAmount(info.balance_usd)
   }
   if (used != null) {
-    return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceUSD(used) })
+    return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceAmount(used) })
   }
   if (info?.balance_error) {
     return t('admin.accounts.usageWindow.balanceUnavailable')
@@ -1944,6 +1958,10 @@ const burnRateLine = computed(() => {
     ratePart = t('admin.accounts.usageWindow.burnRateUsd', {
       rate: formatBalanceUSD(rate)
     })
+  } else if (unit === 'cny') {
+    ratePart = t('admin.accounts.usageWindow.burnRateCny', {
+      rate: formatBalanceUSD(rate)
+    })
   } else if (unit === 'percent') {
     ratePart = t('admin.accounts.usageWindow.burnRatePercent', {
       rate: rate >= 10 ? rate.toFixed(0) : rate.toFixed(1)
@@ -1974,10 +1992,10 @@ const balanceTitle = computed(() => {
   }
   const used = effectiveUsedUSD.value
   const total = effectiveTotalUSD.value
-  if (used != null) parts.push(`${t('admin.accounts.usageWindow.usedLabel')}=$${formatBalanceUSD(used)}`)
-  if (total != null) parts.push(`${t('admin.accounts.usageWindow.totalLabel')}=$${formatBalanceUSD(total)}`)
+  if (used != null) parts.push(`${t('admin.accounts.usageWindow.usedLabel')}=${formatBalanceAmount(used)}`)
+  if (total != null) parts.push(`${t('admin.accounts.usageWindow.totalLabel')}=${formatBalanceAmount(total)}`)
   if (info.balance_usd != null && !info.balance_unlimited) {
-    parts.push(`${t('admin.accounts.usageWindow.remainingLabel')}=$${formatBalanceUSD(info.balance_usd)}`)
+    parts.push(`${t('admin.accounts.usageWindow.remainingLabel')}=${formatBalanceAmount(info.balance_usd)}`)
   }
   if (info.balance_error) parts.push(info.balance_error)
   return parts.join(' · ')

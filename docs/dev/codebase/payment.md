@@ -42,6 +42,12 @@ PaymentView
 
 前台只展示 `alipay`、`wxpay`、`stripe` 等可见方式。`alipay` 和 `wxpay` 会通过设置项 `payment_visible_method_*_source` 路由到官方 provider 或 EasyPay provider。不要让前端直接暴露 `official_*` 来源。
 
+## 用户充值页暂时走卡网
+
+`frontend/src/views/user/paymentCheckoutMode.ts` 的 `ONLINE_PAYMENT_CHECKOUT_HIDDEN` 为 `true` 时，`/purchase` 不渲染金额、支付方式、赠送档位、订阅下单和「创建订单」。页面改为 `CardShopRedeemPanel`：余额、当前订阅、卡网购买、本页兑换。
+
+卡网地址不写死。购买按钮取自 `purchase_page.notice`（兑换页取 `redeem_page.buy_notice`）里的第一个 `http(s)` 链接，只接受无账号密码的 http/https。公告仍由「页面内容 → 充值订阅页 / 兑换页」编辑。进行中的微信回跳仍走原来的支付状态面板。把常量改回 `false` 即恢复站内下单。
+
 ## 重要机制
 
 - 微信官方支付按场景分流：有 OpenID 时走 JSAPI；移动端无 OpenID 时先走 H5；桌面端走 Native 二维码。

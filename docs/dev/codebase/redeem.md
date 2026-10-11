@@ -20,6 +20,8 @@
 - `frontend/src/views/admin/RedeemView.vue`
 - `frontend/src/api/admin/redeem.ts`
 - `frontend/src/api/redeem.ts`
+- `frontend/src/components/user/CardShopRedeemPanel.vue` — `/purchase` while in-app checkout is hidden
+- `frontend/src/components/user/CardShopBuyCard.vue` — card-shop button from the redeem-page notice
 
 ## Core Flow
 

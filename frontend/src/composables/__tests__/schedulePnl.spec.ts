@@ -11,6 +11,7 @@ import {
   isOauthAccountType,
   oauthSevenDayQuota,
   applyUsageBalanceToAccountExtra,
+  pairAccountBalanceCurrency,
   pairAccountBalanceUsd,
   pairAccountSubscriptionUsd,
   pairAccountWalletUsd,
@@ -132,6 +133,39 @@ describe('schedulePnl formatters', () => {
     expect(compareBalanceBurnToCost(account, 12, now)?.status).toBe('mismatch')
     expect(compareBalanceBurnToCost({ extra: { burn_samples: samples } }, 120, now)).toBeNull()
     expect(compareBalanceBurnToCost(account, null, now)).toBeNull()
+    expect(
+      compareBalanceBurnToCost(
+        { extra: { upstream_balance_usd: 80, upstream_balance_currency: 'CNY', burn_samples: samples } },
+        120,
+        now
+      )
+    ).toBeNull()
+  })
+
+  it('copies CNY balance currency and clears a stale currency only after a sourced snapshot', () => {
+    expect(pairAccountBalanceCurrency({ extra: { upstream_balance_currency: 'cny' } })).toBe('CNY')
+    expect(
+      applyUsageBalanceToAccountExtra(
+        { upstream_balance_currency: 'CNY', burn_samples: [] },
+        {
+          balance_usd: 70,
+          balance_currency: 'CNY',
+          balance_source: 'tokenrhythm_wallet'
+        }
+      ).upstream_balance_currency
+    ).toBe('CNY')
+    expect(
+      applyUsageBalanceToAccountExtra(
+        { upstream_balance_currency: 'CNY' },
+        { balance_usd: 4, balance_source: 'sub2api_usage' }
+      ).upstream_balance_currency
+    ).toBeUndefined()
+    expect(
+      applyUsageBalanceToAccountExtra(
+        { upstream_balance_currency: 'CNY', burn_samples: [] },
+        { balance_usd: 12.5 }
+      ).upstream_balance_currency
+    ).toBe('CNY')
   })
 
   it('reads oauth 7-day quota from cached extra only', () => {

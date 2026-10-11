@@ -20,6 +20,10 @@
             @settled="onPaymentSettled"
           />
         </template>
+        <CardShopRedeemPanel
+          v-else-if="onlineCheckoutHidden"
+          :notice="purchaseNotice"
+        />
         <template v-else>
           <div
             v-if="tabs.length > 1"
@@ -431,7 +435,9 @@ import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import SoftNoticeBanner from '@/components/common/SoftNoticeBanner.vue'
 import InlineRedeemCard from '@/components/user/InlineRedeemCard.vue'
+import CardShopRedeemPanel from '@/components/user/CardShopRedeemPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { ONLINE_PAYMENT_CHECKOUT_HIDDEN as onlineCheckoutHidden } from './paymentCheckoutMode'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'

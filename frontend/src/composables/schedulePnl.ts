@@ -133,6 +133,12 @@ export function supportsPairBalanceProbe(account: unknown): boolean {
   return rec.platform === 'openai' || rec.platform === 'anthropic'
 }
 
+export function pairAccountBalanceCurrency(account: unknown): string {
+  const extra = accountExtra(account)
+  const raw = extra?.upstream_balance_currency
+  return typeof raw === 'string' ? raw.trim().toUpperCase() : ''
+}
+
 export function pairAccountBalanceUpdatedAt(account: unknown): Date | null {
   const extra = accountExtra(account)
   return extra ? parseIsoTime(extra.upstream_balance_at) : null
@@ -154,6 +160,7 @@ export function applyUsageBalanceToAccountExtra(
     balance_subscription_usd?: number | null
     balance_updated_at?: string | null
     balance_source?: string
+    balance_currency?: string
     balance_error?: string
     balance_unlimited?: boolean
     balance_used_usd?: number | null
@@ -163,6 +170,12 @@ export function applyUsageBalanceToAccountExtra(
   if (usage.balance_usd != null) next.upstream_balance_usd = usage.balance_usd
   if (usage.balance_updated_at) next.upstream_balance_at = usage.balance_updated_at
   if (usage.balance_source != null) next.upstream_balance_source = usage.balance_source
+  const currency = usage.balance_currency?.trim().toUpperCase()
+  if (currency) {
+    next.upstream_balance_currency = currency
+  } else if (usage.balance_source) {
+    delete next.upstream_balance_currency
+  }
   if (usage.balance_error != null) next.upstream_balance_error = usage.balance_error
   if (usage.balance_unlimited != null) next.upstream_balance_unlimited = usage.balance_unlimited
   if (usage.balance_used_usd != null) {
@@ -298,6 +311,7 @@ export function compareBalanceBurnToCost(
   todayCost: number | null | undefined,
   now = new Date()
 ): BalanceCostBurnCompare | null {
+  if (pairAccountBalanceCurrency(account) === 'CNY') return null
   if (pairAccountBalanceUsd(account) == null) return null
   const extra = account && typeof account === 'object' ? (account as { extra?: unknown }).extra : null
   const balanceRate = computeBalanceBurnPerHour(parseBalanceBurnSamples(extra))

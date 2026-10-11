@@ -15,6 +15,7 @@ const (
 	burnRateZeroEpsilon     = 1e-9
 
 	burnKindBalanceUSD            = "balance_usd"
+	burnKindBalanceCNY            = "balance_cny"
 	burnKindOAuth7dRemainingPct   = "oauth_7d_remaining_pct"
 	burnKindFleet7dRemainingUnits = "fleet_7d_remaining_units"
 
@@ -23,6 +24,7 @@ const (
 	extraKeyUpstreamBalanceAt              = "upstream_balance_at"
 	extraKeyUpstreamBalanceErr             = "upstream_balance_error"
 	extraKeyUpstreamBalanceSrc             = "upstream_balance_source"
+	extraKeyUpstreamBalanceCurrency        = "upstream_balance_currency"
 	extraKeyUpstreamBalanceWalletUSD       = "upstream_balance_wallet_usd"
 	extraKeyUpstreamBalanceSubscriptionUSD = "upstream_balance_subscription_usd"
 	// Display-only fields (never affect scheduling / admission).

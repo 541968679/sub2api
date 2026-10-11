@@ -8,10 +8,10 @@
       </div>
       <div class="min-w-0">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          {{ t('payment.inlineRedeemTitle') }}
+          {{ heading }}
         </h2>
         <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          {{ t('payment.inlineRedeemHint') }}
+          {{ description }}
         </p>
       </div>
     </div>
@@ -80,8 +80,10 @@ const props = withDefaults(
   defineProps<{
     /** Unique id suffix so recharge/subscription tabs do not clash */
     instanceId?: string
+    title?: string
+    hint?: string
   }>(),
-  { instanceId: 'default' }
+  { instanceId: 'default', title: '', hint: '' }
 )
 
 const emit = defineEmits<{
@@ -89,6 +91,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const heading = computed(() => props.title || t('payment.inlineRedeemTitle'))
+const description = computed(() => props.hint || t('payment.inlineRedeemHint'))
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()

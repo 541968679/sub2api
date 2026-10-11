@@ -1359,22 +1359,32 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKeyRequired') }}</label>
-          <input
+          <textarea
             v-model="apiKeyValue"
-            type="password"
+            rows="4"
             required
-            class="input font-mono"
-            :placeholder="
-              form.platform === 'openai'
-                ? 'sk-proj-...'
-                : form.platform === 'gemini'
-                  ? 'AIza...'
-                  : form.platform === 'grok'
-                    ? 'xai-...'
-                    : 'sk-ant-...'
-            "
-          />
-          <p class="input-hint">{{ apiKeyHint }}</p>
+            class="input resize-y font-mono text-sm"
+            :placeholder="t('admin.accounts.apiKeyBatch.placeholder')"
+          ></textarea>
+          <p class="input-hint">{{ apiKeyHint }} {{ t('admin.accounts.apiKeyBatch.hint') }}</p>
+          <p v-if="parsedAPIKeyImport.entries.length > 1" class="mt-1 text-xs text-primary-600 dark:text-primary-400">
+            {{ t('admin.accounts.apiKeyBatch.willCreate', { count: parsedAPIKeyImport.entries.length }) }}
+          </p>
+          <p v-if="apiKeyImportUsesTokenRhythmBase" class="mt-1 text-xs text-primary-600 dark:text-primary-400">
+            {{ t('admin.accounts.apiKeyBatch.sessionBase') }}
+          </p>
+          <p
+            v-for="item in parsedAPIKeyImport.errors"
+            :key="`${item.line}-${item.reason}`"
+            class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+          >
+            {{
+              t('admin.accounts.apiKeyBatch.lineError', {
+                line: item.line,
+                message: t(`admin.accounts.apiKeyBatch.reasons.${item.reason}`)
+              })
+            }}
+          </p>
         </div>
         <NewAPIWalletFields
           v-if="isNewAPIWalletEligible(form.platform, form.type)"
@@ -3902,6 +3912,16 @@ import {
 import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
+import {
+  API_KEY_IMPORT_MAX,
+  applyTokenRhythmCredentials,
+  assignAPIKeyImportNames,
+  parseAPIKeyImport,
+  platformDefaultAPIKeyBaseURL,
+  resolveAPIKeyImportBaseURL,
+  TOKENRHYTHM_ORIGIN,
+  type ParsedAPIKey
+} from '@/components/account/apikeyBatchParse'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
@@ -4054,12 +4074,13 @@ const clearCreateNewAPIWalletFields = () => {
 }
 
 const syncPreviewCredentials = computed(() => {
-  if (!apiKeyValue.value) return undefined
+  const apiKey = parseAPIKeyImport(apiKeyValue.value).entries[0]?.apiKey || ''
+  if (!apiKey) return undefined
   return {
     platform: form.platform,
     type: form.type,
     base_url: apiKeyBaseUrl.value || undefined,
-    api_key: apiKeyValue.value
+    api_key: apiKey
   }
 })
 
@@ -4454,6 +4475,23 @@ const form = reactive({
   group_ids: [] as number[],
   expires_at: null as number | null
 })
+
+const parsedAPIKeyImport = computed(() => parseAPIKeyImport(apiKeyValue.value))
+
+const apiKeyImportUsesTokenRhythmBase = computed(() => {
+  const hasSession = parsedAPIKeyImport.value.entries.some((entry) => Boolean(entry.sessionToken))
+  if (!hasSession) return false
+  return (
+    resolveAPIKeyImportBaseURL(apiKeyBaseUrl.value, platformDefaultAPIKeyBaseURL(form.platform), true) ===
+    TOKENRHYTHM_ORIGIN
+  )
+})
+
+const apiKeyImportLineError = (line: number, reason: string) =>
+  t('admin.accounts.apiKeyBatch.lineError', {
+    line,
+    message: t(`admin.accounts.apiKeyBatch.reasons.${reason}`)
+  })
 
 // Helper to check if current type needs OAuth flow
 const isOAuthFlow = computed(() => {
@@ -5599,49 +5637,59 @@ const handleSubmit = async () => {
     return
   }
 
-  // For apikey type, create directly
-  if (!apiKeyValue.value.trim()) {
-    appStore.showError(t('admin.accounts.pleaseEnterApiKey'))
+  // For apikey type, one parsed line is one account. A bundle stores the key plus session.
+  const parsedImport = parsedAPIKeyImport.value
+  if (parsedImport.entries.length === 0) {
+    const first = parsedImport.errors[0]
+    appStore.showError(
+      first ? apiKeyImportLineError(first.line, first.reason) : t('admin.accounts.pleaseEnterApiKey')
+    )
+    return
+  }
+  if (parsedImport.errors.length > 0) {
+    const first = parsedImport.errors[0]
+    appStore.showError(apiKeyImportLineError(first.line, first.reason))
+    return
+  }
+  if (parsedImport.entries.length > API_KEY_IMPORT_MAX) {
+    appStore.showError(t('admin.accounts.apiKeyBatch.tooMany', { max: API_KEY_IMPORT_MAX }))
+    return
+  }
+  if (parsedImport.entries.length > 1 && !form.name.trim()) {
+    appStore.showError(t('admin.accounts.apiKeyBatch.nameRequired'))
     return
   }
 
-  // Determine default base URL based on platform
-  const defaultBaseUrl =
-    form.platform === 'openai'
-      ? 'https://api.openai.com'
-      : form.platform === 'gemini'
-        ? 'https://generativelanguage.googleapis.com'
-        : form.platform === 'grok'
-          ? 'https://api.x.ai/v1'
-          : 'https://api.anthropic.com'
-
-  // Build credentials with optional model mapping
-  const credentials: Record<string, unknown> = {
-    base_url: apiKeyBaseUrl.value.trim() || defaultBaseUrl,
-    api_key: apiKeyValue.value.trim()
+  const hasSession = parsedImport.entries.some((entry) => Boolean(entry.sessionToken))
+  const sharedCredentials: Record<string, unknown> = {
+    base_url: resolveAPIKeyImportBaseURL(
+      apiKeyBaseUrl.value,
+      platformDefaultAPIKeyBaseURL(form.platform),
+      hasSession
+    )
   }
   if (form.platform === 'gemini') {
-    credentials.tier_id = geminiTierAIStudio.value
+    sharedCredentials.tier_id = geminiTierAIStudio.value
   }
 
   // Add model mapping if configured（OpenAI 开启自动透传时不应用）
   if (!isOpenAIModelRestrictionDisabled.value) {
     const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
     if (modelMapping) {
-      credentials.model_mapping = modelMapping
+      sharedCredentials.model_mapping = modelMapping
     }
   }
   if (form.platform === 'openai') {
     if (form.type === 'apikey') {
-      applyOpenAIEndpointCapabilities(credentials)
+      applyOpenAIEndpointCapabilities(sharedCredentials)
     }
     const compactModelMapping = buildOpenAICompactModelMapping()
     if (compactModelMapping) {
-      credentials.compact_model_mapping = compactModelMapping
+      sharedCredentials.compact_model_mapping = compactModelMapping
     }
   }
 
-  applyPoolModeCredentials(credentials)
+  applyPoolModeCredentials(sharedCredentials)
   const reuseWalletSource =
     isNewAPIWalletEligible(form.platform, form.type) &&
     newAPIWalletReuseRequested(
@@ -5649,7 +5697,7 @@ const handleSubmit = async () => {
       createNewAPIWalletAccessToken.value
     )
   if (isNewAPIWalletEligible(form.platform, form.type)) {
-    applyNewAPIWalletCredentials(credentials, {
+    applyNewAPIWalletCredentials(sharedCredentials, {
       userId: createNewAPIWalletUserId.value,
       accessToken: createNewAPIWalletAccessToken.value,
       clear: false,
@@ -5659,8 +5707,8 @@ const handleSubmit = async () => {
 
   // Add custom error codes if enabled
   if (customErrorCodesEnabled.value) {
-    credentials.custom_error_codes_enabled = true
-    credentials.custom_error_codes = [...selectedErrorCodes.value]
+    sharedCredentials.custom_error_codes_enabled = true
+    sharedCredentials.custom_error_codes = [...selectedErrorCodes.value]
   }
 
   // Add header override if enabled (anthropic/openai apikey only)
@@ -5672,26 +5720,94 @@ const handleSubmit = async () => {
         return
       }
     }
-    applyHeaderOverride(credentials, headerOverrideEnabled.value, headerOverrideRows.value, 'create')
+    applyHeaderOverride(sharedCredentials, headerOverrideEnabled.value, headerOverrideRows.value, 'create')
   }
 
-  applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-  if (!applyTempUnschedConfig(credentials)) {
+  applyInterceptWarmup(sharedCredentials, interceptWarmupRequests.value, 'create')
+  if (!applyTempUnschedConfig(sharedCredentials)) {
     return
   }
 
-  form.credentials = credentials
   const extra = buildGrokExtra(buildAnthropicExtra(buildOpenAIExtra()))
-
-  await doCreateAccount({
-    ...form,
-    group_ids: form.group_ids,
-    extra,
-    auto_pause_on_expired: autoPauseOnExpired.value,
-    ...(reuseWalletSource && createNewAPIWalletSourceAccountId.value
+  const walletSource =
+    reuseWalletSource && createNewAPIWalletSourceAccountId.value
       ? { newapi_wallet_source_account_id: createNewAPIWalletSourceAccountId.value }
-      : {})
-  })
+      : {}
+
+  const credentialsForEntry = (entry: ParsedAPIKey): Record<string, unknown> => {
+    const credentials: Record<string, unknown> = { ...sharedCredentials }
+    credentials.api_key = entry.apiKey
+    applyTokenRhythmCredentials(credentials, entry)
+    return credentials
+  }
+
+  if (parsedImport.entries.length === 1) {
+    form.credentials = credentialsForEntry(parsedImport.entries[0])
+    await doCreateAccount({
+      ...form,
+      group_ids: form.group_ids,
+      extra,
+      auto_pause_on_expired: autoPauseOnExpired.value,
+      ...walletSource
+    })
+    return
+  }
+
+  const names = assignAPIKeyImportNames(
+    form.name,
+    parsedImport.entries.map((entry) => entry.apiKey)
+  )
+  const submitBatch = async () => {
+    submitting.value = true
+    let success = 0
+    let failed = 0
+    try {
+      const chunkSize = 20
+      for (let offset = 0; offset < parsedImport.entries.length; offset += chunkSize) {
+        const accounts = parsedImport.entries.slice(offset, offset + chunkSize).map((entry, index) =>
+          withAntigravityConfirmFlag({
+            ...form,
+            name: names[offset + index],
+            credentials: credentialsForEntry(entry),
+            group_ids: [...form.group_ids],
+            extra: applyFallbackOnlyToExtra(extra as Record<string, unknown> | undefined),
+            auto_pause_on_expired: autoPauseOnExpired.value,
+            ...walletSource
+          })
+        )
+        const result = await adminAPI.accounts.batchCreate(accounts)
+        success += result.success || 0
+        failed += result.failed || 0
+      }
+      if (success > 0 && failed === 0) {
+        appStore.showSuccess(t('admin.accounts.apiKeyBatch.created', { success }))
+      } else if (success > 0) {
+        appStore.showWarning(t('admin.accounts.apiKeyBatch.partial', { success, failed }))
+      } else {
+        appStore.showError(t('admin.accounts.failedToCreate'))
+      }
+      if (success > 0) {
+        emit('created')
+        handleClose()
+      }
+    } catch (error: any) {
+      if (success > 0) {
+        appStore.showWarning(t('admin.accounts.apiKeyBatch.partial', { success, failed }))
+        emit('created')
+        handleClose()
+        return
+      }
+      appStore.showError(error.response?.data?.message || error.response?.data?.detail || t('admin.accounts.failedToCreate'))
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  const canContinue = await ensureAntigravityMixedChannelConfirmed(submitBatch)
+  if (!canContinue) {
+    return
+  }
+  await submitBatch()
 }
 
 const goBackToBasicInfo = () => {
