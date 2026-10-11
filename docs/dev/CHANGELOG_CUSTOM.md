@@ -1,3 +1,19 @@
+## 2026-10-11 - feat: split domestic groups out of the OpenAI account filter
+
+### What
+- On the account list, choosing the OpenAI platform shows a second group dropdown that only lists domestic-model groups (国产 / 国模 / Kimi / GLM / DeepSeek / Qwen, and the same vendors on a dedicated platform).
+- The original group dropdown keeps GPT and other groups. Both dropdowns still write the same group filter. Other platforms keep the single dropdown.
+
+### Why
+Domestic OpenAI groups sorted to the bottom of the one group dropdown, so picking Kimi or GLM meant scrolling past every GPT group.
+
+### Affected files
+`frontend/src/components/admin/account/AccountTableFilters.vue`,
+`frontend/src/utils/domesticAccountGroups.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-10-11 - fix: hide upstream completion ids on raw Chat Completions
 
 ### What

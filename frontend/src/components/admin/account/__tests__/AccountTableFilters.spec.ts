@@ -53,4 +53,75 @@ describe('AccountTableFilters sort options', () => {
     })
     wrapper.unmount()
   })
+
+  it('splits domestic OpenAI groups into their own dropdown on the OpenAI platform', async () => {
+    const groups = [
+      { id: 9, name: 'gpt 每月2000刀', platform: 'openai' },
+      { id: 23, name: 'Ccmax高质量', platform: 'anthropic' },
+      { id: 46, name: '国产模型：聚合渠道', platform: 'openai' },
+      { id: 48, name: 'kimi k3 官key', platform: 'openai' },
+      { id: 55, name: 'glm 高速分组（官转限时特惠）', platform: 'openai' }
+    ]
+    const wrapper = mount(AccountTableFilters, {
+      props: {
+        searchQuery: '',
+        filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' },
+        groups: groups as never
+      },
+      global: {
+        stubs: {
+          SearchInput: true,
+          Select: SelectStub
+        }
+      }
+    })
+
+    const groupSelect = wrapper.get('[data-testid="account-filter-group"]')
+    const domesticSelect = wrapper.get('[data-testid="account-filter-domestic-group"]')
+    const groupLabels = groupSelect.findAll('option').map((opt) => opt.text())
+    const domesticLabels = domesticSelect.findAll('option').map((opt) => opt.text())
+
+    expect(groupLabels).toEqual([
+      'admin.accounts.allGroups',
+      'admin.accounts.ungroupedGroup',
+      'gpt 每月2000刀',
+      'Ccmax高质量'
+    ])
+    expect(domesticLabels).toEqual([
+      'admin.accounts.domesticGroups',
+      '国产模型：聚合渠道',
+      'kimi k3 官key',
+      'glm 高速分组（官转限时特惠）'
+    ])
+
+    await domesticSelect.setValue('48')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({ group: '48' })
+    expect(wrapper.emitted('change')).toHaveLength(1)
+
+    await wrapper.setProps({
+      filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '48', sort_by: 'created_at', sort_order: 'desc' }
+    })
+    expect(groupSelect.element.value).toBe('')
+    expect(domesticSelect.element.value).toBe('48')
+
+    await domesticSelect.setValue('')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({ group: '' })
+
+    await wrapper.setProps({
+      filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '9', sort_by: 'created_at', sort_order: 'desc' }
+    })
+    const changeCount = wrapper.emitted('change')?.length ?? 0
+    await domesticSelect.setValue('')
+    expect(wrapper.emitted('change')?.length ?? 0).toBe(changeCount)
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({ group: '' })
+
+    await wrapper.setProps({
+      filters: { platform: '', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' }
+    })
+    expect(wrapper.find('[data-testid="account-filter-domestic-group"]').exists()).toBe(false)
+    const merged = wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())
+    expect(merged).toContain('国产模型：聚合渠道')
+    expect(merged).toContain('gpt 每月2000刀')
+    wrapper.unmount()
+  })
 })

@@ -5025,6 +5025,7 @@ const enBase = {
       allTypes: 'All Types',
       allStatus: 'All Status',
       allGroups: 'All Groups',
+      domesticGroups: 'Domestic groups',
       ungroupedGroup: 'Ungrouped',
       oauthType: 'OAuth',
       setupToken: 'Setup Token',

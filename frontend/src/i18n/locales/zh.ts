@@ -4615,6 +4615,7 @@ const zhBase = {
       allTypes: '全部类型',
       allStatus: '全部状态',
       allGroups: '全部分组',
+      domesticGroups: '国产模型分组',
       ungroupedGroup: '未分配分组',
       oauthType: 'OAuth',
       sort: {

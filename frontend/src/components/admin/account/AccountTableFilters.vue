@@ -33,7 +33,22 @@
       <Select :model-value="filters.type" class="w-40" :options="tOpts" @update:model-value="updateType" @change="$emit('change')" />
       <Select :model-value="filters.status" class="w-40" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
       <Select :model-value="filters.privacy_mode" class="w-40" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
-      <Select :model-value="filters.group" class="w-40" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+      <Select
+        :model-value="gptGroupValue"
+        class="w-40"
+        :options="gptGroupOptions"
+        data-testid="account-filter-group"
+        @update:model-value="updateGroup"
+        @change="$emit('change')"
+      />
+      <Select
+        v-if="showDomesticGroupFilter"
+        :model-value="domesticGroupValue"
+        class="w-44"
+        :options="domesticGroupOptions"
+        data-testid="account-filter-domestic-group"
+        @update:model-value="updateDomesticGroup"
+      />
       <Select v-if="showSort" :model-value="sortValue" class="w-52" :options="sortOpts" @update:model-value="updateSort" />
       <slot name="extra" />
     </div>
@@ -46,6 +61,7 @@ import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import type { AdminGroup } from '@/types'
+import { isDomesticAccountGroup } from '@/utils/domesticAccountGroups'
 
 const props = withDefaults(defineProps<{
   searchQuery: string
@@ -70,7 +86,26 @@ function setPlatform(value: string) {
 const updateType = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, type: value }) }
 const updateStatus = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, status: value }) }
 const updatePrivacyMode = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, privacy_mode: value }) }
-const updateGroup = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, group: value }) }
+const updateGroup = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, group: value == null ? '' : value }) }
+const showDomesticGroupFilter = computed(() => props.filters.platform === 'openai')
+const domesticGroups = computed(() => (props.groups || []).filter((group) => isDomesticAccountGroup(group)))
+const domesticGroupIds = computed(() => new Set(domesticGroups.value.map((group) => String(group.id))))
+const selectedGroup = computed(() => String(props.filters.group ?? ''))
+const selectedIsDomestic = computed(() => domesticGroupIds.value.has(selectedGroup.value))
+const gptGroupValue = computed(() => (selectedIsDomestic.value ? '' : selectedGroup.value))
+const domesticGroupValue = computed(() => (selectedIsDomestic.value ? selectedGroup.value : ''))
+const updateDomesticGroup = (value: string | number | boolean | null) => {
+  const next = value == null ? '' : String(value)
+  if (!next) {
+    if (!selectedIsDomestic.value) return
+    emit('update:filters', { ...props.filters, group: '' })
+    emit('change')
+    return
+  }
+  if (next === selectedGroup.value) return
+  emit('update:filters', { ...props.filters, group: next })
+  emit('change')
+}
 const sortValue = computed(() => {
   const sortBy = props.filters.sort_by || 'created_at'
   const fallbackOrder = sortBy === 'created_at' || sortBy === 'last_used_at' || sortBy === 'availability' ? 'desc' : 'asc'
@@ -121,10 +156,20 @@ const privacyOpts = computed(() => [
   { value: 'training_set_cf_blocked', label: 'CF' },
   { value: 'training_set_failed', label: 'Fail' },
 ])
-const gOpts = computed(() => [
-  { value: '', label: t('admin.accounts.allGroups') },
-  { value: 'ungrouped', label: t('admin.accounts.ungroupedGroup') },
-  ...(props.groups || []).map(g => ({ value: String(g.id), label: g.name })),
+const groupOption = (group: AdminGroup) => ({ value: String(group.id), label: group.name })
+const gptGroupOptions = computed(() => {
+  const source = showDomesticGroupFilter.value
+    ? (props.groups || []).filter((group) => !domesticGroupIds.value.has(String(group.id)))
+    : (props.groups || [])
+  return [
+    { value: '', label: t('admin.accounts.allGroups') },
+    { value: 'ungrouped', label: t('admin.accounts.ungroupedGroup') },
+    ...source.map(groupOption),
+  ]
+})
+const domesticGroupOptions = computed(() => [
+  { value: '', label: t('admin.accounts.domesticGroups') },
+  ...domesticGroups.value.map(groupOption),
 ])
 const sortOpts = computed(() => [
   { value: 'created_at:desc', label: t('admin.accounts.sort.createdDesc') },
