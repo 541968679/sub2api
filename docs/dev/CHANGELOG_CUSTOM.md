@@ -1,3 +1,15 @@
+## 2026-10-11 - ops: record production deploy of v0.1.314
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.314` (revision `426523918`, digest `sha256:6a28775c2b9d3283e735b3a4ad4e5c61b2cfa43822505eb43067d2ea64b391d9`). Release run `38109332581`. VERSION sync `772314b70`. Preflight passed. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.313` digest `sha256:9625facd24475ae8c1effc82e125b96a3057850e25ca86d5fa140235a5219f10`.
+
+### Why
+Record the verified cutover of card-shop redeem, batch API-key create, and Token Rhythm CNY wallet balance.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-11 - feat: replace in-app checkout with card-shop redeem
 
 ### What
