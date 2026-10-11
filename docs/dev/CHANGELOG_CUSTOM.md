@@ -1,3 +1,20 @@
+## 2026-10-11 - fix: hide upstream completion ids on raw Chat Completions
+
+### What
+- Raw Chat Completions, including OpenAI API-key passthrough, replace the upstream top-level completion `id` with a gateway `chatcmpl-` id. One response keeps one id across every SSE chunk.
+- Tool-call ids are unchanged. A non-empty upstream `model` is still passed through.
+
+### Why
+K3 self-hosted responses were forwarding quarkmux completion ids, so clients could read the upstream name from `id`.
+
+### Affected files
+`backend/internal/service/openai_gateway_mask_upstream_completion_id.go`,
+`backend/internal/service/openai_gateway_mask_upstream_completion_id_test.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_chat_completions_passthrough.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-10-09 - ops: record production deploy of v0.1.313
 
 ### What

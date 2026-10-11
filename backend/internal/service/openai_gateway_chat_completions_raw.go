@@ -39,8 +39,8 @@ var openaiCCRawAllowedHeaders = map[string]bool{
 //
 //   - 不调用 apicompat.ChatCompletionsToResponses，body 仅做模型 ID 改写
 //   - 上游 URL 拼到 /v1/chat/completions 而非 /v1/responses
-//   - 流式响应 SSE 直接透传给客户端（上游 chunk 已是 CC 格式）
-//   - 非流式响应 JSON 直接透传，仅按需提取 usage
+//   - 流式响应 SSE 直接透传给客户端（上游 chunk 已是 CC 格式），顶层补全 id 换成网关 id
+//   - 非流式响应 JSON 直接透传，仅按需提取 usage，并换成同一个网关补全 id
 //   - 不应用 codex OAuth transform（APIKey 路径无 OAuth）
 //   - 不注入 prompt_cache_key（OAuth 专属机制）
 //
@@ -323,6 +323,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	var usage OpenAIUsage
 	var firstTokenMs *int
 	var terminal openAIRawStreamTerminalState
+	completionIDs := &chatCompletionIDMask{}
 	clientDisconnected := false
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
@@ -463,6 +464,7 @@ scanRaw:
 		}
 
 		outLine := stripEmptyChatToolCallIdentityFromSSELine(line)
+		outLine = completionIDs.applyLine(outLine)
 		outLine = fillEmptyOpenAIResponseModelInSSELine(outLine, originalModel)
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			outLine = rewriteOpenAIChatSSEUsageTokens(outLine, mult)
@@ -631,6 +633,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		respBody = rewriteOpenAIChatUsageTokens(respBody, "usage", mult)
 	}
+	respBody = (&chatCompletionIDMask{}).applyBytes(respBody)
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(respBody)
 
@@ -853,6 +856,9 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 			return nil, fmt.Errorf("upstream stream ended without terminal chat chunk")
 		}
 		chatResp := acc.chatResponse(originalModel)
+		if strings.TrimSpace(chatResp.ID) != "" {
+			chatResp.ID = newClientChatCompletionID()
+		}
 		body, marshalErr := json.Marshal(chatResp)
 		if marshalErr != nil {
 			return nil, fmt.Errorf("marshal buffered raw chat completions: %w", marshalErr)

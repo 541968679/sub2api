@@ -37,7 +37,8 @@ var openAIChatPassthroughZeroUsagePaths = []string{
 // to the account's /v1/chat/completions URL. It replaces Authorization, keeps
 // the Chat Completions header allowlist, and returns the upstream status and
 // body without model rewrite, Kimi validation, usage injection, silent-refusal
-// holdback, or truncated-stream failover. Client-facing usage still uses the
+// holdback, or truncated-stream failover. The top-level completion id is still
+// replaced with a gateway id. Client-facing usage still uses the
 // raw Chat Completions display-token rewrite. Billing keeps the usage captured
 // before that rewrite, and an upstream usage field that is 0 stays 0.
 // Failover is only HTTP 429 and 529. Pool-mode same-account retry stays on 429.
@@ -199,6 +200,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletionsPassthrough(
 	clientDisconnected := false
 	stageClk := getOpenAIStreamStageClock(c)
 	displayMult := getDisplayTokenMultipliers(c)
+	completionIDs := &chatCompletionIDMask{}
 	for scanner.Scan() {
 		line := scanner.Text()
 		if payload, ok := extractOpenAISSEDataLine(line); ok && strings.TrimSpace(payload) != "[DONE]" {
@@ -217,6 +219,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletionsPassthrough(
 			continue
 		}
 		outLine := rewriteOpenAIChatPassthroughSSELine(line, displayMult)
+		outLine = completionIDs.applyLine(outLine)
 		if _, werr := io.WriteString(c.Writer, outLine+"\n"); werr != nil {
 			clientDisconnected = true
 			continue
@@ -271,6 +274,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsPassthrough(
 	observeOpenAIResponseBody(c, respBody)
 	usage := openAIChatPassthroughUsage(respBody)
 	outbound := rewriteOpenAIChatPassthroughDisplayUsage(respBody, getDisplayTokenMultipliers(c))
+	outbound = (&chatCompletionIDMask{}).applyBody(outbound)
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	if !bytes.Equal(outbound, respBody) {
