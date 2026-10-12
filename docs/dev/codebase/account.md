@@ -309,8 +309,12 @@ burn-rate). The rate is the average drop over the last 15 minutes. A span
 under 5 minutes stays insufficient, so a brief blip is not scaled into an hourly
 rate. Samples older than 15 minutes are left out. A rise above 0.05 starts a new
 epoch (recharge / window reset); smaller jitter does not. The account list adds
-those balance rates into one total above the filters. Percent window rates stay
-out of that total. Does not auto-disable accounts or change stored billing.
+those balance rates into one total. The sky bar above the filters stays on
+screen even when the sum is ~$0.00, and the usage column header repeats the
+same number. A usage cell that has already loaded reports its displayed money
+rate; rows still waiting on usage fall back to `extra.burn_samples`. Percent
+window rates stay out of that total. Does not auto-disable accounts or change
+stored billing.
 
 ## OpenAI Spark Shadow Accounts
 

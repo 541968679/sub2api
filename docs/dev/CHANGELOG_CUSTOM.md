@@ -1,3 +1,23 @@
+## 2026-10-12 - fix: keep the account burn-rate total on screen
+
+### What
+- The admin account page always shows the burn-rate total above the filters, including `~$0.00` when the current page has no money rate to add. The usage column header repeats that same number.
+- Once a usage cell has loaded, the total uses the money rate that cell is already showing. Rows still waiting on usage fall back to `extra.burn_samples`. Percent window rates stay out. Stored billing, quota, and `actual_cost` are unchanged.
+
+### Why
+The total bar was omitted entirely when the loaded page had no qualifying balance rate, so the sum was invisible even though the page was the place it was supposed to appear.
+
+### Affected files
+`frontend/src/utils/accountBurnRateTotal.ts`,
+`frontend/src/utils/__tests__/accountBurnRateTotal.spec.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/__tests__/AccountsView.burnRateTotal.spec.ts`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-10-12 - ops: record production deploy of v0.1.315
 
 ### What

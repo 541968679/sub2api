@@ -3,7 +3,6 @@
     <TablePageLayout>
       <template #filters>
         <div
-          v-if="accountBurnRateTotal.visible"
           class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30"
           data-testid="account-burn-rate-total"
         >
@@ -608,8 +607,20 @@
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
           <template #header-usage="{ column }">
-            <div class="flex items-center">
+            <div class="flex items-center gap-2">
               <span>{{ column.label }}</span>
+              <span
+                class="font-mono text-xs font-semibold tabular-nums text-sky-700 dark:text-sky-300"
+                data-testid="account-burn-rate-column-total"
+                :data-rate="accountBurnRateTotal.perHour"
+                :title="accountBurnRateTotalHint"
+              >
+                {{
+                  t('admin.accounts.usageWindow.burnRateUsd', {
+                    rate: formatAccountBurnRateAmount(accountBurnRateTotal.perHour)
+                  })
+                }}
+              </span>
               <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
             </div>
           </template>
@@ -620,6 +631,7 @@
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
               @account-updated="patchAccountInList"
+              @burn-rate="onDisplayedBurnRate(row.id, $event)"
             />
           </template>
           <template #cell-proxy="{ row }">
@@ -1812,7 +1824,30 @@ const {
   }
 })
 
-const accountBurnRateTotal = computed(() => sumAccountBalanceBurnRates(accounts.value))
+const displayedMoneyBurnRates = ref(new Map<number, number | null>())
+
+const onDisplayedBurnRate = (accountId: number, rate: number | null) => {
+  const current = displayedMoneyBurnRates.value
+  if (current.has(accountId) && current.get(accountId) === rate) return
+  const next = new Map(current)
+  next.set(accountId, rate)
+  displayedMoneyBurnRates.value = next
+}
+
+watch(accounts, (rows) => {
+  const ids = new Set(rows.map((row) => row.id))
+  const current = displayedMoneyBurnRates.value
+  if ([...current.keys()].every((id) => ids.has(id))) return
+  const next = new Map<number, number | null>()
+  for (const [id, rate] of current) {
+    if (ids.has(id)) next.set(id, rate)
+  }
+  displayedMoneyBurnRates.value = next
+})
+
+const accountBurnRateTotal = computed(() =>
+  sumAccountBalanceBurnRates(accounts.value, new Date(), displayedMoneyBurnRates.value)
+)
 const accountBurnRatePageScoped = computed(() => pagination.pages > 1)
 const accountBurnRateTotalLabel = computed(() =>
   accountBurnRatePageScoped.value

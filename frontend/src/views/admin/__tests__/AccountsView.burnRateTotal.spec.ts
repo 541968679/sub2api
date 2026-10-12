@@ -167,4 +167,21 @@ describe('admin AccountsView burn rate total', () => {
     )
     expect(wrapper.get('[data-testid="account-burn-rate-total-rate"]').attributes('data-rate')).toBe('1')
   })
+
+  it('keeps the total bar on screen when the page has no usable balance rate', async () => {
+    listAccounts.mockResolvedValue({
+      items: [{ id: 1, name: 'plain', platform: 'openai', type: 'apikey', extra: {} }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountAccountsView()
+    await flushPromises()
+
+    const banner = wrapper.get('[data-testid="account-burn-rate-total"]')
+    expect(banner.text()).toContain('admin.accounts.burnRateTotal')
+    expect(wrapper.get('[data-testid="account-burn-rate-total-rate"]').attributes('data-rate')).toBe('0')
+  })
 })

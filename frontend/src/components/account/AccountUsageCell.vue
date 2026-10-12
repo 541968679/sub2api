@@ -837,6 +837,7 @@ import { adminAPI } from '@/api/admin'
 import type { GrokQuotaProbeResult } from '@/api/admin/grok'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { moneyBurnRateFromUsage } from '@/utils/accountBurnRateTotal'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
@@ -855,6 +856,7 @@ const GROK_FREE_TOKEN_LIMIT = 2_000_000
 
 const emit = defineEmits<{
   'account-updated': [account: Account]
+  'burn-rate': [rate: number | null]
 }>()
 
 const appStore = useAppStore()
@@ -1946,6 +1948,11 @@ function formatBurnDuration(seconds: number | null | undefined): string {
   const m = Math.max(1, Math.round(seconds / 60))
   return `~${m}m`
 }
+
+watch(usageInfo, (info) => {
+  if (!info) return
+  emit('burn-rate', moneyBurnRateFromUsage(info))
+})
 
 const burnRateLine = computed(() => {
   const info = usageInfo.value

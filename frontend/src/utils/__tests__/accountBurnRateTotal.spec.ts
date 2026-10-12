@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { formatAccountBurnRateAmount, sumAccountBalanceBurnRates } from '../accountBurnRateTotal'
+import {
+  formatAccountBurnRateAmount,
+  moneyBurnRateFromUsage,
+  sumAccountBalanceBurnRates
+} from '../accountBurnRateTotal'
 
 const now = new Date('2026-10-12T02:00:00.000Z')
 const at = (hoursAgo: number, value: number, kind: string) => ({
@@ -55,5 +59,27 @@ describe('sumAccountBalanceBurnRates', () => {
   it('stays hidden when no account has a usable balance burn rate', () => {
     expect(sumAccountBalanceBurnRates([])).toMatchObject({ visible: false, accountCount: 0 })
     expect(sumAccountBalanceBurnRates([{ extra: {} }]).visible).toBe(false)
+  })
+
+  it('uses the money rate a usage cell is already showing', () => {
+    const displayed = new Map<number, number | null>([
+      [1, 4],
+      [2, null]
+    ])
+    const total = sumAccountBalanceBurnRates(
+      [
+        { id: 1, extra: { burn_samples: usdSamples(100, 10) } },
+        { id: 2, extra: { burn_samples: usdSamples(50, 4) } },
+        { id: 3, extra: {} }
+      ],
+      now,
+      displayed
+    )
+
+    expect(total.perHour).toBe(4)
+    expect(total.accountCount).toBe(1)
+    expect(moneyBurnRateFromUsage({ burn_rate_per_hour: 1.2, burn_rate_unit: 'usd' })).toBe(1.2)
+    expect(moneyBurnRateFromUsage({ burn_rate_per_hour: 8, burn_rate_unit: 'percent' })).toBeNull()
+    expect(moneyBurnRateFromUsage({ burn_rate_per_hour: 3, burn_rate_unit: 'usd', burn_insufficient: true })).toBeNull()
   })
 })

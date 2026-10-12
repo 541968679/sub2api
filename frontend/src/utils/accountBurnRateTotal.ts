@@ -79,19 +79,55 @@ export function formatAccountBurnRateAmount(value: number): string {
   return value.toFixed(2)
 }
 
+function readAccountId(account: unknown): number | null {
+  if (!account || typeof account !== 'object') return null
+  const id = (account as { id?: unknown }).id
+  if (typeof id === 'number' && Number.isFinite(id)) return id
+  if (typeof id === 'string' && id.trim() !== '') {
+    const parsed = Number(id)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+/** Money rate already shown on a usage cell. Percent and fleet units stay out. */
+export function moneyBurnRateFromUsage(info: {
+  burn_insufficient?: boolean
+  burn_rate_per_hour?: number | null
+  burn_rate_unit?: string | null
+} | null | undefined): number | null {
+  if (!info || info.burn_insufficient) return null
+  const rate = info.burn_rate_per_hour
+  if (rate == null || !Number.isFinite(rate)) return null
+  const unit = info.burn_rate_unit || ''
+  if (unit !== 'usd' && unit !== 'cny') return null
+  return rate
+}
+
 /**
  * Add the balance burn rates already estimated for the loaded account rows.
  * Percent window rates are a different unit and stay out of the total.
  * Accounts with too few samples, or an unlimited balance, are skipped.
+ * `displayedRates` overrides the list snapshot with the money rate a usage cell
+ * is already showing. A null entry means that cell loaded and has no money rate.
  */
 export function sumAccountBalanceBurnRates(
   accounts: readonly unknown[],
-  now = new Date()
+  now = new Date(),
+  displayedRates?: ReadonlyMap<number, number | null>
 ): AccountBurnRateTotal {
   if (!accounts.length) return emptyTotal()
   let perHour = 0
   let accountCount = 0
   for (const account of accounts) {
+    const id = readAccountId(account)
+    if (id != null && displayedRates?.has(id)) {
+      const displayed = displayedRates.get(id)
+      if (displayed == null || !Number.isFinite(displayed)) continue
+      perHour += displayed
+      accountCount += 1
+      continue
+    }
     const extra = readExtra(account)
     if (!extra || isUnlimitedBalance(extra)) continue
     const kind = balanceCurrency(extra) === 'CNY' ? KIND_CNY : KIND_USD
