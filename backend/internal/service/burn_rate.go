@@ -2,16 +2,16 @@ package service
 
 import (
 	"encoding/json"
-	"math"
 	"sort"
 	"time"
 )
 
 const (
 	burnSampleRingMax       = 12
-	burnRateMinSpan         = 10 * time.Minute
+	burnRateMinSpan         = 5 * time.Minute
+	burnRateLookback        = 15 * time.Minute
 	burnRateMaxETA          = 30 * 24 * time.Hour
-	burnRateIncreaseEpsilon = 1e-6
+	burnRateIncreaseEpsilon = 0.05
 	burnRateZeroEpsilon     = 1e-9
 
 	burnKindBalanceUSD            = "balance_usd"
@@ -89,23 +89,27 @@ func AppendBurnSample(existing []BurnSample, sample BurnSample, max int) []BurnS
 	return out
 }
 
-// ComputeBurnRate fits a linear model v = a + b*t over samples and derives
-// burn-rate as -b (per hour). ETA uses the last sample's remaining value.
+// ComputeBurnRate estimates hourly consumption as the average drop from the
+// oldest to the newest sample inside the latest recharge epoch and the last
+// burnRateLookback. A span shorter than minSpan is insufficient, so a brief
+// dip is not scaled up to an hourly rate. ETA uses the last remaining value.
 func ComputeBurnRate(samples []BurnSample, now time.Time, minSpan time.Duration) BurnRateResult {
 	if minSpan <= 0 {
 		minSpan = burnRateMinSpan
 	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	now = now.UTC()
 	if len(samples) < 2 {
 		return BurnRateResult{SampleCount: len(samples), Insufficient: true}
 	}
 
-	// Copy + sort by time ascending.
 	pts := make([]BurnSample, len(samples))
 	copy(pts, samples)
 	sort.Slice(pts, func(i, j int) bool { return pts[i].T.Before(pts[j].T) })
 
-	// Drop non-monotonic increases mid-series by keeping only the latest epoch
-	// (from the last increase exclusive).
+	// Keep only the latest epoch after a recharge or window reset.
 	start := 0
 	for i := 1; i < len(pts); i++ {
 		if pts[i].V > pts[i-1].V+burnRateIncreaseEpsilon {
@@ -113,43 +117,36 @@ func ComputeBurnRate(samples []BurnSample, now time.Time, minSpan time.Duration)
 		}
 	}
 	pts = pts[start:]
+
+	cutoff := now.Add(-burnRateLookback)
+	recent := make([]BurnSample, 0, len(pts))
+	for _, p := range pts {
+		if !p.T.Before(cutoff) {
+			recent = append(recent, p)
+		}
+	}
+	pts = recent
 	if len(pts) < 2 {
 		return BurnRateResult{SampleCount: len(pts), Insufficient: true}
 	}
 
-	t0 := pts[0].T
-	t1 := pts[len(pts)-1].T
-	span := t1.Sub(t0)
+	span := pts[len(pts)-1].T.Sub(pts[0].T)
 	if span < minSpan {
 		return BurnRateResult{SampleCount: len(pts), Insufficient: true}
 	}
-
-	// Linear regression of v on hours since t0.
-	n := float64(len(pts))
-	var sumX, sumY, sumXY, sumXX float64
-	for _, p := range pts {
-		x := p.T.Sub(t0).Hours()
-		y := p.V
-		sumX += x
-		sumY += y
-		sumXY += x * y
-		sumXX += x * x
-	}
-	denom := n*sumXX - sumX*sumX
-	if math.Abs(denom) < burnRateZeroEpsilon {
+	hours := span.Hours()
+	if hours <= 0 {
 		return BurnRateResult{SampleCount: len(pts), Insufficient: true}
 	}
-	// slope b = (n*Σxy - Σx*Σy) / (n*Σx² - (Σx)²)
-	b := (n*sumXY - sumX*sumY) / denom
 
+	drop := pts[0].V - pts[len(pts)-1].V
 	result := BurnRateResult{SampleCount: len(pts)}
-	if b >= -burnRateZeroEpsilon {
-		// Not decreasing: idle or noise.
+	if drop <= burnRateZeroEpsilon {
 		result.Idle = true
 		result.RatePerHour = 0
 		return result
 	}
-	rate := -b
+	rate := drop / hours
 	result.RatePerHour = rate
 
 	remaining := pts[len(pts)-1].V
@@ -164,7 +161,6 @@ func ComputeBurnRate(samples []BurnSample, now time.Time, minSpan time.Duration)
 		sec := eta.Seconds()
 		result.ETASeconds = &sec
 	}
-	_ = now // reserved for future "project from now" adjustments
 	return result
 }
 

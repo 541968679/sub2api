@@ -229,8 +229,9 @@ export type BalanceCostBurnCompare = {
 }
 
 const BURN_KIND_BALANCE_USD = 'balance_usd'
-const BURN_MIN_SPAN_MS = 10 * 60 * 1000
-const BURN_INCREASE_EPS = 1e-6
+const BURN_LOOKBACK_MS = 15 * 60 * 1000
+const BURN_MIN_SPAN_MS = 5 * 60 * 1000
+const BURN_INCREASE_EPS = 0.05
 const BURN_ZERO_EPS = 1e-9
 const BURN_REL_TOL = 0.3
 const BURN_ABS_TOL = 0.05
@@ -265,36 +266,21 @@ export function parseBalanceBurnSamples(extra: unknown): BalanceBurnSample[] {
   return out
 }
 
-export function computeBalanceBurnPerHour(samples: BalanceBurnSample[]): number | null {
+export function computeBalanceBurnPerHour(samples: BalanceBurnSample[], now = new Date()): number | null {
   if (samples.length < 2) return null
   const pts = [...samples].sort((a, b) => a.t.getTime() - b.t.getTime())
   let start = 0
   for (let i = 1; i < pts.length; i++) {
     if (pts[i].v > pts[i - 1].v + BURN_INCREASE_EPS) start = i
   }
-  const epoch = pts.slice(start)
+  const cutoff = now.getTime() - BURN_LOOKBACK_MS
+  const epoch = pts.slice(start).filter((point) => point.t.getTime() >= cutoff)
   if (epoch.length < 2) return null
   const spanMs = epoch[epoch.length - 1].t.getTime() - epoch[0].t.getTime()
   if (spanMs < BURN_MIN_SPAN_MS) return null
-
-  const t0 = epoch[0].t.getTime()
-  const n = epoch.length
-  let sumX = 0
-  let sumY = 0
-  let sumXY = 0
-  let sumXX = 0
-  for (const point of epoch) {
-    const x = (point.t.getTime() - t0) / 3_600_000
-    sumX += x
-    sumY += point.v
-    sumXY += x * point.v
-    sumXX += x * x
-  }
-  const denom = n * sumXX - sumX * sumX
-  if (Math.abs(denom) < BURN_ZERO_EPS) return null
-  const slope = (n * sumXY - sumX * sumY) / denom
-  if (slope >= -BURN_ZERO_EPS) return 0
-  return -slope
+  const drop = epoch[0].v - epoch[epoch.length - 1].v
+  if (drop <= BURN_ZERO_EPS) return 0
+  return drop / (spanMs / 3_600_000)
 }
 
 export function impliedCostBurnPerHour(todayCost: number | null | undefined, now = new Date()): number | null {
@@ -314,7 +300,7 @@ export function compareBalanceBurnToCost(
   if (pairAccountBalanceCurrency(account) === 'CNY') return null
   if (pairAccountBalanceUsd(account) == null) return null
   const extra = account && typeof account === 'object' ? (account as { extra?: unknown }).extra : null
-  const balanceRate = computeBalanceBurnPerHour(parseBalanceBurnSamples(extra))
+  const balanceRate = computeBalanceBurnPerHour(parseBalanceBurnSamples(extra), now)
   const costRate = impliedCostBurnPerHour(todayCost, now)
   if (balanceRate == null || costRate == null) return null
   const absDiff = Math.abs(balanceRate - costRate)

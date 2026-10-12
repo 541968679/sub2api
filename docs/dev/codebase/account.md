@@ -227,9 +227,10 @@ Pool model (used/capacity units — not a bare percent sum):
 - Snapshot util uses `buildCodexUsageProgressFromExtra` (expired windows zero)
 
 **7d burn-rate / ETA** (pool-level): samples `capacity - used_7d` over time
-(process-local ring), sliding-window linear fit → `burn_rate_7d_per_hour`
-(capacity units/h) and `burn_eta_7d_seconds`. Insufficient samples →
-`burn_insufficient` without a fake ETA.
+(process-local ring). `ComputeBurnRate` reports the average drop over at most
+the last 15 minutes, and only when that span is at least 5 minutes →
+`burn_rate_7d_per_hour` (capacity units/h) and `burn_eta_7d_seconds`.
+Insufficient or stale samples → `burn_insufficient` without a fake ETA.
 
 UI: `AccountsView` badge (next to AI Credits) with **已用/容量**, fraction
 labels, progress bars, and 7d burn line. Mobile: full-width strip above
@@ -304,8 +305,12 @@ CNY amounts stay on the same balance fields and are labeled `¥`. See [Token Rhy
 
 Admin usage cell: **balance is the hero**; today stats / local quota bars are
 muted. OAuth accounts show 7d burn as `%/h · ETA` under the 7d bar (5h has no
-burn-rate). Samples reset on balance/remaining increase (recharge / window
-reset). Does not auto-disable accounts or change billing.
+burn-rate). The rate is the average drop over the last 15 minutes. A span
+under 5 minutes stays insufficient, so a brief blip is not scaled into an hourly
+rate. Samples older than 15 minutes are left out. A rise above 0.05 starts a new
+epoch (recharge / window reset); smaller jitter does not. The account list adds
+those balance rates into one total above the filters. Percent window rates stay
+out of that total. Does not auto-disable accounts or change stored billing.
 
 ## OpenAI Spark Shadow Accounts
 

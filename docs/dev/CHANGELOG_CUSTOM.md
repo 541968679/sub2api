@@ -1,3 +1,26 @@
+## 2026-10-12 - fix: sum displayed account burn rates and stop extrapolating stale slopes
+
+### What
+- The admin account page shows one burn-rate total above the filters. It adds the balance burn rates already estimated for the loaded rows. Percent window rates, unlimited balances, and rows with too few samples stay out. When the filter has more than one page, the label says the total is for the current page.
+- The estimate itself is the average balance drop over the last 15 minutes. A span under 5 minutes is not shown, so a brief blip is not scaled up to an hourly rate. Samples older than 15 minutes no longer keep an older slope on screen. A recharge still starts a new window; sub-cent jitter does not. Stored billing, quota, and `actual_cost` are unchanged.
+
+### Why
+The page total had been split into USD and CNY. The per-row estimate also stayed high after the balance had stopped falling, because it fitted the whole sample ring and could turn a few minutes of drop into an hourly rate.
+
+### Affected files
+`backend/internal/service/burn_rate.go`,
+`backend/internal/service/burn_rate_test.go`,
+`frontend/src/composables/schedulePnl.ts`,
+`frontend/src/composables/__tests__/schedulePnl.spec.ts`,
+`frontend/src/utils/accountBurnRateTotal.ts`,
+`frontend/src/utils/__tests__/accountBurnRateTotal.spec.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/__tests__/AccountsView.burnRateTotal.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-10-11 - ops: record production deploy of v0.1.314
 
 ### What

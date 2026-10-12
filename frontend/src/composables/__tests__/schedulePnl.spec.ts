@@ -120,12 +120,30 @@ describe('schedulePnl formatters', () => {
 
   it('fits balance burn from extra samples and compares it to today billed cost', () => {
     const now = new Date('2026-08-17T12:00:00')
-    const samples = [
-      { t: '2026-08-17T10:00:00.000Z', v: 100, kind: 'balance_usd' },
-      { t: '2026-08-17T11:00:00.000Z', v: 90, kind: 'balance_usd' },
-      { t: '2026-08-17T12:00:00.000Z', v: 80, kind: 'balance_usd' }
-    ]
-    expect(computeBalanceBurnPerHour(samples.map((s) => ({ t: new Date(s.t), v: s.v, kind: s.kind })))).toBeCloseTo(10, 2)
+    const at = (hoursAgo: number, value: number) => ({
+      t: new Date(now.getTime() - hoursAgo * 3_600_000).toISOString(),
+      v: value,
+      kind: 'balance_usd'
+    })
+    const samples = [at(0.125, 81.25), at(0.0625, 80.625), at(0, 80)]
+    expect(
+      computeBalanceBurnPerHour(
+        samples.map((s) => ({ t: new Date(s.t), v: s.v, kind: s.kind })),
+        now
+      )
+    ).toBeCloseTo(10, 2)
+    expect(
+      computeBalanceBurnPerHour(
+        [at(48, 100), at(46, 80)].map((s) => ({ t: new Date(s.t), v: s.v, kind: s.kind })),
+        now
+      )
+    ).toBeNull()
+    expect(
+      computeBalanceBurnPerHour(
+        [at(3 / 60, 100), at(0, 90)].map((s) => ({ t: new Date(s.t), v: s.v, kind: s.kind })),
+        now
+      )
+    ).toBeNull()
     expect(impliedCostBurnPerHour(120, now)).toBeCloseTo(10, 2)
 
     const account = { extra: { upstream_balance_usd: 80, burn_samples: samples } }

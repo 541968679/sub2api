@@ -5332,6 +5332,13 @@ const enBase = {
         saveFailed: 'Failed to save public schedule quality',
         loadFailed: 'Failed to load public schedule quality'
       },
+      burnRateTotal: 'Burn rate total',
+      burnRateTotalPage: 'This page burn rate',
+      burnRateTotalHint:
+        'Adds the balance burn rates already estimated for accounts in the current filter. Rows with too few samples, unlimited balance, or a percent window rate are left out.',
+      burnRateTotalPageHint:
+        'When the list has more than one page, this adds up only the current page. It updates when you change page or filters. Rows with too few samples, unlimited balance, or a percent window rate are left out.',
+      burnRateTotalCount: '{count} accounts',
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       oauthFleetUsage: {
         title: 'OAI Pro pool',
@@ -6576,7 +6583,7 @@ const enBase = {
         burnRatePercent: '~{rate}%/h',
         burnRateFleetUnits: '~{rate} u/h',
         burnInsufficient: 'Burn samples insufficient',
-        burnRateHint: 'Sliding-window linear fit over recent samples; recharge/window reset starts a new epoch'
+        burnRateHint: 'Average balance drop over the last 15 minutes. A span under 5 minutes is not estimated, so a brief blip is not scaled up to an hourly rate. A recharge starts a new window.'
       },
       openaiQuotaReset: {
         count: 'Credits',

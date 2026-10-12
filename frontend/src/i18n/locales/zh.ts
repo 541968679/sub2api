@@ -4875,6 +4875,13 @@ const zhBase = {
         saveFailed: '保存公共调度质量失败',
         loadFailed: '加载公共调度质量失败'
       },
+      burnRateTotal: '消耗速度合计',
+      burnRateTotalPage: '本页消耗速度合计',
+      burnRateTotalHint:
+        '把当前筛选里各账号已经算出的余额消耗速度加在一起。样本不足、无限额度，以及按百分比估算的窗口速度不计入。',
+      burnRateTotalPageHint:
+        '列表有多页时，这里只加总当前这一页。换页或改筛选后，合计跟着变。样本不足、无限额度，以及按百分比估算的窗口速度不计入。',
+      burnRateTotalCount: '{count} 个账号',
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       oauthFleetUsage: {
         title: 'OAI Pro 池',
@@ -5144,7 +5151,7 @@ const zhBase = {
         burnRatePercent: '~{rate}%/时',
         burnRateFleetUnits: '~{rate} 单位/时',
         burnInsufficient: '速度样本不足',
-        burnRateHint: '基于最近采样的滑动窗口线性拟合；充值/窗口重置后会重新计 epoch'
+        burnRateHint: '最近 15 分钟内余额的平均下降。跨度不到 5 分钟不估算，避免把瞬时波动放大成每小时速度。充值后重新开始计算。'
       },
       openaiQuotaReset: {
         count: '次数',
