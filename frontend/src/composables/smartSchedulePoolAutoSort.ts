@@ -64,9 +64,6 @@ export function comparePoolAutoSort(a: PoolAutoSortItem, b: PoolAutoSortItem): n
     Number(isPoolAutoSortProducing(b.pairCurrent)) - Number(isPoolAutoSortProducing(a.pairCurrent))
   if (producing !== 0) return producing
 
-  const rate = (a.upstreamRate ?? 0) - (b.upstreamRate ?? 0)
-  if (rate !== 0) return rate
-
   const headroom =
     pairHeadroomForAutoSort(b.pairCap, b.pairCurrent) - pairHeadroomForAutoSort(a.pairCap, a.pairCurrent)
   if (headroom !== 0) return headroom

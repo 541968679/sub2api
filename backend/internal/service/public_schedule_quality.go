@@ -18,18 +18,18 @@ const (
 	PublicScheduleStatePinned     = "pinned"
 	PublicScheduleStateResumed    = "resumed"
 
-	DefaultPublicScheduleWindowN        = DefaultSmartScheduleWindowN
+	DefaultPublicScheduleWindowN         = DefaultSmartScheduleWindowN
 	DefaultPublicScheduleCooldownMinutes = DefaultSmartScheduleCooldownMinutes
-	DefaultPublicScheduleMaxP50TTFTMs   = DefaultQualityHardCloseMaxP50TTFTMs
-	DefaultPublicScheduleMinSuccessRate = DefaultQualityHardCloseMinSuccessRate
-	DefaultPublicScheduleSchedK         = 3
-	DefaultPublicScheduleSchedC         = 2
+	DefaultPublicScheduleMaxP50TTFTMs    = DefaultQualityHardCloseMaxP50TTFTMs
+	DefaultPublicScheduleMinSuccessRate  = DefaultQualityHardCloseMinSuccessRate
+	DefaultPublicScheduleSchedK          = 3
+	DefaultPublicScheduleSchedC          = 2
 
-	PublicScheduleStoreWindowN = MaxSmartScheduleWindowN
-	PublicScheduleResumeChip   = AccountQualityWindow
-	PublicScheduleResumeWatch  = 2 * AccountQualityWindow
-	PublicScheduleWindowTTL    = 7 * 24 * time.Hour
-	PublicSchedulePolicyCacheTTL = 10 * time.Minute
+	PublicScheduleStoreWindowN     = MaxSmartScheduleWindowN
+	PublicScheduleResumeChip       = AccountQualityWindow
+	PublicScheduleResumeWatch      = 2 * AccountQualityWindow
+	PublicScheduleWindowTTL        = 7 * 24 * time.Hour
+	PublicSchedulePolicyCacheTTL   = 10 * time.Minute
 	PublicScheduleSettingsCacheTTL = 30 * time.Second
 )
 
@@ -37,54 +37,54 @@ const (
 // Enabled is the master switch for this slice; per-account overlay is ignored
 // until that UI is wired.
 type PublicScheduleQualitySettings struct {
-	Enabled                          bool     `json:"enabled"`
-	TTFTWindowN                      int      `json:"ttft_window_n"`
-	SuccessWindowN                   int      `json:"success_window_n"`
-	QualityMaxP50TTFTMs              *int     `json:"quality_max_p50_ttft_ms"`
-	QualityMinSuccessRate            *float64 `json:"quality_min_success_rate"`
-	QualityMaxP50DurationMs          *int     `json:"quality_max_p50_duration_ms"`
-	QualityMaxSlowInWindow           *int     `json:"quality_max_slow_in_window"`
-	QualityMaxConsecutiveSlow        *int     `json:"quality_max_consecutive_slow"`
-	QualitySchedWindowN              *int     `json:"quality_sched_window_n"`
-	QualitySchedMaxSlowInWindow      *int     `json:"quality_sched_max_slow_in_window"`
-	QualitySchedMaxConsecutiveSlow   *int     `json:"quality_sched_max_consecutive_slow"`
-	CooldownMinutes                  int      `json:"cooldown_minutes"`
-	SoftCooldown                     bool     `json:"soft_cooldown"`
+	Enabled                        bool     `json:"enabled"`
+	TTFTWindowN                    int      `json:"ttft_window_n"`
+	SuccessWindowN                 int      `json:"success_window_n"`
+	QualityMaxP50TTFTMs            *int     `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate          *float64 `json:"quality_min_success_rate"`
+	QualityMaxP50DurationMs        *int     `json:"quality_max_p50_duration_ms"`
+	QualityMaxSlowInWindow         *int     `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow      *int     `json:"quality_max_consecutive_slow"`
+	QualitySchedWindowN            *int     `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow    *int     `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int     `json:"quality_sched_max_consecutive_slow"`
+	CooldownMinutes                int      `json:"cooldown_minutes"`
+	SoftCooldown                   bool     `json:"soft_cooldown"`
 }
 
 // PublicScheduleQualityOverlay is stored in extra.public_schedule_quality.
 // Nil pointer fields inherit the site template.
 type PublicScheduleQualityOverlay struct {
-	Enabled                          bool     `json:"enabled"`
-	TTFTWindowN                      *int     `json:"ttft_window_n,omitempty"`
-	SuccessWindowN                   *int     `json:"success_window_n,omitempty"`
-	QualityMaxP50TTFTMs              *int     `json:"quality_max_p50_ttft_ms,omitempty"`
-	QualityMinSuccessRate            *float64 `json:"quality_min_success_rate,omitempty"`
-	QualityMaxP50DurationMs          *int     `json:"quality_max_p50_duration_ms,omitempty"`
-	QualityMaxSlowInWindow           *int     `json:"quality_max_slow_in_window,omitempty"`
-	QualityMaxConsecutiveSlow        *int     `json:"quality_max_consecutive_slow,omitempty"`
-	QualitySchedWindowN              *int     `json:"quality_sched_window_n,omitempty"`
-	QualitySchedMaxSlowInWindow      *int     `json:"quality_sched_max_slow_in_window,omitempty"`
-	QualitySchedMaxConsecutiveSlow   *int     `json:"quality_sched_max_consecutive_slow,omitempty"`
-	CooldownMinutes                  *int     `json:"cooldown_minutes,omitempty"`
-	SoftCooldown                     *bool    `json:"soft_cooldown,omitempty"`
+	Enabled                        bool     `json:"enabled"`
+	TTFTWindowN                    *int     `json:"ttft_window_n,omitempty"`
+	SuccessWindowN                 *int     `json:"success_window_n,omitempty"`
+	QualityMaxP50TTFTMs            *int     `json:"quality_max_p50_ttft_ms,omitempty"`
+	QualityMinSuccessRate          *float64 `json:"quality_min_success_rate,omitempty"`
+	QualityMaxP50DurationMs        *int     `json:"quality_max_p50_duration_ms,omitempty"`
+	QualityMaxSlowInWindow         *int     `json:"quality_max_slow_in_window,omitempty"`
+	QualityMaxConsecutiveSlow      *int     `json:"quality_max_consecutive_slow,omitempty"`
+	QualitySchedWindowN            *int     `json:"quality_sched_window_n,omitempty"`
+	QualitySchedMaxSlowInWindow    *int     `json:"quality_sched_max_slow_in_window,omitempty"`
+	QualitySchedMaxConsecutiveSlow *int     `json:"quality_sched_max_consecutive_slow,omitempty"`
+	CooldownMinutes                *int     `json:"cooldown_minutes,omitempty"`
+	SoftCooldown                   *bool    `json:"soft_cooldown,omitempty"`
 }
 
 // PublicScheduleQualityResolved is overlay over site defaults.
 type PublicScheduleQualityResolved struct {
-	Enabled                          bool     `json:"enabled"`
-	TTFTWindowN                      int      `json:"ttft_window_n"`
-	SuccessWindowN                   int      `json:"success_window_n"`
-	QualityMaxP50TTFTMs              *int     `json:"quality_max_p50_ttft_ms"`
-	QualityMinSuccessRate            *float64 `json:"quality_min_success_rate"`
-	QualityMaxP50DurationMs          *int     `json:"quality_max_p50_duration_ms"`
-	QualityMaxSlowInWindow           *int     `json:"quality_max_slow_in_window"`
-	QualityMaxConsecutiveSlow        *int     `json:"quality_max_consecutive_slow"`
-	QualitySchedWindowN              *int     `json:"quality_sched_window_n"`
-	QualitySchedMaxSlowInWindow      *int     `json:"quality_sched_max_slow_in_window"`
-	QualitySchedMaxConsecutiveSlow   *int     `json:"quality_sched_max_consecutive_slow"`
-	CooldownMinutes                  int      `json:"cooldown_minutes"`
-	SoftCooldown                     bool     `json:"soft_cooldown"`
+	Enabled                        bool     `json:"enabled"`
+	TTFTWindowN                    int      `json:"ttft_window_n"`
+	SuccessWindowN                 int      `json:"success_window_n"`
+	QualityMaxP50TTFTMs            *int     `json:"quality_max_p50_ttft_ms"`
+	QualityMinSuccessRate          *float64 `json:"quality_min_success_rate"`
+	QualityMaxP50DurationMs        *int     `json:"quality_max_p50_duration_ms"`
+	QualityMaxSlowInWindow         *int     `json:"quality_max_slow_in_window"`
+	QualityMaxConsecutiveSlow      *int     `json:"quality_max_consecutive_slow"`
+	QualitySchedWindowN            *int     `json:"quality_sched_window_n"`
+	QualitySchedMaxSlowInWindow    *int     `json:"quality_sched_max_slow_in_window"`
+	QualitySchedMaxConsecutiveSlow *int     `json:"quality_sched_max_consecutive_slow"`
+	CooldownMinutes                int      `json:"cooldown_minutes"`
+	SoftCooldown                   bool     `json:"soft_cooldown"`
 }
 
 // PublicScheduleRuntimeState is the account-level six-state record. Redis miss
@@ -99,13 +99,13 @@ type PublicScheduleRuntimeState struct {
 
 // PublicScheduleQualityView is the admin GET/PUT account payload.
 type PublicScheduleQualityView struct {
-	Overlay   PublicScheduleQualityOverlay  `json:"overlay"`
-	Resolved  PublicScheduleQualityResolved `json:"resolved"`
-	State     string                        `json:"state"`
-	Until     *time.Time                    `json:"until,omitempty"`
-	Reason    string                        `json:"reason,omitempty"`
-	WillCool  bool                          `json:"will_cool"`
-	Quality   *SmartSchedulePairQualityView `json:"quality,omitempty"`
+	Overlay  PublicScheduleQualityOverlay  `json:"overlay"`
+	Resolved PublicScheduleQualityResolved `json:"resolved"`
+	State    string                        `json:"state"`
+	Until    *time.Time                    `json:"until,omitempty"`
+	Reason   string                        `json:"reason,omitempty"`
+	WillCool bool                          `json:"will_cool"`
+	Quality  *SmartSchedulePairQualityView `json:"quality,omitempty"`
 }
 
 func DefaultPublicScheduleQualitySettings() *PublicScheduleQualitySettings {
@@ -433,6 +433,118 @@ func preferPublicScheduleOpenAICandidates(
 		return candidates
 	}
 	return out
+}
+
+const (
+	// publicScheduleSwitchLoadGap is how many load-rate points a peer must be
+	// under a demoted sticky account before the session leaves it.
+	publicScheduleSwitchLoadGap = 20
+	// publicScheduleSwitchTTFTGapMs is the smallest absolute TTFT improvement
+	// that counts as a clearer peer. The peer must also be at most two thirds
+	// of the sticky TTFT, so a few hundred milliseconds do not move a session.
+	publicScheduleSwitchTTFTGapMs = 1000
+)
+
+func scheduleSwitchLoadRate(loadByID map[int64]*AccountLoadInfo, accountID int64) int {
+	if loadByID == nil || accountID <= 0 {
+		return 0
+	}
+	info := loadByID[accountID]
+	if info == nil {
+		return 0
+	}
+	return info.LoadRate
+}
+
+func publicScheduleSwitchTTFT(ctx context.Context, runtime *PublicScheduleQualityService, accountID int64, override map[int64]int) *int {
+	if override != nil {
+		if ms, ok := override[accountID]; ok && ms >= 0 {
+			copied := ms
+			return &copied
+		}
+	}
+	if runtime == nil || accountID <= 0 {
+		return nil
+	}
+	live := runtime.cacheWindow(ctx, accountID)
+	if live == nil || live.P50TTFTMs == nil || *live.P50TTFTMs < 0 {
+		return nil
+	}
+	copied := *live.P50TTFTMs
+	return &copied
+}
+
+// peerClearlyHealthier reports whether a peer is far enough ahead on load or
+// TTFT to take a session off a demoted sticky account.
+func peerClearlyHealthier(stickyLoad, peerLoad int, stickyTTFT, peerTTFT *int) bool {
+	if peerLoad < 100 && stickyLoad-peerLoad >= publicScheduleSwitchLoadGap {
+		return true
+	}
+	if stickyTTFT == nil || peerTTFT == nil || *stickyTTFT <= 0 || *peerTTFT < 0 {
+		return false
+	}
+	gap := *stickyTTFT - *peerTTFT
+	if gap < publicScheduleSwitchTTFTGapMs {
+		return false
+	}
+	return *peerTTFT*3 <= *stickyTTFT*2
+}
+
+// stickyNeedsPublicHealthEscape reports whether a public-pool pin is demoted.
+// Callers use it to skip load and TTFT reads on a healthy sticky hit.
+func stickyNeedsPublicHealthEscape(
+	ctx context.Context,
+	runtime *PublicScheduleQualityService,
+	lookup SmartScheduleLookup,
+	userID int64,
+	platform string,
+	sticky *Account,
+) bool {
+	if runtime == nil || sticky == nil {
+		return false
+	}
+	if !isUnpooledScheduleUser(ctx, lookup, userID, platform) {
+		return false
+	}
+	return runtime.IsDemoted(ctx, sticky)
+}
+
+// shouldEscapeDemotedStickyForHealthierPeer clears a public-schedule demoted
+// session when a peer is clearly healthier, including when that peer is also
+// demoted. A selectable peer is handled by shouldEscapeSessionStickyForPublicQuality.
+func shouldEscapeDemotedStickyForHealthierPeer(
+	ctx context.Context,
+	runtime *PublicScheduleQualityService,
+	lookup SmartScheduleLookup,
+	userID int64,
+	platform string,
+	sticky *Account,
+	candidates []*Account,
+	loadByID map[int64]*AccountLoadInfo,
+	ttftMsByID map[int64]int,
+) bool {
+	if runtime == nil || sticky == nil {
+		return false
+	}
+	if !isUnpooledScheduleUser(ctx, lookup, userID, platform) {
+		return false
+	}
+	if !runtime.IsDemoted(ctx, sticky) {
+		return false
+	}
+	stickyLoad := scheduleSwitchLoadRate(loadByID, sticky.ID)
+	stickyTTFT := publicScheduleSwitchTTFT(ctx, runtime, sticky.ID, ttftMsByID)
+	for _, acc := range candidates {
+		if acc == nil || acc.ID == sticky.ID {
+			continue
+		}
+		peerLoad := scheduleSwitchLoadRate(loadByID, acc.ID)
+		peerTTFT := publicScheduleSwitchTTFT(ctx, runtime, acc.ID, ttftMsByID)
+		if peerClearlyHealthier(stickyLoad, peerLoad, stickyTTFT, peerTTFT) {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldEscapeSessionStickyForPublicQuality(

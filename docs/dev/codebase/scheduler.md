@@ -46,7 +46,7 @@
 | 公共调度账号质量 | 本仓二开 | 搜 `public-schedule` / `preferPublicScheduleAccounts`；站点总闸在账号管理页；列表 `quality_ttft` 带 K/C，`public_quality` 是可手切六态；不进 `IsSchedulable()` |
 | OAuth 车队软 429 | 本仓二开 | `oauth-fleet-soft-429.md`；`MergeOAuthFleetSoft429Exclusions` |
 | `fallback_only` 硬分区 | 本仓二开 | `IsFallbackOnly`；`preferPrimary*` |
-| 粘性 overflow / 选号倍率回跳 | 本仓二开 | `account_unpooled_schedule.go` |
+| 公共池粘性：降级号遇更健康 peer 才解开 | 本仓二开 | `account_unpooled_schedule.go`；选号不读 `upstream_rate_multiplier` |
 | 调度 PnL 管理面 | 本仓二开 | `schedule-pnl.md`（只点名） |
 
 ## 4. 调用链（只到入口）
@@ -79,7 +79,8 @@
 - `fallback_only` 是硬分区：还有非兜底候选时不选兜底号。实现看 `preferPrimary*`。Anthropic 模型路由层是否覆盖，以代码为准。
 - pair 占满只排除再选，不 WaitPlan。账号并发满才可能 WaitPlan。
 - 软 429 是请求级排除，不是不可调度。硬亲和规则看 `oauthFleetSoft429HasHardAffinity`；不要把「有 sessionHash」当成硬亲和。
-- `previous_response` 不因更便宜 peer 或公共调度质量被清。粘性 overflow / 倍率回跳只读 `account_unpooled_schedule.go`。公共调度 session sticky 只在 **demoted 且存在未 demoted peer** 时清（`shouldEscapeSessionStickyForPublicQuality`）；Gemini 走 `shouldEscapeGeminiStickyForPublicQuality`，不得只看 `IsDemoted`。LoadBatch 关闭时的 Anthropic/OpenAI 遗留选号也走 `preferPublicScheduleAccounts`。
+- 选号不读 `upstream_rate_multiplier`。字段和计费倍率都留着。Redis `|o` 仍可解析，选号不再按 Overflow 回跳。
+- `previous_response` 不因价格或公共质量被清。公共池 session sticky 在粘号已 demoted，且存在未 demoted peer，或存在负载 / TTFT 明显更好的 peer（对方也可以是 demoted）时清。未 demoted 的粘号不因负载差距被清。实现看 `shouldEscapeSessionStickyForPublicQuality` 和 `shouldEscapeDemotedStickyForHealthierPeer`。Gemini 走 `shouldEscapeGeminiStickyForPublicQuality`，不得只看 `IsDemoted`。LoadBatch 关闭时的 Anthropic/OpenAI 遗留选号也走 `preferPublicScheduleAccounts`。
 - snapshot meta 缺字段只让该字段变空，不要把受限号看成全开。要拷哪些字段，以 `buildSchedulerMetadataAccount` / `filterSchedulerExtra` 为准。
 - 质量、ops、pair 冷却是不同口径。混用前先读对应 spec。
 

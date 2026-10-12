@@ -1468,11 +1468,7 @@ func (s *OpenAIGatewayService) readSessionBinding(ctx context.Context, groupID *
 	return legacy
 }
 
-func (s *OpenAIGatewayService) readSessionBindingOverflow(ctx context.Context, groupID *int64, sessionHash string) bool {
-	return s.readSessionBinding(ctx, groupID, sessionHash).Overflow
-}
-
-func (s *OpenAIGatewayService) bindStickySessionAfterSelect(ctx context.Context, groupID *int64, sessionHash string, selected *Account, candidates []*Account, previous *Account) error {
+func (s *OpenAIGatewayService) bindStickySessionAfterSelect(ctx context.Context, groupID *int64, sessionHash string, selected *Account, _ []*Account, _ *Account) error {
 	if sessionHash == "" || selected == nil || selected.ID <= 0 {
 		return nil
 	}
@@ -1480,9 +1476,7 @@ func (s *OpenAIGatewayService) bindStickySessionAfterSelect(ctx context.Context,
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
 		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
 	}
-	userID := scheduleUserIDFromContext(ctx, 0)
-	overflow := sessionStickyOverflowOnBind(ctx, s.smartScheduleCache, userID, selected, candidates, previous)
-	return s.setStickySessionBinding(ctx, groupID, sessionHash, StickySessionBinding{AccountID: selected.ID, Overflow: overflow}, ttl)
+	return s.setStickySessionBinding(ctx, groupID, sessionHash, StickySessionBinding{AccountID: selected.ID, Overflow: false}, ttl)
 }
 
 // SelectAccount selects an OpenAI account with sticky session support
@@ -1896,7 +1890,7 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 		return nil
 	}
 	if peers, peerErr := s.listSchedulableAccounts(ctx, groupID, eligibility.Platform); peerErr == nil &&
-		s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(peers)), s.readSessionBindingOverflow(ctx, groupID, sessionHash)) {
+		s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(peers))) {
 		return nil
 	}
 
@@ -2027,10 +2021,10 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 }
 
 // isBetterAccount 判断 candidate 是否比 current 更优。
-// 规则：更低上游倍率优先；同倍率再比优先级（数值更小）与 LRU。
+// 规则：优先级（数值更小），然后 LRU。
 //
 // isBetterAccount checks if candidate is better than current.
-// Rules: lower EffectiveUpstreamRate wins; same rate: higher priority then LRU.
+// Rules: lower priority number, then LRU.
 func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool {
 	return isBetterSchedulableAccount(candidate, current, false)
 }
@@ -2062,12 +2056,10 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 	cfg := s.schedulingConfig()
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
 	var stickyAccountID int64
-	var stickyOverflow bool
 	var forcedFromSticky *Account
 	if sessionHash != "" {
 		if binding := s.readSessionBinding(ctx, groupID, sessionHash); binding.AccountID > 0 {
 			stickyAccountID = binding.AccountID
-			stickyOverflow = binding.Overflow
 		}
 	}
 	if s.concurrencyService == nil || !cfg.LoadBatchEnabled {
@@ -2137,7 +2129,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			if err == nil {
 				clearSticky := shouldClearStickySession(account, requestedModel) ||
 					!s.admitsScheduleUser(ctx, account)
-				if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), stickyOverflow) {
+				if !clearSticky && s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts))) {
 					clearSticky = true
 				}
 				if clearSticky {
@@ -2160,9 +2152,6 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 						} else if err == nil && result.Acquired {
 							_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
 							return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
-						} else if shouldSkipMinRateWaitPlan(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)), scheduleLoadMap(ctx, s.concurrencyService, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts))), s.pairCountsForSelection(ctx, excludedAccountIDsFilter(excludedIDs, accountPointers(accounts)))) {
-							forcedFromSticky = account
-							_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 						} else {
 							waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
 							if waitingCount < cfg.StickySessionMaxWaiting {
@@ -2290,9 +2279,6 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		if len(available) > 0 {
 			sort.SliceStable(available, func(i, j int) bool {
 				a, b := available[i], available[j]
-				if cmp := compareUpstreamRate(a.account, b.account); cmp != 0 {
-					return cmp < 0
-				}
 				if a.account.Priority != b.account.Priority {
 					return a.account.Priority < b.account.Priority
 				}

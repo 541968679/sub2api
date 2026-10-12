@@ -1613,7 +1613,6 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 	var stickyAccountID int64
 	var stickySource string
-	var stickyOverflow bool
 	var forcedFromSticky *Account
 	if prefetch := prefetchedStickyAccountIDFromContext(ctx, groupID); prefetch > 0 {
 		stickyAccountID = prefetch
@@ -1621,7 +1620,6 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	} else if sessionHash != "" && s.cache != nil {
 		if binding, err := s.cache.GetSessionBinding(ctx, derefGroupID(groupID), sessionHash); err == nil {
 			stickyAccountID = binding.AccountID
-			stickyOverflow = binding.Overflow
 			stickySource = "cache"
 		}
 	}
@@ -1828,7 +1826,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				if containsInt64(routingAccountIDs, stickyAccountID) && !isExcluded(stickyAccountID) {
 					// 粘性账号在路由列表中，优先使用
 					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
-						if s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, stickyAccount, routingCandidates, stickyOverflow) {
+						if s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, stickyAccount, routingCandidates) {
 							// Fall through to routed load-aware pick.
 						} else {
 							var stickyCacheMissReason string
@@ -1939,12 +1937,9 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 
 			if len(routingAvailable) > 0 {
-				// 排序：上游倍率 > 优先级 > 负载率 > 最后使用时间
+				// 排序：优先级 > 负载率 > 最后使用时间
 				sort.SliceStable(routingAvailable, func(i, j int) bool {
 					a, b := routingAvailable[i], routingAvailable[j]
-					if cmp := compareUpstreamRate(a.account, b.account); cmp != 0 {
-						return cmp < 0
-					}
 					if a.account.Priority != b.account.Priority {
 						return a.account.Priority < b.account.Priority
 					}
@@ -2029,7 +2024,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		accountID := stickyAccountID
 		if accountID > 0 && !isExcluded(accountID) {
 			account, ok := accountByID[accountID]
-			escapedCheaperTier := false
+			escapedSticky := false
 			layer15Candidates := make([]*Account, 0, len(accounts))
 			for i := range accounts {
 				if isExcluded(accounts[i].ID) {
@@ -2038,12 +2033,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				layer15Candidates = append(layer15Candidates, &accounts[i])
 			}
 			if ok {
-				escapedCheaperTier = s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, layer15Candidates, stickyOverflow)
-				if escapedCheaperTier {
+				escapedSticky = s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, layer15Candidates)
+				if escapedSticky {
 					forcedFromSticky = account
 				}
 			}
-			if ok && !escapedCheaperTier && account != nil {
+			if ok && !escapedSticky && account != nil {
 				// 检查账户是否需要清理粘性会话绑定
 				clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 				if clearSticky {
@@ -2115,8 +2110,6 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					}
 
 					if pairFullSticky {
-						forcedFromSticky = account
-					} else if shouldSkipMinRateWaitPlan(ctx, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), account, layer15Candidates, scheduleLoadMap(ctx, s.concurrencyService, layer15Candidates), s.pairCountsForSelection(ctx, layer15Candidates)) {
 						forcedFromSticky = account
 					} else {
 						waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
@@ -2261,15 +2254,10 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			}
 		}
 
-		// 分层过滤选择：上游倍率 → 优先级 → 负载率 → LRU
+		// 分层过滤选择：优先级 → 负载率 → LRU
 		for len(available) > 0 {
-			// 1. 取上游倍率最低的集合
-			candidates := filterByMinUpstreamRate(available)
-			// 2. 取优先级最小的集合
-			candidates = filterByMinPriority(candidates)
-			// 3. 取负载率最低的集合
+			candidates := filterByMinPriority(available)
 			candidates = filterByMinLoadRate(candidates)
-			// 4. LRU 选择最久未用的账号
 			selected := selectByLRU(candidates, preferOAuth)
 			if selected == nil {
 				break
@@ -3018,26 +3006,6 @@ func (s *GatewayService) newSelectionResult(ctx context.Context, account *Accoun
 	}, nil
 }
 
-// filterByMinUpstreamRate 过滤出调度上游倍率最低的账号集合
-func filterByMinUpstreamRate(accounts []accountWithLoad) []accountWithLoad {
-	if len(accounts) == 0 {
-		return accounts
-	}
-	minRate := accounts[0].account.EffectiveUpstreamRate()
-	for _, acc := range accounts[1:] {
-		if r := acc.account.EffectiveUpstreamRate(); r < minRate {
-			minRate = r
-		}
-	}
-	result := make([]accountWithLoad, 0, len(accounts))
-	for _, acc := range accounts {
-		if acc.account.EffectiveUpstreamRate() == minRate {
-			result = append(result, acc)
-		}
-	}
-	return result
-}
-
 // filterByMinPriority 过滤出优先级最小的账号集合
 func filterByMinPriority(accounts []accountWithLoad) []accountWithLoad {
 	if len(accounts) == 0 {
@@ -3141,9 +3109,6 @@ func selectByLRU(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad 
 func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
-		if cmp := compareUpstreamRate(a, b); cmp != 0 {
-			return cmp < 0
-		}
 		if a.Priority != b.Priority {
 			return a.Priority < b.Priority
 		}
@@ -3164,7 +3129,7 @@ func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	shuffleWithinPriorityAndLastUsed(accounts, preferOAuth)
 }
 
-// shuffleWithinSortGroups 对排序后的 accountWithLoad 切片，按 (UpstreamRate, Priority, LoadRate, LastUsedAt) 分组后组内随机打乱。
+// shuffleWithinSortGroups 对排序后的 accountWithLoad 切片，按 (Priority, LoadRate, LastUsedAt) 分组后组内随机打乱。
 // 防止并发请求读取同一快照时，确定性排序导致所有请求命中相同账号。
 func shuffleWithinSortGroups(accounts []accountWithLoad) {
 	if len(accounts) <= 1 {
@@ -3187,9 +3152,6 @@ func shuffleWithinSortGroups(accounts []accountWithLoad) {
 
 // sameAccountWithLoadGroup 判断两个 accountWithLoad 是否属于同一排序组
 func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
-	if a.account.EffectiveUpstreamRate() != b.account.EffectiveUpstreamRate() {
-		return false
-	}
 	if a.account.Priority != b.account.Priority {
 		return false
 	}
@@ -3199,7 +3161,7 @@ func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
 	return sameLastUsedAt(a.account.LastUsedAt, b.account.LastUsedAt)
 }
 
-// shuffleWithinPriorityAndLastUsed 对排序后的 []*Account 切片，按 (UpstreamRate, Priority, LastUsedAt) 分组后组内随机打乱。
+// shuffleWithinPriorityAndLastUsed 对排序后的 []*Account 切片，按 (Priority, LastUsedAt) 分组后组内随机打乱。
 //
 // 注意：当 preferOAuth=true 时，需要保证 OAuth 账号在同组内仍然优先，否则会把排序时的偏好打散掉。
 // 因此这里采用"组内分区 + 分区内 shuffle"的方式：
@@ -3244,11 +3206,8 @@ func shuffleWithinPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 	}
 }
 
-// sameAccountGroup 判断两个 Account 是否属于同一排序组（UpstreamRate + Priority + LastUsedAt）
+// sameAccountGroup 判断两个 Account 是否属于同一排序组（Priority + LastUsedAt）
 func sameAccountGroup(a, b *Account) bool {
-	if a.EffectiveUpstreamRate() != b.EffectiveUpstreamRate() {
-		return false
-	}
 	if a.Priority != b.Priority {
 		return false
 	}
@@ -3284,9 +3243,6 @@ func (s *GatewayService) sortCandidatesForFallback(accounts []*Account, preferOA
 func sortAccountsByPriorityOnly(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
-		if cmp := compareUpstreamRate(a, b); cmp != 0 {
-			return cmp < 0
-		}
 		if a.Priority != b.Priority {
 			return a.Priority < b.Priority
 		}
@@ -3306,9 +3262,8 @@ func shuffleWithinPriority(accounts []*Account) {
 	start := 0
 	for start < len(accounts) {
 		priority := accounts[start].Priority
-		rate := accounts[start].EffectiveUpstreamRate()
 		end := start + 1
-		for end < len(accounts) && accounts[end].Priority == priority && accounts[end].EffectiveUpstreamRate() == rate {
+		for end < len(accounts) && accounts[end].Priority == priority {
 			end++
 		}
 		// 对 [start, end) 范围内的账户随机打乱
@@ -3353,7 +3308,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
+						if !clearSticky && s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
 							clearSticky = true
 						}
 						if clearSticky {
@@ -3454,7 +3409,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 				// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
+					if !clearSticky && s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, platform, isMixedSchedulingDisabled(ctx), excludedIDs, accounts)) {
 						clearSticky = true
 					}
 					if clearSticky {
@@ -3576,7 +3531,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 					if err == nil {
 						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-						if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
+						if !clearSticky && s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
 							clearSticky = true
 						}
 						if clearSticky {
@@ -3679,7 +3634,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 				// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 				if err == nil {
 					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
-					if !clearSticky && s.escapeSessionStickyIfCheaperTier(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts), s.readSessionBinding(ctx, groupID, sessionHash).Overflow) {
+					if !clearSticky && s.escapeSessionStickyForQuality(ctx, groupID, sessionHash, account, s.loadStickyEscapeCandidates(ctx, groupID, nativePlatform, false, excludedIDs, accounts)) {
 						clearSticky = true
 					}
 					if clearSticky {

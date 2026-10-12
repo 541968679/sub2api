@@ -3026,14 +3026,14 @@ const enBase = {
         batchApplyCap: 'Apply pair cap',
         manualSort: 'Sort (manual)',
         manualSortHint:
-          'Immediately reorders current-platform pool members by admission → this-user producing (pair occupancy > 0) → upstream rate (lower first) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes pool order 1..N. Does not change account scheduling priority. Does not change hot-path selection. Does not remove members.',
+          'Immediately reorders current-platform pool members by admission → this-user producing (pair occupancy > 0) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes pool order 1..N. Does not change account scheduling priority. Does not change hot-path selection. Does not remove members.',
         autoSort: 'Auto-sort (interval)',
         enableAutoSort: 'Enable auto-sort',
         autoSortCountdown: 'Auto-sort: {seconds}s',
         autoSortIntervalHint:
           'Auto-sort (every few seconds). Follows the auto-refresh interval: after each auto-refresh finishes, writes pool order with the same ranking as manual sort. Enabling this alone does not start a second timer. Does not change account scheduling priority. Does not change hot-path selection.',
         autoSortHint:
-          'Reorders current-platform pool members by admission → this-user producing (pair occupancy > 0) → upstream rate (lower first) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes pool order 1..N immediately. Manual sort writes once; interval auto-sort follows auto-refresh and writes once after each refresh. Does not change account scheduling priority. Does not change hot-path selection. Does not remove members.',
+          'Reorders current-platform pool members by admission → this-user producing (pair occupancy > 0) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes pool order 1..N immediately. Manual sort writes once; interval auto-sort follows auto-refresh and writes once after each refresh. Does not change account scheduling priority. Does not change hot-path selection. Does not remove members.',
         autoSortProgress: 'Writing pool order…',
         autoSortSuccess: 'Wrote auto-sort pool order for {count} accounts',
         autoSortUnchanged: 'Pool order already matches auto-sort; nothing to write',
@@ -5478,13 +5478,13 @@ const enBase = {
       reorderFailed: 'Failed to reorder accounts',
       manualSort: 'Sort (manual)',
       manualSortHint:
-        'Immediately reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → upstream rate (lower first) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first.',
+        'Immediately reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first.',
       autoSort: 'Auto-sort (interval)',
       autoSortCountdown: 'Auto-sort: {seconds}s',
       autoSortIntervalHint:
         'Auto-sort (every few seconds). Follows the auto-refresh interval: after each auto-refresh finishes, silently writes account management list order with the same ranking as manual sort. Enabling this alone does not start a second timer. Changes account management list order only. Does not change scheduling priority. Does not change hot-path selection.',
       autoSortHint:
-        'Reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → upstream rate (lower first) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Manual sort writes once; interval auto-sort follows auto-refresh and writes once after each refresh. Changes account management list order only. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first and are not rewritten by rule sort.',
+        'Reorders every account matching the current filters by admission → fallback_only (non-fallback first in the same band) → producing (current concurrency > 0) → concurrency headroom → account concurrency → existing account priority (read-only tie-break) → id, then writes account management list order. Manual sort writes once; interval auto-sort follows auto-refresh and writes once after each refresh. Changes account management list order only. Does not change scheduling priority. Does not change hot-path selection. Does not delete accounts. Manually pinned rows stay first and are not rewritten by rule sort.',
       autoSortProgress: 'Writing list order…',
       autoSortSuccess: 'Wrote auto-sort list order for {count} accounts',
       autoSortUnchanged: 'List order already matches auto-sort; nothing to write',
@@ -5981,7 +5981,7 @@ const enBase = {
       billingRateMultiplierHint: '0 = free, affects account billing only',
       upstreamRateMultiplier: 'Upstream Rate',
       upstreamRateMultiplierHint:
-        'Scheduling only; does not affect billing. Lower is preferred. OAuth/API Key default 0.15, other types default 1',
+        'Stored field only. Selection no longer reads it and billing is unchanged. OAuth/API Key default 0.15, other types default 1',
       expiresAt: 'Expires At',
       expiresAtHint: 'Leave empty for no expiration',
       higherPriorityFirst: 'Lower value means higher priority',

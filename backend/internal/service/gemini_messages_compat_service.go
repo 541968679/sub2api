@@ -277,8 +277,14 @@ func (s *GeminiMessagesCompatService) shouldEscapeGeminiStickyForPublicQuality(
 	if err != nil {
 		return false
 	}
-	return shouldEscapeSessionStickyForPublicQuality(
-		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, accountPointers(peers),
+	peerPtrs := accountPointers(peers)
+	if shouldEscapeSessionStickyForPublicQuality(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, peerPtrs,
+	) {
+		return true
+	}
+	return shouldEscapeDemotedStickyForHealthierPeer(
+		ctx, s.publicSchedule, s.smartScheduleCache, scheduleUserIDFromContext(ctx, 0), platform, sticky, peerPtrs, nil, nil,
 	)
 }
 
@@ -429,10 +435,10 @@ func (s *GeminiMessagesCompatService) buildPreCheckUsageResultMap(ctx context.Co
 }
 
 // isBetterGeminiAccount 判断 candidate 是否比 current 更优。
-// 规则：更低上游倍率优先；同倍率再比优先级与 LRU（都未使用时 OAuth 优先）。
+// 规则：优先级，然后 LRU（都未使用时 OAuth 优先）。
 //
 // isBetterGeminiAccount checks if candidate is better than current.
-// Rules: lower EffectiveUpstreamRate wins; same rate: priority, then unused OAuth, then LRU.
+// Rules: priority, then unused OAuth, then LRU.
 func (s *GeminiMessagesCompatService) isBetterGeminiAccount(candidate, current *Account) bool {
 	return isBetterSchedulableAccount(candidate, current, true)
 }

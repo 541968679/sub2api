@@ -118,10 +118,10 @@ describe('comparePoolAutoSort', () => {
     ])
   })
 
-  it('ranks cheaper rate first when nobody is producing', () => {
+  it('ranks better priority first when nobody is producing', () => {
     const cheap = item({ id: 2, upstreamRate: 0.06, priority: 7 })
     const expensive = item({ id: 3, upstreamRate: 0.08, priority: 1 })
-    expect(sortSmartSchedulePoolMembers([expensive, cheap]).map((row) => row.id)).toEqual([2, 3])
+    expect(sortSmartSchedulePoolMembers([expensive, cheap]).map((row) => row.id)).toEqual([3, 2])
   })
 
   it('lets a producing expensive account beat an idle cheaper peer', () => {
@@ -130,10 +130,10 @@ describe('comparePoolAutoSort', () => {
     expect(sortSmartSchedulePoolMembers([idleCheap, busyExpensive]).map((row) => row.id)).toEqual([8, 6])
   })
 
-  it('among producing accounts, still prefers the cheaper upstream rate', () => {
+  it('among producing accounts, ranks better priority before upstream rate', () => {
     const cheap = item({ id: 6, pairCurrent: 1, upstreamRate: 0.06, priority: 9 })
     const expensive = item({ id: 8, pairCurrent: 4, upstreamRate: 0.08, priority: 1 })
-    expect(sortSmartSchedulePoolMembers([expensive, cheap]).map((row) => row.id)).toEqual([6, 8])
+    expect(sortSmartSchedulePoolMembers([expensive, cheap]).map((row) => row.id)).toEqual([8, 6])
   })
 
   it('does not rank a stopped cheaper account ahead of a selectable more expensive peer', () => {
@@ -221,12 +221,12 @@ describe('assignPoolMoveToTopSortOrders', () => {
 describe('autoSortHint', () => {
   it('lists the same new key order in zh and en and says hot-path selection is unchanged', () => {
     expect(zh.admin.users.smartSchedule.autoSortHint).toContain(
-      '入池状态 → 本用户是否出量（配对占用>0） → 上游倍率（低优先） → 配对剩余 → 账号并发 → 原账号优先级（只读平局） → id'
+      '入池状态 → 本用户是否出量（配对占用>0） → 配对剩余 → 账号并发 → 原账号优先级（只读平局） → id'
     )
     expect(zh.admin.users.smartSchedule.autoSortHint).toContain('不改账号调度优先级')
     expect(zh.admin.users.smartSchedule.autoSortHint).toContain('不改热路径选号')
     expect(en.admin.users.smartSchedule.autoSortHint).toContain(
-      'admission → this-user producing (pair occupancy > 0) → upstream rate (lower first) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id'
+      'admission → this-user producing (pair occupancy > 0) → pair headroom → account concurrency → existing account priority (read-only tie-break) → id'
     )
     expect(en.admin.users.smartSchedule.autoSortHint).toContain('Does not change account scheduling priority')
     expect(en.admin.users.smartSchedule.autoSortHint).toContain('Does not change hot-path selection')

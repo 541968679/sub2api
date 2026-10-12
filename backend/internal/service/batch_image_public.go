@@ -943,9 +943,6 @@ func (s *BatchImagePublicService) selectProviderAndAccount(ctx context.Context, 
 			return nil, nil, err
 		}
 		sort.SliceStable(accounts, func(i, j int) bool {
-			if cmp := compareUpstreamRate(&accounts[i], &accounts[j]); cmp != 0 {
-				return cmp < 0
-			}
 			if accounts[i].Priority != accounts[j].Priority {
 				return accounts[i].Priority > accounts[j].Priority
 			}

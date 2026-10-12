@@ -89,13 +89,13 @@ describe('publicPoolAutoSort AC8', () => {
     ).toEqual([1, 2])
   })
 
-  it('puts the lower upstream rate first in the same band', () => {
+  it('puts the better priority first in the same band', () => {
     expect(
       sortIds([
-        { account: account({ id: 2, upstream_rate_multiplier: 0.5 }), view: view() },
-        { account: account({ id: 1, upstream_rate_multiplier: 0.1 }), view: view() }
+        { account: account({ id: 1, priority: 9, upstream_rate_multiplier: 0.1 }), view: view() },
+        { account: account({ id: 2, priority: 1, upstream_rate_multiplier: 0.5 }), view: view() }
       ])
-    ).toEqual([1, 2])
+    ).toEqual([2, 1])
   })
 
   it('puts fallback_only later in the same admission band', () => {

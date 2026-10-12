@@ -24,8 +24,7 @@ func gatewayUnpooledAccounts(cheapID, expensiveID int64, cheapRate, expensiveRat
 	return repo
 }
 
-func TestGatewayUnpooled_BothAvailablePicksCheap(t *testing.T) {
-	// AC1
+func TestGatewayUnpooled_BothAvailablePicksBetterPriority(t *testing.T) {
 	groupID := int64(81)
 	repo := gatewayUnpooledAccounts(1, 2, 0.15, 1.0)
 	cfg := testConfig()
@@ -42,13 +41,12 @@ func TestGatewayUnpooled_BothAvailablePicksCheap(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "gw-cheap", "", nil, "", int64(16))
 	require.NoError(t, err)
-	require.Equal(t, int64(1), result.Account.ID)
+	require.Equal(t, int64(2), result.Account.ID)
 	require.True(t, result.Acquired)
 	require.Nil(t, result.WaitPlan)
 }
 
-func TestGatewayUnpooled_StickyEscapeToCheap(t *testing.T) {
-	// AC4
+func TestGatewayUnpooled_OverflowDoesNotLeaveAdmittedPin(t *testing.T) {
 	groupID := int64(82)
 	sessionHash := "gw-escape"
 	repo := gatewayUnpooledAccounts(1, 2, 0.15, 1.0)
@@ -70,8 +68,8 @@ func TestGatewayUnpooled_StickyEscapeToCheap(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "", nil, "", int64(16))
 	require.NoError(t, err)
-	require.Equal(t, int64(1), result.Account.ID)
-	require.Greater(t, cache.deletedSessions[sessionHash], 0)
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Zero(t, cache.deletedSessions[sessionHash])
 }
 
 func TestGatewayUnpooled_StickyExpensiveCheapFullKeeps(t *testing.T) {
@@ -186,10 +184,9 @@ func TestGatewayPooled_OverflowEscapesOnce(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "", nil, "", int64(16))
 	require.NoError(t, err)
-	require.Equal(t, int64(1), result.Account.ID)
-	require.Greater(t, cache.deletedSessions[sessionHash], 0)
-	require.Equal(t, int64(1), cache.sessionBindings[sessionHash])
-	require.False(t, cache.sessionOverflow[sessionHash])
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Zero(t, cache.deletedSessions[sessionHash])
+	require.Equal(t, int64(2), cache.sessionBindings[sessionHash])
 }
 
 func TestGatewayPooled_NewSessionCheapestNoOverflow(t *testing.T) {
@@ -212,7 +209,7 @@ func TestGatewayPooled_NewSessionCheapestNoOverflow(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "", nil, "", int64(16))
 	require.NoError(t, err)
-	require.Equal(t, int64(1), result.Account.ID)
+	require.Equal(t, int64(2), result.Account.ID)
 	require.False(t, cache.sessionOverflow[sessionHash])
-	require.Equal(t, int64(1), cache.sessionBindings[sessionHash])
+	require.Equal(t, int64(2), cache.sessionBindings[sessionHash])
 }

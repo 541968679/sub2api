@@ -50,13 +50,12 @@ func unpooledSchedulerSvc(accounts []Account, load map[int64]*AccountLoadInfo, a
 	return svc, cache
 }
 
-func TestUnpooledSelectAccount_BothAvailablePicksCheap(t *testing.T) {
-	// AC1
+func TestUnpooledSelectAccount_BothAvailablePicksLowerLoad(t *testing.T) {
 	cheap := unpooledOpenAIAccount(1, 0.15, false)
 	expensive := unpooledOpenAIAccount(2, 1.0, false)
 	svc, _ := unpooledSchedulerSvc(
 		[]Account{cheap, expensive},
-		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 10}, 2: {AccountID: 2, LoadRate: 10}},
+		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 90}, 2: {AccountID: 2, LoadRate: 10}},
 		map[int64]bool{1: true, 2: true},
 		nil,
 		nil,
@@ -66,7 +65,7 @@ func TestUnpooledSelectAccount_BothAvailablePicksCheap(t *testing.T) {
 	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
-	require.Equal(t, int64(1), selection.Account.ID)
+	require.Equal(t, int64(2), selection.Account.ID)
 	require.True(t, selection.Acquired)
 	require.Nil(t, selection.WaitPlan)
 }
@@ -112,8 +111,7 @@ func TestUnpooledSelectAccount_CheapUnschedulablePicksExpensive(t *testing.T) {
 	require.True(t, selection.Acquired)
 }
 
-func TestUnpooledSelectAccount_StickyEscapeToCheap(t *testing.T) {
-	// AC4
+func TestUnpooledSelectAccount_OverflowDoesNotLeaveAdmittedPin(t *testing.T) {
 	cheap := unpooledOpenAIAccount(1, 0.15, false)
 	expensive := unpooledOpenAIAccount(2, 1.0, false)
 	svc, cache := unpooledSchedulerSvc(
@@ -128,10 +126,10 @@ func TestUnpooledSelectAccount_StickyEscapeToCheap(t *testing.T) {
 	groupID := int64(9001)
 	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-escape", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), selection.Account.ID)
+	require.Equal(t, int64(2), selection.Account.ID)
 	require.True(t, selection.Acquired)
-	require.Greater(t, cache.deletedSessions["openai:sess-escape"], 0)
-	require.False(t, decision.StickySessionHit)
+	require.Zero(t, cache.deletedSessions["openai:sess-escape"])
+	require.True(t, decision.StickySessionHit)
 }
 
 func TestUnpooledSelectAccount_StickyExpensiveCheapFullKeeps(t *testing.T) {
@@ -239,11 +237,10 @@ func TestPooledSelectAccount_OverflowEscapesOnceToCheap(t *testing.T) {
 	groupID := int64(9001)
 	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-pool-ov", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), selection.Account.ID)
-	require.False(t, decision.StickySessionHit)
-	require.Greater(t, cache.deletedSessions["openai:sess-pool-ov"], 0)
-	require.Equal(t, int64(1), cache.sessionBindings["openai:sess-pool-ov"])
-	require.False(t, cache.sessionOverflow["openai:sess-pool-ov"], "return once then clear overflow")
+	require.Equal(t, int64(2), selection.Account.ID)
+	require.True(t, decision.StickySessionHit)
+	require.Zero(t, cache.deletedSessions["openai:sess-pool-ov"])
+	require.Equal(t, int64(2), cache.sessionBindings["openai:sess-pool-ov"])
 }
 
 func TestPooledSelectAccount_PinnedMinDoesNotChaseNewerCheaper(t *testing.T) {
@@ -266,13 +263,13 @@ func TestPooledSelectAccount_PinnedMinDoesNotChaseNewerCheaper(t *testing.T) {
 	require.Zero(t, cache.deletedSessions["openai:sess-min"])
 }
 
-func TestPooledSelectAccount_NewSessionCheapestNoOverflow(t *testing.T) {
+func TestPooledSelectAccount_NewSessionPicksLowerLoad(t *testing.T) {
 	cheap := unpooledOpenAIAccount(1, 0.15, false)
 	expensive := unpooledOpenAIAccount(2, 1.0, false)
 	lookup := testSmartLookup(PlatformOpenAI, 1, 2)
 	svc, cache := unpooledSchedulerSvc(
 		[]Account{cheap, expensive},
-		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 10}, 2: {AccountID: 2, LoadRate: 10}},
+		map[int64]*AccountLoadInfo{1: {AccountID: 1, LoadRate: 40}, 2: {AccountID: 2, LoadRate: 10}},
 		map[int64]bool{1: true, 2: true},
 		nil,
 		lookup,
@@ -281,9 +278,9 @@ func TestPooledSelectAccount_NewSessionCheapestNoOverflow(t *testing.T) {
 	groupID := int64(9001)
 	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "sess-new-min", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), selection.Account.ID)
+	require.Equal(t, int64(2), selection.Account.ID)
 	require.False(t, cache.sessionOverflow["openai:sess-new-min"])
-	require.Equal(t, int64(1), cache.sessionBindings["openai:sess-new-min"])
+	require.Equal(t, int64(2), cache.sessionBindings["openai:sess-new-min"])
 }
 
 func TestPooledSelectAccount_CheapFullOverflowsNoWaitPlan(t *testing.T) {
@@ -304,6 +301,6 @@ func TestPooledSelectAccount_CheapFullOverflowsNoWaitPlan(t *testing.T) {
 	require.NotNil(t, selection)
 	require.Equal(t, int64(2), selection.Account.ID)
 	require.True(t, selection.Acquired)
-	require.Nil(t, selection.WaitPlan, "cheap full must overflow, not WaitPlan")
-	require.True(t, cache.sessionOverflow["openai:sess-new"], "new pin on the higher-rate account is overflow")
+	require.Nil(t, selection.WaitPlan)
+	require.False(t, cache.sessionOverflow["openai:sess-new"])
 }

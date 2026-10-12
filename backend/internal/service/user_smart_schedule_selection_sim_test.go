@@ -16,17 +16,17 @@ import (
 // before any production push.
 
 const (
-	simUserID            = int64(16)
-	simAnthropicModel    = "claude-3-5-sonnet-20241022"
-	simOpenAIModel       = "gpt-5.1"
-	simOpenAIGroupID     = int64(91001)
-	simOutsideCheapID    = int64(10)
-	simDeniedInPoolID    = int64(11)
-	simPairCappedID      = int64(12)
-	simQualitySlowID     = int64(13)
-	simFallbackOnlyID    = int64(14)
-	simExpensiveID       = int64(15)
-	simCheapOAuthID      = int64(16)
+	simUserID         = int64(16)
+	simAnthropicModel = "claude-3-5-sonnet-20241022"
+	simOpenAIModel    = "gpt-5.1"
+	simOpenAIGroupID  = int64(91001)
+	simOutsideCheapID = int64(10)
+	simDeniedInPoolID = int64(11)
+	simPairCappedID   = int64(12)
+	simQualitySlowID  = int64(13)
+	simFallbackOnlyID = int64(14)
+	simExpensiveID    = int64(15)
+	simCheapOAuthID   = int64(16)
 )
 
 func simRate(v float64) *float64 { return &v }
@@ -192,23 +192,24 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 	p50 := 1000
 	caps := map[int64]int{simPairCappedID: 1}
 
-	t.Run("closed pool picks cheapest eligible primary", func(t *testing.T) {
+	t.Run("closed pool picks best priority not cheapest rate", func(t *testing.T) {
 		t.Parallel()
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simPairCappedID, got.Account.ID, "0.10 in-pool primary must beat 0.15/0.20/1.0 and ignore outside 0.05 plus fallback 0.01")
+		require.Contains(t, []int64{simDeniedInPoolID, simExpensiveID}, got.Account.ID)
+		require.Equal(t, 0, got.Account.Priority)
 		require.Equal(t, 1, lookup.startCalls, "quality-slow must start pair cooldown, not TempUnschedulable")
 		require.True(t, got.Account.Schedulable)
 		require.Nil(t, got.Account.TempUnschedulableUntil)
 	})
 
-	t.Run("pair cap full reselects next cheapest", func(t *testing.T) {
+	t.Run("pair cap does not displace a better priority peer", func(t *testing.T) {
 		t.Parallel()
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, map[int64]int{simPairCappedID: 1}, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simCheapOAuthID, got.Account.ID, "after pair-full 0.10, next cheapest eligible is 0.15 not denied-legacy 0.20 or billing-cheap 1.0")
+		require.Contains(t, []int64{simDeniedInPoolID, simExpensiveID}, got.Account.ID)
 	})
 
 	t.Run("quality cooldown stays blocked after live recovery", func(t *testing.T) {
@@ -216,18 +217,19 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		quality := simQualityCache()
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, map[int64]int{simPairCappedID: 1}, quality, nil)
-		first := pickAnthropic(t, svc, "", nil)
+		excluded := map[int64]struct{}{simDeniedInPoolID: {}, simExpensiveID: {}}
+		first := pickAnthropic(t, svc, "", excluded)
 		require.Equal(t, simCheapOAuthID, first.Account.ID)
 		require.Equal(t, 1, lookup.startCalls)
 
 		lookup.pair[smartPairKey(simQualitySlowID, simUserID)] = breachedPairLive(200)
 		quality.byID[simQualitySlowID] = liveQualityStats(200, 12, 20, 0, 1)
-		second := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simCheapOAuthID, second.Account.ID, "cooldown must keep excluding the recovered cheapest account")
+		second := pickAnthropic(t, svc, "", excluded)
+		require.Equal(t, simCheapOAuthID, second.Account.ID, "cooldown must keep excluding the recovered account")
 		require.Equal(t, 1, lookup.startCalls, "StartCooldown must not extend an active window")
 	})
 
-	t.Run("overflow sticky returns once to cheaper eligible", func(t *testing.T) {
+	t.Run("overflow flag does not leave an admitted pin", func(t *testing.T) {
 		t.Parallel()
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
 		cache := &mockGatewayCacheForPlatform{
@@ -237,9 +239,8 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
 		svc.cache = cache
 		got := pickAnthropic(t, svc, "sticky-overflow", nil)
-		require.Equal(t, simPairCappedID, got.Account.ID, "overflow pin must return once to the cheapest eligible peer")
-		require.Greater(t, cache.deletedSessions["sticky-overflow"], 0)
-		require.False(t, cache.sessionOverflow["sticky-overflow"])
+		require.Equal(t, simExpensiveID, got.Account.ID)
+		require.Zero(t, cache.deletedSessions["sticky-overflow"])
 	})
 
 	t.Run("sticky keeps expensive pin while it still admits", func(t *testing.T) {
@@ -259,9 +260,9 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
 		svc.cache = cache
 		got := pickAnthropic(t, svc, "sticky-quality", nil)
-		require.Equal(t, simPairCappedID, got.Account.ID)
+		require.Contains(t, []int64{simDeniedInPoolID, simExpensiveID}, got.Account.ID)
 		require.Equal(t, 1, cache.deletedSessions["sticky-quality"])
-		require.Equal(t, simPairCappedID, cache.sessionBindings["sticky-quality"])
+		require.Equal(t, got.Account.ID, cache.sessionBindings["sticky-quality"])
 	})
 
 	t.Run("fallback_only waits until primaries are gone", func(t *testing.T) {
@@ -287,7 +288,8 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		})}
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simOutsideCheapID, got.Account.ID, "disabled policy must reopen the unrestricted 0.05 account and keep legacy deny")
+		require.Contains(t, []int64{simOutsideCheapID, simExpensiveID}, got.Account.ID)
+		require.NotEqual(t, simDeniedInPoolID, got.Account.ID)
 	})
 
 	t.Run("enabled empty pool fails open to legacy", func(t *testing.T) {
@@ -298,25 +300,24 @@ func TestSmartScheduleMultiAccount_AnthropicLoadAware(t *testing.T) {
 		})}
 		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simOutsideCheapID, got.Account.ID)
+		require.Contains(t, []int64{simOutsideCheapID, simExpensiveID}, got.Account.ID)
 	})
 
-	t.Run("sequential occupancy walks cheapest then next", func(t *testing.T) {
+	t.Run("sequential occupancy walks priority tiers", func(t *testing.T) {
 		t.Parallel()
 		lookup := simPairLookup(smartBundle(PlatformAnthropic, simEnabledPolicy(&p50, caps)))
-		pairCounts := map[int64]int{}
 		quality := simQualityCache()
-		svc := newAnthropicSimService(simAnthropicFleet(), lookup, pairCounts, quality, nil)
+		svc := newAnthropicSimService(simAnthropicFleet(), lookup, nil, quality, nil)
 
 		first := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simPairCappedID, first.Account.ID)
+		require.Contains(t, []int64{simDeniedInPoolID, simExpensiveID}, first.Account.ID)
 
-		pairCounts[simPairCappedID] = 1
-		second := pickAnthropic(t, svc, "", nil)
-		require.Equal(t, simCheapOAuthID, second.Account.ID)
+		second := pickAnthropic(t, svc, "", map[int64]struct{}{first.Account.ID: {}})
+		require.Contains(t, []int64{simDeniedInPoolID, simExpensiveID}, second.Account.ID)
+		require.NotEqual(t, first.Account.ID, second.Account.ID)
 
-		third := pickAnthropic(t, svc, "", map[int64]struct{}{simCheapOAuthID: {}})
-		require.Equal(t, simDeniedInPoolID, third.Account.ID, "in-pool legacy deny must still be schedulable after cheaper peers are taken")
+		third := pickAnthropic(t, svc, "", map[int64]struct{}{simDeniedInPoolID: {}, simExpensiveID: {}})
+		require.Equal(t, simPairCappedID, third.Account.ID)
 	})
 }
 
@@ -326,17 +327,17 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 	p50 := 1000
 	caps := map[int64]int{simPairCappedID: 1}
 
-	t.Run("closed pool picks cheapest eligible primary", func(t *testing.T) {
+	t.Run("closed pool picks best priority not cheapest rate", func(t *testing.T) {
 		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), nil)
 		got := pickOpenAI(t, svc, "", nil)
-		require.Equal(t, simPairCappedID, got.Account.ID)
+		require.Equal(t, simDeniedInPoolID, got.Account.ID)
 	})
 
-	t.Run("pair cap full reselects next cheapest", func(t *testing.T) {
+	t.Run("pair cap full reselects the next priority tier", func(t *testing.T) {
 		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, map[int64]int{simPairCappedID: 1}, simQualityCache(), nil)
-		got := pickOpenAI(t, svc, "", nil)
+		got := pickOpenAI(t, svc, "", map[int64]struct{}{simDeniedInPoolID: {}, simExpensiveID: {}})
 		require.Equal(t, simCheapOAuthID, got.Account.ID)
 	})
 
@@ -356,7 +357,7 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 		require.Equal(t, simExpensiveID, got.Account.ID)
 	})
 
-	t.Run("overflow sticky returns once to cheaper", func(t *testing.T) {
+	t.Run("overflow flag does not leave an admitted pin", func(t *testing.T) {
 		lookup := simPairLookup(smartBundle(PlatformOpenAI, simEnabledPolicy(&p50, caps)))
 		cache := &schedulerTestGatewayCache{
 			sessionBindings: map[string]int64{"openai:sticky-overflow": simExpensiveID},
@@ -365,9 +366,8 @@ func TestSmartScheduleMultiAccount_OpenAIScheduler(t *testing.T) {
 		svc := newOpenAISimService(simOpenAIFleet(), lookup, nil, simQualityCache(), cache.sessionBindings)
 		svc.cache = cache
 		got := pickOpenAI(t, svc, "sticky-overflow", nil)
-		require.Equal(t, simPairCappedID, got.Account.ID)
-		require.Greater(t, cache.deletedSessions["openai:sticky-overflow"], 0)
-		require.False(t, cache.sessionOverflow["openai:sticky-overflow"])
+		require.Equal(t, simExpensiveID, got.Account.ID)
+		require.Zero(t, cache.deletedSessions["openai:sticky-overflow"])
 	})
 
 	t.Run("enable off reopens unrestricted cheapest", func(t *testing.T) {

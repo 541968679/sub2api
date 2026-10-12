@@ -110,7 +110,7 @@ func (Account) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
 
-		// upstream_rate_multiplier: 调度选号上游倍率（>=0）。
+		// upstream_rate_multiplier: 保存的上游倍率（>=0）。选号不读它。
 		// 与 rate_multiplier（计费）独立。缺省按账号类型：oauth/apikey=0.15，其余=1。
 		field.Float("upstream_rate_multiplier").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).

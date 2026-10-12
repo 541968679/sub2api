@@ -1606,7 +1606,7 @@ func TestOpenAIAccountRuntimeStats_ReportConcurrent(t *testing.T) {
 	}
 }
 
-func TestIsOpenAIAccountCandidateBetter_CheapestUpstreamBeatsScore(t *testing.T) {
+func TestIsOpenAIAccountCandidateBetter_ScoreBeatsUpstreamRate(t *testing.T) {
 	cheap := 0.15
 	expensive := 1.0
 	left := openAIAccountCandidateScore{
@@ -1619,8 +1619,8 @@ func TestIsOpenAIAccountCandidateBetter_CheapestUpstreamBeatsScore(t *testing.T)
 		loadInfo: &AccountLoadInfo{LoadRate: 10},
 		score:    99.0,
 	}
-	require.True(t, isOpenAIAccountCandidateBetter(left, right))
-	require.False(t, isOpenAIAccountCandidateBetter(right, left))
+	require.False(t, isOpenAIAccountCandidateBetter(left, right))
+	require.True(t, isOpenAIAccountCandidateBetter(right, left))
 }
 
 func TestSelectTopKOpenAICandidates(t *testing.T) {

@@ -1,3 +1,30 @@
+## 2026-10-12 - fix: stop letting upstream rate pin lagging public-pool accounts
+
+### What
+- Account selection no longer reads `upstream_rate_multiplier`. OpenAI advanced scheduling ranks by score, then priority, load, queue, and id. Claude, Gemini, and the OpenAI load-aware fallback rank by priority, then load, then least recently used. The column, admin editor, and billing `rate_multiplier` stay. Stored billing, quota, and `actual_cost` are unchanged.
+- A public-pool sticky pin still stays while the account is healthy, and that hit does not read peer load. If that pin is cooling, probing, or paused and a peer is clearly healthier on load or first-token time, the session rebinds even when the peer is demoted too. The old cheaper-rate sticky jump is gone. `previous_response` sticky is unchanged.
+- Admin auto-sort no longer puts the lower upstream rate first. List order still does not drive the hot path.
+- `go test -tags=unit -run TestPublicPoolSwitchSim -v ./internal/service` drives the real selector through a lag-then-switch trace.
+
+### Why
+A cheap account at high load was beating an idle account, and a session pinned to that cheap account had no reason to leave once every peer was also demoted.
+
+### Affected files
+`backend/internal/service/account.go`,
+`backend/internal/service/account_unpooled_schedule.go`,
+`backend/internal/service/public_schedule_quality.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`backend/internal/service/batch_image_public.go`,
+`backend/internal/service/public_pool_switch_sim_test.go`,
+`frontend/src/composables/smartSchedulePoolAutoSort.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/scheduler.md`,
+this changelog.
+
 ## 2026-10-12 - fix: keep the account burn-rate total on screen
 
 ### What

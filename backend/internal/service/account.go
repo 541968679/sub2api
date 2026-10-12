@@ -37,7 +37,7 @@ type Account struct {
 	// RateMultiplier 账号计费倍率（>=0，允许 0 表示该账号计费为 0）。
 	// 使用指针用于兼容旧版本调度缓存（Redis）中缺字段的情况：nil 表示按 1.0 处理。
 	RateMultiplier *float64
-	// UpstreamRateMultiplier 调度选号上游倍率（>=0）。与计费倍率独立。
+	// UpstreamRateMultiplier 保存的上游倍率（>=0）。选号不读它，与计费倍率独立。
 	// nil 表示旧快照缺字段，按账号类型默认：oauth/apikey=0.15，其余=1。
 	UpstreamRateMultiplier *float64
 	LoadFactor             *int // 调度负载因子；nil 表示使用 Concurrency
@@ -174,8 +174,8 @@ func DefaultUpstreamRateMultiplier(accountType string) float64 {
 	}
 }
 
-// EffectiveUpstreamRate is the scheduling overlay key. Lower wins among
-// already-eligible accounts. nil / negative fall back to the type default.
+// EffectiveUpstreamRate is the stored upstream rate. Selection does not read
+// it. nil / negative fall back to the type default.
 func (a *Account) EffectiveUpstreamRate() float64 {
 	if a == nil {
 		return defaultUpstreamRateStandard
@@ -184,17 +184,6 @@ func (a *Account) EffectiveUpstreamRate() float64 {
 		return DefaultUpstreamRateMultiplier(a.Type)
 	}
 	return *a.UpstreamRateMultiplier
-}
-
-func compareUpstreamRate(a, b *Account) int {
-	ar, br := a.EffectiveUpstreamRate(), b.EffectiveUpstreamRate()
-	if ar < br {
-		return -1
-	}
-	if ar > br {
-		return 1
-	}
-	return 0
 }
 
 func (a *Account) EffectiveLoadFactor() int {
