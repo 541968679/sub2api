@@ -1,3 +1,15 @@
+## 2026-10-12 - ops: record production deploy of v0.1.315
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.315` (revision `ad0245a4b`, digest `sha256:9f852cfc458b7e620d931dd5ba1f54abe78a9e47e5e1fcfd970c6508ac7b2646`). Release run `38242799059`. VERSION sync `39986a9c4`. Preflight passed on attempt 2/36. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.314` digest `sha256:6a28775c2b9d3283e735b3a4ad4e5c61b2cfa43822505eb43067d2ea64b391d9`.
+
+### Why
+Record the verified cutover of the 15-minute account burn-rate estimate and the account-list burn-rate total.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-12 - fix: sum displayed account burn rates and stop extrapolating stale slopes
 
 ### What
