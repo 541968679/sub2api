@@ -6,7 +6,8 @@
 
 - Trigger: an `ops_error_logs` row is classified for (a) pair-quality / account last-N ingest, (b) account-dimension 15m SQL `ErrorCount`, (c) admin error-list badges/filters, (d) the dedicated `ops_attention_count` alert.
 - Cross-layer: `ClassifyOpsErrorRateCalibers` is the Go source of truth. SQL twins must stay in lockstep. List filter and alert count use the SQL twins, not in-memory paging.
-- Does **not** change client HTTP, SLA / user error rate, compare rate (except that schedule exclusion is independent), billing / `actual_cost`, Claude–GPT bridge exclusion, or `classifyNoAccountError` 404/503 routing.
+- Schedule-exclude toggles do **not** change SLA / user error rate, compare rate, billing / `actual_cost`, Claude–GPT bridge exclusion, or `classifyNoAccountError` 404/503 routing.
+- Client HTTP stays on the legacy status map until an admin sets a replacement template on the same Settings KV. Factory templates reproduce the old gateway / OpenAI / Gemini sentences. Account error passthrough, Anthropic 4xx body replay, model-not-found, and silent refusal still run before that resolver.
 - Does **not** drop the phase/status safety rails on `IsAccountQualityRoutingModelMiss` as a whole. The 502 “no account in group supports this model” leak is a **separate** family that ignores phase/status.
 - `needs_ops_attention` / `ops_attention_count` do **not** follow the schedule whitelist. Group-model / routing 503 / protocol still page even if that family is unchecked (then the row both cools and alerts — that is “count toward schedule again”).
 
@@ -66,11 +67,29 @@ JSON shape:
       "phase": "upstream",
       "status_code": 400,
       "provider_error_code": "channel:no_available_key",
-      "message_contains": ""
+      "message_contains": "",
+      "replace_with": "",
+      "schedule_exclude": true
     }
-  ]
+  ],
+  "replacements": [],
+  "family_replace": {
+    "client_invalid_request": "",
+    "client_wrapped_400_urf": "",
+    "client_context_too_long": "",
+    "pair_concurrency": "",
+    "group_no_account": "",
+    "routing_pool_empty": "",
+    "protocol_mismatch": ""
+  }
 }
 ```
+
+`schedule_exclude` omitted on a custom rule means the old behavior: enabled ⇒ exclude. Explicit `false` replaces the client sentence only and the row still counts toward schedule.
+
+`replacements` omitted or empty at resolve time means the factory status map (401/403/429/529/5xx plus locked catch-all `status_default`). GET expands that factory list for the admin page. Builtin match fields (status codes) stay factory-owned. Admins edit `enabled`, `template`, and `schedule_exclude`. The catch-all is locked: `enabled=true`, `schedule_exclude=false`. Unknown template ids are rejected. `family_replace` values are catalog template ids; empty means that family does not rewrite the client. Unknown family-replace keys, including `routing_model_miss`, are dropped.
+
+Client resolve order for an upstream failure that reached `mapUpstreamError`: OpenAI wait-timeout is forced to 502 `Upstream service temporarily unavailable` (a custom rule cannot leak the marker or turn it into another sentence); then the first enabled custom rule with `replace_with` whose phase is empty or `upstream`; then `family_replace` matched as phase `upstream` (so `client_invalid_request` and `routing_pool_empty` do not rewrite client HTTP); then enabled builtin status rules by priority; then the catch-all. Gateway 529 uses `overloaded_error`; OpenAI and Gemini paths use `upstream_error` for that same sentence. Gemini ignores `error.type`.
 
 `families` `true` = in whitelist = **exclude** from pair cooldown / account last-N / account 15m schedule `ErrorCount` (`CountedInAccountScheduleRate`).  
 Uncheck a family = that family counts toward schedule again.  
@@ -82,9 +101,9 @@ Custom rules: filled fields AND. Empty field = do not constrain. `message_contai
 
 PUT `/admin/settings/schedule-error-whitelist`: omit `custom` = keep existing custom; `custom: []` = clear. Unknown family ids still 400.
 
-POST `/admin/settings/schedule-error-whitelist/from-error` `{error_id, mode: structured|message}`: server re-reads the log. `structured` prefills `error_type` + `phase` + `status_code` + `provider_error_code` (no full message). `message` uses the list primary text. Same fingerprint → enable existing. 502 + `upstream request failed` is rejected.
+POST `/admin/settings/schedule-error-whitelist/from-error` `{error_id, mode: structured|message, replace_with?}`: server re-reads the log. `structured` prefills `error_type` + `phase` + `status_code` + `provider_error_code` (no full message). `message` uses the list primary text. Same fingerprint → enable existing. A non-empty `replace_with` updates the stored sentence; an empty one keeps the sentence already stored. 502 + `upstream request failed` is rejected.
 
-UI: checkbox group + custom list in `ScheduleErrorWhitelistPanel` (`UsageErrorInspectDialog` whitelist tab). From-log actions live on `OpsErrorLogTable` and `OpsErrorDetailModal` (Ops / Usage / inspect share the table). Not a SettingsView card. UI opens with every new family unchecked.
+UI: one global page `/admin/error-policy` and the same `ScheduleErrorWhitelistPanel` on the `UsageErrorInspectDialog` whitelist tab. The page configures preset status mappings, family schedule checkboxes, family replacement, and custom rules together. From-log actions live on `OpsErrorLogTable` and `OpsErrorDetailModal` (Ops / Usage / inspect share the table) and can attach `replace_with`. Not a SettingsView card. UI opens with every new family unchecked and `family_replace` empty. Replacement and schedule exclude are both account-independent.
 
 | id | Default on | Match |
 | --- | --- | --- |
@@ -105,7 +124,10 @@ Hot read: short cache or settings invalidation. `ClassifyOpsErrorRateCalibers` a
 - Never exclude `Upstream request failed` without looking at status.
 - status=502 `Upstream request failed` **always counts toward schedule**. Config / custom rules cannot whitelist it away (`AND NOT` hard rail in SQL; Go returns false from exclude).
 - Save rejects unknown family keys.
-- PUT that omits `custom` must not wipe custom rules (old family-only clients).
+- PUT that omits `custom` must not wipe custom rules (old family-only clients). The same applies to omitted `replacements` / `family_replace`. A save that echoes the expanded GET factory list persists those rows and keeps factory behavior.
+- Builtin status `schedule_exclude` defaults false. Turning it on adds `status IN (...)` to the schedule SQL and still `AND NOT` the 502 `Upstream request failed` and wait-timeout hard rails.
+- Wait-timeout client text stays `Upstream service temporarily unavailable`. The marker never reaches the client.
+- `needs_ops_attention` does not follow replacement or whitelist toggles.
 
 ### 3. Contracts
 
@@ -179,6 +201,8 @@ Alert rule create: `ops_attention_count` allowed; threshold ≥ 0; not clamped t
 - Error list filter: `needs_ops_attention=true` is applied in SQL.
 - Alert compute: noise-only window → 0; attention-only window → N; fire payload has `top`.
 - Handler: `ops_attention_count` accepted; threshold 0 allowed.
+- Factory `ResolveUpstreamClientError` matches the legacy gateway / OpenAI / Gemini sentences. Empty replacement config leaves those sentences in place.
+- Repeat from-log upsert with empty `replace_with` keeps the stored sentence. A non-empty catalog id updates it.
 
 ### 7. Wrong vs Correct
 

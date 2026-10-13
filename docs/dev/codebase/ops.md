@@ -29,7 +29,7 @@ List contract (`/errors` and `/request-errors`):
   - `counted_in_account_compare_rate`: `COALESCE(upstream, status)>=400` and not routing-miss / bridge (Recovered = true).
   - `counted_in_account_schedule_rate`: follows `quality_hard_close_settings.schedule_use_failover_error_rate` (default false → Recovered stays out of the schedule rate).
 - `is_recovered` plus those flags drive Usage / Ops badges: Recovered always「未计入用户错误率」; schedule chip says whether the row entered **current** `ErrorCount`.
-- Schedule ErrorCount also follows Settings KV `schedule_error_whitelist`: 7 preset families plus `custom[]` (literal AND rules). `POST /admin/settings/schedule-error-whitelist/from-error` builds a rule from an `ops_error_logs` row. 502 `upstream request failed` cannot be excluded. Attention / user / compare rates do not follow the whitelist.
+- Schedule ErrorCount also follows Settings KV `schedule_error_whitelist`: 7 preset families plus `custom[]` (literal AND rules). The same key holds global client replacement (`replacements`, `family_replace`, custom `replace_with`). Empty replacement config keeps the legacy status sentences. `GET` expands the factory list for `/admin/error-policy` and the inspect whitelist tab. `POST /admin/settings/schedule-error-whitelist/from-error` builds a rule from an `ops_error_logs` row and may set `replace_with`; a repeat add with an empty replacement keeps the stored sentence. 502 `upstream request failed` and OpenAI wait timeouts cannot be excluded. Attention / user / compare rates do not follow the whitelist. Account passthrough still wins before the client resolver.
 - Gateway-owned wait/idle limits are not upstream failures. `applyGatewayLocalTimeoutClass` matches `openai_header_wait_timeout`, `openai_first_useful_frame_timeout`, `stream data interval timeout`, `image stream data interval timeout`, and `upstream stream idle for` in the client message, body, or upstream fields. New terminal rows store `error_owner=platform`, `error_source=gateway`, `error_phase=internal`. Recovered rows keep `error_phase=upstream` so the 已救回 caliber still matches, but owner/source are still platform/gateway. The list badge and detail headings say 网关 from the same text, including rows already stored as upstream.
 
 Do not repeat the SSH playbook here.
@@ -59,6 +59,9 @@ Do not repeat the SSH playbook here.
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue` | List「响应内容」primary = upstream original; secondary = downstream mapped sentence. A gateway-owned timeout badge is 网关, not 上游. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue` | Detail shows original text, JSON, and downstream JSON as three blocks. Gateway-owned timeouts use 网关原文 / 网关 JSON. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue` | Metric picker definitions and recommended thresholds. |
+| Frontend UI | `frontend/src/views/admin/ops/ErrorPolicyView.vue` | Global error-policy page. Renders `ScheduleErrorWhitelistPanel`. |
+| Service | `backend/internal/service/client_error_policy.go` | Factory client sentences and `ResolveUpstreamClientError`. |
+| Service | `backend/internal/service/schedule_error_whitelist.go` | Settings KV normalize, expand-for-admin, and custom upsert. |
 
 ## Core Flow
 

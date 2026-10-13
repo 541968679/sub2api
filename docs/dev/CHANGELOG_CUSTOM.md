@@ -33,6 +33,39 @@ Account model mapping is supposed to bill the name before the mapping. Responses
 `docs/dev/codebase/billing.md`,
 this changelog.
 
+## 2026-10-13 - feat: global error policy page for client replacement and schedule exclude
+
+### What
+- Added admin page `/admin/error-policy`. It uses the same panel as the usage inspect whitelist tab.
+- The page is global and account-independent. It edits Settings KV `schedule_error_whitelist`: preset status mappings, whether each row counts toward schedule, family schedule checkboxes, optional family replacement, and custom rules.
+- Empty or missing replacement config keeps the existing client sentences (401/403/429/529/5xx and the catch-all, including 400/413 → `Upstream request failed`). Schedule families still default off.
+- A replacement template changes the client sentence only after an admin sets it. 502 `Upstream request failed` and OpenAI wait timeouts still always count toward schedule. The wait-timeout client sentence stays `Upstream service temporarily unavailable`.
+- Account error passthrough, Anthropic 4xx body replay, model-not-found, and silent refusal still run before this resolver. Needs-ops-attention, user error rate, compare rate, and billing are unchanged.
+- Adding the same custom fingerprint again with an empty `replace_with` keeps the stored sentence. A non-empty value updates it.
+
+### Why
+Admins need to add and edit error replacement and schedule inclusion together, without a deploy that changes current client or schedule behavior.
+
+### Affected files
+`backend/internal/service/client_error_policy.go`,
+`backend/internal/service/schedule_error_whitelist.go`,
+`backend/internal/service/ops_schedule_error_caliber.go`,
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/gemini_v1beta_handler.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`frontend/src/views/admin/ops/ErrorPolicyView.vue`,
+`frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`,
+`frontend/src/components/admin/usage/AddScheduleErrorWhitelistDialog.vue`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/router/index.ts`,
+`frontend/src/components/layout/AppSidebar.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/ops.md`,
+`.trellis/spec/backend/ops-schedule-error-caliber.md`,
+this changelog.
+
 ## 2026-10-13 - feat: admin switch to force the client-requested response model name
 
 ### What

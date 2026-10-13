@@ -1280,6 +1280,18 @@ export type ScheduleErrorWhitelistFamilyId =
 
 export type ScheduleErrorFromErrorMode = "structured" | "message";
 
+export const CLIENT_ERROR_TEMPLATE_IDS = [
+  "429",
+  "413",
+  "502_auth",
+  "502_forbidden",
+  "502_unavailable",
+  "502_failed",
+  "529",
+] as const;
+
+export type ClientErrorTemplateId = (typeof CLIENT_ERROR_TEMPLATE_IDS)[number];
+
 export interface ScheduleErrorCustomRule {
   id?: string;
   enabled: boolean;
@@ -1288,17 +1300,45 @@ export interface ScheduleErrorCustomRule {
   status_code?: number;
   provider_error_code?: string;
   message_contains?: string;
+  replace_with?: string;
+  schedule_exclude?: boolean;
+}
+
+export interface ErrorReplacementRule {
+  id: string;
+  enabled: boolean;
+  priority: number;
+  status_codes?: number[];
+  template: ClientErrorTemplateId | string;
+  schedule_exclude: boolean;
+  locked?: boolean;
+  builtin?: boolean;
 }
 
 export interface ScheduleErrorWhitelistSettings {
   families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
   custom: ScheduleErrorCustomRule[];
+  replacements: ErrorReplacementRule[];
+  family_replace: Record<ScheduleErrorWhitelistFamilyId, string>;
 }
 
 export type ScheduleErrorWhitelistUpdate = {
   families: Record<ScheduleErrorWhitelistFamilyId, boolean>;
   custom?: ScheduleErrorCustomRule[];
+  replacements?: ErrorReplacementRule[];
+  family_replace?: Record<ScheduleErrorWhitelistFamilyId, string>;
 };
+
+export function factoryErrorReplacements(): ErrorReplacementRule[] {
+  return [
+    { id: "status_401", enabled: true, priority: 10, status_codes: [401], template: "502_auth", schedule_exclude: false, builtin: true },
+    { id: "status_403", enabled: true, priority: 20, status_codes: [403], template: "502_forbidden", schedule_exclude: false, builtin: true },
+    { id: "status_429", enabled: true, priority: 30, status_codes: [429], template: "429", schedule_exclude: false, builtin: true },
+    { id: "status_529", enabled: true, priority: 40, status_codes: [529], template: "529", schedule_exclude: false, builtin: true },
+    { id: "status_5xx", enabled: true, priority: 50, status_codes: [500, 502, 503, 504], template: "502_unavailable", schedule_exclude: false, builtin: true },
+    { id: "status_default", enabled: true, priority: 1000, template: "502_failed", schedule_exclude: false, locked: true, builtin: true },
+  ];
+}
 
 export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings {
   return {
@@ -1306,6 +1346,10 @@ export function defaultScheduleErrorWhitelist(): ScheduleErrorWhitelistSettings 
       SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, false]),
     ) as ScheduleErrorWhitelistSettings["families"],
     custom: [],
+    replacements: factoryErrorReplacements(),
+    family_replace: Object.fromEntries(
+      SCHEDULE_ERROR_WHITELIST_FAMILY_IDS.map((id) => [id, ""]),
+    ) as ScheduleErrorWhitelistSettings["family_replace"],
   };
 }
 
@@ -1329,10 +1373,11 @@ export async function updateScheduleErrorWhitelist(
 export async function addScheduleErrorWhitelistFromError(
   errorId: number,
   mode: ScheduleErrorFromErrorMode,
+  replaceWith = "",
 ): Promise<ScheduleErrorWhitelistSettings> {
   const { data } = await apiClient.post<ScheduleErrorWhitelistSettings>(
     "/admin/settings/schedule-error-whitelist/from-error",
-    { error_id: errorId, mode },
+    { error_id: errorId, mode, replace_with: replaceWith },
   );
   return data;
 }

@@ -68,13 +68,21 @@ type ScheduleErrorCustomRule struct {
 	StatusCode        int    `json:"status_code,omitempty"`
 	ProviderErrorCode string `json:"provider_error_code,omitempty"`
 	MessageContains   string `json:"message_contains,omitempty"`
+	// ReplaceWith selects a client-facing catalog sentence. Empty keeps the
+	// status mapping. It does not by itself change schedule accounting.
+	ReplaceWith string `json:"replace_with,omitempty"`
+	// ScheduleExclude nil means the legacy behavior: an enabled rule excludes.
+	// Explicit false keeps the rule for client replace only.
+	ScheduleExclude *bool `json:"schedule_exclude,omitempty"`
 }
 
 // ScheduleErrorWhitelist is the Settings KV shape.
 // families true = preset exclude. custom = extra literal rules.
 type ScheduleErrorWhitelist struct {
-	Families map[string]bool           `json:"families"`
-	Custom   []ScheduleErrorCustomRule `json:"custom"`
+	Families      map[string]bool           `json:"families"`
+	Custom        []ScheduleErrorCustomRule `json:"custom"`
+	Replacements  []ErrorReplacementRule    `json:"replacements,omitempty"`
+	FamilyReplace map[string]string         `json:"family_replace,omitempty"`
 }
 
 func knownScheduleErrorFamily(id string) bool {
@@ -112,6 +120,8 @@ func NormalizeScheduleErrorWhitelist(in ScheduleErrorWhitelist) ScheduleErrorWhi
 		}
 	}
 	out.Custom = normalizeCustomRules(in.Custom)
+	out.Replacements = NormalizeErrorReplacements(in.Replacements)
+	out.FamilyReplace = normalizeFamilyReplace(in.FamilyReplace)
 	return out
 }
 
@@ -127,6 +137,19 @@ func (w ScheduleErrorWhitelist) FamilyEnabled(id string) bool {
 		return v
 	}
 	return false
+}
+
+// ExcludesFromSchedule reports whether an enabled custom rule drops the row
+// from pair cooldown, account last-N, and the 15-minute schedule ErrorCount.
+// A missing ScheduleExclude flag keeps the original "enabled means exclude" behavior.
+func (r ScheduleErrorCustomRule) ExcludesFromSchedule() bool {
+	if !r.Enabled || !r.HasCondition() {
+		return false
+	}
+	if r.ScheduleExclude != nil && !*r.ScheduleExclude {
+		return false
+	}
+	return true
 }
 
 func (r ScheduleErrorCustomRule) HasCondition() bool {
@@ -192,6 +215,14 @@ func normalizeCustomRule(in ScheduleErrorCustomRule) ScheduleErrorCustomRule {
 		StatusCode:        in.StatusCode,
 		ProviderErrorCode: strings.TrimSpace(in.ProviderErrorCode),
 		MessageContains:   strings.TrimSpace(in.MessageContains),
+		ReplaceWith:       strings.TrimSpace(in.ReplaceWith),
+	}
+	if in.ScheduleExclude != nil {
+		value := *in.ScheduleExclude
+		out.ScheduleExclude = &value
+	}
+	if out.ReplaceWith != "" && !KnownClientErrorTemplate(out.ReplaceWith) {
+		out.ReplaceWith = ""
 	}
 	if out.StatusCode < 0 {
 		out.StatusCode = 0
@@ -299,6 +330,27 @@ func ValidateScheduleErrorWhitelist(settings *ScheduleErrorWhitelist) error {
 		if len([]rune(rule.MessageContains)) > MaxScheduleErrorMessageContains {
 			return fmt.Errorf("custom rule %d message_contains exceeds %d characters", i, MaxScheduleErrorMessageContains)
 		}
+		if rw := strings.TrimSpace(raw.ReplaceWith); rw != "" && !KnownClientErrorTemplate(rw) {
+			return fmt.Errorf("custom rule %d unknown replace template %q", i, rw)
+		}
+	}
+	if settings.Replacements != nil {
+		for _, rule := range settings.Replacements {
+			if !knownClientReplacementID(strings.TrimSpace(rule.ID)) {
+				return fmt.Errorf("unknown error replacement rule %q", rule.ID)
+			}
+			if tpl := strings.TrimSpace(rule.Template); tpl != "" && !KnownClientErrorTemplate(tpl) {
+				return fmt.Errorf("unknown error template %q", tpl)
+			}
+		}
+	}
+	for id, tpl := range settings.FamilyReplace {
+		if id == ScheduleErrorFamilyRoutingModelMiss || !knownScheduleErrorFamily(id) {
+			return fmt.Errorf("unknown family replace %q", id)
+		}
+		if strings.TrimSpace(tpl) != "" && !KnownClientErrorTemplate(tpl) {
+			return fmt.Errorf("unknown error template %q", tpl)
+		}
 	}
 	return nil
 }
@@ -313,6 +365,44 @@ func cloneScheduleErrorWhitelist(in ScheduleErrorWhitelist) ScheduleErrorWhiteli
 	}
 	if out.Custom == nil {
 		out.Custom = []ScheduleErrorCustomRule{}
+	}
+	for i := range out.Custom {
+		if in.Custom[i].ScheduleExclude != nil {
+			value := *in.Custom[i].ScheduleExclude
+			out.Custom[i].ScheduleExclude = &value
+		}
+	}
+	if in.FamilyReplace != nil {
+		out.FamilyReplace = make(map[string]string, len(in.FamilyReplace))
+		for key, value := range in.FamilyReplace {
+			out.FamilyReplace[key] = value
+		}
+	}
+	if in.Replacements != nil {
+		out.Replacements = append([]ErrorReplacementRule{}, in.Replacements...)
+		for i := range out.Replacements {
+			if in.Replacements[i].StatusCodes != nil {
+				out.Replacements[i].StatusCodes = append([]int{}, in.Replacements[i].StatusCodes...)
+			}
+		}
+	}
+	return out
+}
+
+// ExpandErrorPolicyForAdmin fills factory replacement rows and empty family
+// replace slots so the error policy page can edit them before the first save.
+func ExpandErrorPolicyForAdmin(wl ScheduleErrorWhitelist) ScheduleErrorWhitelist {
+	out := NormalizeScheduleErrorWhitelist(wl)
+	if len(out.Replacements) == 0 {
+		out.Replacements = FactoryErrorReplacements()
+	}
+	if out.FamilyReplace == nil {
+		out.FamilyReplace = map[string]string{}
+	}
+	for _, id := range ScheduleErrorFamilyIDs {
+		if _, ok := out.FamilyReplace[id]; !ok {
+			out.FamilyReplace[id] = ""
+		}
 	}
 	return out
 }
@@ -396,12 +486,12 @@ func (s *SettingService) GetScheduleErrorWhitelist(ctx context.Context) (*Schedu
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyScheduleErrorWhitelist)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
-			wl := DefaultScheduleErrorWhitelist()
+			wl := ExpandErrorPolicyForAdmin(DefaultScheduleErrorWhitelist())
 			return &wl, nil
 		}
 		return nil, fmt.Errorf("get schedule error whitelist: %w", err)
 	}
-	wl := ParseScheduleErrorWhitelistJSON(value)
+	wl := ExpandErrorPolicyForAdmin(ParseScheduleErrorWhitelistJSON(value))
 	return &wl, nil
 }
 
@@ -444,6 +534,10 @@ func (s *SettingService) UpsertScheduleErrorCustomRule(ctx context.Context, rule
 	for i := range current.Custom {
 		if customRuleFingerprint(current.Custom[i]) == fp {
 			current.Custom[i].Enabled = true
+			// An empty replace on a repeat add keeps the sentence already stored.
+			if rule.ReplaceWith != "" {
+				current.Custom[i].ReplaceWith = rule.ReplaceWith
+			}
 			if err := s.SetScheduleErrorWhitelist(ctx, current); err != nil {
 				return nil, err
 			}

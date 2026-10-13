@@ -1742,33 +1742,28 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 		}
 	}
 
-	// 使用默认的错误映射
-	status, errType, errMsg := h.mapUpstreamError(statusCode)
+	// 使用错误管理里的状态映射。未改配置时与原来的固定映射一致。
+	status, errType, errMsg := h.mapUpstreamErrorFrom(c, platform, statusCode, responseBody)
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
 // handleFailoverExhaustedSimple 简化版本，用于没有响应体的情况
 func (h *GatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCode int, streamStarted bool) {
-	status, errType, errMsg := h.mapUpstreamError(statusCode)
+	status, errType, errMsg := h.mapUpstreamErrorFrom(c, "", statusCode, nil)
 	service.SetOpsUpstreamError(c, statusCode, "", "")
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
-func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "overloaded_error", "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
+func (h *GatewayHandler) mapUpstreamErrorFrom(c *gin.Context, platform string, statusCode int, body []byte) (int, string, string) {
+	ctx := context.Background()
+	if c != nil && c.Request != nil {
+		ctx = c.Request.Context()
 	}
+	return service.ResolveUpstreamClientError(ctx, service.ClientErrorProfileGateway, platform, statusCode, body)
+}
+
+func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
+	return service.ResolveUpstreamClientError(context.Background(), service.ClientErrorProfileGateway, "", statusCode, nil)
 }
 
 // handleStreamingAwareError handles errors that may occur after streaming has started

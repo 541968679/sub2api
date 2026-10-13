@@ -40,6 +40,20 @@
         <div class="text-xs text-gray-400">{{ t('admin.ops.scheduleErrorWhitelist.customMessageLabel') }}</div>
         <p class="mt-1 break-words font-mono text-xs text-gray-900 dark:text-white">{{ messagePreview }}</p>
       </div>
+      <label class="block text-xs text-gray-500 dark:text-gray-400">
+        {{ t('admin.errorPolicy.replaceWith') }}
+        <select
+          v-model="replaceWith"
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-xs dark:border-dark-600 dark:bg-dark-800"
+          data-test="schedule-error-whitelist-from-log-replace"
+          :disabled="saving || hardCounted"
+        >
+          <option value="">{{ t('admin.errorPolicy.noReplace') }}</option>
+          <option v-for="id in templateIds" :key="id" :value="id">
+            {{ t(`admin.errorPolicy.templates.${id}.label`) }}
+          </option>
+        </select>
+      </label>
     </div>
 
     <template #footer>
@@ -71,6 +85,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import {
+  CLIENT_ERROR_TEMPLATE_IDS,
   addScheduleErrorWhitelistFromError,
   type ScheduleErrorFromErrorMode
 } from '@/api/admin/settings'
@@ -95,6 +110,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const appStore = useAppStore()
 const saving = ref(false)
+const replaceWith = ref('')
+const templateIds = CLIENT_ERROR_TEMPLATE_IDS
 
 const hardCounted = computed(() => {
   const log = props.log
@@ -116,7 +133,7 @@ async function submit(mode: ScheduleErrorFromErrorMode) {
   if (!props.log || hardCounted.value) return
   saving.value = true
   try {
-    await addScheduleErrorWhitelistFromError(props.log.id, mode)
+    await addScheduleErrorWhitelistFromError(props.log.id, mode, replaceWith.value)
     appStore.showSuccess(t('admin.ops.scheduleErrorWhitelist.added'))
     emit('added')
     close()

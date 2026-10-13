@@ -441,6 +441,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/error-policy',
+    name: 'AdminErrorPolicy',
+    component: () => import('@/views/admin/ops/ErrorPolicyView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Error Policy',
+      titleKey: 'admin.errorPolicy.title',
+      descriptionKey: 'admin.errorPolicy.intro'
+    }
+  },
+  {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('@/views/admin/UsersView.vue'),

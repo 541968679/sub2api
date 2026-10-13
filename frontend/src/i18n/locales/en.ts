@@ -392,6 +392,7 @@ const enBase = {
     distribution: 'Become an Agent',
     distributionManagement: 'Distribution',
     ops: 'Ops',
+    errorPolicy: 'Error policy',
     promoCodes: 'Promo Codes',
     settings: 'Settings',
     myAccount: 'My Account',
@@ -7213,6 +7214,57 @@ const enBase = {
       userViewFormulaDiff: 'Difference'
     },
 
+    errorPolicy: {
+      title: 'Error policy',
+      intro:
+        'This page is global and account-independent. Factory mappings and schedule checkboxes match current production: leaving them unchanged keeps client sentences and the schedule caliber as they are. Replacement matches the upstream status and body before the client response is written. Account error passthrough, Anthropic 4xx body replay, model-not-found, and silent refusal still run first. Request-phase and routing-phase preset families change only the schedule caliber. A custom rule whose phase is set to something other than upstream does the same. OpenAI wait timeouts always return 502 Upstream service temporarily unavailable.',
+      mappingsTitle: 'Built-in status mappings',
+      mappingsHint:
+        'These rows reproduce the current client mapping. You can change enabled, the standard sentence, and whether the row counts toward schedule. Status codes stay factory-owned. The catch-all stays enabled and always counts toward schedule.',
+      noReplace: 'Do not replace the client response',
+      replaceWith: 'Replace with a standard sentence',
+      excludeFromSchedule: 'Exclude from schedule',
+      catchAll: 'Any other status (including 400 / 413)',
+      replacements: {
+        status_401: '401 upstream authentication failed',
+        status_403: '403 upstream access forbidden',
+        status_429: '429 upstream rate limit',
+        status_529: '529 upstream overloaded',
+        status_5xx: '500 / 502 / 503 / 504 upstream unavailable',
+        status_default: 'Any other upstream error'
+      },
+      templates: {
+        '429': {
+          label: '429 rate limit',
+          sentence: 'Upstream rate limit exceeded, please retry later'
+        },
+        '413': {
+          label: '413 context too long',
+          sentence: 'Prompt is too long: this request exceeds the context window for the selected model.'
+        },
+        '502_auth': {
+          label: '502 authentication failed',
+          sentence: 'Upstream authentication failed, please contact administrator'
+        },
+        '502_forbidden': {
+          label: '502 access forbidden',
+          sentence: 'Upstream access forbidden, please contact administrator'
+        },
+        '502_unavailable': {
+          label: '502 temporarily unavailable',
+          sentence: 'Upstream service temporarily unavailable'
+        },
+        '502_failed': {
+          label: '502 request failed',
+          sentence: 'Upstream request failed'
+        },
+        '529': {
+          label: '529 overloaded',
+          sentence: 'Upstream service overloaded, please retry later'
+        }
+      }
+    },
+
     // Ops Monitoring
     ops: {
       title: 'Ops Monitoring',
@@ -7480,12 +7532,13 @@ const enBase = {
       scheduleErrorWhitelist: {
         title: 'Schedule error whitelist',
         description:
-          'Schedule caliber only. Defaults are all unchecked, matching pre-ship production: Recovered (unless the failover schedule caliber is on), Claude–GPT bridge, and the legacy routing model-not-found safety rail stay hardcoded excludes. Checked families are excluded from pair cooldown, account last-N, and the account 15m schedule ErrorCount. Client HTTP, user error rate, compare rate, and needs-ops-attention alerts are unchanged.',
+          'Global and account-independent. Schedule checkboxes default off, matching pre-ship production: Recovered (unless the failover schedule caliber is on), Claude–GPT bridge, and the legacy routing model-not-found safety rail stay hardcoded excludes. Checked families are excluded from pair cooldown, account last-N, and the account 15m schedule ErrorCount. 502 Upstream request failed and OpenAI wait timeouts always count toward schedule. Needs-ops-attention alerts, the user error rate, and the compare rate do not follow these switches. Client sentences change only after a replacement template on this page is edited.',
         checkedHint: 'All unchecked by default. Checked = do not count toward schedule error rate / cooldown. Legacy 404 model_not_found rails are not listed here and stay excluded.',
         saved: 'Schedule error whitelist saved',
         saveFailed: 'Failed to save schedule error whitelist',
         customTitle: 'Custom rules',
-        customHint: 'Manual add is message-contains only. Rules created from error logs are structured fingerprints and can only be disabled or deleted.',
+        customHint:
+          'Manual add is message-contains only, with an optional replacement sentence and schedule switch. Rules created from error logs are structured fingerprints and can only be disabled or deleted. While “Exclude from schedule” stays on, an enabled rule is left out of the schedule caliber.',
         customEmpty: 'No custom rules yet.',
         customAdd: 'Add',
         customAddPlaceholder: 'Message contains (literal substring)',
@@ -7494,7 +7547,8 @@ const enBase = {
         customStructuredLabel: 'Structured rule',
         addFromLog: 'Add to whitelist',
         addFromLogTitle: 'Add to schedule error whitelist',
-        addFromLogHint: 'Default: structured fingerprint from this row’s type / phase / status / provider code. You can save message-contains instead.',
+        addFromLogHint:
+          'Default: structured fingerprint from this row’s type / phase / status / provider code. You can save message-contains instead. An optional standard sentence replaces the client response; leave it empty to keep the client sentence. Adding the same fingerprint again with an empty replacement keeps the replacement already stored.',
         addStructured: 'Add structured rule',
         addMessage: 'Message contains only',
         added: 'Added to schedule error whitelist',

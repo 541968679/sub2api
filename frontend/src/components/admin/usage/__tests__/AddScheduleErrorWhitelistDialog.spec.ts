@@ -72,8 +72,19 @@ describe('AddScheduleErrorWhitelistDialog', () => {
     })
     await wrapper.get('[data-test="schedule-error-whitelist-from-log-structured"]').trigger('click')
     await flushPromises()
-    expect(addScheduleErrorWhitelistFromError).toHaveBeenCalledWith(9, 'structured')
+    expect(addScheduleErrorWhitelistFromError).toHaveBeenCalledWith(9, 'structured', '')
     expect(showSuccess).toHaveBeenCalled()
+  })
+
+  it('sends the selected replacement sentence', async () => {
+    const wrapper = mount(AddScheduleErrorWhitelistDialog, {
+      props: { show: true, log: row },
+      global: { stubs: { BaseDialog: BaseDialogStub } }
+    })
+    await wrapper.get('[data-test="schedule-error-whitelist-from-log-replace"]').setValue('429')
+    await wrapper.get('[data-test="schedule-error-whitelist-from-log-message"]').trigger('click')
+    await flushPromises()
+    expect(addScheduleErrorWhitelistFromError).toHaveBeenCalledWith(9, 'message', '429')
   })
 
   it('blocks 502 upstream request failed', async () => {

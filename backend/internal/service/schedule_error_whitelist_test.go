@@ -372,6 +372,32 @@ func TestUpsertScheduleErrorCustomRule_DedupEnables(t *testing.T) {
 	require.True(t, second.Custom[0].Enabled)
 }
 
+func TestUpsertScheduleErrorCustomRule_EmptyReplaceKeepsStoredSentence(t *testing.T) {
+	t.Parallel()
+	repo := newRuntimeSettingRepoStub()
+	svc := NewSettingService(repo, nil)
+	first, err := svc.UpsertScheduleErrorCustomRule(context.Background(), ScheduleErrorCustomRule{
+		MessageContains: "quota exceeded",
+		ReplaceWith:     ClientErrorTemplate429,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ClientErrorTemplate429, first.Custom[0].ReplaceWith)
+
+	kept, err := svc.UpsertScheduleErrorCustomRule(context.Background(), ScheduleErrorCustomRule{
+		MessageContains: "quota exceeded",
+	})
+	require.NoError(t, err)
+	require.Equal(t, ClientErrorTemplate429, kept.Custom[0].ReplaceWith)
+
+	updated, err := svc.UpsertScheduleErrorCustomRule(context.Background(), ScheduleErrorCustomRule{
+		MessageContains: "quota exceeded",
+		ReplaceWith:     ClientErrorTemplate413,
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.Custom, 1)
+	require.Equal(t, ClientErrorTemplate413, updated.Custom[0].ReplaceWith)
+}
+
 func TestBuildScheduleErrorCustomRuleFromLog(t *testing.T) {
 	t.Parallel()
 	log := &OpsErrorLog{

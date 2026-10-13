@@ -640,26 +640,18 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
-	// 使用默认的错误映射
-	status, message := mapGeminiUpstreamError(statusCode)
+	// 使用错误管理里的状态映射。未改配置时与原来的固定映射一致。
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	status, _, message := service.ResolveUpstreamClientError(ctx, service.ClientErrorProfileGemini, service.PlatformGemini, statusCode, responseBody)
 	googleError(c, status, message)
 }
 
 func mapGeminiUpstreamError(statusCode int) (int, string) {
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "Upstream request failed"
-	}
+	status, _, message := service.ResolveUpstreamClientError(context.Background(), service.ClientErrorProfileGemini, service.PlatformGemini, statusCode, nil)
+	return status, message
 }
 
 type pathParseError struct{ msg string }

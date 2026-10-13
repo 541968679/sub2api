@@ -327,6 +327,8 @@ describe('UsageErrorInspectDialog', () => {
     expect(wrapper.find('[data-test="schedule-error-whitelist-routing_model_miss"]').exists()).toBe(
       false
     )
+    expect(wrapper.find('[data-test="error-policy-replacement-status_429"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="error-policy-replacement-status_default"]').exists()).toBe(true)
     expect(getScheduleErrorWhitelist).toHaveBeenCalledTimes(1)
     expect(listErrorLogs).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -367,12 +369,30 @@ describe('UsageErrorInspectDialog', () => {
     await flushPromises()
 
     expect(updateScheduleErrorWhitelist).toHaveBeenCalledTimes(1)
-    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith({
-      families: {
-        ...defaultScheduleErrorWhitelist().families,
-        group_no_account: true
-      }
-    })
+    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        families: {
+          ...defaultScheduleErrorWhitelist().families,
+          group_no_account: true
+        },
+        custom: [],
+        family_replace: defaultScheduleErrorWhitelist().family_replace
+      })
+    )
+    const saved = updateScheduleErrorWhitelist.mock.calls[0][0] as {
+      replacements: Array<{ id: string; template: string; schedule_exclude: boolean; locked?: boolean }>
+    }
+    expect(saved.replacements.map((rule) => rule.id)).toEqual([
+      'status_401',
+      'status_403',
+      'status_429',
+      'status_529',
+      'status_5xx',
+      'status_default'
+    ])
+    expect(saved.replacements.find((rule) => rule.id === 'status_429')?.template).toBe('429')
+    expect(saved.replacements.find((rule) => rule.id === 'status_default')?.locked).toBe(true)
+    expect(saved.replacements.every((rule) => rule.schedule_exclude === false)).toBe(true)
     expect(showSuccess).toHaveBeenCalledWith('admin.ops.scheduleErrorWhitelist.saved')
     wrapper.unmount()
   })

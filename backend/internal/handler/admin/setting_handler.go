@@ -679,7 +679,7 @@ type UpdateSettingsRequest struct {
 	ChannelMonitorDefaultIntervalSeconds *int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature switch (user-facing)
-	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled *bool   `json:"available_channels_enabled"`
 	ModelPlazaEnabled        *bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth    *bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription    *string `json:"model_plaza_description"`
@@ -3329,8 +3329,10 @@ func (h *SettingHandler) GetScheduleErrorWhitelist(c *gin.Context) {
 // UpdateScheduleErrorWhitelistRequest 预置 family + 可选 custom。
 // custom 省略则保留已有自定义；[] 清空。
 type UpdateScheduleErrorWhitelistRequest struct {
-	Families map[string]bool                    `json:"families"`
-	Custom   *[]service.ScheduleErrorCustomRule `json:"custom"`
+	Families      map[string]bool                    `json:"families"`
+	Custom        *[]service.ScheduleErrorCustomRule `json:"custom"`
+	Replacements  *[]service.ErrorReplacementRule    `json:"replacements"`
+	FamilyReplace *map[string]string                 `json:"family_replace"`
 }
 
 // UpdateScheduleErrorWhitelist 更新调度错误白名单
@@ -3342,17 +3344,32 @@ func (h *SettingHandler) UpdateScheduleErrorWhitelist(c *gin.Context) {
 		return
 	}
 	settings := &service.ScheduleErrorWhitelist{Families: req.Families}
-	if req.Custom != nil {
-		settings.Custom = *req.Custom
-	} else {
+	if req.Custom == nil || req.Replacements == nil || req.FamilyReplace == nil {
 		current, err := h.settingService.GetScheduleErrorWhitelist(c.Request.Context())
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return
 		}
 		if current != nil {
-			settings.Custom = current.Custom
+			if req.Custom == nil {
+				settings.Custom = current.Custom
+			}
+			if req.Replacements == nil {
+				settings.Replacements = current.Replacements
+			}
+			if req.FamilyReplace == nil {
+				settings.FamilyReplace = current.FamilyReplace
+			}
 		}
+	}
+	if req.Custom != nil {
+		settings.Custom = *req.Custom
+	}
+	if req.Replacements != nil {
+		settings.Replacements = *req.Replacements
+	}
+	if req.FamilyReplace != nil {
+		settings.FamilyReplace = *req.FamilyReplace
 	}
 	if err := h.settingService.SetScheduleErrorWhitelist(c.Request.Context(), settings); err != nil {
 		response.BadRequest(c, err.Error())
@@ -3368,8 +3385,9 @@ func (h *SettingHandler) UpdateScheduleErrorWhitelist(c *gin.Context) {
 
 // AddScheduleErrorWhitelistFromErrorRequest 从一条错误日志生成自定义规则。
 type AddScheduleErrorWhitelistFromErrorRequest struct {
-	ErrorID int64  `json:"error_id"`
-	Mode    string `json:"mode"`
+	ErrorID     int64  `json:"error_id"`
+	Mode        string `json:"mode"`
+	ReplaceWith string `json:"replace_with"`
 }
 
 // AddScheduleErrorWhitelistFromError 从错误日志加入白名单
@@ -3397,6 +3415,9 @@ func (h *SettingHandler) AddScheduleErrorWhitelistFromError(c *gin.Context) {
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+	if strings.TrimSpace(req.ReplaceWith) != "" {
+		rule.ReplaceWith = strings.TrimSpace(req.ReplaceWith)
 	}
 	updated, err := h.settingService.UpsertScheduleErrorCustomRule(c.Request.Context(), rule)
 	if err != nil {

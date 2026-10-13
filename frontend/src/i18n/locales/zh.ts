@@ -389,6 +389,7 @@ const zhBase = {
     proxies: 'IP管理',
     redeemCodes: '兑换码',
     ops: '运维监控',
+    errorPolicy: '错误管理',
     promoCodes: '优惠码',
     settings: '系统设置',
     myAccount: '我的账户',
@@ -6810,6 +6811,57 @@ const zhBase = {
       }
     },
 
+    errorPolicy: {
+      title: '错误管理',
+      intro:
+        '本页全局生效，与账号无关。预置映射和调度勾选的出厂值与现网一致：未改配置时，客户端句子和调度口径都保持原样。替换按上游状态码和报文体匹配，写给客户端之前生效。账号错误透传、Anthropic 4xx 原文回放、模型不存在和静默拒绝仍先于本页。请求阶段与路由阶段的预置家族只改调度口径。自定义规则若填写了阶段且阶段不是 upstream，同样只改调度口径。OpenAI 等待超时固定返回 502 Upstream service temporarily unavailable。',
+      mappingsTitle: '固定状态映射',
+      mappingsHint:
+        '这些行复现现网客户端映射。可改启用、标准句，以及是否计入调度。匹配的状态码由系统固定。兜底行始终启用，且始终计入调度。',
+      noReplace: '不替换客户端响应',
+      replaceWith: '替换为标准句',
+      excludeFromSchedule: '不计入调度',
+      catchAll: '其余状态（含 400 / 413）',
+      replacements: {
+        status_401: '401 上游认证失败',
+        status_403: '403 上游拒绝访问',
+        status_429: '429 上游限流',
+        status_529: '529 上游过载',
+        status_5xx: '500 / 502 / 503 / 504 上游暂不可用',
+        status_default: '其余上游错误'
+      },
+      templates: {
+        '429': {
+          label: '429 限流',
+          sentence: 'Upstream rate limit exceeded, please retry later'
+        },
+        '413': {
+          label: '413 上下文过长',
+          sentence: 'Prompt is too long: this request exceeds the context window for the selected model.'
+        },
+        '502_auth': {
+          label: '502 认证失败',
+          sentence: 'Upstream authentication failed, please contact administrator'
+        },
+        '502_forbidden': {
+          label: '502 拒绝访问',
+          sentence: 'Upstream access forbidden, please contact administrator'
+        },
+        '502_unavailable': {
+          label: '502 暂不可用',
+          sentence: 'Upstream service temporarily unavailable'
+        },
+        '502_failed': {
+          label: '502 请求失败',
+          sentence: 'Upstream request failed'
+        },
+        '529': {
+          label: '529 过载',
+          sentence: 'Upstream service overloaded, please retry later'
+        }
+      }
+    },
+
     // Ops Monitoring
     ops: {
       title: '运维监控',
@@ -7083,12 +7135,13 @@ const zhBase = {
       scheduleErrorWhitelist: {
         title: '调度错误白名单',
         description:
-          '只影响调度口径。默认全不勾选，与上线前现网排除一致：Recovered（除非打开 failover 调度口径）、Claude–GPT 桥接、旧路由 model-not-found 安全栏仍硬编码排除。勾选后该类新增错误不计入配对冷却、账号 last-N 与账号 15 分钟调度 ErrorCount。不影响客户端 HTTP、用户错误率、对照错误率或需运维告警。',
+          '全局生效，与账号无关。调度勾选默认全关，与上线前现网排除一致：Recovered（除非打开 failover 调度口径）、Claude–GPT 桥接、旧路由 model-not-found 安全栏仍硬编码排除。勾选后该类错误不计入配对冷却、账号 last-N 与账号 15 分钟调度 ErrorCount。502 Upstream request failed 与 OpenAI 等待超时始终计入调度。需运维告警、用户错误率和对照错误率不跟随这些开关。客户端句子只在本页改了替换模板后才会变化。',
         checkedHint: '默认全不勾。勾选 = 不计入调度错误率 / 不冷却。旧 404 model_not_found 等安全栏不在此列表，始终排除。',
         saved: '调度错误白名单已保存',
         saveFailed: '保存调度错误白名单失败',
         customTitle: '自定义规则',
-        customHint: '人工新增只填消息包含。从错误日志加入的是结构化指纹，只能停用或删除。',
+        customHint:
+          '人工新增只填消息包含，并可另选替换句和是否计入调度。从错误日志加入的是结构化指纹，只能停用或删除。未单独关闭「不计入调度」时，启用即不计入调度。',
         customEmpty: '还没有自定义规则。',
         customAdd: '添加',
         customAddPlaceholder: '消息包含（字面量子串）',
@@ -7097,7 +7150,8 @@ const zhBase = {
         customStructuredLabel: '结构化规则',
         addFromLog: '加入白名单',
         addFromLogTitle: '加入调度错误白名单',
-        addFromLogHint: '默认按这条日志的 type / phase / status / provider code 生成结构化规则。也可改存为消息包含。',
+        addFromLogHint:
+          '默认按这条日志的 type / phase / status / provider code 生成结构化规则。也可改存为消息包含。可选一条标准替换句；留空则不改客户端响应。同一指纹再次加入时，空替换会保留已有替换。',
         addStructured: '加入结构化规则',
         addMessage: '只按消息包含',
         added: '已加入调度错误白名单',

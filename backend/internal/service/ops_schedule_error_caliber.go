@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -347,8 +348,13 @@ func IsScheduleQualityExcludedMatch(in ScheduleErrorMatchInput, wl ScheduleError
 			return true
 		}
 	}
+	for _, rule := range effectiveClientReplacements(wl) {
+		if clientReplacementExcludesSchedule(rule, in.Status) {
+			return true
+		}
+	}
 	for _, rule := range wl.Custom {
-		if rule.Match(in) {
+		if rule.ExcludesFromSchedule() && rule.Match(in) {
 			return true
 		}
 	}
@@ -368,13 +374,36 @@ func SQLScheduleQualityExcludedPredicateWith(prefix string, wl ScheduleErrorWhit
 		}
 		parts = append(parts, sqlScheduleErrorFamilyPredicate(id, prefix))
 	}
+	for _, rule := range effectiveClientReplacements(wl) {
+		if pred := sqlReplacementSchedulePredicate(prefix, rule); pred != "" {
+			parts = append(parts, pred)
+		}
+	}
 	for _, rule := range wl.Custom {
-		if !rule.Enabled || !rule.HasCondition() {
+		if !rule.ExcludesFromSchedule() {
 			continue
 		}
 		parts = append(parts, sqlCustomRulePredicate(prefix, rule))
 	}
 	return "((" + strings.Join(parts, " OR ") + ") AND NOT " + SQLHardCountedUpstreamRequestFailedPredicate(prefix) + " AND NOT " + SQLHardCountedOpenAIWaitTimeoutPredicate(prefix) + ")"
+}
+
+func sqlReplacementSchedulePredicate(prefix string, rule ErrorReplacementRule) string {
+	if !rule.Enabled || !rule.ScheduleExclude || rule.Locked || len(rule.StatusCodes) == 0 {
+		return ""
+	}
+	status, _, _, _, _ := sqlOpsErrorCols(prefix)
+	codes := make([]string, 0, len(rule.StatusCodes))
+	for _, code := range rule.StatusCodes {
+		if code <= 0 {
+			continue
+		}
+		codes = append(codes, strconv.Itoa(code))
+	}
+	if len(codes) == 0 {
+		return ""
+	}
+	return "COALESCE(" + status + ", 0) IN (" + strings.Join(codes, ", ") + ")"
 }
 
 func SQLExcludeAccountQualityScheduleNoise(prefix string) string {
