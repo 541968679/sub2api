@@ -1078,7 +1078,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 			}
 			collectedBytes, _ := json.Marshal(collected)
 			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes)
-			c.JSON(http.StatusOK, claudeResp)
+			writeGeminiClientJSON(c, http.StatusOK, claudeResp)
 			usage = usageObj2
 			if usageObj != nil && (usageObj.InputTokens > 0 || usageObj.OutputTokens > 0) {
 				usage = usageObj
@@ -1467,7 +1467,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				if contentType == "" {
 					contentType = "application/json"
 				}
-				c.Data(http.StatusInternalServerError, contentType, respBody)
+				c.Data(http.StatusInternalServerError, contentType, applyForcedRequestedResponseModelBody(c, respBody))
 				return nil, fmt.Errorf("gemini upstream error: %d (skipped by error policy)", resp.StatusCode)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
 				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
@@ -1556,7 +1556,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		if contentType == "" {
 			contentType = "application/json"
 		}
-		c.Data(resp.StatusCode, contentType, respBody)
+		c.Data(resp.StatusCode, contentType, applyForcedRequestedResponseModelBody(c, respBody))
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("gemini upstream error: %d", resp.StatusCode)
 		}
@@ -1580,6 +1580,10 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				return nil, s.writeGoogleError(c, http.StatusBadGateway, "Failed to read upstream stream")
 			}
 			b, _ := json.Marshal(collected)
+			if forceRequestedResponseModelArmed(c) {
+				observeGeminiResponseBody(c, b)
+			}
+			b = applyForcedRequestedResponseModelBody(c, b)
 			c.Data(http.StatusOK, "application/json", b)
 			usage = usageObj
 		} else {
@@ -1944,7 +1948,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 	}
 
 	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody)
-	c.JSON(http.StatusOK, claudeResp)
+	writeGeminiClientJSON(c, http.StatusOK, claudeResp)
 
 	return usage, nil
 }
@@ -1978,7 +1982,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 			},
 		},
 	}
-	writeSSE(c.Writer, "message_start", messageStart)
+	writeSSE(c, "message_start", messageStart)
 	flusher.Flush()
 
 	var firstTokenMs *int
@@ -2042,7 +2046,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 
 				if openBlockType != "text" {
 					if openBlockIndex >= 0 {
-						writeSSE(c.Writer, "content_block_stop", map[string]any{
+						writeSSE(c, "content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": openBlockIndex,
 						})
@@ -2050,7 +2054,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					openBlockType = "text"
 					openBlockIndex = nextBlockIndex
 					nextBlockIndex++
-					writeSSE(c.Writer, "content_block_start", map[string]any{
+					writeSSE(c, "content_block_start", map[string]any{
 						"type":  "content_block_start",
 						"index": openBlockIndex,
 						"content_block": map[string]any{
@@ -2064,7 +2068,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					ms := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &ms
 				}
-				writeSSE(c.Writer, "content_block_delta", map[string]any{
+				writeSSE(c, "content_block_delta", map[string]any{
 					"type":  "content_block_delta",
 					"index": openBlockIndex,
 					"delta": map[string]any{
@@ -2085,7 +2089,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 
 				// Close any open text block before tool_use.
 				if openBlockIndex >= 0 {
-					writeSSE(c.Writer, "content_block_stop", map[string]any{
+					writeSSE(c, "content_block_stop", map[string]any{
 						"type":  "content_block_stop",
 						"index": openBlockIndex,
 					})
@@ -2095,7 +2099,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 
 				// If we receive streamed tool args in pieces, keep a single tool block open and emit deltas.
 				if openToolIndex >= 0 && openToolName != name {
-					writeSSE(c.Writer, "content_block_stop", map[string]any{
+					writeSSE(c, "content_block_stop", map[string]any{
 						"type":  "content_block_stop",
 						"index": openToolIndex,
 					})
@@ -2111,7 +2115,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					nextBlockIndex++
 					sawToolUse = true
 
-					writeSSE(c.Writer, "content_block_start", map[string]any{
+					writeSSE(c, "content_block_start", map[string]any{
 						"type":  "content_block_start",
 						"index": openToolIndex,
 						"content_block": map[string]any{
@@ -2140,7 +2144,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				delta, newSeen := computeGeminiTextDelta(seenToolJSON, argsJSONText)
 				seenToolJSON = newSeen
 				if delta != "" {
-					writeSSE(c.Writer, "content_block_delta", map[string]any{
+					writeSSE(c, "content_block_delta", map[string]any{
 						"type":  "content_block_delta",
 						"index": openToolIndex,
 						"delta": map[string]any{
@@ -2164,13 +2168,13 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	}
 
 	if openBlockIndex >= 0 {
-		writeSSE(c.Writer, "content_block_stop", map[string]any{
+		writeSSE(c, "content_block_stop", map[string]any{
 			"type":  "content_block_stop",
 			"index": openBlockIndex,
 		})
 	}
 	if openToolIndex >= 0 {
-		writeSSE(c.Writer, "content_block_stop", map[string]any{
+		writeSSE(c, "content_block_stop", map[string]any{
 			"type":  "content_block_stop",
 			"index": openToolIndex,
 		})
@@ -2187,7 +2191,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	if usage.InputTokens > 0 {
 		usageObj["input_tokens"] = usage.InputTokens
 	}
-	writeSSE(c.Writer, "message_delta", map[string]any{
+	writeSSE(c, "message_delta", map[string]any{
 		"type": "message_delta",
 		"delta": map[string]any{
 			"stop_reason":   stopReason,
@@ -2195,7 +2199,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 		},
 		"usage": usageObj,
 	})
-	writeSSE(c.Writer, "message_stop", map[string]any{
+	writeSSE(c, "message_stop", map[string]any{
 		"type": "message_stop",
 	})
 	flusher.Flush()
@@ -2203,11 +2207,32 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, nil
 }
 
-func writeSSE(w io.Writer, event string, data any) {
+func writeGeminiClientJSON(c *gin.Context, status int, payload any) {
+	if c == nil {
+		return
+	}
+	if !forceRequestedResponseModelArmed(c) {
+		c.JSON(status, payload)
+		return
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		c.JSON(status, payload)
+		return
+	}
+	c.Data(status, "application/json; charset=utf-8", applyForcedRequestedResponseModelBody(c, body))
+}
+
+func writeSSE(c *gin.Context, event string, data any) {
+	if c == nil || c.Writer == nil {
+		return
+	}
+	w := c.Writer
 	if event != "" {
 		_, _ = fmt.Fprintf(w, "event: %s\n", event)
 	}
 	b, _ := json.Marshal(data)
+	b = applyForcedRequestedResponseModelBody(c, b)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", string(b))
 }
 
@@ -2498,6 +2523,7 @@ func (s *GeminiMessagesCompatService) handleNativeNonStreamingResponse(c *gin.Co
 	if contentType == "" {
 		contentType = "application/json"
 	}
+	respBody = applyForcedRequestedResponseModelBody(c, respBody)
 	c.Data(resp.StatusCode, contentType, respBody)
 
 	if u := extractGeminiUsage(respBody); u != nil {
@@ -2569,6 +2595,9 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 					if u := extractGeminiUsage(rawBytes); u != nil {
 						usage = u
 					}
+					if forceRequestedResponseModelArmed(c) && len(rawBytes) > 0 {
+						observeGeminiResponseBody(c, rawBytes)
+					}
 
 					if firstTokenMs == nil {
 						ms := int(time.Since(startTime).Milliseconds())
@@ -2576,11 +2605,12 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 					}
 
 					if isOAuth {
+						rawToWrite = string(applyForcedRequestedResponseModelBody(c, []byte(rawToWrite)))
 						// SSE format requires double newline (\n\n) to separate events
 						_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", rawToWrite)
 					} else {
 						// Pass-through for AI Studio responses.
-						_, _ = io.WriteString(c.Writer, line)
+						_, _ = io.WriteString(c.Writer, applyForcedRequestedResponseModelLine(c, line))
 					}
 					flusher.Flush()
 				}

@@ -35,6 +35,9 @@ func (s *GatewayService) ForwardAsChatCompletions(
 ) (*ForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
+	if parsed != nil {
+		s.armForceRequestedResponseModel(ctx, c, parsed.Model)
+	}
 
 	// 1. Parse Chat Completions request
 	var ccReq apicompat.ChatCompletionsRequest
@@ -42,6 +45,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
 	originalModel := ccReq.Model
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	clientStream := ccReq.Stream
 	includeUsage := ccReq.StreamOptions != nil && ccReq.StreamOptions.IncludeUsage
 
@@ -325,6 +329,7 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 	// (parity with Parrot non-stream flow that marshals → restore → emit).
 	if respBytes, err := json.Marshal(ccResp); err == nil {
 		respBytes = reverseToolNamesIfPresent(c, respBytes)
+		respBytes = applyForcedRequestedResponseModelBody(c, respBytes)
 		c.Data(http.StatusOK, "application/json; charset=utf-8", respBytes)
 	} else {
 		c.JSON(http.StatusOK, ccResp)
@@ -403,7 +408,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 		}
 		// Reverse tool name mapping: fake → real, per-chunk bytes.Replace.
 		// c 可能持有请求侧注入的 ToolNameRewrite；无则仅做静态前缀还原。
-		out := string(reverseToolNamesIfPresent(c, []byte(sse)))
+		out := applyForcedRequestedResponseModelSSEText(c, string(reverseToolNamesIfPresent(c, []byte(sse))))
 		if _, err := fmt.Fprint(c.Writer, out); err != nil {
 			return true // client disconnected
 		}

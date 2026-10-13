@@ -220,6 +220,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletionsPassthrough(
 		}
 		outLine := rewriteOpenAIChatPassthroughSSELine(line, displayMult)
 		outLine = completionIDs.applyLine(outLine)
+		outLine = applyForcedRequestedResponseModelLine(c, outLine)
 		if _, werr := io.WriteString(c.Writer, outLine+"\n"); werr != nil {
 			clientDisconnected = true
 			continue
@@ -275,6 +276,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsPassthrough(
 	usage := openAIChatPassthroughUsage(respBody)
 	outbound := rewriteOpenAIChatPassthroughDisplayUsage(respBody, getDisplayTokenMultipliers(c))
 	outbound = (&chatCompletionIDMask{}).applyBody(outbound)
+	outbound = applyForcedRequestedResponseModelBody(c, outbound)
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	if !bytes.Equal(outbound, respBody) {

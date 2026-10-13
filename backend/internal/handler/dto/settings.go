@@ -165,6 +165,7 @@ type SystemSettings struct {
 	CodexCompactV2FallbackEnabled       bool    `json:"codex_compact_v2_fallback_enabled"`
 	OpenAILongContextBillingEnabled     bool    `json:"openai_long_context_billing_enabled"`
 	KimiK3AdaptiveValidationEnabled     bool    `json:"kimi_k3_adaptive_validation_enabled"`
+	ForceRequestedResponseModel         bool    `json:"force_requested_response_model"`
 	GatewayNetworkRetryMax              int     `json:"gateway_network_retry_max"`
 
 	// Web Search Emulation

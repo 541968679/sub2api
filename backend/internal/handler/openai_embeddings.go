@@ -70,6 +70,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 	reqLog = reqLog.With(zap.String("model", reqModel))
 	setOpsRequestContext(c, reqModel, false, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))

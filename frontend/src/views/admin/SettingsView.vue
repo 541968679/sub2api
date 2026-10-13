@@ -5170,6 +5170,30 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.forceRequestedResponseModel.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.forceRequestedResponseModel.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.forceRequestedResponseModel.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.forceRequestedResponseModel.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.force_requested_response_model" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7386,6 +7410,7 @@ const form = reactive<SettingsForm>({
   codex_compact_v2_fallback_enabled: true,
   openai_long_context_billing_enabled: true,
   kimi_k3_adaptive_validation_enabled: false,
+  force_requested_response_model: false,
   gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
     enabled: false,
@@ -8498,6 +8523,7 @@ async function saveSettings() {
       openai_long_context_billing_enabled: form.openai_long_context_billing_enabled,
       kimi_k3_adaptive_validation_enabled:
         form.kimi_k3_adaptive_validation_enabled,
+      force_requested_response_model: form.force_requested_response_model,
       gateway_network_retry_max: Math.max(
         0,
         Math.min(10, Math.floor(Number(form.gateway_network_retry_max) || 0)),

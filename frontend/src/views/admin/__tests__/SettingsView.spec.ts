@@ -220,6 +220,10 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.features.kimiK3AdaptiveValidation.description": "只作用于 kimi-k3 Chat Completions。默认关闭。",
     "admin.settings.features.kimiK3AdaptiveValidation.enabled": "启用 Kimi K3 自适应校验",
     "admin.settings.features.kimiK3AdaptiveValidation.enabledHint": "默认关闭。",
+    "admin.settings.features.forceRequestedResponseModel.title": "强制响应模型名",
+    "admin.settings.features.forceRequestedResponseModel.description": "开启后，发给客户的响应里，模型名一律改成客户请求的名字。",
+    "admin.settings.features.forceRequestedResponseModel.enabled": "强制使用客户请求的模型名",
+    "admin.settings.features.forceRequestedResponseModel.enabledHint": "默认关闭。",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
@@ -454,6 +458,7 @@ const baseSettingsResponse = {
   codex_compact_v2_fallback_enabled: true,
   openai_long_context_billing_enabled: true,
   kimi_k3_adaptive_validation_enabled: false,
+  force_requested_response_model: false,
   display_context_token_max: 0,
   display_output_token_max: 0,
   payment_enabled: true,
@@ -781,6 +786,24 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         openai_long_context_billing_enabled: false,
+      }),
+    );
+  });
+
+  it("submits force requested response model setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      force_requested_response_model: true,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        force_requested_response_model: true,
       }),
     );
   });

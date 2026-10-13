@@ -141,6 +141,10 @@ func (s *GatewayService) handleBedrockStreamingResponse(
 
 			// 解析 SSE 事件数据提取 usage
 			s.parseSSEUsagePassthrough(string(sseData), usage)
+			if forceRequestedResponseModelArmed(c) {
+				observeAnthropicResponseBody(c, sseData)
+			}
+			sseData = applyForcedRequestedResponseModelBody(c, sseData)
 
 			// 确定 SSE event type
 			eventType := gjson.GetBytes(sseData, "type").String()

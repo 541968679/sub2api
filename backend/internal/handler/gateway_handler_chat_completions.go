@@ -75,6 +75,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)

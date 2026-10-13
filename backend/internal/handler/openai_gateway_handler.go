@@ -299,6 +299,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {
@@ -816,6 +817,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
 	preferredMappedModel := ""
 	if !bridgeMode {
@@ -1592,6 +1594,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "model is required in first response.create payload")
 		return
 	}
+	h.gatewayService.ArmClientRequestedResponseModel(ctx, c, reqModel)
 	if !isGroupModelAllowed(apiKey.Group, reqModel) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, groupModelAccessDeniedMessage)
 		return

@@ -587,6 +587,7 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
+	s.armForceRequestedResponseModel(ctx, c, parsed.Model)
 	ctx = WithOpenAIImagesEndpoint(ctx)
 	switch account.Type {
 	case AccountTypeAPIKey:
@@ -1080,7 +1081,8 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 			firstTokenMs = &ms
 		}
 		if !clientDisconnected {
-			if _, writeErr := c.Writer.Write(line); writeErr != nil {
+			outbound := []byte(applyForcedRequestedResponseModelLine(c, string(line)))
+			if _, writeErr := c.Writer.Write(outbound); writeErr != nil {
 				clientDisconnected = true
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Images stream client disconnected, continue draining upstream for billing")
 			} else {

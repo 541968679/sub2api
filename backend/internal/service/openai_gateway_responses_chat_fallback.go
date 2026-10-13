@@ -333,6 +333,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 				continue
 			}
 			sse = fillEmptyOpenAIResponseModelInSSEBody(sse, originalModel)
+			sse = applyForcedRequestedResponseModelSSEText(c, sse)
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				clientDisconnected = true
 				logger.L().Debug("openai responses chat fallback: client disconnected, continuing to drain upstream for billing",

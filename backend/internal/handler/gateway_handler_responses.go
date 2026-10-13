@@ -75,6 +75,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)

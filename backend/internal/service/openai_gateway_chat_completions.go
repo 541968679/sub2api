@@ -118,6 +118,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
 	originalModel := chatReq.Model
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	clientStream := chatReq.Stream
 
 	// 2. Resolve model mapping early so compat prompt_cache_key injection can
@@ -675,6 +676,7 @@ func (s *OpenAIGatewayService) finishChatCompletionsFromResponsesResponse(
 		body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
 	}
 	body = applyClientFacingOpenAIResponseModel(body, originalModel)
+	body = applyForcedRequestedResponseModelBody(c, body)
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 
 	return &OpenAIForwardResult{
@@ -1107,6 +1109,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				continue
 			}
 			sse = fillEmptyOpenAIResponseModelInSSEBody(sse, originalModel)
+			sse = applyForcedRequestedResponseModelSSEText(c, sse)
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				logger.L().Info("openai chat_completions stream: client disconnected",
 					zap.String("request_id", requestID),
@@ -1128,6 +1131,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 					continue
 				}
 				sse = fillEmptyOpenAIResponseModelInSSEBody(sse, originalModel)
+				sse = applyForcedRequestedResponseModelSSEText(c, sse)
 				fmt.Fprint(c.Writer, sse) //nolint:errcheck
 			}
 		}

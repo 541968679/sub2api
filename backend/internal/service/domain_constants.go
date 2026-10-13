@@ -538,6 +538,11 @@ const (
 	// kimi-k3 Chat Completions parameter checks and the string image_url rewrite.
 	// Default false. Only the string "true" enables it. Not a public setting.
 	SettingKeyKimiK3AdaptiveValidationEnabled = "kimi_k3_adaptive_validation_enabled"
+	// SettingKeyForceRequestedResponseModel overwrites client-facing response
+	// model names with the model the client requested. Default false. Only the
+	// string "true" enables it. Billing and upstream_response_model stay on the
+	// real upstream name. Not a public setting.
+	SettingKeyForceRequestedResponseModel = "force_requested_response_model"
 	// SettingKeyDisplayCacheTokenMaxMult is the global cache_read display amplify cap (M).
 	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
 	// SettingKeyDisplayOutputResidualGrowthRatio is α: max extra output growth from cache residual.

@@ -220,10 +220,13 @@ func writeAnthropicJSONResponse(c *gin.Context, status int, resp *apicompat.Anth
 		return
 	}
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if mult := getDisplayTokenMultipliers(c); mult != nil {
+	if mult := getDisplayTokenMultipliers(c); mult != nil || forceRequestedResponseModelArmed(c) {
 		body, err := json.Marshal(resp)
 		if err == nil {
-			body = rewriteNonStreamUsageTokens(body, mult)
+			if mult != nil {
+				body = rewriteNonStreamUsageTokens(body, mult)
+			}
+			body = applyForcedRequestedResponseModelBody(c, body)
 			c.Data(status, "application/json; charset=utf-8", body)
 			MarkOpenAIAnthropicResponseTerminated(c)
 			return
@@ -347,6 +350,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// full-replays; OAuth/non-full-replay paths may still trim a forwarding copy.
 	anthropicCompactReq := cloneAnthropicRequestForDigest(&anthropicReq)
 	originalModel := anthropicReq.Model
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if bridgeMode {
 		// 登记客户端请求的 Claude 模型：出口消毒器用它替换上游错误文本里
 		// 泄漏的 gpt-* 模型名。
@@ -1645,6 +1649,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				if mult := getDisplayTokenMultipliers(c); mult != nil {
 					sse = rewriteAnthropicSSEUsageTokens(sse, mult)
 				}
+				sse = applyForcedRequestedResponseModelSSEText(c, sse)
 				if !clientVisibleOutputStarted {
 					pendingClientSSE = append(pendingClientSSE, sse)
 					if anthropicStreamEventHasVisibleOutput(evt) {
@@ -1748,6 +1753,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				if mult := getDisplayTokenMultipliers(c); mult != nil {
 					sse = rewriteAnthropicSSEUsageTokens(sse, mult)
 				}
+				sse = applyForcedRequestedResponseModelSSEText(c, sse)
 				if !clientVisibleOutputStarted {
 					pendingClientSSE = append(pendingClientSSE, sse)
 					if anthropicStreamEventHasVisibleOutput(evt) {

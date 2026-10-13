@@ -1667,6 +1667,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
 	updates[SettingKeyOpenAILongContextBillingEnabled] = strconv.FormatBool(settings.OpenAILongContextBillingEnabled)
 	updates[SettingKeyKimiK3AdaptiveValidationEnabled] = strconv.FormatBool(settings.KimiK3AdaptiveValidationEnabled)
+	updates[SettingKeyForceRequestedResponseModel] = strconv.FormatBool(settings.ForceRequestedResponseModel)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
 	if err != nil {
@@ -1810,6 +1811,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	})
 	refreshOpenAILongContextBillingCache(settings.OpenAILongContextBillingEnabled)
 	refreshKimiK3AdaptiveValidationCache(settings.KimiK3AdaptiveValidationEnabled)
+	refreshForceRequestedResponseModelCache(settings.ForceRequestedResponseModel)
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 		fingerprintUnification:       settings.EnableFingerprintUnification,
@@ -2626,6 +2628,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingKeyOpenAILongContextBillingEnabled:           "true",
 		SettingKeyKimiK3AdaptiveValidationEnabled:           "false",
+		SettingKeyForceRequestedResponseModel:               "false",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -3014,6 +3017,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 	result.OpenAILongContextBillingEnabled = parseOpenAILongContextBillingEnabled(settings[SettingKeyOpenAILongContextBillingEnabled])
 	result.KimiK3AdaptiveValidationEnabled = parseKimiK3AdaptiveValidationEnabled(settings[SettingKeyKimiK3AdaptiveValidationEnabled])
+	result.ForceRequestedResponseModel = parseForceRequestedResponseModelEnabled(settings[SettingKeyForceRequestedResponseModel])
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])

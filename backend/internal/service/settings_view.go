@@ -232,6 +232,10 @@ type SystemSettings struct {
 	// Kimi K3 Chat Completions adaptive validation. Default false.
 	KimiK3AdaptiveValidationEnabled bool
 
+	// Force client-facing response model names back to the requested model.
+	// Default false. Does not change billing or the observed upstream name.
+	ForceRequestedResponseModel bool
+
 	// Display-layer token amplify controls (admin "展示层" settings)
 	DisplayCacheTokenMaxMult         float64 // M, default 1.2
 	DisplayOutputResidualGrowthRatio float64 // α, default 1.0

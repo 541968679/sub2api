@@ -1418,6 +1418,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	}
 
 	originalModel := claudeReq.Model
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	mappedModel := s.getMappedModel(account, claudeReq.Model)
 	if mappedModel == "" {
 		return nil, s.writeClaudeError(c, http.StatusForbidden, "permission_error", fmt.Sprintf("model %s not in whitelist", claudeReq.Model))
@@ -2181,6 +2182,7 @@ func stripSignatureSensitiveBlocksFromClaudeRequest(req *antigravity.ClaudeReque
 //	          └─ 失败 → 设置模型限流 + 清除粘性绑定 → 切换账号
 func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool) (*ForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	startTime := time.Now()
 	var creditSample *antigravityCreditSampleSpan
 	if s.creditSampler != nil {
@@ -2515,7 +2517,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 			Detail:             upstreamDetail,
 		})
 		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream error status=%d body=%s", resp.StatusCode, truncateForLog(unwrappedForOps, 500))
-		c.Data(resp.StatusCode, contentType, unwrappedForOps)
+		c.Data(resp.StatusCode, contentType, applyForcedRequestedResponseModelBody(c, unwrappedForOps))
 		return nil, fmt.Errorf("antigravity upstream error: %d", resp.StatusCode)
 	}
 
@@ -3310,11 +3312,12 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 					firstTokenMs = &ms
 				}
 
+				payload = string(applyForcedRequestedResponseModelBody(c, []byte(payload)))
 				cw.Fprintf("data: %s\n\n", payload)
 				continue
 			}
 
-			cw.Fprintf("%s\n", line)
+			cw.Fprintf("%s\n", applyForcedRequestedResponseModelLine(c, line))
 
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
@@ -3530,6 +3533,7 @@ returnResponse:
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
+	respBody = applyForcedRequestedResponseModelBody(c, respBody)
 	c.Data(http.StatusOK, "application/json", respBody)
 
 	return &antigravityStreamResult{usage: usage, firstTokenMs: firstTokenMs}, nil
@@ -3972,6 +3976,7 @@ returnResponse:
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
+	claudeResp = applyForcedRequestedResponseModelBody(c, claudeResp)
 	c.Data(http.StatusOK, "application/json", claudeResp)
 
 	// 转换为 service.ClaudeUsage
@@ -4348,6 +4353,7 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 		return nil, fmt.Errorf("missing model")
 	}
 	originalModel := claudeReq.Model
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 
 	// 构建上游请求 URL
 	upstreamURL := baseURL + "/v1/messages"
@@ -4399,6 +4405,7 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 		}
 
 		// 透传上游错误
+		respBody = applyForcedRequestedResponseModelBody(c, respBody)
 		c.Header("Content-Type", resp.Header.Get("Content-Type"))
 		c.Status(resp.StatusCode)
 		_, _ = c.Writer.Write(respBody)
@@ -4435,6 +4442,10 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 
 		// 提取 usage
 		usage = s.extractClaudeUsage(respBody)
+		if forceRequestedResponseModelArmed(c) {
+			observeAnthropicResponseBody(c, respBody)
+		}
+		respBody = applyForcedRequestedResponseModelBody(c, respBody)
 
 		c.Header("Content-Type", resp.Header.Get("Content-Type"))
 		c.Status(http.StatusOK)
@@ -4568,7 +4579,7 @@ func (s *AntigravityGatewayService) streamUpstreamResponse(c *gin.Context, resp 
 			s.extractSSEUsage(line, usage)
 
 			// 透传行
-			cw.Fprintf("%s\n", line)
+			cw.Fprintf("%s\n", applyForcedRequestedResponseModelLine(c, line))
 
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))

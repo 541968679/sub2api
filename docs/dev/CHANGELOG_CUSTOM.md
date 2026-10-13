@@ -1,3 +1,29 @@
+## 2026-10-13 - feat: admin switch to force the client-requested response model name
+
+### What
+- Added gateway setting `force_requested_response_model`, default off. The toggle is under 系统设置 → 功能开关.
+- When the switch is on, client-facing structured model fields (`model`, `response.model`, `message.model`, `modelVersion` and the nested Gemini variants) are replaced with the model name the client requested. This covers names that are not exactly the mapped upstream name.
+- The real upstream name is still observed before that rewrite and stays on `usage_logs.upstream_response_model`. Billing and display-token accounting are unchanged. Error message text and model-list catalogs are not rewritten.
+- When the switch is off, the previous exact mapped-name replace and empty-model fill stay as they were.
+
+### Why
+Upstream responses often return a slightly different model name, and the gateway was passing that name through to the client.
+
+### Affected files
+`backend/internal/service/force_requested_response_model.go`,
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/settings_view.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/handler/dto/settings.go`,
+gateway and OpenAI/Gemini/Antigravity response writers,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-10-13 - ops: record production deploy of v0.1.318
 
 ### What

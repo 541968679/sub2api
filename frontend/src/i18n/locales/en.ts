@@ -8171,6 +8171,12 @@ const enBase = {
           enabled: 'Enable Kimi K3 adaptive validation',
           enabledHint: 'When on, max_completion_tokens, prediction, reasoning_effort, stop, top_logprobs, and function names outside the official Kimi K3 limits return HTTP 400 locally, and a string image_url becomes an object. Other models are forwarded unchanged, and logprobs are not invented. When off, the request body is forwarded as received.',
         },
+        forceRequestedResponseModel: {
+          title: 'Force response model name',
+          description: 'When on, client-facing model fields are replaced with the requested model. The real upstream name stays on usage upstream_response_model. Off by default.',
+          enabled: 'Force the client-requested model name',
+          enabledHint: 'When off, a response model is rewritten only when it exactly matches the mapped upstream name. When on, non-empty model, response.model, message.model, and modelVersion fields are replaced with the name the client requested. Error text and model catalogs are left unchanged.',
+        },
         riskControl: {
           title: 'Risk Control',
           description: 'Enable the content moderation menu and gateway audit entry point. Disabled by default.',

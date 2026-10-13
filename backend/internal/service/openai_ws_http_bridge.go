@@ -427,7 +427,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		replayCollector.AddEvent(eventType, upstreamMessage)
 
 		if !clientDisconnected {
-			if err := writeClientMessage(upstreamMessage); err != nil {
+			if err := writeClientMessage(applyForcedRequestedResponseModelBody(c, upstreamMessage)); err != nil {
 				if isOpenAIWSClientDisconnectError(err) {
 					clientDisconnected = true
 					closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)

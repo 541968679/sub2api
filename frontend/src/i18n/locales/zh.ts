@@ -7775,6 +7775,12 @@ const zhBase = {
           enabled: '启用 Kimi K3 自适应校验',
           enabledHint: '开启后，超出官方约束的 max_completion_tokens、prediction、reasoning_effort、stop、top_logprobs 和函数名会在本地返回 400，字符串 image_url 会改成对象。其他模型原样转发，也不会补造 logprobs。关闭后请求体原样转发。',
         },
+        forceRequestedResponseModel: {
+          title: '强制响应模型名',
+          description: '开启后，发给客户的响应里，模型名一律改成客户请求的名字。上游真实名字仍记在用量的上游响应字段。默认关闭。',
+          enabled: '强制使用客户请求的模型名',
+          enabledHint: '关闭时，只有响应名正好等于映射名才会改回请求名，其他名字原样透传。开启后，非空的 model、response.model、message.model、modelVersion 都会改成客户请求的名字。错误文案和模型列表不改。',
+        },
         riskControl: {
           title: '风控中心',
           description: '启用内容审计菜单和全端点请求审核入口。默认关闭。',

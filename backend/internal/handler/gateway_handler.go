@@ -203,6 +203,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	h.gatewayService.ArmClientRequestedResponseModel(c.Request.Context(), c, reqModel)
 	if !isGroupModelAllowed(apiKey.Group, reqModel) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
 		return

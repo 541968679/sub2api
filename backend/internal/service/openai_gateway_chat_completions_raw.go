@@ -57,6 +57,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 
 	// 1. Parse minimal fields needed for routing/billing
 	originalModel := gjson.GetBytes(body, "model").String()
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if originalModel == "" {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
@@ -469,6 +470,7 @@ scanRaw:
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			outLine = rewriteOpenAIChatSSEUsageTokens(outLine, mult)
 		}
+		outLine = applyForcedRequestedResponseModelLine(c, outLine)
 		if !clientDisconnected {
 			if !clientOutputStarted && !refusalDetector.ShouldReleaseClientOutput() {
 				pendingLines = append(pendingLines, outLine)
@@ -634,6 +636,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		respBody = rewriteOpenAIChatUsageTokens(respBody, "usage", mult)
 	}
 	respBody = (&chatCompletionIDMask{}).applyBytes(respBody)
+	respBody = applyForcedRequestedResponseModelBody(c, respBody)
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(respBody)
 
@@ -874,6 +877,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletionsFromSSE(
 			body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
 		}
 		body = applyClientFacingOpenAIResponseModel(body, originalModel)
+		body = applyForcedRequestedResponseModelBody(c, body)
 		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 		usage := OpenAIUsage{}
 		if acc.usage != nil {

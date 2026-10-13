@@ -4541,6 +4541,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")
 	}
+	s.armForceRequestedResponseModel(ctx, c, parsed.Model)
 
 	// Web Search 模拟：纯 web_search 请求时，直接调用搜索 API 构造响应
 	if account != nil && s.shouldEmulateWebSearch(ctx, account, parsed.GroupID, parsed.Body) {
@@ -5664,6 +5665,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				if mult := getDisplayTokenMultipliers(c); mult != nil {
 					restored = RewriteSSEUsageTokens(restored, mult)
 				}
+				restored = applyForcedRequestedResponseModelLine(c, restored)
 				if _, err := io.WriteString(w, restored); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
@@ -5904,6 +5906,10 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	if mult := getDisplayTokenMultipliers(c); mult != nil {
 		body = rewriteNonStreamUsageTokens(body, mult)
 	}
+	if forceRequestedResponseModelArmed(c) {
+		observeAnthropicResponseBody(c, body)
+	}
+	body = applyForcedRequestedResponseModelBody(c, body)
 	c.Data(resp.StatusCode, contentType, body)
 	return usage, nil
 }
@@ -6254,6 +6260,10 @@ func (s *GatewayService) handleBedrockNonStreamingResponse(
 	body = transformBedrockInvocationMetrics(body)
 
 	usage := parseClaudeUsageFromResponseBody(body)
+	if forceRequestedResponseModelArmed(c) {
+		observeAnthropicResponseBody(c, body)
+	}
+	body = applyForcedRequestedResponseModelBody(c, body)
 
 	c.Header("Content-Type", "application/json")
 	if v := resp.Header.Get("x-amzn-requestid"); v != "" {
@@ -7411,7 +7421,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 
 	switch resp.StatusCode {
 	case 400:
-		c.Data(http.StatusBadRequest, "application/json", body)
+		c.Data(http.StatusBadRequest, "application/json", applyForcedRequestedResponseModelBody(c, body))
 		summary := upstreamMsg
 		if summary == "" {
 			summary = truncateForLog(body, 512)
@@ -7930,7 +7940,8 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				for _, block := range outputBlocks {
 					if !clientDisconnected {
 						restored := reverseToolNamesIfPresent(c, []byte(block))
-						if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
+						outbound := applyForcedRequestedResponseModelSSEText(c, string(restored))
+						if _, werr := fmt.Fprint(w, outbound); werr != nil {
 							clientDisconnected = true
 							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 						} else {
@@ -8291,6 +8302,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	}
 
 	body = reverseToolNamesIfPresent(c, body)
+	body = applyForcedRequestedResponseModelBody(c, body)
 
 	// 写入响应
 	c.Data(resp.StatusCode, contentType, body)

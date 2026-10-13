@@ -28,6 +28,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	startTime := time.Now()
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if originalModel == "" {
 		writeOpenAIEmbeddingsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
@@ -175,8 +176,15 @@ func writeOpenAIEmbeddingsUpstreamResponse(c *gin.Context, resp *http.Response, 
 	} else {
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
+	if forceRequestedResponseModelArmed(c) {
+		observeOpenAIResponseBody(c, body)
+	}
+	rewritten := applyForcedRequestedResponseModelBody(c, body)
+	if len(rewritten) != len(body) {
+		c.Writer.Header().Del("Content-Length")
+	}
 	c.Writer.WriteHeader(resp.StatusCode)
-	_, _ = c.Writer.Write(body)
+	_, _ = c.Writer.Write(rewritten)
 }
 
 func writeOpenAIEmbeddingsError(c *gin.Context, statusCode int, errType, message string) {

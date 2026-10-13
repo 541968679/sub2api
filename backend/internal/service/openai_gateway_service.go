@@ -2688,6 +2688,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, reqModel, reqStream, startTime)
 	}
@@ -4820,10 +4821,12 @@ scanLines:
 				}
 			}
 		}
+		line = applyForcedRequestedResponseModelLine(c, line)
 
 		if !clientDisconnected {
 			if doneData, isDone := extractOpenAISSEDataLine(line); slimState.enabled && isDone && strings.TrimSpace(doneData) == "[DONE]" && slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
 				if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
+					synth = applyForcedRequestedResponseModelLine(c, synth)
 					if !clientOutputStarted && len(pendingLines) > 0 {
 						if !writePendingLines() {
 							continue
@@ -4981,6 +4984,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	}
 	body = applyClientFacingOpenAIResponseModel(body, originalModel)
+	body = applyForcedRequestedResponseModelBody(c, body)
 	c.Data(resp.StatusCode, contentType, body)
 	return &openaiNonStreamingResultPassthrough{
 		OpenAIUsage: usage,
@@ -5009,6 +5013,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
+		next = applyForcedRequestedResponseModelBody(c, next)
 		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
 		return &openaiNonStreamingResultPassthrough{
@@ -5077,9 +5082,10 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
-		body = []byte(fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel))
+		body = []byte(applyForcedRequestedResponseModelSSEText(c, fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel)))
 	} else {
 		body = applyClientFacingOpenAIResponseModel(body, originalModel)
+		body = applyForcedRequestedResponseModelBody(c, body)
 	}
 	c.Data(resp.StatusCode, contentType, body)
 
@@ -5943,6 +5949,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				}
 			}
 			lineForDownstream = fillEmptyOpenAIResponseModelInSSELine(lineForDownstream, originalModel)
+			lineForDownstream = applyForcedRequestedResponseModelLine(c, lineForDownstream)
 
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected {
@@ -5960,6 +5967,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					return
 				}
 				for _, injectedLine := range injectedImageMessageLines {
+					injectedLine = applyForcedRequestedResponseModelLine(c, injectedLine)
 					if _, err := bufferedWriter.WriteString(injectedLine + "\n\n"); err != nil {
 						clientDisconnected = true
 						logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
@@ -5970,6 +5978,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					// Usage was parsed from original dataBytes before rewrite/slim.
 				} else if strings.TrimSpace(data) == "[DONE]" && slimState.shouldSynthesize(false, usage.OutputTokens) {
 					if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
+						synth = applyForcedRequestedResponseModelLine(c, synth)
 						if _, err := bufferedWriter.WriteString(synth + "\n"); err != nil {
 							clientDisconnected = true
 							logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
@@ -6544,6 +6553,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	}
 	body = applyClientFacingOpenAIResponseModel(body, originalModel)
+	body = applyForcedRequestedResponseModelBody(c, body)
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
@@ -6584,6 +6594,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
+		next = applyForcedRequestedResponseModelBody(c, next)
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
 		return &openaiNonStreamingResult{
@@ -6666,9 +6677,10 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
-		body = []byte(fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel))
+		body = []byte(applyForcedRequestedResponseModelSSEText(c, fillEmptyOpenAIResponseModelInSSEBody(string(body), originalModel)))
 	} else {
 		body = applyClientFacingOpenAIResponseModel(body, originalModel)
+		body = applyForcedRequestedResponseModelBody(c, body)
 	}
 	c.Data(resp.StatusCode, contentType, body)
 

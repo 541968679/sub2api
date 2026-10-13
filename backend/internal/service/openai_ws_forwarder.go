@@ -1835,6 +1835,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	lastFailureReason string,
 ) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
+	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if s == nil || account == nil {
 		return nil, wrapOpenAIWSFallback("invalid_state", errors.New("service or account is nil"))
 	}
@@ -2180,6 +2181,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if clientDisconnected {
 			return
 		}
+		message = applyForcedRequestedResponseModelBody(c, message)
 		frame := make([]byte, 0, len(message)+8)
 		frame = append(frame, "data: "...)
 		frame = append(frame, message...)
@@ -2461,6 +2463,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		finalResponse = applyClientFacingOpenAIResponseModel(finalResponse, originalModel)
 		finalResponse = s.correctToolCallsInResponseBody(finalResponse)
 		populateOpenAIUsageFromResponseJSON(finalResponse, usage)
+		finalResponse = applyForcedRequestedResponseModelBody(c, finalResponse)
 		if responseID == "" {
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())
 		}
@@ -3378,7 +3381,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					}
 				}
 				replayCollector.AddEvent(eventType, upstreamMessage)
-				if err := writeClientMessage(rewriteOpenAICapacityShedClientPayload(upstreamMessage, eventType)); err != nil {
+				clientPayload := applyForcedRequestedResponseModelBody(c, rewriteOpenAICapacityShedClientPayload(upstreamMessage, eventType))
+				if err := writeClientMessage(clientPayload); err != nil {
 					if isOpenAIWSClientDisconnectError(err) {
 						clientDisconnected = true
 						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
