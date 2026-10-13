@@ -1,3 +1,17 @@
+## 2026-10-13 - ops: production deploy of v0.1.319
+
+### What
+- Deployed `ghcr.io/541968679/sub2api:0.1.319` to new-origin. Digest `sha256:290579453900604ceabb5202a1fe2086c22d77ee8b7d0109dff51c421dbc687f`. Revision `a347f67ac2d90d674acd8f8c0b00821161c8c10d`. Version label `0.1.319`.
+- Release run `38377952137`. VERSION sync `222d3f15c`. Preflight passed on attempt 2/36. Live health passed on attempt 1/5. `https://zerocode.kaynlab.com/health` returned ok.
+- Rollback is `v0.1.318` digest `sha256:172984ed29948473918622149e673f223995811a636f0304f2ee506e0a0e5207`.
+- Account `model_mapping` now bills the client-requested model. The upstream request still uses the mapped name.
+
+### Why
+Chat Completions on yundu ds 014 priced `deepseek-v4-pro` as unpriced `deepseek-v4-pro-0813` and stored `actual_cost` 0.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-10-13 - fix: bill account model mappings by the requested model
 
 ### What
