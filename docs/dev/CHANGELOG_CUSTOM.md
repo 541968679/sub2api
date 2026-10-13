@@ -1,3 +1,17 @@
+## 2026-10-13 - ops: production deploy of v0.1.320
+
+### What
+- Deployed `ghcr.io/541968679/sub2api:0.1.320` to new-origin. Digest `sha256:af0aa36e0ef1be6be570a379c658743e28af7f65c6c773daca9b6cbcb45200bf`. Revision `80a9c485e69ebd5a95829f49f1c0be2fd1ed21ba`. Version label `0.1.320`.
+- Release run `38379675462`. VERSION sync `f5810233f`. Preflight passed on attempt 2/36. Live health passed on attempt 1/5. `https://zerocode.kaynlab.com/health` returned ok.
+- Postgres and Redis were not recreated. Rollback is `v0.1.319` digest `sha256:290579453900604ceabb5202a1fe2086c22d77ee8b7d0109dff51c421dbc687f`.
+- The image adds the global error policy page at `/admin/error-policy`. Factory settings keep the current client sentences and schedule caliber.
+
+### Why
+The error policy work was still only in the working tree when v0.1.319 went out. This deploy publishes that page.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-10-13 - ops: production deploy of v0.1.319
 
 ### What
