@@ -40,6 +40,8 @@ describe('AccountTableFilters sort options', () => {
       }
     })
 
+    expect(wrapper.find('[data-testid="account-group-order-open"]').exists()).toBe(false)
+
     const values = wrapper.findAll('option').map((opt) => opt.attributes('value'))
     expect(values).toContain('upstream_rate_multiplier:asc')
     expect(values).toContain('upstream_rate_multiplier:desc')
@@ -122,6 +124,64 @@ describe('AccountTableFilters sort options', () => {
     const merged = wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())
     expect(merged).toContain('国产模型：聚合渠道')
     expect(merged).toContain('gpt 每月2000刀')
+    wrapper.unmount()
+  })
+
+  it('orders group options by sort_order and saves a reordered dropdown', async () => {
+    const reorderGroups = vi.fn().mockResolvedValue(undefined)
+    const groups = [
+      { id: 48, name: 'kimi k3', platform: 'openai', sort_order: 40 },
+      { id: 9, name: 'gpt later', platform: 'openai', sort_order: 30 },
+      { id: 46, name: '国产模型', platform: 'openai', sort_order: 20 },
+      { id: 2, name: 'gpt first', platform: 'openai', sort_order: 10 }
+    ]
+    const wrapper = mount(AccountTableFilters, {
+      props: {
+        searchQuery: '',
+        filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' },
+        groups: groups as never,
+        reorderGroups
+      },
+      global: {
+        stubs: {
+          SearchInput: true,
+          Select: SelectStub,
+          Icon: true,
+          BaseDialog: {
+            props: ['show'],
+            template: '<div v-if="show"><slot /><slot name="footer" /></div>'
+          },
+          VueDraggable: {
+            props: ['modelValue'],
+            template: '<div><slot /></div>'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.allGroups',
+      'admin.accounts.ungroupedGroup',
+      'gpt first',
+      'gpt later'
+    ])
+    expect(wrapper.get('[data-testid="account-filter-domestic-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.domesticGroups',
+      '国产模型',
+      'kimi k3'
+    ])
+
+    await wrapper.get('[data-testid="account-group-order-open"]').trigger('click')
+    expect(wrapper.get('[data-testid="account-group-order-dialog"]').text()).toContain('admin.accounts.groupOrder.standardSection')
+    expect(wrapper.get('[data-testid="account-group-order-dialog"]').text()).toContain('admin.accounts.domesticGroups')
+    await wrapper.get('[data-testid="account-group-order-down-2"]').trigger('click')
+    await wrapper.get('[data-testid="account-group-order-up-48"]').trigger('click')
+    await wrapper.get('[data-testid="account-group-order-save"]').trigger('click')
+
+    expect(reorderGroups).toHaveBeenCalledWith([
+      [9, 2],
+      [48, 46]
+    ])
     wrapper.unmount()
   })
 })

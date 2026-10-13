@@ -49,19 +49,104 @@
         data-testid="account-filter-domestic-group"
         @update:model-value="updateDomesticGroup"
       />
+      <button
+        v-if="canReorderGroups"
+        type="button"
+        class="btn btn-secondary shrink-0 px-2.5"
+        data-testid="account-group-order-open"
+        :title="t('admin.accounts.groupOrder.hint')"
+        @click="openGroupOrder"
+      >
+        <Icon name="menu" size="sm" />
+        {{ t('admin.accounts.groupOrder.adjust') }}
+      </button>
       <Select v-if="showSort" :model-value="sortValue" class="w-52" :options="sortOpts" @update:model-value="updateSort" />
       <slot name="extra" />
     </div>
+
+  <BaseDialog
+    :show="showGroupOrder"
+    :title="t('admin.accounts.groupOrder.adjust')"
+    width="normal"
+    @close="closeGroupOrder"
+  >
+    <div class="max-h-[60vh] space-y-4 overflow-y-auto" data-testid="account-group-order-dialog">
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        {{ t('admin.accounts.groupOrder.hint') }}
+      </p>
+      <div v-for="(section, sectionIndex) in orderSections" :key="section.key" class="space-y-2">
+        <h4 v-if="orderSections.length > 1" class="text-sm font-medium text-gray-700 dark:text-gray-200">
+          {{ section.title }}
+        </h4>
+        <VueDraggable
+          :model-value="section.groups"
+          :animation="200"
+          class="space-y-2"
+          @update:model-value="setSectionGroups(sectionIndex, $event)"
+        >
+          <div
+            v-for="(group, index) in section.groups"
+            :key="group.id"
+            class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-700"
+            :data-testid="`account-group-order-row-${group.id}`"
+          >
+            <Icon name="menu" size="sm" class="shrink-0 cursor-grab text-gray-400" />
+            <span class="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-white">{{ group.name }}</span>
+            <button
+              type="button"
+              class="btn btn-secondary px-2"
+              :disabled="index === 0"
+              :title="t('admin.accounts.groupOrder.moveUp')"
+              :data-testid="`account-group-order-up-${group.id}`"
+              @click="moveGroup(sectionIndex, index, -1)"
+            >
+              <Icon name="chevronUp" size="xs" />
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary px-2"
+              :disabled="index === section.groups.length - 1"
+              :title="t('admin.accounts.groupOrder.moveDown')"
+              :data-testid="`account-group-order-down-${group.id}`"
+              @click="moveGroup(sectionIndex, index, 1)"
+            >
+              <Icon name="chevronDown" size="xs" />
+            </button>
+          </div>
+        </VueDraggable>
+      </div>
+    </div>
+    <template #footer>
+      <div class="flex justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="closeGroupOrder">
+          {{ t('common.cancel') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          data-testid="account-group-order-save"
+          :disabled="orderSaving"
+          @click="saveGroupOrder"
+        >
+          {{ orderSaving ? t('common.saving') : t('common.save') }}
+        </button>
+      </div>
+    </template>
+  </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { VueDraggable } from 'vue-draggable-plus'
 import Select from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Icon from '@/components/icons/Icon.vue'
 import type { AdminGroup } from '@/types'
 import { isDomesticAccountGroup } from '@/utils/domesticAccountGroups'
+import { compareAdminGroupsBySort } from '@/utils/groupSortOrder'
 
 const props = withDefaults(defineProps<{
   searchQuery: string
@@ -70,6 +155,8 @@ const props = withDefaults(defineProps<{
   hidePlatform?: boolean
   showSort?: boolean
   searchPlaceholder?: string
+  /** Persist a new dropdown order. Absent on screens that only reuse these filters. */
+  reorderGroups?: (orderedIds: number[][]) => Promise<void>
 }>(), {
   hidePlatform: false,
   showSort: true
@@ -88,7 +175,8 @@ const updateStatus = (value: string | number | boolean | null) => { emit('update
 const updatePrivacyMode = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, privacy_mode: value }) }
 const updateGroup = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, group: value == null ? '' : value }) }
 const showDomesticGroupFilter = computed(() => props.filters.platform === 'openai')
-const domesticGroups = computed(() => (props.groups || []).filter((group) => isDomesticAccountGroup(group)))
+const sortedGroups = computed(() => [...(props.groups || [])].sort(compareAdminGroupsBySort))
+const domesticGroups = computed(() => sortedGroups.value.filter((group) => isDomesticAccountGroup(group)))
 const domesticGroupIds = computed(() => new Set(domesticGroups.value.map((group) => String(group.id))))
 const selectedGroup = computed(() => String(props.filters.group ?? ''))
 const selectedIsDomestic = computed(() => domesticGroupIds.value.has(selectedGroup.value))
@@ -157,16 +245,78 @@ const privacyOpts = computed(() => [
   { value: 'training_set_failed', label: 'Fail' },
 ])
 const groupOption = (group: AdminGroup) => ({ value: String(group.id), label: group.name })
-const gptGroupOptions = computed(() => {
-  const source = showDomesticGroupFilter.value
-    ? (props.groups || []).filter((group) => !domesticGroupIds.value.has(String(group.id)))
-    : (props.groups || [])
-  return [
-    { value: '', label: t('admin.accounts.allGroups') },
-    { value: 'ungrouped', label: t('admin.accounts.ungroupedGroup') },
-    ...source.map(groupOption),
-  ]
+const standardGroups = computed(() => (
+  showDomesticGroupFilter.value
+    ? sortedGroups.value.filter((group) => !domesticGroupIds.value.has(String(group.id)))
+    : sortedGroups.value
+))
+const gptGroupOptions = computed(() => [
+  { value: '', label: t('admin.accounts.allGroups') },
+  { value: 'ungrouped', label: t('admin.accounts.ungroupedGroup') },
+  ...standardGroups.value.map(groupOption),
+])
+const canReorderGroups = computed(() => {
+  if (!props.reorderGroups) return false
+  const lists = showDomesticGroupFilter.value
+    ? [standardGroups.value, domesticGroups.value]
+    : [sortedGroups.value]
+  return lists.some((list) => list.length > 1)
 })
+
+interface GroupOrderSection {
+  key: string
+  title: string
+  groups: AdminGroup[]
+}
+
+const showGroupOrder = ref(false)
+const orderSaving = ref(false)
+const orderSections = ref<GroupOrderSection[]>([])
+
+function openGroupOrder() {
+  const sections: GroupOrderSection[] = showDomesticGroupFilter.value
+    ? [
+        { key: 'standard', title: t('admin.accounts.groupOrder.standardSection'), groups: [...standardGroups.value] },
+        { key: 'domestic', title: t('admin.accounts.domesticGroups'), groups: [...domesticGroups.value] }
+      ]
+    : [{ key: 'all', title: t('admin.accounts.groupOrder.standardSection'), groups: [...sortedGroups.value] }]
+  orderSections.value = sections.filter((section) => section.groups.length > 0)
+  showGroupOrder.value = orderSections.value.length > 0
+}
+
+function closeGroupOrder() {
+  if (orderSaving.value) return
+  showGroupOrder.value = false
+}
+
+function setSectionGroups(sectionIndex: number, groups: AdminGroup[]) {
+  const section = orderSections.value[sectionIndex]
+  if (!section) return
+  orderSections.value[sectionIndex] = { ...section, groups }
+}
+
+function moveGroup(sectionIndex: number, index: number, direction: -1 | 1) {
+  const section = orderSections.value[sectionIndex]
+  if (!section) return
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= section.groups.length) return
+  const groups = section.groups.slice()
+  const [item] = groups.splice(index, 1)
+  if (!item) return
+  groups.splice(nextIndex, 0, item)
+  setSectionGroups(sectionIndex, groups)
+}
+
+async function saveGroupOrder() {
+  if (!props.reorderGroups || orderSaving.value) return
+  orderSaving.value = true
+  try {
+    await props.reorderGroups(orderSections.value.map((section) => section.groups.map((group) => group.id)))
+    showGroupOrder.value = false
+  } finally {
+    orderSaving.value = false
+  }
+}
 const domesticGroupOptions = computed(() => [
   { value: '', label: t('admin.accounts.domesticGroups') },
   ...domesticGroups.value.map(groupOption),

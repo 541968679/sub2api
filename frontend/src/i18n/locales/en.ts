@@ -5034,6 +5034,15 @@ const enBase = {
       allGroups: 'All Groups',
       domesticGroups: 'Domestic groups',
       ungroupedGroup: 'Ungrouped',
+      groupOrder: {
+        adjust: 'Reorder',
+        hint: 'Drag a group, or use the arrows, to change this dropdown. Saving writes the shared group display order, so Group management follows it too. All groups and Ungrouped stay at the top.',
+        saved: 'Group order updated',
+        failed: 'Failed to update group order',
+        standardSection: 'Groups',
+        moveUp: 'Move up',
+        moveDown: 'Move down'
+      },
       oauthType: 'OAuth',
       setupToken: 'Setup Token',
       apiKey: 'API Key',

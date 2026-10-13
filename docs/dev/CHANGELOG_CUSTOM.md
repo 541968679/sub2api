@@ -1,3 +1,21 @@
+## 2026-10-13 - feat: reorder account-list group dropdowns
+
+### What
+- Account management can reorder the group filter dropdown. The control sits next to the dropdown, supports drag and up/down, and writes `groups.sort_order`. On OpenAI, the GPT dropdown and the domestic dropdown reorder separately. Groups that are not in the list being moved keep their places. All groups and Ungrouped stay at the top of the dropdown.
+- The smart-schedule add dialog reuses the same filters and does not show the control.
+
+### Why
+The dropdown already followed `sort_order`, then id. With every group at `sort_order` 0 the order was creation order, and the account page had no way to change it.
+
+### Affected files
+`frontend/src/components/admin/account/AccountTableFilters.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/utils/groupSortOrder.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-10-13 - ops: record production deploy of v0.1.317
 
 ### What

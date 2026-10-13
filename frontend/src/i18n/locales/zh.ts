@@ -4624,6 +4624,15 @@ const zhBase = {
       allGroups: '全部分组',
       domesticGroups: '国产模型分组',
       ungroupedGroup: '未分配分组',
+      groupOrder: {
+        adjust: '调整顺序',
+        hint: '拖拽分组，或用上下箭头，调整当前下拉里的顺序。保存后写入分组显示顺序，分组管理里的顺序一起变。「全部分组」和「未分配分组」仍固定在最上面。',
+        saved: '分组顺序已更新',
+        failed: '更新分组顺序失败',
+        standardSection: '分组',
+        moveUp: '上移',
+        moveDown: '下移'
+      },
       oauthType: 'OAuth',
       sort: {
         createdDesc: '最新添加',

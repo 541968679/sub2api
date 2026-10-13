@@ -15,6 +15,7 @@
                 v-model:searchQuery="params.search"
                 :filters="params"
                 :groups="groups"
+                :reorder-groups="saveAccountGroupOrder"
                 @update:filters="handleFilterUpdate"
                 @change="debouncedReload"
                 @update:searchQuery="debouncedReload"
@@ -929,6 +930,7 @@ import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRules
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
 import { shouldReplaceAccountListRow } from '@/utils/accountListRefresh'
+import { compareAdminGroupsBySort, mergeGroupSortOrders } from '@/utils/groupSortOrder'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
@@ -938,6 +940,26 @@ const authStore = useAuthStore()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
+
+const saveAccountGroupOrder = async (orderedLists: number[][]) => {
+  const updates = mergeGroupSortOrders(groups.value, orderedLists)
+  if (updates.length === 0) return
+  try {
+    await adminAPI.groups.updateSortOrder(updates)
+    const rank = new Map(updates.map((item) => [item.id, item.sort_order]))
+    try {
+      groups.value = await adminAPI.groups.getAll()
+    } catch {
+      groups.value = groups.value
+        .map((group) => (rank.has(group.id) ? { ...group, sort_order: rank.get(group.id)! } : group))
+        .sort(compareAdminGroupsBySort)
+    }
+    appStore.showSuccess(t('admin.accounts.groupOrder.saved'))
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.groupOrder.failed')))
+    throw error
+  }
+}
 
 const proxyMap = computed(() => {
   const m = new Map<number, AccountProxy>()
