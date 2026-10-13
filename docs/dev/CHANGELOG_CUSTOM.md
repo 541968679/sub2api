@@ -1,3 +1,15 @@
+## 2026-10-13 - ops: record production deploy of v0.1.318
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.318` (revision `1d9191e1f`, digest `sha256:172984ed29948473918622149e673f223995811a636f0304f2ee506e0a0e5207`). Tags `0.1.318`, `0.1.318-amd64`, and `latest` share that digest. Release run `38349952549`. VERSION sync `690539fe3`. Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.317` digest `sha256:8d6cb8428525b182fd5c816e0e0b9b0463261f2dcb729ea90cadc7e54925c0b2`.
+
+### Why
+Record the verified cutover that lets account management reorder the group filter dropdown.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-13 - feat: reorder account-list group dropdowns
 
 ### What
