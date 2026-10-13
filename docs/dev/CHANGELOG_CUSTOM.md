@@ -1,3 +1,15 @@
+## 2026-10-13 - ops: record production deploy of v0.1.317
+
+### What
+- Production new-origin is on `ghcr.io/541968679/sub2api:0.1.317` (revision `062d544fa`, digest `sha256:8d6cb8428525b182fd5c816e0e0b9b0463261f2dcb729ea90cadc7e54925c0b2`). Tags `0.1.317`, `0.1.317-amd64`, and `latest` share that digest. Release run `38340117518`. VERSION sync `d8f58f90b`. Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Local and public `/health` returned ok. Postgres and Redis were not recreated. Rollback is `v0.1.316` digest `sha256:4793290cc272de53065d002dc23b1eed16048ed2eda4bbfe9c6646132f6f32d3`.
+
+### Why
+Record the verified cutover that shows the user-list burn-rate total and removes the account-list total.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`,
+this changelog.
+
 ## 2026-10-12 - ops: record production deploy of v0.1.316
 
 ### What
