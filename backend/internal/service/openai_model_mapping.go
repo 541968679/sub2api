@@ -2,6 +2,24 @@ package service
 
 import "strings"
 
+// openAIBillingModelForAccountMapping is the model name sent to pricing.
+// Account credentials.model_mapping still selects the upstream model, but the
+// bill uses the name from before that mapping. Group default mapping and
+// platform-default mapping keep the forward model, including a platform
+// default whose billing object is "mapped".
+func openAIBillingModelForAccountMapping(account *Account, requestedModel, forwardModel string) string {
+	requested := strings.TrimSpace(requestedModel)
+	forward := strings.TrimSpace(forwardModel)
+	if account != nil && requested != "" &&
+		account.ResolveMappedModelDetailed(requested).Source == ModelMappingSourceAccount {
+		return requested
+	}
+	if forward != "" {
+		return forward
+	}
+	return requested
+}
+
 // resolveOpenAIForwardModel determines the upstream model for OpenAI-compatible
 // forwarding. Group-level default mapping only applies when the account itself
 // did not match any explicit model_mapping rule.

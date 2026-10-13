@@ -73,8 +73,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
 	}
 
-	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	forwardModel := resolveOpenAIForwardModel(account, originalModel, "")
+	billingModel := openAIBillingModelForAccountMapping(account, originalModel, forwardModel)
+	upstreamModel := normalizeOpenAIModelForUpstream(account, forwardModel)
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
 	chatReq.Model = upstreamModel
 	if isCodexCompactV2FallbackMarked(c) {

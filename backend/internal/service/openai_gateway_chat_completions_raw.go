@@ -71,9 +71,12 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return s.forwardRawChatCompletionsPassthrough(ctx, c, account, body, originalModel, clientStream, startTime)
 	}
 
-	// 2. Resolve model mapping (same as ForwardAsChatCompletions)
-	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	// 2. Resolve model mapping (same as ForwardAsChatCompletions).
+	// The upstream body uses the mapped name. Account model_mapping bills
+	// the client-requested name.
+	forwardModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
+	billingModel := openAIBillingModelForAccountMapping(account, originalModel, forwardModel)
+	upstreamModel := normalizeOpenAIModelForUpstream(account, forwardModel)
 	grokCacheIdentity := ""
 	if account.Platform == PlatformGrok {
 		grokCacheIdentity = resolveGrokCacheIdentity(c, body, "", upstreamModel)

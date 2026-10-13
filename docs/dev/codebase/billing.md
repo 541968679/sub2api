@@ -3,6 +3,12 @@
 > 模型定价解析、费用计算、费率乘数、展示变换。
 > 五级定价链（User → Channel → Global → LiteLLM → 内置兜底）+ 两条独立费率乘数（用户扣费 vs 账号 quota）+ 展示变换体系。
 
+## Account model mapping
+
+`accounts.credentials.model_mapping` rewrites the model sent upstream. The usage bill uses the client-requested name from before that mapping. `openAIBillingModelForAccountMapping` applies this on Chat Completions (raw and CC→Responses), the Responses chat fallback, the Grok chat bridge, and OpenAI `/v1/messages`. `/v1/responses` already left `BillingModel` empty for an account mapping, so `RecordUsage` priced `result.Model`.
+
+A group default mapped model, and a platform-default mapping, still bill the forward model. Compact mapping on `/v1/messages` still replaces the bill with the compact model when that mapping matches. Global price lookup is case-insensitive, so `kimi-k3` → `Kimi-K3` hits the `kimi-k3` row either way.
+
 ## OpenAI Claude-GPT Bridge Billing
 
 Antigravity `/v1/messages` requests served by the OpenAI Claude-GPT bridge use

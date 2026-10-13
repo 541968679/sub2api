@@ -360,18 +360,20 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	normalizedModel := anthropicReq.Model
 	clientStream := anthropicReq.Stream // client's original stream preference
 
-	// 2. Model mapping
-	billingModel := resolveOpenAIForwardModel(account, normalizedModel, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	// 2. Model mapping. Account model_mapping bills the pre-mapping name.
+	// Compact mapping still replaces the upstream model and the bill when it matches.
+	forwardModel := resolveOpenAIForwardModel(account, normalizedModel, defaultMappedModel)
+	billingModel := openAIBillingModelForAccountMapping(account, normalizedModel, forwardModel)
+	upstreamModel := normalizeOpenAIModelForUpstream(account, forwardModel)
 	anthropicCompactRequest := isClaudeCodeCompactAnthropicRequest(anthropicCompactReq)
 	if anthropicCompactRequest {
 		s.enableOpenAIAnthropicCompactKeepalive(c, clientStream, 0)
 	}
 	anthropicCompactModelMapped := false
-	anthropicCompactRequestedModel := billingModel
+	anthropicCompactRequestedModel := forwardModel
 	var anthropicCompactFallbackUpstreamModels []string
 	if anthropicCompactRequest && account != nil {
-		if compactModel, matched := account.ResolveCompactMappedModel(billingModel); matched {
+		if compactModel, matched := account.ResolveCompactMappedModel(forwardModel); matched {
 			compactModel = strings.TrimSpace(compactModel)
 			if compactModel != "" {
 				billingModel = compactModel
@@ -379,10 +381,13 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				anthropicCompactModelMapped = true
 			}
 		}
+		compactForwardModel := forwardModel
+		if anthropicCompactModelMapped {
+			compactForwardModel = billingModel
+		}
 		anthropicCompactFallbackUpstreamModels = resolveOpenAICompactFallbackForwardModels(
-			account, anthropicCompactRequestedModel, billingModel,
+			account, anthropicCompactRequestedModel, compactForwardModel,
 		)
-
 	}
 	// Persist mapped upstream model for ops_error_logs (admin error-request table).
 	SetOpsUpstreamModel(c, upstreamModel)

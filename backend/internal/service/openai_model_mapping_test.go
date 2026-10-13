@@ -141,6 +141,33 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 	}
 }
 
+func TestOpenAIBillingModelForAccountMapping(t *testing.T) {
+	accountMapped := &Account{
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"deepseek-v4-pro": "deepseek-v4-pro-0813",
+			},
+		},
+	}
+	forward := resolveOpenAIForwardModel(accountMapped, "deepseek-v4-pro", "gpt-4o-mini")
+	if forward != "deepseek-v4-pro-0813" {
+		t.Fatalf("forward model = %q, want deepseek-v4-pro-0813", forward)
+	}
+	if got := openAIBillingModelForAccountMapping(accountMapped, "deepseek-v4-pro", forward); got != "deepseek-v4-pro" {
+		t.Fatalf("account mapping billing model = %q, want deepseek-v4-pro", got)
+	}
+
+	groupDefault := &Account{Credentials: map[string]any{}}
+	forward = resolveOpenAIForwardModel(groupDefault, "claude-opus-4-6", "gpt-4o-mini")
+	if got := openAIBillingModelForAccountMapping(groupDefault, "claude-opus-4-6", forward); got != "gpt-4o-mini" {
+		t.Fatalf("group default billing model = %q, want gpt-4o-mini", got)
+	}
+
+	if got := openAIBillingModelForAccountMapping(nil, "deepseek-v4-pro", "deepseek-v4-pro-0813"); got != "deepseek-v4-pro-0813" {
+		t.Fatalf("nil account billing model = %q, want forward model", got)
+	}
+}
+
 func TestResolveOpenAIForwardModel_PreventsClaudeModelFromFallingBackToGpt54WithoutDefault(t *testing.T) {
 	account := &Account{
 		Credentials: map[string]any{},

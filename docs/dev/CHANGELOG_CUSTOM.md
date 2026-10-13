@@ -1,3 +1,24 @@
+## 2026-10-13 - fix: bill account model mappings by the requested model
+
+### What
+- OpenAI Chat Completions, the Responses chat fallback, the Grok chat bridge, and OpenAI `/v1/messages` now price an account `model_mapping` hit with the client-requested model. The upstream request still uses the mapped name.
+- Group default mapping and platform-default mapping still bill the forward model. `/v1/messages` compact mapping still replaces the bill when it matches.
+- This covers `yundu ds 014` mapping `deepseek-v4-pro` to unpriced `deepseek-v4-pro-0813`. Chat Completions recorded tokens with `actual_cost` 0 because they priced the mapped name. No production price row was added and past rows were not backfilled.
+
+### Why
+Account model mapping is supposed to bill the name before the mapping. Responses already did. Raw Chat Completions put the forward model into `BillingModel`, so a mapped name missing from global pricing settled at 0.
+
+### Affected files
+`backend/internal/service/openai_model_mapping.go`,
+`backend/internal/service/openai_model_mapping_test.go`,
+`backend/internal/service/openai_gateway_chat_completions.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/service/openai_gateway_responses_chat_fallback.go`,
+`backend/internal/service/openai_gateway_grok_chat_bridge.go`,
+`backend/internal/service/openai_gateway_messages.go`,
+`docs/dev/codebase/billing.md`,
+this changelog.
+
 ## 2026-10-13 - feat: admin switch to force the client-requested response model name
 
 ### What
