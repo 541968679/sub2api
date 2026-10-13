@@ -37,6 +37,27 @@ A cheap account at high load was beating an idle account, and a session pinned t
 `docs/dev/codebase/scheduler.md`,
 this changelog.
 
+## 2026-10-13 - fix: show the burn-rate total on user management
+
+### What
+- The admin user list adds the burn rates already shown on the current page. The sky bar above the filters stays visible while the calculation switch is on, and the burn-rate column header repeats the same number. The unit follows the list (`$/h` or `$/min`). More than one page labels the total as this page only.
+- The account-list burn-rate total is removed. That sum belonged on user management.
+
+### Why
+The earlier total was placed on account management. The rates to add are the ones already shown on the user list.
+
+### Affected files
+`frontend/src/composables/adminUserListRow.ts`,
+`frontend/src/composables/__tests__/adminUserListRow.spec.ts`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/__tests__/UsersView.spec.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-10-12 - fix: keep the account burn-rate total on screen
 
 ### What

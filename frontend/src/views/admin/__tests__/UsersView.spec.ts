@@ -398,6 +398,35 @@ const mountUsersView = () => {
     expect(localStorage.getItem('user-burn-rate-unit')).toBe('hour')
   })
 
+  it('sums the burn rates already shown on the current page', async () => {
+    localStorage.setItem('user-burn-rate-enabled', '1')
+    listUsers.mockResolvedValue({
+      items: [
+        createAdminUser(),
+        { ...createAdminUser(), id: 7, email: 'other@example.com' }
+      ],
+      total: 40,
+      page: 1,
+      page_size: 20,
+      pages: 2
+    })
+    getBatchUsersBurnRate.mockResolvedValue({
+      stats: {
+        '42': { burn_rate_per_hour: 1.2 },
+        '7': { burn_rate_per_hour: 0.3 }
+      }
+    })
+
+    const wrapper = mountUsersView()
+    await flushPromises()
+    await waitForDeferredSecondaryLoad()
+
+    const banner = wrapper.get('[data-testid="user-burn-rate-total"]')
+    expect(banner.text()).toContain('admin.users.burnRateTotalPage')
+    expect(wrapper.get('[data-testid="user-burn-rate-total-rate"]').attributes('data-rate')).toBe('1.5')
+    expect(wrapper.get('[data-testid="user-burn-rate-total-rate"]').text()).toContain('$1.50/h')
+  })
+
   const waitForDeferredSecondaryLoad = async () => {
     // loadUsers defers secondary fetches by 50ms so the table can paint first.
     await new Promise((resolve) => setTimeout(resolve, 60))

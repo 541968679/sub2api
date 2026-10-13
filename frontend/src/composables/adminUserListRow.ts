@@ -98,6 +98,30 @@ export function formatAdminUserBurnRateDisplay(
   return `$${amount.toFixed(2)}${suffix}`
 }
 
+/** Sum the 2-decimal amounts already shown on the user-list burn-rate cells. */
+export function sumDisplayedAdminUserBurnRates(
+  userIds: readonly number[],
+  stats: Record<string, { burn_rate_per_hour?: number | null } | null | undefined> | null | undefined,
+  unit: AdminUserBurnRateUnit = 'hour'
+): number {
+  let total = 0
+  for (const id of userIds) {
+    const raw = stats?.[String(id)]?.burn_rate_per_hour ?? 0
+    const perHour = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+    total += Number(formatAdminUserBurnRateAmount(perHour, unit).toFixed(2))
+  }
+  return total
+}
+
+export function formatAdminUserBurnRateTotal(
+  amount: number,
+  unit: AdminUserBurnRateUnit = 'hour'
+): string {
+  const suffix = unit === 'minute' ? '/min' : '/h'
+  const safe = Number.isFinite(amount) ? amount : 0
+  return `$${safe.toFixed(2)}${suffix}`
+}
+
 export function pickBatchUserStat<T>(
   stats: Record<string, T> | undefined | null,
   userId: number

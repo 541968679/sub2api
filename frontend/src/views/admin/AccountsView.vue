@@ -2,29 +2,6 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div
-          class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30"
-          data-testid="account-burn-rate-total"
-        >
-          <span class="text-sm font-semibold text-sky-950 dark:text-sky-100">
-            {{ accountBurnRateTotalLabel }}
-          </span>
-          <span
-            class="font-mono text-sm font-semibold tabular-nums text-sky-800 dark:text-sky-200"
-            data-testid="account-burn-rate-total-rate"
-            :data-rate="accountBurnRateTotal.perHour"
-          >
-            {{
-              t('admin.accounts.usageWindow.burnRateUsd', {
-                rate: formatAccountBurnRateAmount(accountBurnRateTotal.perHour)
-              })
-            }}
-          </span>
-          <span class="text-xs text-sky-800/80 dark:text-sky-200/80">
-            {{ t('admin.accounts.burnRateTotalCount', { count: accountBurnRateTotal.accountCount }) }}
-          </span>
-          <HelpTooltip :content="accountBurnRateTotalHint" width-class="w-80" />
-        </div>
         <!--
           Left = filters + action buttons. Right = public-quality card with the
           same EvalQuality groups as the smart-schedule pool. Heights stay
@@ -607,20 +584,8 @@
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
           <template #header-usage="{ column }">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center">
               <span>{{ column.label }}</span>
-              <span
-                class="font-mono text-xs font-semibold tabular-nums text-sky-700 dark:text-sky-300"
-                data-testid="account-burn-rate-column-total"
-                :data-rate="accountBurnRateTotal.perHour"
-                :title="accountBurnRateTotalHint"
-              >
-                {{
-                  t('admin.accounts.usageWindow.burnRateUsd', {
-                    rate: formatAccountBurnRateAmount(accountBurnRateTotal.perHour)
-                  })
-                }}
-              </span>
               <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
             </div>
           </template>
@@ -631,7 +596,6 @@
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
               @account-updated="patchAccountInList"
-              @burn-rate="onDisplayedBurnRate(row.id, $event)"
             />
           </template>
           <template #cell-proxy="{ row }">
@@ -964,7 +928,6 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
-import { formatAccountBurnRateAmount, sumAccountBalanceBurnRates } from '@/utils/accountBurnRateTotal'
 import { shouldReplaceAccountListRow } from '@/utils/accountListRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
@@ -1823,42 +1786,6 @@ const {
     sort_order: sortState.sort_order
   }
 })
-
-const displayedMoneyBurnRates = ref(new Map<number, number | null>())
-
-const onDisplayedBurnRate = (accountId: number, rate: number | null) => {
-  const current = displayedMoneyBurnRates.value
-  if (current.has(accountId) && current.get(accountId) === rate) return
-  const next = new Map(current)
-  next.set(accountId, rate)
-  displayedMoneyBurnRates.value = next
-}
-
-watch(accounts, (rows) => {
-  const ids = new Set(rows.map((row) => row.id))
-  const current = displayedMoneyBurnRates.value
-  if ([...current.keys()].every((id) => ids.has(id))) return
-  const next = new Map<number, number | null>()
-  for (const [id, rate] of current) {
-    if (ids.has(id)) next.set(id, rate)
-  }
-  displayedMoneyBurnRates.value = next
-})
-
-const accountBurnRateTotal = computed(() =>
-  sumAccountBalanceBurnRates(accounts.value, new Date(), displayedMoneyBurnRates.value)
-)
-const accountBurnRatePageScoped = computed(() => pagination.pages > 1)
-const accountBurnRateTotalLabel = computed(() =>
-  accountBurnRatePageScoped.value
-    ? t('admin.accounts.burnRateTotalPage')
-    : t('admin.accounts.burnRateTotal')
-)
-const accountBurnRateTotalHint = computed(() =>
-  accountBurnRatePageScoped.value
-    ? t('admin.accounts.burnRateTotalPageHint')
-    : t('admin.accounts.burnRateTotalHint')
-)
 
 const saveAccountListFilters = () => {
   try {

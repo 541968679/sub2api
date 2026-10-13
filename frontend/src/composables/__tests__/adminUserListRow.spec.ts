@@ -3,9 +3,11 @@ import {
   buildAdminUserListRowColumns,
   formatAdminUserBurnRateAmount,
   formatAdminUserBurnRateDisplay,
+  formatAdminUserBurnRateTotal,
   getAdminUserToggleStatusTarget,
   pickBatchUserStat,
-  smartScheduleSummaryFromDrafts
+  smartScheduleSummaryFromDrafts,
+  sumDisplayedAdminUserBurnRates
 } from '../adminUserListRow'
 
 describe('smartScheduleSummaryFromDrafts', () => {
@@ -46,6 +48,17 @@ describe('admin user burn-rate formatter', () => {
     expect(formatAdminUserBurnRateDisplay(1.2, 'hour')).toBe('$1.20/h')
     expect(formatAdminUserBurnRateDisplay(1.2, 'minute')).toBe('$0.02/min')
     expect(formatAdminUserBurnRateDisplay(0, 'hour')).toBe('$0.00/h')
+  })
+
+  it('adds the rounded amounts already shown on the rows', () => {
+    const stats = {
+      '1': { burn_rate_per_hour: 1.2 },
+      '2': { burn_rate_per_hour: 0.3 }
+    }
+    expect(sumDisplayedAdminUserBurnRates([1, 2, 3], stats, 'hour')).toBe(1.5)
+    expect(formatAdminUserBurnRateTotal(1.5, 'hour')).toBe('$1.50/h')
+    expect(sumDisplayedAdminUserBurnRates([1, 2], stats, 'minute')).toBe(0.03)
+    expect(formatAdminUserBurnRateTotal(0.03, 'minute')).toBe('$0.03/min')
   })
 
   it('picks batch stats by string user id', () => {

@@ -3,6 +3,26 @@
     <TablePageLayout>
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
+        <div
+          v-if="burnRateEnabled"
+          class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30"
+          data-testid="user-burn-rate-total"
+        >
+          <span class="text-sm font-semibold text-sky-950 dark:text-sky-100">
+            {{ userBurnRateTotalLabel }}
+          </span>
+          <span
+            class="font-mono text-sm font-semibold tabular-nums text-sky-800 dark:text-sky-200"
+            data-testid="user-burn-rate-total-rate"
+            :data-rate="userBurnRateTotalAmount"
+          >
+            {{ userBurnRateTotalDisplay }}
+          </span>
+          <span class="text-xs text-sky-800/80 dark:text-sky-200/80">
+            {{ t('admin.users.burnRateTotalCount', { count: users.length }) }}
+          </span>
+          <HelpTooltip :content="userBurnRateTotalHint" width-class="w-80" />
+        </div>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Active Filters -->
           <div class="flex flex-1 flex-wrap items-center gap-3">
@@ -532,6 +552,20 @@
             </div>
           </template>
 
+          <template #header-burn_rate="{ column }">
+            <div class="flex items-center gap-2">
+              <span>{{ column.label }}</span>
+              <span
+                class="font-mono text-xs font-semibold tabular-nums text-sky-700 dark:text-sky-300"
+                data-testid="user-burn-rate-column-total"
+                :data-rate="userBurnRateTotalAmount"
+                :title="userBurnRateTotalHint"
+              >
+                {{ userBurnRateTotalDisplay }}
+              </span>
+            </div>
+          </template>
+
           <template #cell-burn_rate="{ row }">
             <UserBurnRateCell
               :stats="burnRateStats[row.id] ?? burnRateStats[String(row.id)] ?? null"
@@ -915,6 +949,10 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
 import UserAttributesConfigModal from '@/components/user/UserAttributesConfigModal.vue'
 import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
+import {
+  formatAdminUserBurnRateTotal,
+  sumDisplayedAdminUserBurnRates
+} from '@/composables/adminUserListRow'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -1504,6 +1542,28 @@ const pagination = reactive({
   total: 0,
   pages: 0
 })
+
+const userBurnRateTotalAmount = computed(() =>
+  sumDisplayedAdminUserBurnRates(
+    users.value.map((user) => user.id),
+    burnRateStats.value,
+    burnRateUnit.value
+  )
+)
+const userBurnRateTotalDisplay = computed(() =>
+  formatAdminUserBurnRateTotal(userBurnRateTotalAmount.value, burnRateUnit.value)
+)
+const userBurnRatePageScoped = computed(() => pagination.pages > 1)
+const userBurnRateTotalLabel = computed(() =>
+  userBurnRatePageScoped.value
+    ? t('admin.users.burnRateTotalPage')
+    : t('admin.users.burnRateTotal')
+)
+const userBurnRateTotalHint = computed(() =>
+  userBurnRatePageScoped.value
+    ? t('admin.users.burnRateTotalPageHint')
+    : t('admin.users.burnRateTotalHint')
+)
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)

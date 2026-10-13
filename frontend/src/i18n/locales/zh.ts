@@ -2399,6 +2399,13 @@ const zhBase = {
       burnRateUnitMinute: '$/min',
       burnRateUnitHourTip: '按小时显示消耗速度',
       burnRateUnitMinuteTip: '按分钟显示消耗速度',
+      burnRateTotal: '消耗速度合计',
+      burnRateTotalPage: '本页消耗速度合计',
+      burnRateTotalHint:
+        '把当前页每一行已经显示的消耗速度加在一起，单位跟列表上的 $/h 或 $/min 一致。筛选区上方和消耗速度列表头都会显示。',
+      burnRateTotalPageHint:
+        '列表有多页时，这里只加总当前这一页已经显示的消耗速度。换页或改筛选后跟着变。单位跟列表上的 $/h 或 $/min 一致。',
+      burnRateTotalCount: '{count} 个用户',
       today: '今日',
       total: '近30天',
       noSubscription: '暂无订阅',
@@ -4875,13 +4882,6 @@ const zhBase = {
         saveFailed: '保存公共调度质量失败',
         loadFailed: '加载公共调度质量失败'
       },
-      burnRateTotal: '消耗速度合计',
-      burnRateTotalPage: '本页消耗速度合计',
-      burnRateTotalHint:
-        '把当前页已经显示出来的余额消耗速度加在一起。筛选区上方和用量列表头都会显示；没有可加的账号时是 ~$0.00。样本不足、无限额度，以及按百分比估算的窗口速度不计入。',
-      burnRateTotalPageHint:
-        '列表有多页时，这里只加总当前这一页。筛选区上方和用量列表头都会显示，换页或改筛选后跟着变。没有可加的账号时是 ~$0.00。样本不足、无限额度，以及按百分比估算的窗口速度不计入。',
-      burnRateTotalCount: '{count} 个账号',
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       oauthFleetUsage: {
         title: 'OAI Pro 池',

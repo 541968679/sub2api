@@ -2570,6 +2570,13 @@ const enBase = {
       burnRateUnitMinute: '$/min',
       burnRateUnitHourTip: 'Show burn rate per hour',
       burnRateUnitMinuteTip: 'Show burn rate per minute',
+      burnRateTotal: 'Burn rate total',
+      burnRateTotalPage: 'This page burn rate',
+      burnRateTotalHint:
+        'Adds the burn rates already shown on each row of the current page. The unit matches the list, $/h or $/min. The same total stays above the filters and in the burn-rate column header.',
+      burnRateTotalPageHint:
+        'When the list has more than one page, this adds only the rates already shown on the current page. It updates when you change page or filters. The unit matches the list, $/h or $/min.',
+      burnRateTotalCount: '{count} users',
       today: 'Today',
       total: 'Last 30d',
       noSubscription: 'No subscription',
@@ -5332,13 +5339,6 @@ const enBase = {
         saveFailed: 'Failed to save public schedule quality',
         loadFailed: 'Failed to load public schedule quality'
       },
-      burnRateTotal: 'Burn rate total',
-      burnRateTotalPage: 'This page burn rate',
-      burnRateTotalHint:
-        'Adds the balance burn rates already shown on the current page. The same total stays in the filter bar and in the usage column header. It shows ~$0.00 when no row can be added. Rows with too few samples, unlimited balance, or a percent window rate are left out.',
-      burnRateTotalPageHint:
-        'When the list has more than one page, this adds up only the current page. The same total stays in the filter bar and in the usage column header, and it updates when you change page or filters. It shows ~$0.00 when no row can be added. Rows with too few samples, unlimited balance, or a percent window rate are left out.',
-      burnRateTotalCount: '{count} accounts',
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       oauthFleetUsage: {
         title: 'OAI Pro pool',
