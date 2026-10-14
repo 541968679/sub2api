@@ -389,7 +389,45 @@ func resolveDisplayTokenPricing(ctx context.Context, model string, userID int64,
 			mergeUserDisplayTokenPricing(&cfg, override)
 		}
 	}
+	applyLiteLLMDisplayPriceFallback(&cfg, resolver, model)
 	return cfg
+}
+
+// LiteLLMDisplayFallbackPrices returns LiteLLM input/output/cache-read prices
+// for the display layer. It does not use billing hardcoded fallbacks, and it
+// does not map an unknown model onto the default test model.
+func (r *ModelPricingResolver) LiteLLMDisplayFallbackPrices(model string) (input, output, cacheRead float64) {
+	if r == nil || r.billingService == nil || r.billingService.pricingService == nil {
+		return 0, 0, 0
+	}
+	lp := r.billingService.pricingService.GetModelPricingForDisplayFallback(model)
+	if lp == nil {
+		return 0, 0, 0
+	}
+	return lp.InputCostPerToken, lp.OutputCostPerToken, lp.CacheReadInputTokenCost
+}
+
+// applyLiteLLMDisplayPriceFallback fills display input/output/cache-read only
+// when none of those display prices is set. One explicit display component
+// keeps the existing partial-override behavior. Cache-creation display prices
+// are never filled here.
+func applyLiteLLMDisplayPriceFallback(cfg *displayTokenPricingConfig, resolver *ModelPricingResolver, model string) {
+	if cfg == nil || cfg.DisplayInputPrice != nil || cfg.DisplayOutputPrice != nil || cfg.DisplayCacheReadPrice != nil {
+		return
+	}
+	input, output, cacheRead := resolver.LiteLLMDisplayFallbackPrices(model)
+	if input > 0 {
+		v := input
+		cfg.DisplayInputPrice = &v
+	}
+	if output > 0 {
+		v := output
+		cfg.DisplayOutputPrice = &v
+	}
+	if cacheRead > 0 {
+		v := cacheRead
+		cfg.DisplayCacheReadPrice = &v
+	}
 }
 
 func mergeGlobalDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *GlobalModelPricing) {

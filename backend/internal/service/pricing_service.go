@@ -592,8 +592,20 @@ func (s *PricingService) validatePricingURL(raw string) (string, error) {
 	return normalized, nil
 }
 
-// GetModelPricing 获取模型价格（带模糊匹配）
+// GetModelPricing 获取模型价格（带模糊匹配）。
+// 未命中的 OpenAI 名字最终可以落到 DefaultTestModel。计费继续用这个结果。
 func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing {
+	return s.lookupModelPricing(modelName, true)
+}
+
+// GetModelPricingForDisplayFallback 是展示价兜底。
+// 它走同一条 LiteLLM 匹配，但不把无关模型落到 DefaultTestModel。
+// 不读取 BillingService 的硬编码计费兜底。
+func (s *PricingService) GetModelPricingForDisplayFallback(modelName string) *LiteLLMModelPricing {
+	return s.lookupModelPricing(modelName, false)
+}
+
+func (s *PricingService) lookupModelPricing(modelName string, allowDefaultCatchAll bool) *LiteLLMModelPricing {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -641,7 +653,7 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 
 	// 5. OpenAI 模型回退策略
 	if strings.HasPrefix(lookupCandidates[0], "gpt-") {
-		return s.matchOpenAIModel(lookupCandidates[0])
+		return s.matchOpenAIModel(lookupCandidates[0], allowDefaultCatchAll)
 	}
 
 	return nil
@@ -842,7 +854,7 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // 4. gpt-5.3-codex -> gpt-5.2-codex
 // 5. gpt-5.4* -> 业务静态兜底价
 // 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
-func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
+func (s *PricingService) matchOpenAIModel(model string, allowDefaultCatchAll bool) *LiteLLMModelPricing {
 	switch {
 	case model == "gpt-6.1-sol" || strings.HasPrefix(model, "gpt-6.1-sol-"):
 		if pricing, ok := s.pricingData["gpt-6.1-sol"]; ok {
@@ -931,7 +943,11 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		return nil
 	}
 
-	// 最终回退到 DefaultTestModel
+	// 最终回退到 DefaultTestModel。展示价兜底不走这里，避免把未收录模型
+	// 按 gpt-5.4 重写 usage。
+	if !allowDefaultCatchAll {
+		return nil
+	}
 	defaultModel := strings.ToLower(openai.DefaultTestModel)
 	if pricing, ok := s.pricingData[defaultModel]; ok {
 		logger.LegacyPrintf("service.pricing", "[Pricing] OpenAI fallback to default model %s -> %s", model, defaultModel)

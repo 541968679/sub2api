@@ -986,6 +986,8 @@ func (h *UsageHandler) displayConfigForUsageLog(ctx context.Context, log *servic
 	if h.pricingResolver == nil {
 		return cfg
 	}
+	inPrice, outPrice, cachePrice := h.pricingResolver.LiteLLMDisplayFallbackPrices(model)
+	cfg = dto.ApplyLiteLLMDisplayPriceFallback(cfg, inPrice, outPrice, cachePrice)
 
 	var userID *int64
 	if log.UserID > 0 {

@@ -32,6 +32,12 @@ DB real → L1 (Display*Price + AllocateDisplayTokens M/α)
 - `display_total * display_rate ≈ actual_cost` (new capped rows use the new lower bill).
 - Admin/user/downstream must share one user-visible builder + unit-price resolution.
 - Rate-only rows (no `HasDisplayOverride`) still emit admin `display_fields` when rates differ.
+- When input, output, and cache-read display prices are all unset, those three
+  prices fall back to LiteLLM (`GetModelPricingForDisplayFallback`). One explicit
+  display component blocks the fallback. Cache-creation display prices are not
+  filled. The fallback does not use billing hardcoded prices or the default
+  test-model catch-all. The filled prices also replace those components' unit
+  labels, so the shown price is the price used to allocate tokens.
 
 ## Wrong vs Correct
 

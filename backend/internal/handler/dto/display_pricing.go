@@ -128,6 +128,47 @@ func ApplyResolvedUnitPrices(cfg *DisplayPricingConfig, inputPrice, outputPrice,
 	return nil
 }
 
+// ApplyLiteLLMDisplayPriceFallback uses LiteLLM input/output/cache-read prices
+// only when none of those display prices is already set. Explicit display
+// prices, including a partial set, are left unchanged. Cache-creation display
+// prices are not filled. A filled config is marked HasDisplayOverride so admin
+// display_fields and user /usage run the same L1 transform as the downstream
+// response rewrite.
+//
+// Unit-price labels for the filled components are replaced with the same
+// LiteLLM prices. BuildDisplayPricingMap leaves billing prices in Unit* when
+// display prices are unset, and ApplyDisplayTransform prefers Unit* for the
+// shown price. Leaving that billing label in place would make the shown price
+// disagree with the price used to allocate tokens.
+func ApplyLiteLLMDisplayPriceFallback(cfg *DisplayPricingConfig, inputPrice, outputPrice, cacheReadPrice float64) *DisplayPricingConfig {
+	if cfg != nil && (cfg.DisplayInputPrice != nil || cfg.DisplayOutputPrice != nil || cfg.DisplayCacheReadPrice != nil) {
+		return cfg
+	}
+	if inputPrice <= 0 && outputPrice <= 0 && cacheReadPrice <= 0 {
+		return cfg
+	}
+	if cfg == nil {
+		cfg = &DisplayPricingConfig{}
+	}
+	if inputPrice > 0 {
+		value := inputPrice
+		cfg.DisplayInputPrice = &value
+		cfg.UnitInputPrice = &value
+	}
+	if outputPrice > 0 {
+		value := outputPrice
+		cfg.DisplayOutputPrice = &value
+		cfg.UnitOutputPrice = &value
+	}
+	if cacheReadPrice > 0 {
+		value := cacheReadPrice
+		cfg.DisplayCacheReadPrice = &value
+		cfg.UnitCacheReadPrice = &value
+	}
+	cfg.HasDisplayOverride = true
+	return cfg
+}
+
 func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *DisplayPricingConfig {
 	return cfg
 }

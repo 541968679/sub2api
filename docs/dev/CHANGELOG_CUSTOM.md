@@ -1,3 +1,17 @@
+## 2026-10-14 - fix: use LiteLLM when display prices are unset
+
+### What
+- Downstream usage rewrite and the user/admin usage display now use LiteLLM input, output, and cache-read prices when none of those display prices is configured.
+- One explicit display price still blocks the fallback. Cache-creation display prices are not filled. Billing hardcoded prices and the default `gpt-5.4` catch-all are not used as display prices.
+- When the fallback fills a component, its unit-price label becomes that LiteLLM price. A billing-only label must not stay in front of a LiteLLM allocation.
+- `actual_cost` is unchanged. Models that already have display prices keep their existing ratios.
+
+### Why
+- Requests for models such as `gpt-6.1-sol` before a display price existed billed at the LiteLLM price but returned upstream token counts. Display mode never ran the display allocation.
+
+### Affected files
+`backend/internal/service/pricing_service.go`, `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/display_token_rewrite_test.go`, `backend/internal/handler/dto/display_pricing.go`, `backend/internal/handler/dto/display_pricing_test.go`, `backend/internal/handler/usage_handler.go`, `backend/internal/handler/admin/usage_handler.go`, `.trellis/spec/backend/display-token-pricing.md`, `docs/dev/codebase/billing.md`, this changelog.
+
 ## 2026-10-13 - ops: production deploy of v0.1.320
 
 ### What

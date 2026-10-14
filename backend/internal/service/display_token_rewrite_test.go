@@ -625,6 +625,97 @@ func TestDisplayToken_Display1hPriceDrivesCacheCreate1hMult(t *testing.T) {
 	require.InDelta(t, 2.0, mult.CacheCreate1hMult, 1e-12, "1h tier must divide by its own display price")
 }
 
+func TestDisplayToken_UnsetDisplayPriceUsesLiteLLMNotBillingFallback(t *testing.T) {
+	billingInput := 4e-6
+	billingOutput := 20e-6
+	billingCache := 2e-7
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:          "gpt-6.1-sol",
+		BillingMode:    BillingModeToken,
+		InputPrice:     &billingInput,
+		OutputPrice:    &billingOutput,
+		CacheReadPrice: &billingCache,
+		Enabled:        true,
+	})
+	billing := &BillingService{
+		pricingService: &PricingService{
+			pricingData: map[string]*LiteLLMModelPricing{
+				"gpt-6.1-sol": {
+					InputCostPerToken:       2e-6,
+					OutputCostPerToken:      10e-6,
+					CacheReadInputTokenCost: 1e-7,
+				},
+			},
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, billing, cache, nil)
+
+	mult := computeDisplayTokenMultipliers(context.Background(), "gpt-6.1-sol", 42, nil, 1, 1, resolver)
+
+	require.True(t, mult.UseTokenAlloc)
+	require.InDelta(t, 2.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 2.0, mult.OutputMult, 1e-12)
+	require.InDelta(t, 2e-6, *mult.AllocDisplayInputPrice, 1e-15)
+	require.InDelta(t, 10e-6, *mult.AllocDisplayOutputPrice, 1e-15)
+	require.InDelta(t, 1e-7, *mult.AllocDisplayCacheReadPrice, 1e-18)
+	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12, "cache-creation display price stays unset")
+
+	line := rewriteOpenAIResponsesSSEUsageTokens(
+		`data: {"type":"response.completed","response":{"usage":{"input_tokens":1000,"output_tokens":200,"total_tokens":1200,"input_tokens_details":{"cached_tokens":0}}}}`,
+		mult,
+	)
+	require.EqualValues(t, 2000, gjson.Get(strings.TrimPrefix(line, "data: "), "response.usage.input_tokens").Int())
+	require.EqualValues(t, 400, gjson.Get(strings.TrimPrefix(line, "data: "), "response.usage.output_tokens").Int())
+}
+
+func TestDisplayToken_ExplicitDisplayPriceIsNotReplacedByLiteLLM(t *testing.T) {
+	billingInput := 4e-6
+	displayInput := 1e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:             "gpt-6-sol",
+		BillingMode:       BillingModeToken,
+		InputPrice:        &billingInput,
+		DisplayInputPrice: &displayInput,
+		Enabled:           true,
+	})
+	billing := &BillingService{
+		pricingService: &PricingService{
+			pricingData: map[string]*LiteLLMModelPricing{
+				"gpt-6-sol": {InputCostPerToken: 2e-6, OutputCostPerToken: 10e-6, CacheReadInputTokenCost: 2e-7},
+			},
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, billing, cache, nil)
+
+	mult := computeDisplayTokenMultipliers(context.Background(), "gpt-6-sol", 42, nil, 1, 1, resolver)
+
+	require.True(t, mult.UseTokenAlloc)
+	require.InDelta(t, 4.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 1e-6, *mult.AllocDisplayInputPrice, 1e-15)
+	require.Nil(t, mult.AllocDisplayOutputPrice)
+	require.Nil(t, mult.AllocDisplayCacheReadPrice)
+}
+
+func TestDisplayToken_UnknownModelDoesNotBorrowDefaultTestModelDisplayPrice(t *testing.T) {
+	billing := &BillingService{
+		pricingService: &PricingService{
+			pricingData: map[string]*LiteLLMModelPricing{
+				"gpt-5.4": {InputCostPerToken: 2.5e-6, OutputCostPerToken: 15e-6, CacheReadInputTokenCost: 2.5e-7},
+			},
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, billing, nil, nil)
+
+	require.Nil(t, billing.pricingService.GetModelPricingForDisplayFallback("gpt-6-astra"))
+	require.NotNil(t, billing.pricingService.GetModelPricing("gpt-6-astra"))
+
+	mult := computeDisplayTokenMultipliers(context.Background(), "gpt-6-astra", 42, nil, 1, 1, resolver)
+	require.False(t, mult.UseTokenAlloc)
+	require.Nil(t, mult.AllocDisplayInputPrice)
+	require.Nil(t, mult.AllocDisplayOutputPrice)
+	require.Nil(t, mult.AllocDisplayCacheReadPrice)
+}
+
 func TestDisplayToken_UserCacheWrite1hPriceFeedsMultipliers(t *testing.T) {
 	// 用户级真实 1h 价覆盖(6.4e-6)+ 全局展示创建价(2e-6)→ Mult1h = 3.2。
 	displayCreate := 2e-6

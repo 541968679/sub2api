@@ -287,6 +287,8 @@ Settings（代码默认 0/关；推荐运营值只写文档）:
 恒等式（旧行）: DisplayTotalCost × DisplayRateMultiplier ≈ 当时扣费的 ActualCost
 ```
 
+展示价先取用户 `display_*`，再取全局 `display_*`。input、output、cache-read 三者都为空时，用 `PricingService.GetModelPricingForDisplayFallback` 的 LiteLLM 价补上，并同步这三项的单价标签，让展示 token × 展示单价仍能解释组件费用。已配置其中任意一项时不补。cache-creation 展示价不从这里补。补价不读 `BillingService` 的硬编码价，也不把未收录模型落到默认测试模型。`actual_cost`、M/α、已配置展示价和分组展示倍率保持原计算。
+
 #### 展示单价 vs 展示倍率
 
 | 维度 | 展示单价 | 展示倍率 |

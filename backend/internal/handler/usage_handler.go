@@ -870,6 +870,10 @@ func displayConfigForUsageRecord(
 		model = record.Model
 	}
 	cfg := dto.DisplayPricingConfigForModel(displayMap, model)
+	if pricingResolver != nil {
+		inPrice, outPrice, cachePrice := pricingResolver.LiteLLMDisplayFallbackPrices(model)
+		cfg = dto.ApplyLiteLLMDisplayPriceFallback(cfg, inPrice, outPrice, cachePrice)
+	}
 	cfg = applyDisplayAllocControlsToConfig(ctx, cfg, settingService, userCacheMaxMult)
 	if pricingResolver == nil {
 		return cfg

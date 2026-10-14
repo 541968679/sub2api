@@ -1086,3 +1086,86 @@ func TestBuildUserVisibleUsage_ReplaysStoredJointCap(t *testing.T) {
 	}
 	assertClose(t, "actual_cost", log.ActualCost, 1)
 }
+
+func TestApplyLiteLLMDisplayPriceFallback_FillsOnlyWhenDisplayPricesUnset(t *testing.T) {
+	filled := ApplyLiteLLMDisplayPriceFallback(nil, 2e-6, 10e-6, 1e-7)
+	if filled == nil || !filled.HasDisplayOverride {
+		t.Fatal("liteLLM prices should create a display override")
+	}
+	if filled.DisplayInputPrice == nil || *filled.DisplayInputPrice != 2e-6 {
+		t.Fatalf("display input = 2e-6, got %v", filled.DisplayInputPrice)
+	}
+	if filled.UnitInputPrice == nil || *filled.UnitInputPrice != 2e-6 {
+		t.Fatal("filled unit label must match the LiteLLM display price")
+	}
+	if filled.DisplayCacheCreationPrice != nil {
+		t.Fatal("cache-creation display price must stay unset")
+	}
+
+	billingInput := 4e-6
+	billingOutput := 20e-6
+	billingCache := 2e-7
+	replaced := ApplyLiteLLMDisplayPriceFallback(&DisplayPricingConfig{
+		UnitInputPrice:     &billingInput,
+		UnitOutputPrice:    &billingOutput,
+		UnitCacheReadPrice: &billingCache,
+	}, 2e-6, 10e-6, 1e-7)
+	if replaced.UnitInputPrice == nil || *replaced.UnitInputPrice != 2e-6 || *replaced.DisplayInputPrice != 2e-6 {
+		t.Fatal("billing unit label must be replaced by the LiteLLM display price")
+	}
+	if *replaced.UnitOutputPrice != 10e-6 || *replaced.UnitCacheReadPrice != 1e-7 {
+		t.Fatal("output and cache-read labels must follow LiteLLM")
+	}
+
+	explicit := 1e-6
+	billingUnit := 4e-6
+	kept := ApplyLiteLLMDisplayPriceFallback(&DisplayPricingConfig{
+		DisplayInputPrice: &explicit,
+		UnitInputPrice:    &billingUnit,
+	}, 2e-6, 10e-6, 1e-7)
+	if kept.DisplayInputPrice == nil || *kept.DisplayInputPrice != explicit {
+		t.Fatal("explicit display input must win")
+	}
+	if kept.UnitInputPrice == nil || *kept.UnitInputPrice != billingUnit {
+		t.Fatal("explicit display config must keep its existing unit label")
+	}
+	if kept.DisplayOutputPrice != nil || kept.DisplayCacheReadPrice != nil {
+		t.Fatal("partial explicit display config must not be completed from LiteLLM")
+	}
+
+	if got := ApplyLiteLLMDisplayPriceFallback(nil, 0, 0, 0); got != nil {
+		t.Fatal("empty LiteLLM prices must not create a config")
+	}
+}
+
+func TestApplyDisplayTransform_LiteLLMFallbackScalesTokensAndKeepsActualCost(t *testing.T) {
+	cfg := ApplyLiteLLMDisplayPriceFallback(nil, 2e-6, 10e-6, 1e-7)
+	alpha := 1.0
+	cfg.CacheTokenMaxMult = 2
+	cfg.OutputResidualGrowthRatio = &alpha
+	log := UsageLog{
+		InputTokens:     1000,
+		OutputTokens:    200,
+		CacheReadTokens: 400,
+		InputCost:       0.004,
+		OutputCost:      0.004,
+		CacheReadCost:   8e-5,
+		TotalCost:       0.00808,
+		ActualCost:      0.0014544,
+		RateMultiplier:  0.18,
+	}
+
+	ApplyDisplayTransform(&log, cfg)
+
+	if log.InputTokens != 2000 || log.OutputTokens != 400 || log.CacheReadTokens != 800 {
+		t.Fatalf("tokens = %d/%d/%d, want 2000/400/800", log.InputTokens, log.OutputTokens, log.CacheReadTokens)
+	}
+	if log.DisplayInputPrice == nil || *log.DisplayInputPrice != 2e-6 {
+		t.Fatal("shown input price must be the LiteLLM price used for allocation")
+	}
+	assertClose(t, "input tokens explain cost", float64(log.InputTokens)*(*log.DisplayInputPrice), log.InputCost)
+	assertClose(t, "actual_cost", log.ActualCost, 0.0014544)
+	assertClose(t, "display input cost", log.InputCost, 0.004)
+	assertClose(t, "display output cost", log.OutputCost, 0.004)
+	assertClose(t, "display cache cost", log.CacheReadCost, 8e-5)
+}
