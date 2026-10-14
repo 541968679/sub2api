@@ -1,3 +1,17 @@
+## 2026-10-14 - ops: record production deploy of v0.1.322
+
+### What
+- Production new-origin is `ghcr.io/541968679/sub2api:0.1.322`, digest `sha256:bf0668e06e50c6052e6d0c5dab16472ccd8ab1a99891e9acd2d8cc976d3a8c23`, revision `e8ef61abe8faf5086455ace9042898205f3c0999`. Release run `38578419933`. VERSION sync `00375b614`.
+- Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Postgres and Redis were not recreated. Rollback is v0.1.321 digest `sha256:7348d97dc7f9533ae4f9312070f16d896b7b168e3a0e7dd8ced7270c62ab538e`.
+- Local `http://127.0.0.1:8080/health` and public `https://zerocode.kaynlab.com/health` both returned `{"status":"ok"}`.
+- The image widens `/admin/error-policy`. Custom-rule inputs stay visible. Fixed mappings and schedule families sit in two columns on a wide page.
+
+### Why
+Ship the error-policy page layout that was still only in the working tree after v0.1.321.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-10-14 - ops: record production deploy of v0.1.321
 
 ### What
