@@ -187,7 +187,7 @@ func (c *imageManualGatewayClient) Do(ctx context.Context, input ImageManualGate
 	result := &ImageManualGatewayResponse{
 		StatusCode:      resp.StatusCode,
 		Header:          resp.Header.Clone(),
-		ClientRequestID: strings.TrimSpace(resp.Header.Get("X-Client-Request-ID")),
+		ClientRequestID: imageManualGatewayClientRequestID(resp.Header),
 		RequestIDs:      append([]string(nil), resp.Header.Values("X-Request-ID")...),
 		HeaderDuration:  headerDuration,
 		TotalDuration:   time.Since(startedAt),
@@ -201,6 +201,16 @@ func (c *imageManualGatewayClient) Do(ctx context.Context, input ImageManualGate
 		return result, fmt.Errorf("read local manual gateway response: %w", readErr)
 	}
 	return result, nil
+}
+
+func imageManualGatewayClientRequestID(header http.Header) string {
+	if header == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(header.Get("X-Client-Request-ID")); id != "" {
+		return id
+	}
+	return strings.TrimSpace(header.Get("X-Request-ID"))
 }
 
 func parseImageManualGatewayError(response *ImageManualGatewayResponse) {

@@ -7831,7 +7831,7 @@ const zhBase = {
         },
         forceRequestedResponseModel: {
           title: '强制响应模型名',
-          description: '开启后，发给客户的响应里，模型名一律改成客户请求的名字。上游真实名字仍记在用量的上游响应字段。默认关闭。',
+          description: '开启后，发给客户的响应里，模型名一律改成客户请求的名字。上游真实名字仍记在用量的上游响应字段。没有保存过这个开关时默认开启；数据库里已经写成关闭的会保持关闭。',
           enabled: '强制使用客户请求的模型名',
           enabledHint: '关闭时，只有响应名正好等于映射名才会改回请求名，其他名字原样透传。开启后，非空的 model、response.model、message.model、modelVersion 都会改成客户请求的名字。错误文案和模型列表不改。',
         },

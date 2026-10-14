@@ -41,7 +41,7 @@ func (s *GatewayService) handleBedrockStreamingResponse(
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 	if v := resp.Header.Get("x-amzn-requestid"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 
 	usage := &ClaudeUsage{}

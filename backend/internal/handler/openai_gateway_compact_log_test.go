@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +120,7 @@ func TestLogOpenAIRemoteCompactOutcome_Succeeded(t *testing.T) {
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.125.0")
 	c.Set(opsModelKey, "gpt-5.3-codex")
 	c.Set(opsAccountIDKey, int64(123))
-	c.Header("x-request-id", "rid-compact-ok")
+	service.RememberUpstreamRequestID(c, "rid-compact-ok")
 	c.Status(http.StatusOK)
 
 	h := &OpenAIGatewayHandler{}

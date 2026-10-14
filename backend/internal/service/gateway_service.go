@@ -5527,7 +5527,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	}
 	c.Header("X-Accel-Buffering", "no")
 	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 
 	w := c.Writer
@@ -6267,7 +6267,7 @@ func (s *GatewayService) handleBedrockNonStreamingResponse(
 
 	c.Header("Content-Type", "application/json")
 	if v := resp.Header.Get("x-amzn-requestid"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 	c.Data(resp.StatusCode, "application/json", body)
 	return usage, nil
@@ -7601,7 +7601,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 	// 透传其他响应头
 	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 
 	w := c.Writer

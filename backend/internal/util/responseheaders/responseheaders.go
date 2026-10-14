@@ -2,10 +2,21 @@ package responseheaders
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
+
+// neverForwardHeaders are identity headers. additional_allowed cannot put them
+// back on the client response. The gateway's own X-Request-Id is set by
+// middleware, not copied from upstream.
+var neverForwardHeaders = map[string]struct{}{
+	"x-request-id":        {},
+	"x-client-request-id": {},
+}
+
+var headerHostPattern = regexp.MustCompile(`(?i)(?:[a-z0-9-]+\.)+[a-z]{2,}`)
 
 // defaultAllowed 定义允许透传的响应头白名单
 // 注意：以下头部由 Go HTTP 包自动处理，不应手动设置：
@@ -22,7 +33,6 @@ var defaultAllowed = map[string]struct{}{
 	"expires":                        {},
 	"vary":                           {},
 	"date":                           {},
-	"x-request-id":                   {},
 	"x-ratelimit-limit-requests":     {},
 	"x-ratelimit-limit-tokens":       {},
 	"x-ratelimit-remaining-requests": {},
@@ -32,6 +42,27 @@ var defaultAllowed = map[string]struct{}{
 	"retry-after":                    {},
 	"location":                       {},
 	"www-authenticate":               {},
+}
+
+// KeepRelativeLocation reports whether a Location value is a same-origin
+// relative path. Absolute URLs are dropped so an upstream host cannot ride
+// out on a redirect.
+func KeepRelativeLocation(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.Contains(value, "://") || strings.Contains(value, "\\") {
+		return false
+	}
+	return strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "//")
+}
+
+// SanitizeWWWAuthenticate drops a challenge that names a host. A challenge
+// without a URL or domain, such as insufficient_scope, is kept.
+func SanitizeWWWAuthenticate(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.Contains(value, "://") || headerHostPattern.MatchString(value) {
+		return ""
+	}
+	return value
 }
 
 // hopByHopHeaders 是跳过的 hop-by-hop 头部，这些头部由 HTTP 库自动处理
@@ -90,6 +121,9 @@ func FilterHeaders(src http.Header, filter *CompiledHeaderFilter) http.Header {
 	filtered := make(http.Header, len(src))
 	for key, values := range src {
 		lower := strings.ToLower(key)
+		if _, blocked := neverForwardHeaders[lower]; blocked {
+			continue
+		}
 		if _, blocked := filter.forceRemove[lower]; blocked {
 			continue
 		}
@@ -101,6 +135,17 @@ func FilterHeaders(src http.Header, filter *CompiledHeaderFilter) http.Header {
 			continue
 		}
 		for _, value := range values {
+			switch lower {
+			case "location":
+				if !KeepRelativeLocation(value) {
+					continue
+				}
+			case "www-authenticate":
+				value = SanitizeWWWAuthenticate(value)
+				if value == "" {
+					continue
+				}
+			}
 			filtered.Add(key, value)
 		}
 	}

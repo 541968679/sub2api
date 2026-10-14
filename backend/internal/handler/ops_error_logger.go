@@ -185,6 +185,22 @@ func flushOpsErrorLogBatch(batch []opsErrorLogJob) {
 	opsErrorLogProcessed.Add(processed)
 }
 
+func withRetainedClientErrorDetail(c *gin.Context, entry *service.OpsInsertErrorLogInput) *service.OpsInsertErrorLogInput {
+	if c == nil || entry == nil {
+		return entry
+	}
+	detail := strings.TrimSpace(service.ObservedRetainedClientErrorDetail(c))
+	if detail == "" || strings.Contains(entry.ErrorMessage, detail) || strings.Contains(entry.ErrorBody, detail) {
+		return entry
+	}
+	if strings.TrimSpace(entry.ErrorBody) == "" {
+		entry.ErrorBody = detail
+	} else {
+		entry.ErrorBody += "\n" + detail
+	}
+	return entry
+}
+
 func enqueueOpsErrorLog(ops *service.OpsService, entry *service.OpsInsertErrorLogInput) {
 	if ops == nil || entry == nil {
 		return
@@ -828,7 +844,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			}
 
 			applyGatewayLocalTimeoutClass(entry)
-			enqueueOpsErrorLog(ops, entry)
+			enqueueOpsErrorLog(ops, withRetainedClientErrorDetail(c, entry))
 			return
 		}
 
@@ -1036,7 +1052,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}
 
 		applyGatewayLocalTimeoutClass(entry)
-		enqueueOpsErrorLog(ops, entry)
+		enqueueOpsErrorLog(ops, withRetainedClientErrorDetail(c, entry))
 	}
 }
 
@@ -1141,7 +1157,7 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 		entry.ClientIP = &clientIP
 	}
 	applyGatewayLocalTimeoutClass(entry)
-	enqueueOpsErrorLog(ops, entry)
+	enqueueOpsErrorLog(ops, withRetainedClientErrorDetail(c, entry))
 }
 
 // isCountTokensRequest checks if the request is a count_tokens request

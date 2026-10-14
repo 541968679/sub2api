@@ -12,14 +12,14 @@ import (
 // SettingHandler 公开设置处理器（无需认证）
 type SettingHandler struct {
 	settingService *service.SettingService
-	version        string
 }
 
-// NewSettingHandler 创建公开设置处理器
+// NewSettingHandler 创建公开设置处理器。
+// version 仍由 Wire 传入，公开响应不再带构建版本。
 func NewSettingHandler(settingService *service.SettingService, version string) *SettingHandler {
+	_ = version
 	return &SettingHandler{
 		settingService: settingService,
-		version:        version,
 	}
 }
 
@@ -67,18 +67,20 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		WeChatOAuthMPEnabled:             settings.WeChatOAuthMPEnabled,
 		WeChatOAuthMobileEnabled:         settings.WeChatOAuthMobileEnabled,
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
-		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
-		BackendModeEnabled:               settings.BackendModeEnabled,
-		PaymentEnabled:                   settings.PaymentEnabled,
-		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
-		LoginPage:                        toDTOLoginPageContent(settings.LoginPage),
-		Version:                          h.version,
-		ServerTimezone:                   timezone.Name(),
-		ServerUTCOffset:                  timezone.UTCOffset(),
-		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
-		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
-		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
-		BalanceLowNotifyRechargeURL:      settings.BalanceLowNotifyRechargeURL,
+		// 公开接口不回 OIDC 提供方名字。登录按钮用前端的 OIDC 兜底。管理端设置仍返回原名。
+		OIDCOAuthProviderName: "",
+		BackendModeEnabled:    settings.BackendModeEnabled,
+		PaymentEnabled:        settings.PaymentEnabled,
+		PaymentCNYPerUSD:      settings.PaymentCNYPerUSD,
+		LoginPage:             toDTOLoginPageContent(settings.LoginPage),
+		// 未登录的公开设置不带构建版本。管理员走 /api/v1/admin/system/version。
+		Version:                     "",
+		ServerTimezone:              timezone.Name(),
+		ServerUTCOffset:             timezone.UTCOffset(),
+		BalanceLowNotifyEnabled:     settings.BalanceLowNotifyEnabled,
+		AccountQuotaNotifyEnabled:   settings.AccountQuotaNotifyEnabled,
+		BalanceLowNotifyThreshold:   settings.BalanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL: settings.BalanceLowNotifyRechargeURL,
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,

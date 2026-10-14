@@ -17,7 +17,7 @@ func resetForceRequestedResponseModelCacheForTest() {
 	forceRequestedResponseModelCache.Store(&cachedForceRequestedResponseModel{})
 }
 
-func TestSettingService_ForceRequestedResponseModelDefaultOff(t *testing.T) {
+func TestSettingService_ForceRequestedResponseModelDefaultOn(t *testing.T) {
 	resetForceRequestedResponseModelCacheForTest()
 	t.Cleanup(resetForceRequestedResponseModelCacheForTest)
 
@@ -25,10 +25,10 @@ func TestSettingService_ForceRequestedResponseModelDefaultOff(t *testing.T) {
 	svc := NewSettingService(repo, &config.Config{})
 	ctx := context.Background()
 
-	require.False(t, svc.IsForceRequestedResponseModelEnabled(ctx))
+	require.True(t, svc.IsForceRequestedResponseModelEnabled(ctx))
 	settings, err := svc.GetAllSettings(ctx)
 	require.NoError(t, err)
-	require.False(t, settings.ForceRequestedResponseModel)
+	require.True(t, settings.ForceRequestedResponseModel)
 	require.False(t, (*SettingService)(nil).IsForceRequestedResponseModelEnabled(ctx))
 
 	repo.data[SettingKeyForceRequestedResponseModel] = "true"

@@ -1770,8 +1770,9 @@ func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) 
 func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
 	if streamStarted {
 		service.MarkOpsStreamError(c, errType, message, status)
+		clientMessage := service.ScrubClientErrorDisclosure(message)
 		if inboundIsResponses(c) {
-			if writeResponsesFailedSSE(c, errType, message) {
+			if writeResponsesFailedSSE(c, errType, clientMessage) {
 				return
 			}
 		}
@@ -1779,7 +1780,7 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 		flusher, ok := c.Writer.(http.Flusher)
 		if ok {
 			// SSE 错误事件固定 schema，使用 Quote 直拼可避免额外 Marshal 分配。
-			errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
+			errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(clientMessage) + `}}` + "\n\n"
 			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
 				_ = c.Error(err)
 			}
@@ -1850,6 +1851,7 @@ func (h *GatewayHandler) checkClaudeCodeVersion(c *gin.Context) bool {
 
 // errorResponse 返回Claude API格式的错误响应
 func (h *GatewayHandler) errorResponse(c *gin.Context, status int, errType, message string) {
+	message = service.ScrubClientErrorDisclosure(message)
 	c.JSON(status, gin.H{
 		"type": "error",
 		"error": gin.H{
@@ -2118,20 +2120,20 @@ func sendMockInterceptStream(c *gin.Context, model string, interceptType Interce
 	}
 }
 
-// generateRealisticMsgID 生成仿真的消息 ID（msg_bdrk_XXXXXXX 格式）
-// 格式与 Claude API 真实响应一致，24 位随机字母数字
+// generateRealisticMsgID 生成仿真的消息 ID（msg_ 加 24 位字母数字）。
+// 不使用 msg_bdrk_，那是 Bedrock 形状的标记。
 func generateRealisticMsgID() string {
 	const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	const idLen = 24
 	randomBytes := make([]byte, idLen)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return fmt.Sprintf("msg_bdrk_%d", time.Now().UnixNano())
+		return fmt.Sprintf("msg_%d", time.Now().UnixNano())
 	}
 	b := make([]byte, idLen)
 	for i := range b {
 		b[i] = charset[int(randomBytes[i])%len(charset)]
 	}
-	return "msg_bdrk_" + string(b)
+	return "msg_" + string(b)
 }
 
 // sendMockInterceptResponse 发送非流式 mock 响应（用于请求拦截）

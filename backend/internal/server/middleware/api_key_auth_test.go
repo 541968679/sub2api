@@ -602,6 +602,36 @@ func TestAPIKeyAuthTouchesLastUsedInStandardMode(t *testing.T) {
 	require.Equal(t, 1, touchCalls)
 }
 
+func TestAPIKeyAuthMissingKeyUsesShortClientSentence(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	apiKeyService := service.NewAPIKeyService(&stubApiKeyRepo{}, nil, nil, nil, nil, nil, cfg)
+
+	var captured *gin.Context
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		captured = c
+		c.Next()
+	})
+	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg)))
+	router.GET("/t", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), `"code":"API_KEY_REQUIRED"`)
+	require.Contains(t, w.Body.String(), "API key is required")
+	require.NotContains(t, w.Body.String(), "Bearer scheme")
+	require.NotContains(t, w.Body.String(), "x-goog-api-key")
+	require.Contains(t, service.ObservedRetainedClientErrorDetail(captured), "Bearer scheme")
+	require.Contains(t, service.ObservedRetainedClientErrorDetail(captured), "x-goog-api-key header")
+}
+
 func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg)))

@@ -30,7 +30,7 @@ func writeOpenAIUpstreamClientError(c *gin.Context, statusCode int, body []byte,
 	if message == "" {
 		message = openAIUpstreamClientErrorFallbackMessage
 	}
-	errorPayload["message"] = message
+	errorPayload["message"] = ScrubClientErrorDisclosure(message)
 	c.JSON(statusCode, gin.H{"error": errorPayload})
 }
 

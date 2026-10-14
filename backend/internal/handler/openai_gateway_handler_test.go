@@ -221,7 +221,8 @@ func TestOpenAIManagedModelNotFoundExhaustionSanitizesMessage(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "super-secret-value")
-	require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "access_token=***")
+	require.NotContains(t, recorder.Body.String(), "upstream.example")
+	require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "Model not found")
 	recorded, ok := c.Get(service.OpsUpstreamErrorMessageKey)
 	require.True(t, ok)
 	require.NotContains(t, recorded, "super-secret-value")

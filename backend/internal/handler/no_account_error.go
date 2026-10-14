@@ -31,7 +31,8 @@ type noAccountErrorClassification struct {
 	Status        int
 	ErrType       string
 	Message       string
-	ModelNotFound bool // true when this is a 404 model_not_found classification
+	OpsDetail     string // retained for ops; not written to the client
+	ModelNotFound bool   // true when this is a 404 model_not_found classification
 }
 
 var selectionModelRateLimitedPattern = regexp.MustCompile(`(?:model_rate_limited|rate_limited)=(\d+)`)
@@ -109,7 +110,8 @@ func classifyNoAccountError(
 		return noAccountErrorClassification{
 			Status:        http.StatusNotFound,
 			ErrType:       "model_not_found",
-			Message:       fmt.Sprintf("Model %q is not supported by any configured account in this group", displayModel),
+			Message:       fmt.Sprintf("Model %q is not available", displayModel),
+			OpsDetail:     fmt.Sprintf("Model %q is not supported by any configured account in this group", displayModel),
 			ModelNotFound: true,
 		}
 	}
@@ -138,7 +140,11 @@ func classifyNoAccountErrorFromGin(
 	if c != nil && c.Request != nil {
 		ctx = c.Request.Context()
 	}
-	return markNoAccountErrorOps(c, classifyNoAccountError(ctx, diag, apiKey, routingModel, displayModel, platform))
+	cls := markNoAccountErrorOps(c, classifyNoAccountError(ctx, diag, apiKey, routingModel, displayModel, platform))
+	if cls.OpsDetail != "" {
+		service.NoteOpsRetainedClientErrorDetail(c, cls.OpsDetail)
+	}
+	return cls
 }
 
 func classifyOpenAICompatibleNoAccountErrorFromGin(

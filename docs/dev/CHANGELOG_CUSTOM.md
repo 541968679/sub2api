@@ -1,3 +1,46 @@
+## 2026-10-14 - fix: Responses wire for older new-api
+
+### What
+- Responses passthrough and native streams coerce `created_at` and `response.created_at` only when the JSON number contains a decimal point or an exponent. Integer timestamps stay byte-for-byte.
+- After `response.completed`, `response.done`, `response.incomplete`, `response.failed`, or `response.cancelled`, if the client is still connected and the upstream never sent `data: [DONE]`, the gateway appends that terminator. A stream with no terminal event still returns `stream usage incomplete: missing terminal event`.
+- Usage objects are not rewritten. `reasoning_tokens` is not filled. Billing is parsed from the upstream frame before this rewrite, so stored billing and `actual_cost` stay unchanged.
+
+### Why
+Older QuantumNous new-api builds unmarshal Responses `created_at` into a Go `int`. A value such as `1785990796.0` drops `response.completed`, so their usage log shows about one completion token and stream status error. Those builds also record end reason `eof` when the stream closes without `data: [DONE]`. Production user 671 (QQ 203003747) hit this on passthrough Codex Responses. Customers whose upstream already sends an integer timestamp and `[DONE]` are unchanged.
+
+### Affected files
+`backend/internal/service/openai_responses_newapi_wire.go`, `backend/internal/service/openai_responses_newapi_wire_test.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/pkg/apicompat/responses_created_at_wire_test.go`, `docs/dev/codebase/gateway.md`, this changelog.
+
+## 2026-10-14 - fix: hide relay body fingerprints
+
+### What
+- Successful Chat Completions and Responses bodies are not rebuilt. `choices`, `delta`, `tool_calls`, `reasoning_content`, `usage`, and `prompt_cache_hit_tokens` stay. A body that has none of the relay extras is left unchanged.
+- When those keys are present, `credit`, `elapsed_ms`, `first_chunk_at`, `credit_usage`, `credit_unit`, `credit_unit_plural`, `billing_usage`, and `provider` are deleted at the top level and under `usage` only.
+- A top-level `msg_bdrk_` id becomes `msg_` plus the same suffix. Chat Completions still use one stable `chatcmpl-` id. Tool-call ids are not changed. A Responses `id` stays, because clients send it back as `previous_response_id`. Other error objects replace a top-level string id with a stable `local-` hash.
+- Client-visible error sentences lose `http(s)` URLs, email addresses, and quoted `group` / `account` labels. Ops records keep the upstream body. The max_tokens=1 Haiku intercept now mints `msg_` plus 24 letters or digits.
+- `force_requested_response_model` is on when the setting is missing or empty. Only the stored string `false` turns it off. There is no migration, so a database value already saved as `false` stays off until an admin sets `true`. When the request is armed, only the model-name fields are rewritten to the name the client requested. `usage_logs.upstream_response_model`, stored billing, and `actual_cost` stay on the real upstream name.
+
+### Why
+Those extras, Bedrock-shaped ids, upstream hosts, and a returned model name that differs from the request identified the next hop from an ordinary success or error body.
+
+### Affected files
+`backend/internal/service/client_relay_payload.go`, `backend/internal/service/client_relay_payload_test.go`, `backend/internal/service/openai_gateway_mask_upstream_completion_id.go`, `backend/internal/service/openai_gateway_mask_upstream_completion_id_test.go`, `backend/internal/service/force_requested_response_model.go`, `backend/internal/service/force_requested_response_model_test.go`, `backend/internal/service/domain_constants.go`, `backend/internal/service/setting_service.go`, `backend/internal/service/error_passthrough_runtime.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `backend/internal/service/openai_upstream_client_error.go`, `backend/internal/service/gemini_messages_compat_service.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_handler_intercept_test.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_gateway_handler_test.go`, `backend/internal/handler/gemini_v1beta_handler.go`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/gateway.md`, this changelog.
+
+## 2026-10-14 - fix: drop public gateway fingerprints
+
+### What
+- A missing API key still returns `API_KEY_REQUIRED`, with the client sentence `API key is required`. The old Bearer / `x-api-key` / `x-goog-api-key` sentence stays in the ops error body.
+- A group with accounts but no support for the model still returns `model_not_found`. The client sentence is `Model %q is not available`. The old "not supported by any configured account in this group" sentence stays in the ops error body, so schedule matchers still hit new rows.
+- Gateway responses expose one locally issued `X-Request-Id`. Upstream `x-request-id` is not copied, and `additional_allowed` cannot restore it or `x-client-request-id`. The upstream id stays on the request context for compact logs and ops upstream events.
+- Allowlisted `Location` values must be a root-relative path. `WWW-Authenticate` is dropped when it contains `://` or a dotted host.
+- `GET /api/v1/settings/public` and the HTML injection of that payload leave `version` and `oidc_oauth_provider_name` as empty strings. The keys stay. Admins still read the build from `GET /api/v1/admin/system/version`, and the admin OIDC name stays on `oidc_connect_provider_name`. Login buttons that used a branded provider name now show `OIDC`.
+
+### Why
+Those exact sentences, the pair of request-id headers, the public build version, and the public OIDC provider name identified this gateway without a successful upstream hop.
+
+### Affected files
+`backend/internal/server/middleware/api_key_auth.go`, `backend/internal/server/middleware/client_request_id.go`, `backend/internal/handler/no_account_error.go`, `backend/internal/handler/ops_error_logger.go`, `backend/internal/handler/setting_handler.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/service/ops_upstream_context.go`, `backend/internal/service/setting_service.go`, `backend/internal/service/gateway_service.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/antigravity_gateway_service.go`, `backend/internal/service/gemini_messages_compat_service.go`, `backend/internal/service/bedrock_stream.go`, `backend/internal/service/image_channel_manual_gateway.go`, `backend/internal/util/responseheaders/responseheaders.go`, `docs/dev/codebase/gateway.md`, `docs/dev/codebase/ops.md`, `docs/dev/codebase/settings-security.md`, this changelog.
+
 ## 2026-10-14 - fix: use LiteLLM when display prices are unset
 
 ### What
@@ -11,6 +54,20 @@
 
 ### Affected files
 `backend/internal/service/pricing_service.go`, `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/display_token_rewrite_test.go`, `backend/internal/handler/dto/display_pricing.go`, `backend/internal/handler/dto/display_pricing_test.go`, `backend/internal/handler/usage_handler.go`, `backend/internal/handler/admin/usage_handler.go`, `.trellis/spec/backend/display-token-pricing.md`, `docs/dev/codebase/billing.md`, this changelog.
+
+## 2026-10-13 - fix: error policy page layout and custom-rule inputs
+
+### What
+- The error policy page no longer locks its form inside a `max-w-3xl` card with a `flex-1 min-h-0 overflow-y-auto` region. That region collapsed, so the controls under 自定义规则 were clipped.
+- The sticky header no longer prints the full error-policy essay. That text overflowed the 64px title row. The explanation stays in the page body. Custom rules, including the add field, sit above the mapping columns.
+- Fixed status mappings and schedule families sit in two columns on a wide page. Each custom rule stacks its message input, replacement select, and schedule checkbox on their own full-width rows. The add field sits directly under the custom-rule heading.
+- Replacement options show the short template name. The full client sentence is shown under the select.
+
+### Why
+The left-nav 错误管理 page was too narrow, and the inputs under 自定义规则 were not visible.
+
+### Affected files
+`frontend/src/views/admin/ops/ErrorPolicyView.vue`, `frontend/src/components/admin/usage/ScheduleErrorWhitelistPanel.vue`, `frontend/src/components/admin/usage/__tests__/ScheduleErrorWhitelistPanel.spec.ts`, this changelog.
 
 ## 2026-10-13 - ops: production deploy of v0.1.320
 

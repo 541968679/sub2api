@@ -238,6 +238,8 @@ func TestClassifySelectionFailureError_CallSiteChainKeepsModelNotFoundAttributio
 	require.Equal(t, "model_not_found", cls.ErrType)
 	require.True(t, cls.ModelNotFound)
 	require.Contains(t, cls.Message, "gpt-5.3-codex")
+	require.NotContains(t, cls.Message, "not supported by any configured account")
+	require.Contains(t, service.ObservedRetainedClientErrorDetail(c), "not supported by any configured account")
 	require.True(t, service.HasOpsClientBusinessLimited(c))
 	require.Equal(t, service.OpsClientBusinessLimitedReasonLocalModelConfiguration, service.OpsClientBusinessLimitedReason(c))
 }
@@ -257,4 +259,19 @@ func TestClassifySelectionFailureError_StillUpgradesNonModelNotFoundFallback(t *
 	require.Equal(t, http.StatusTooManyRequests, got.Status)
 	require.Equal(t, "rate_limit_error", got.ErrType)
 	require.False(t, got.ModelNotFound)
+}
+
+func TestWithRetainedClientErrorDetailAppendsOpsSentence(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	service.NoteOpsRetainedClientErrorDetail(c, `Model "gpt-5.3-codex" is not supported by any configured account in this group`)
+
+	entry := withRetainedClientErrorDetail(c, &service.OpsInsertErrorLogInput{
+		ErrorMessage: `Model "gpt-5.3-codex" is not available`,
+		ErrorBody:    `{"type":"model_not_found","message":"Model \"gpt-5.3-codex\" is not available"}`,
+	})
+
+	require.NotContains(t, entry.ErrorMessage, "not supported by any configured account")
+	require.Contains(t, entry.ErrorBody, "not supported by any configured account")
+	require.Contains(t, entry.ErrorBody, "is not available")
 }

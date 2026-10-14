@@ -8227,7 +8227,7 @@ const enBase = {
         },
         forceRequestedResponseModel: {
           title: 'Force response model name',
-          description: 'When on, client-facing model fields are replaced with the requested model. The real upstream name stays on usage upstream_response_model. Off by default.',
+          description: 'When on, client-facing model fields are replaced with the requested model. The real upstream name stays on usage upstream_response_model. A missing setting is on. A stored off value stays off.',
           enabled: 'Force the client-requested model name',
           enabledHint: 'When off, a response model is rewritten only when it exactly matches the mapped upstream name. When on, non-empty model, response.model, message.model, and modelVersion fields are replaced with the name the client requested. Error text and model catalogs are left unchanged.',
         },

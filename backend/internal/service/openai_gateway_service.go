@@ -4608,7 +4608,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 
 	w := c.Writer
@@ -5575,7 +5575,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 	// Pass through other headers
 	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+		RememberUpstreamRequestID(c, v)
 	}
 	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
 	slimState := newAPISlimStreamState{enabled: s.isOpenAINewAPISlimCompletedEnabled(ctx)}

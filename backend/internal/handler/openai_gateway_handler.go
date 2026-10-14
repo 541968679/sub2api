@@ -735,12 +735,8 @@ func (h *OpenAIGatewayHandler) logOpenAIRemoteCompactOutcome(c *gin.Context, sta
 				fields = append(fields, zap.Int64("account_id", accountID))
 			}
 		}
-		if c.Writer != nil {
-			if upstreamRequestID := strings.TrimSpace(c.Writer.Header().Get("x-request-id")); upstreamRequestID != "" {
-				fields = append(fields, zap.String("upstream_request_id", upstreamRequestID))
-			} else if upstreamRequestID := strings.TrimSpace(c.Writer.Header().Get("X-Request-Id")); upstreamRequestID != "" {
-				fields = append(fields, zap.String("upstream_request_id", upstreamRequestID))
-			}
+		if upstreamRequestID := service.ObservedUpstreamRequestID(c); upstreamRequestID != "" {
+			fields = append(fields, zap.String("upstream_request_id", upstreamRequestID))
 		}
 	}
 
@@ -2228,8 +2224,9 @@ func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, st
 func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
 	if streamStarted {
 		service.MarkOpsStreamError(c, errType, message, status)
+		clientMessage := service.ScrubClientErrorDisclosure(message)
 		if inboundIsResponses(c) {
-			if writeResponsesFailedSSE(c, errType, message) {
+			if writeResponsesFailedSSE(c, errType, clientMessage) {
 				return
 			}
 		}
@@ -2240,7 +2237,7 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 				imageTrace.Log(c, "downstream_response_built", status, "")
 			}
 			// SSE 错误事件固定 schema，使用 Quote 直拼可避免额外 Marshal 分配。
-			errorEvent := "event: error\ndata: " + `{"error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
+			errorEvent := "event: error\ndata: " + `{"error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(clientMessage) + `}}` + "\n\n"
 			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
 				_ = c.Error(err)
 			}
@@ -2301,6 +2298,7 @@ func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForwa
 
 // errorResponse returns OpenAI API format error response
 func (h *OpenAIGatewayHandler) errorResponse(c *gin.Context, status int, errType, message string) {
+	message = service.ScrubClientErrorDisclosure(message)
 	if imageTrace := service.OpenAIImageTraceFromGin(c); imageTrace != nil {
 		imageTrace.Log(c, "downstream_response_built", status, "")
 	}

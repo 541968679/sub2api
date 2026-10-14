@@ -13,6 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	apiKeyRequiredClientMessage = "API key is required"
+	apiKeyRequiredOpsDetail     = "API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"
+)
+
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
 func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
 	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
@@ -58,9 +63,11 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			apiKeyString = c.GetHeader("x-goog-api-key")
 		}
 
-		// 如果所有header都没有API key
+		// 如果所有header都没有API key。客户端只看到固定短句。
+		// 原来的三头说明留在运维日志，避免未授权响应成为这份代码的指纹。
 		if apiKeyString == "" {
-			AbortWithError(c, 401, "API_KEY_REQUIRED", "API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header")
+			service.NoteOpsRetainedClientErrorDetail(c, apiKeyRequiredOpsDetail)
+			AbortWithError(c, 401, "API_KEY_REQUIRED", apiKeyRequiredClientMessage)
 			return
 		}
 

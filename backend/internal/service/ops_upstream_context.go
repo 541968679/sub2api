@@ -21,6 +21,13 @@ const (
 	OpsProviderErrorCodeKey    = "ops_provider_error_code"
 	OpsUpstreamErrorsKey       = "ops_upstream_errors"
 
+	// OpsRetainedClientErrorDetailKey keeps the pre-rewrite sentence for ops
+	// after the client response has been replaced with a fixed line.
+	OpsRetainedClientErrorDetailKey = "ops_retained_client_error_detail"
+	// OpsObservedUpstreamRequestIDKey is the upstream request id seen on the
+	// upstream response. It is not copied onto the client response.
+	OpsObservedUpstreamRequestIDKey = "ops_observed_upstream_request_id"
+
 	// opsUpstreamDetailMaxBytes is the capture cap for admin-visible upstream
 	// JSON. Matches the historical 2KB LogUpstreamErrorBody default.
 	opsUpstreamDetailMaxBytes = 2048
@@ -38,9 +45,66 @@ const (
 	OpsTimeToFirstTokenMsKey = "ops_time_to_first_token_ms"
 	// OpenAI WS 关键观测字段
 	OpsOpenAIWSQueueWaitMsKey = "ops_openai_ws_queue_wait_ms"
-	OpsOpenAIWSConnPickMsKey  = "ops_openai_ws_conn_pick_ms"
-	OpsOpenAIWSConnReusedKey  = "ops_openai_ws_conn_reused"
-	OpsOpenAIWSConnIDKey      = "ops_openai_ws_conn_id"
+)
+
+// NoteOpsRetainedClientErrorDetail stores a sentence that must stay in the ops
+// log after the client-facing message has been replaced.
+func NoteOpsRetainedClientErrorDetail(c *gin.Context, detail string) {
+	if c == nil {
+		return
+	}
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return
+	}
+	c.Set(OpsRetainedClientErrorDetailKey, detail)
+}
+
+// ObservedRetainedClientErrorDetail returns the sentence kept for ops after
+// the client-facing message was replaced.
+func ObservedRetainedClientErrorDetail(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	v, ok := c.Get(OpsRetainedClientErrorDetailKey)
+	if !ok {
+		return ""
+	}
+	detail, _ := v.(string)
+	return strings.TrimSpace(detail)
+}
+
+// RememberUpstreamRequestID records an upstream request id for ops without
+// writing it onto the client response.
+func RememberUpstreamRequestID(c *gin.Context, id string) {
+	if c == nil {
+		return
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	c.Set(OpsObservedUpstreamRequestIDKey, id)
+}
+
+// ObservedUpstreamRequestID returns the upstream request id recorded for this
+// request, or an empty string when none was observed.
+func ObservedUpstreamRequestID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	v, ok := c.Get(OpsObservedUpstreamRequestIDKey)
+	if !ok {
+		return ""
+	}
+	id, _ := v.(string)
+	return strings.TrimSpace(id)
+}
+
+const (
+	OpsOpenAIWSConnPickMsKey = "ops_openai_ws_conn_pick_ms"
+	OpsOpenAIWSConnReusedKey = "ops_openai_ws_conn_reused"
+	OpsOpenAIWSConnIDKey     = "ops_openai_ws_conn_id"
 
 	// OpsSkipPassthroughKey 由 applyErrorPassthroughRule 在命中 skip_monitoring=true 的规则时设置。
 	// ops_error_logger 中间件检查此 key，为 true 时跳过错误记录。

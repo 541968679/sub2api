@@ -539,9 +539,9 @@ const (
 	// Default false. Only the string "true" enables it. Not a public setting.
 	SettingKeyKimiK3AdaptiveValidationEnabled = "kimi_k3_adaptive_validation_enabled"
 	// SettingKeyForceRequestedResponseModel overwrites client-facing response
-	// model names with the model the client requested. Default false. Only the
-	// string "true" enables it. Billing and upstream_response_model stay on the
-	// real upstream name. Not a public setting.
+	// model names with the model the client requested. Default on. Only the
+	// stored string "false" disables it. Billing and upstream_response_model
+	// stay on the real upstream name. Not a public setting.
 	SettingKeyForceRequestedResponseModel = "force_requested_response_model"
 	// SettingKeyDisplayCacheTokenMaxMult is the global cache_read display amplify cap (M).
 	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"

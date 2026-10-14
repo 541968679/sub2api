@@ -26,7 +26,12 @@ func TestChatCompletionIDMask_ReplacesTopLevelAndKeepsToolCallID(t *testing.T) {
 	require.Equal(t, gjson.GetBytes(first, "id").String(), gjson.GetBytes(second, "id").String())
 	require.True(t, strings.HasPrefix(gjson.GetBytes(first, "id").String(), "chatcmpl-"))
 	require.Equal(t, "call_quark_keep", gjson.GetBytes(first, "choices.0.message.tool_calls.0.id").String())
-	require.False(t, shouldMaskChatCompletionID([]byte(`{"error":{"message":"upstream said no","type":"upstream_type"},"id":"chatcmpl-quark-err"}`)))
+	errBody := []byte(`{"error":{"message":"upstream said no","type":"upstream_type"},"id":"chatcmpl-quark-err"}`)
+	require.False(t, shouldMaskChatCompletionID(errBody))
+	maskedErr := mask.applyBytes(errBody)
+	require.True(t, strings.HasPrefix(gjson.GetBytes(maskedErr, "id").String(), "local-"))
+	require.NotContains(t, string(maskedErr), "quark")
+	require.Contains(t, string(maskedErr), "upstream said no")
 }
 
 func TestForwardAsRawChatCompletions_MasksUpstreamCompletionID(t *testing.T) {

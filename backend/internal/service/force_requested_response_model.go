@@ -40,7 +40,12 @@ const forceRequestedResponseModelErrorTTL = 5 * time.Second
 const forceRequestedResponseModelDBTimeout = 5 * time.Second
 
 func parseForceRequestedResponseModelEnabled(raw string) bool {
-	return strings.TrimSpace(raw) == "true"
+	switch strings.TrimSpace(raw) {
+	case "", "true":
+		return true
+	default:
+		return false
+	}
 }
 
 func storeForceRequestedResponseModelCache(enabled bool, ttl time.Duration) {
@@ -57,8 +62,8 @@ func refreshForceRequestedResponseModelCache(enabled bool) {
 
 // IsForceRequestedResponseModelEnabled reports whether client-facing response
 // model names are overwritten with the model the client requested.
-// Missing, invalid, unread, and nil service values are off. Only the stored
-// string "true" enables it.
+// A missing setting is on. Only the stored string "false" turns it off.
+// Any other stored value stays off. A nil service stays off.
 func (s *SettingService) IsForceRequestedResponseModelEnabled(ctx context.Context) bool {
 	if s == nil {
 		return false
@@ -87,8 +92,8 @@ func (s *SettingService) IsForceRequestedResponseModelEnabled(ctx context.Contex
 				storeForceRequestedResponseModelCache(false, forceRequestedResponseModelErrorTTL)
 				return false, nil
 			}
-			storeForceRequestedResponseModelCache(false, forceRequestedResponseModelCacheTTL)
-			return false, nil
+			storeForceRequestedResponseModelCache(true, forceRequestedResponseModelCacheTTL)
+			return true, nil
 		}
 		enabled := parseForceRequestedResponseModelEnabled(value)
 		storeForceRequestedResponseModelCache(enabled, forceRequestedResponseModelCacheTTL)
@@ -175,8 +180,12 @@ func forceRequestedResponseModelArmed(c *gin.Context) bool {
 }
 
 func applyForcedRequestedResponseModelBody(c *gin.Context, body []byte) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	body = sanitizeClientRelayPayload(body)
 	requested, ok := forcedRequestedResponseModel(c)
-	if !ok || len(body) == 0 {
+	if !ok {
 		return body
 	}
 	next, changed := forceRewriteClientModelFields(body, requested)
@@ -187,8 +196,12 @@ func applyForcedRequestedResponseModelBody(c *gin.Context, body []byte) []byte {
 }
 
 func applyForcedRequestedResponseModelLine(c *gin.Context, line string) string {
+	if line == "" {
+		return line
+	}
+	line = sanitizeClientRelayLine(line)
 	requested, ok := forcedRequestedResponseModel(c)
-	if !ok || line == "" {
+	if !ok {
 		return line
 	}
 	if payload, prefix, found := splitClientModelDataLine(line); found {
@@ -213,8 +226,10 @@ func applyForcedRequestedResponseModelLine(c *gin.Context, line string) string {
 	return strings.Replace(line, trimmed, string(rewritten), 1)
 }
 
+// applyForcedRequestedResponseModelSSEText strips relay extras on every line.
+// Model names change only when this request armed a client model.
 func applyForcedRequestedResponseModelSSEText(c *gin.Context, body string) string {
-	if !forceRequestedResponseModelArmed(c) || body == "" {
+	if body == "" {
 		return body
 	}
 	lines := strings.Split(body, "\n")

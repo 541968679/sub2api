@@ -28,8 +28,10 @@ func (m *chatCompletionIDMask) localID() string {
 }
 
 // applyBytes rewrites a top-level completion id. Payloads that are not a
-// chat completion, and empty ids, are returned unchanged.
+// chat completion, and empty ids, keep every other field. Relay extras and
+// error ids are still removed.
 func (m *chatCompletionIDMask) applyBytes(payload []byte) []byte {
+	payload = sanitizeClientRelayPayload(payload)
 	if !shouldMaskChatCompletionID(payload) {
 		return payload
 	}

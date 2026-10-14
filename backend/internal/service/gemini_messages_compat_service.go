@@ -1058,7 +1058,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		requestID = resp.Header.Get("x-goog-request-id")
 	}
 	if requestID != "" {
-		c.Header("x-request-id", requestID)
+		RememberUpstreamRequestID(c, requestID)
 	}
 
 	var usage *ClaudeUsage
@@ -1433,7 +1433,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		requestID = resp.Header.Get("x-goog-request-id")
 	}
 	if requestID != "" {
-		c.Header("x-request-id", requestID)
+		RememberUpstreamRequestID(c, requestID)
 	}
 
 	isOAuth := account.Type == AccountTypeOAuth
@@ -1845,7 +1845,7 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 
 	c.JSON(statusCode, gin.H{
 		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
+		"error": gin.H{"type": errType, "message": ScrubClientErrorDisclosure(errMsg)},
 	})
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
@@ -2688,7 +2688,7 @@ func (s *GeminiMessagesCompatService) ForwardAIStudioGET(ctx context.Context, ac
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	wwwAuthenticate := resp.Header.Get("Www-Authenticate")
+	wwwAuthenticate := responseheaders.SanitizeWWWAuthenticate(resp.Header.Get("Www-Authenticate"))
 	filteredHeaders := responseheaders.FilterHeaders(resp.Header, s.responseHeaderFilter)
 	if wwwAuthenticate != "" {
 		filteredHeaders.Set("Www-Authenticate", wwwAuthenticate)

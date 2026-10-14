@@ -1821,7 +1821,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 	requestID := resp.Header.Get("x-request-id")
 	if requestID != "" {
-		c.Header("x-request-id", requestID)
+		RememberUpstreamRequestID(c, requestID)
 	}
 
 	var usage *ClaudeUsage
@@ -2458,7 +2458,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 
 		requestID := resp.Header.Get("x-request-id")
 		if requestID != "" {
-			c.Header("x-request-id", requestID)
+			RememberUpstreamRequestID(c, requestID)
 		}
 
 		unwrapped, unwrapErr := s.unwrapV1InternalResponse(respBody)
@@ -2524,7 +2524,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 handleSuccess:
 	requestID := resp.Header.Get("x-request-id")
 	if requestID != "" {
-		c.Header("x-request-id", requestID)
+		RememberUpstreamRequestID(c, requestID)
 	}
 
 	var usage *ClaudeUsage

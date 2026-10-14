@@ -31,6 +31,7 @@ allow root-relative paths and `data:image/` URLs to preserve uploaded branding.
 
 ## Known pitfalls
 
+- `GET /api/v1/settings/public` and the HTML injection of the same payload leave `version` and `oidc_oauth_provider_name` as empty strings. The keys stay. Admins read the build from `GET /api/v1/admin/system/version`. The OIDC display name stays on the admin setting `oidc_connect_provider_name`. Login buttons fall back to the string `OIDC`.
 - Never interpolate `site_name` directly into HTML or `<title>` content.
 - Never bind `doc_url` or `site_logo` directly to `href`/`src` merely because
   the value came from the public settings endpoint.

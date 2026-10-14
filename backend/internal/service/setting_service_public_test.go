@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -171,4 +172,34 @@ func TestSettingService_GetPublicSettings_FallsBackToConfigForWeChatOAuthCapabil
 	require.True(t, settings.WeChatOAuthOpenEnabled)
 	require.False(t, settings.WeChatOAuthMPEnabled)
 	require.False(t, settings.WeChatOAuthMobileEnabled)
+}
+
+func TestGetPublicSettingsForInjectionOmitsBuildVersionAndOIDCName(t *testing.T) {
+	svc := NewSettingService(&settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyOIDCConnectEnabled:      "true",
+			SettingKeyOIDCConnectProviderName: "OpsHub",
+		},
+	}, &config.Config{})
+	svc.SetVersion("0.2.26")
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.OIDCOAuthEnabled)
+	require.Equal(t, "OpsHub", settings.OIDCOAuthProviderName)
+
+	raw, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+	payload, ok := raw.(*PublicSettingsInjectionPayload)
+	require.True(t, ok)
+	require.True(t, payload.OIDCOAuthEnabled)
+	require.Empty(t, payload.OIDCOAuthProviderName)
+	require.Empty(t, payload.Version)
+
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), `"version":""`)
+	require.Contains(t, string(encoded), `"oidc_oauth_provider_name":""`)
+	require.NotContains(t, string(encoded), "OpsHub")
+	require.NotContains(t, string(encoded), "0.2.26")
 }

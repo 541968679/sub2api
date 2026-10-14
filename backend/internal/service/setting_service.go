@@ -171,7 +171,6 @@ type SettingService struct {
 	proxyRepo                         ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                               *config.Config
 	onUpdate                          func() // Callback when settings are updated (for cache invalidation)
-	version                           string // Application version
 	webSearchManagerBuilder           WebSearchManagerBuilder
 	cyberSessionBlockRuntimeCache     atomic.Value
 	cyberSessionBlockRuntimeSF        singleflight.Group
@@ -970,10 +969,10 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
-// SetVersion sets the application version for injection into public settings
-func (s *SettingService) SetVersion(version string) {
-	s.version = version
-}
+// SetVersion is retained for callers that used to stamp the build onto public HTML.
+// Unauthenticated public settings and HTML injection no longer include that version.
+// Admins read the build from /api/v1/admin/system/version.
+func (*SettingService) SetVersion(string) {}
 
 // PublicSettingsInjectionPayload is the JSON shape embedded into HTML as
 // `window.__APP_CONFIG__` so the frontend can hydrate feature flags & site
@@ -1037,20 +1036,20 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
 	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	AvailableChannelsEnabled             bool   `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests           bool   `json:"allow_user_view_error_requests"`
 	ModelPlazaEnabled                    bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth                bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription                string `json:"model_plaza_description"`
 	PluginManagementEnabled              bool   `json:"plugin_management_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
+	AffiliateEnabled                     bool   `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool   `json:"risk_control_enabled"`
 
 	LegalConsent LegalConsentSettings `json:"legal_consent"`
 }
@@ -1096,12 +1095,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		WeChatOAuthMPEnabled:             settings.WeChatOAuthMPEnabled,
 		WeChatOAuthMobileEnabled:         settings.WeChatOAuthMobileEnabled,
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
-		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
+		OIDCOAuthProviderName:            "",
 		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
 		LoginPage:                        settings.LoginPage,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
-		Version:                          s.version,
+		Version:                          "",
 		ServerTimezone:                   timezone.Name(),
 		ServerUTCOffset:                  timezone.UTCOffset(),
 		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
@@ -2628,7 +2627,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingKeyOpenAILongContextBillingEnabled:           "true",
 		SettingKeyKimiK3AdaptiveValidationEnabled:           "false",
-		SettingKeyForceRequestedResponseModel:               "false",
+		SettingKeyForceRequestedResponseModel:               "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
