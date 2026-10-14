@@ -9,7 +9,8 @@ import (
 
 // issue #5601: strict Responses clients (Rust serde, Codex / Grok CLI) treat
 // created_at as required. Synthesized Chat→Responses and Anthropic→Responses
-// objects must emit it. Native Responses passthrough keeps upstream bytes.
+// objects must emit it. Native Responses passthrough keeps upstream bytes,
+// except the gateway coerces a non-integer created_at before the client sees it.
 
 func responseObjectOf(t *testing.T, evt ResponsesStreamEvent) map[string]any {
 	t.Helper()

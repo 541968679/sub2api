@@ -4641,6 +4641,19 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		pendingLines = pendingLines[:0]
 		return true
 	}
+	writeStreamDone := func() {
+		if clientDisconnected || sawDone || !sawTerminalEvent {
+			return
+		}
+		if err := writeOpenAIResponsesStreamDone(w); err != nil {
+			clientDisconnected = true
+			logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected while writing [DONE]: account=%d", account.ID)
+			return
+		}
+		sawDone = true
+		clientOutputStarted = true
+		flusher.Flush()
+	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
@@ -4822,11 +4835,13 @@ scanLines:
 			}
 		}
 		line = applyForcedRequestedResponseModelLine(c, line)
+		line = normalizeOpenAIResponsesNewAPIWireLine(line)
 
 		if !clientDisconnected {
 			if doneData, isDone := extractOpenAISSEDataLine(line); slimState.enabled && isDone && strings.TrimSpace(doneData) == "[DONE]" && slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
 				if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
 					synth = applyForcedRequestedResponseModelLine(c, synth)
+					synth = normalizeOpenAIResponsesNewAPIWireLine(synth)
 					if !clientOutputStarted && len(pendingLines) > 0 {
 						if !writePendingLines() {
 							continue
@@ -4867,6 +4882,7 @@ scanLines:
 	}
 	if slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
 		if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" && !clientDisconnected {
+			synth = normalizeOpenAIResponsesNewAPIWireLine(synth)
 			if !clientOutputStarted && len(pendingLines) > 0 && !writePendingLines() {
 				// clientDisconnected already set
 			} else if !clientDisconnected {
@@ -4882,9 +4898,11 @@ scanLines:
 	}
 	if err := scanner.Err(); err != nil {
 		if sawTerminalEvent && !sawFailedEvent {
+			writeStreamDone()
 			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, nil
 		}
 		if sawFailedEvent {
+			writeStreamDone()
 			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -4914,6 +4932,7 @@ scanLines:
 		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("stream read error: %w", err)
 	}
 	if sawFailedEvent {
+		writeStreamDone()
 		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
 	}
 	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
@@ -4929,6 +4948,7 @@ scanLines:
 		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, errors.New("stream usage incomplete: missing terminal event")
 	}
 
+	writeStreamDone()
 	return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, nil
 }
 
@@ -4985,6 +5005,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	}
 	body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	body = applyForcedRequestedResponseModelBody(c, body)
+	body = applyOpenAIResponsesNewAPIWireBody(body)
 	c.Data(resp.StatusCode, contentType, body)
 	return &openaiNonStreamingResultPassthrough{
 		OpenAIUsage: usage,
@@ -5014,6 +5035,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
 		next = applyForcedRequestedResponseModelBody(c, next)
+		next = applyOpenAIResponsesNewAPIWireBody(next)
 		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
 		return &openaiNonStreamingResultPassthrough{
@@ -5087,6 +5109,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		body = applyClientFacingOpenAIResponseModel(body, originalModel)
 		body = applyForcedRequestedResponseModelBody(c, body)
 	}
+	body = applyOpenAIResponsesNewAPIWireBody(body)
 	c.Data(resp.StatusCode, contentType, body)
 
 	return &openaiNonStreamingResultPassthrough{
@@ -5679,9 +5702,28 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	}
 	sawTerminalEvent := false
 	sawFailedEvent := false
+	sawDone := false
 	failedMessage := ""
 	clientOutputStarted := false
 	upstreamRequestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
+	writeStreamDone := func() {
+		if clientDisconnected || sawDone || !sawTerminalEvent {
+			return
+		}
+		if err := writeOpenAIResponsesStreamDone(bufferedWriter); err != nil {
+			clientDisconnected = true
+			logger.LegacyPrintf("service.openai_gateway", "Client disconnected while writing [DONE], continuing to drain upstream for billing")
+			return
+		}
+		sawDone = true
+		if err := flushBuffered(); err != nil {
+			clientDisconnected = true
+			logger.LegacyPrintf("service.openai_gateway", "Client disconnected while flushing [DONE], continuing to drain upstream for billing")
+			return
+		}
+		clientOutputStarted = true
+		lastDownstreamWriteAt = time.Now()
+	}
 	var streamEarlyErr error
 	sendErrorEvent := func(reason string) {
 		if errorEventSent || clientDisconnected {
@@ -5731,6 +5773,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: missing terminal event")
 		}
 		if sawFailedEvent {
+			writeStreamDone()
 			return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)
 		}
 		if slimState.shouldSynthesize(clientDisconnected, usage.OutputTokens) {
@@ -5747,6 +5790,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				}
 			}
 		}
+		writeStreamDone()
 		if !clientDisconnected {
 			hadBufferedData := bufferedWriter.Buffered() > 0
 			if err := flushBuffered(); err != nil {
@@ -5765,9 +5809,11 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		}
 		if sawTerminalEvent && !sawFailedEvent {
 			logger.LegacyPrintf("service.openai_gateway", "Upstream scan ended after terminal event: %v", scanErr)
+			writeStreamDone()
 			return resultWithUsage(), nil, true
 		}
 		if sawFailedEvent {
+			writeStreamDone()
 			return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage), true
 		}
 		// 客户端断开/取消请求时，上游读取往往会返回 context canceled。
@@ -5804,6 +5850,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			dataBytes := []byte(data)
 			if openAIStreamEventIsTerminal(data) {
 				sawTerminalEvent = true
+			}
+			if strings.TrimSpace(data) == "[DONE]" {
+				sawDone = true
 			}
 			eventType := strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 			if responseID == "" {
@@ -5950,6 +5999,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			}
 			lineForDownstream = fillEmptyOpenAIResponseModelInSSELine(lineForDownstream, originalModel)
 			lineForDownstream = applyForcedRequestedResponseModelLine(c, lineForDownstream)
+			lineForDownstream = normalizeOpenAIResponsesNewAPIWireLine(lineForDownstream)
 
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected {
@@ -5968,6 +6018,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				}
 				for _, injectedLine := range injectedImageMessageLines {
 					injectedLine = applyForcedRequestedResponseModelLine(c, injectedLine)
+					injectedLine = normalizeOpenAIResponsesNewAPIWireLine(injectedLine)
 					if _, err := bufferedWriter.WriteString(injectedLine + "\n\n"); err != nil {
 						clientDisconnected = true
 						logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
@@ -5979,6 +6030,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				} else if strings.TrimSpace(data) == "[DONE]" && slimState.shouldSynthesize(false, usage.OutputTokens) {
 					if synth := slimState.synthesizeLine(responseID, usage, getDisplayTokenMultipliers(c)); synth != "" {
 						synth = applyForcedRequestedResponseModelLine(c, synth)
+						synth = normalizeOpenAIResponsesNewAPIWireLine(synth)
 						if _, err := bufferedWriter.WriteString(synth + "\n"); err != nil {
 							clientDisconnected = true
 							logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
@@ -6554,6 +6606,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	}
 	body = applyClientFacingOpenAIResponseModel(body, originalModel)
 	body = applyForcedRequestedResponseModelBody(c, body)
+	body = applyOpenAIResponsesNewAPIWireBody(body)
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
@@ -6595,6 +6648,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			next = rewriteOpenAIResponsesUsageTokens(next, "usage", mult)
 		}
 		next = applyForcedRequestedResponseModelBody(c, next)
+		next = applyOpenAIResponsesNewAPIWireBody(next)
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 		c.Data(resp.StatusCode, "application/json; charset=utf-8", next)
 		return &openaiNonStreamingResult{
@@ -6682,6 +6736,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		body = applyClientFacingOpenAIResponseModel(body, originalModel)
 		body = applyForcedRequestedResponseModelBody(c, body)
 	}
+	body = applyOpenAIResponsesNewAPIWireBody(body)
 	c.Data(resp.StatusCode, contentType, body)
 
 	return &openaiNonStreamingResult{
