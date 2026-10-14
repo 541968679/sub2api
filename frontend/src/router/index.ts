@@ -448,8 +448,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: true,
       title: 'Error Policy',
-      titleKey: 'admin.errorPolicy.title',
-      descriptionKey: 'admin.errorPolicy.intro'
+      titleKey: 'admin.errorPolicy.title'
     }
   },
   {

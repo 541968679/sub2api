@@ -56,12 +56,14 @@ describe('ScheduleErrorWhitelistPanel', () => {
     await wrapper.get('[data-test="schedule-error-whitelist-save"]').trigger('click')
     await flushPromises()
 
-    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith({
-      families: {
-        ...defaultScheduleErrorWhitelist().families,
-        group_no_account: true
-      }
-    })
+    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        families: expect.objectContaining({ group_no_account: true }),
+        custom: [],
+        family_replace: defaultScheduleErrorWhitelist().family_replace,
+        replacements: defaultScheduleErrorWhitelist().replacements
+      })
+    )
     expect(SCHEDULE_ERROR_WHITELIST_FAMILY_IDS).toHaveLength(7)
   })
 
@@ -73,9 +75,32 @@ describe('ScheduleErrorWhitelistPanel', () => {
     await wrapper.get('[data-test="schedule-error-whitelist-custom-add"]').trigger('click')
     await flushPromises()
 
-    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith({
-      families: { ...defaultScheduleErrorWhitelist().families },
-      custom: [{ enabled: true, message_contains: 'quota exceeded' }]
-    })
+    expect(updateScheduleErrorWhitelist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        families: defaultScheduleErrorWhitelist().families,
+        custom: [
+          {
+            enabled: true,
+            message_contains: 'quota exceeded',
+            replace_with: '',
+            schedule_exclude: true
+          }
+        ]
+      })
+    )
+  })
+
+  it('keeps the custom-rule inputs in normal document flow', async () => {
+    const wrapper = mount(ScheduleErrorWhitelistPanel)
+    await flushPromises()
+
+    const input = wrapper.get('[data-test="schedule-error-whitelist-custom-add-input"]')
+    expect(input.element.closest('.overflow-y-auto')).toBeNull()
+    const section = wrapper.get('[data-test="schedule-error-whitelist-custom"]')
+    const html = section.element.innerHTML
+    const inputAt = html.indexOf('schedule-error-whitelist-custom-add-input')
+    const emptyAt = html.indexOf('schedule-error-whitelist-custom-empty')
+    expect(inputAt).toBeGreaterThan(-1)
+    expect(emptyAt).toBeGreaterThan(inputAt)
   })
 })

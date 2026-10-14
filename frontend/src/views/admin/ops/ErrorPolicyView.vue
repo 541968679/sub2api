@@ -1,10 +1,10 @@
 <template>
   <AppLayout>
-    <div class="mx-auto flex min-h-0 max-w-3xl flex-col px-4 py-6 md:px-6">
+    <div class="mx-auto w-full max-w-6xl">
       <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
         {{ t('admin.errorPolicy.title') }}
       </h1>
-      <div class="card mt-4 flex min-h-[32rem] flex-col p-4">
+      <div class="mt-4">
         <ScheduleErrorWhitelistPanel />
       </div>
     </div>
