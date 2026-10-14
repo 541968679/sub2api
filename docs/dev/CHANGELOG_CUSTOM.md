@@ -1,3 +1,16 @@
+## 2026-10-14 - ops: record production deploy of v0.1.321
+
+### What
+- Production new-origin is `ghcr.io/541968679/sub2api:0.1.321`, digest `sha256:7348d97dc7f9533ae4f9312070f16d896b7b168e3a0e7dd8ced7270c62ab538e`, revision `b27d5d5c673ad83c6fdf8dcadaf8269623493359`. Release run `38527180574`. VERSION sync `10c7555b2`.
+- Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Postgres and Redis were not recreated. Rollback is v0.1.320 digest `sha256:af0aa36e0ef1be6be570a379c658743e28af7f65c6c773daca9b6cbcb45200bf`.
+- Local `http://127.0.0.1:8080/health` and public `https://zerocode.kaynlab.com/health` both returned `{"status":"ok"}`.
+
+### Why
+Ship the Responses wire fix for older new-api. A non-integer `created_at` is coerced, and `data: [DONE]` is appended after a terminal event when the client is still connected. The image also includes the three commits that were on main after v0.1.320: LiteLLM display-price fallback, relay fingerprint hiding, and the upstream request-id test.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-10-14 - fix: Responses wire for older new-api
 
 ### What
