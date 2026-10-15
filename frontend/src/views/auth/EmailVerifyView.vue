@@ -170,8 +170,9 @@ import {
 } from '@/utils/registrationEmailPolicy'
 import {
   clearAllAffiliateReferralCodes,
+  exclusiveReferralFields,
   loadAffiliateReferralCode,
-  oauthAffiliatePayload
+  loadSalesReferralCode
 } from '@/utils/oauthAffiliate'
 import {
   clearPendingRegisterLegalConsent,
@@ -227,6 +228,7 @@ const initialTurnstileToken = ref<string>('')
 const promoCode = ref<string>('')
 const invitationCode = ref<string>('')
 const affCode = ref<string>('')
+const salesCode = ref<string>('')
 const pendingAuthToken = ref<string>('')
 const pendingAuthTokenField = ref<PendingAuthTokenField>('pending_auth_token')
 const pendingProvider = ref<string>('')
@@ -282,7 +284,15 @@ onMounted(async () => {
       initialTurnstileToken.value = registerData.turnstile_token || ''
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
-      affCode.value = registerData.aff_code || loadAffiliateReferralCode()
+      const loadedAff = registerData.aff_code || loadAffiliateReferralCode()
+      const loadedSales = registerData.sales_code || loadSalesReferralCode()
+      if (loadedAff && loadedSales) {
+        affCode.value = ''
+        salesCode.value = ''
+      } else {
+        affCode.value = loadedAff
+        salesCode.value = loadedSales
+      }
       pendingAuthToken.value = registerData.pending_auth_token || activePendingSession?.token || ''
       pendingAuthTokenField.value = registerData.pending_auth_token_field || activePendingSession?.token_field || 'pending_auth_token'
       pendingProvider.value = registerData.pending_provider || activePendingSession?.provider || ''
@@ -523,7 +533,7 @@ async function handleVerify(): Promise<void> {
           password: password.value,
           verify_code: verifyCode.value.trim(),
           invitation_code: invitationCode.value || undefined,
-          ...oauthAffiliatePayload(affCode.value || loadAffiliateReferralCode()),
+          ...exclusiveReferralFields(affCode.value, salesCode.value),
           adopt_display_name: pendingAdoptionDecision.value?.adoptDisplayName,
           adopt_avatar: pendingAdoptionDecision.value?.adoptAvatar
         }
@@ -557,7 +567,7 @@ async function handleVerify(): Promise<void> {
         turnstile_token: initialTurnstileToken.value || undefined,
         promo_code: promoCode.value || undefined,
         invitation_code: invitationCode.value || undefined,
-        ...(affCode.value ? { aff_code: affCode.value } : {})
+        ...exclusiveReferralFields(affCode.value, salesCode.value)
       })
       const legalConsent = getPendingRegisterLegalConsent(legalConsentSettings.value)
       if (legalConsent) {

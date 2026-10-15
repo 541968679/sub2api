@@ -7,8 +7,13 @@
         ></div>
       </div>
 
+      <div v-else-if="denied" class="card p-8 text-center">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.disabled.title') }}</h3>
+        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.disabled.description') }}</p>
+      </div>
+
       <template v-else-if="detail">
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div class="card p-5">
             <p class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-dark-400">
               <Icon name="dollar" size="sm" class="text-primary-500" />
@@ -30,16 +35,28 @@
           <div class="card p-5">
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.availableQuota') }}</p>
             <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
-              {{ formatCurrency(detail.aff_quota) }}
+              {{ formatCurrency(settleableQuota) }}
             </p>
+            <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">{{ t('affiliate.stats.availableQuotaHint') }}</p>
+          </div>
+          <div class="card p-5">
+            <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.frozenQuota') }}</p>
+            <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+              {{ formatCurrency(detail.aff_frozen_quota) }}
+            </p>
+            <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">{{ t('affiliate.stats.frozenQuotaHint') }}</p>
+          </div>
+          <div class="card p-5">
+            <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.debt') }}</p>
+            <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {{ formatCurrency(debtQuota) }}
+            </p>
+            <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">{{ t('affiliate.stats.debtHint') }}</p>
           </div>
           <div class="card p-5">
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.totalQuota') }}</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
               {{ formatCurrency(detail.aff_history_quota) }}
-            </p>
-            <p v-if="detail.aff_frozen_quota > 0" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
-              {{ t('affiliate.stats.frozenQuota') }}: {{ formatCurrency(detail.aff_frozen_quota) }}
             </p>
           </div>
         </div>
@@ -83,25 +100,89 @@
           </div>
         </div>
 
-        <div class="card p-6">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.transfer.title') }}</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.transfer.description') }}</p>
+        <div v-if="detail.is_master" class="card p-6">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.master.title') }}</h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.master.description') }}</p>
+
+          <div class="mt-5 grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.master.salesCode') }}</p>
+              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
+                <code class="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.sales_code || '-' }}</code>
+                <button class="btn btn-secondary btn-sm" type="button" @click="copySalesCode">
+                  <Icon name="copy" size="sm" />
+                  <span>{{ t('affiliate.copyCode') }}</span>
+                </button>
+              </div>
             </div>
-            <button
-              class="btn btn-primary"
-              :disabled="transferring || detail.aff_quota <= 0"
-              @click="transferQuota"
-            >
-              <Icon v-if="transferring" name="refresh" size="sm" class="animate-spin" />
-              <Icon v-else name="dollar" size="sm" />
-              <span>{{ transferring ? t('affiliate.transfer.transferring') : t('affiliate.transfer.button') }}</span>
-            </button>
+            <div class="space-y-2">
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.master.salesLink') }}</p>
+              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
+                <code class="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ salesLink }}</code>
+                <button class="btn btn-secondary btn-sm" type="button" @click="copySalesLink">
+                  <Icon name="copy" size="sm" />
+                  <span>{{ t('affiliate.copyLink') }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <p v-if="detail.aff_quota <= 0" class="mt-3 text-sm text-amber-600 dark:text-amber-400">
-            {{ t('affiliate.transfer.empty') }}
-          </p>
+
+          <div class="mt-5 max-w-sm space-y-2">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="master-cut">
+              {{ t('affiliate.master.cutLabel') }}
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1">
+                <input
+                  id="master-cut"
+                  v-model.number="cutPercent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  :max="cutMax"
+                  class="input pr-8"
+                />
+                <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+              </div>
+              <button class="btn btn-primary btn-sm" type="button" :disabled="cutSaving" @click="saveCut">
+                {{ cutSaving ? t('affiliate.master.cutSaving') : t('affiliate.master.cutSave') }}
+              </button>
+            </div>
+            <p class="text-xs text-gray-400 dark:text-dark-500">
+              {{ t('affiliate.master.cutHint', { max: formattedCutMax }) }}
+            </p>
+          </div>
+
+          <div class="mt-6">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('affiliate.master.subordinateCount', { count: detail.subordinate_count || 0 }) }}
+            </h4>
+            <div v-if="subordinates.length === 0" class="mt-3 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+              {{ t('affiliate.master.empty') }}
+            </div>
+            <div v-else class="mt-3 overflow-x-auto">
+              <table class="w-full min-w-[480px] text-left text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.master.columns.email') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('affiliate.master.columns.generated') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('affiliate.master.columns.cut') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="item in subordinates"
+                    :key="item.user_id"
+                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
+                  >
+                    <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || item.username || '-' }}</td>
+                    <td class="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">{{ formatCurrency(item.rebate_generated) }}</td>
+                    <td class="px-3 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{{ formatCurrency(item.cut_taken) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <div class="card p-6">
@@ -147,25 +228,45 @@ import Icon from '@/components/icons/Icon.vue'
 import userAPI from '@/api/user'
 import type { UserAffiliateDetail } from '@/types'
 import { useAppStore } from '@/stores/app'
-import { useAuthStore } from '@/stores/auth'
 import { useClipboard } from '@/composables/useClipboard'
 import { formatCurrency, formatDateTime } from '@/utils/format'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const authStore = useAuthStore()
 const { copyToClipboard } = useClipboard()
 
 const loading = ref(true)
-const transferring = ref(false)
+const denied = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+const cutPercent = ref(0)
+const cutSaving = ref(false)
+
+const settleableQuota = computed(() => Math.max(0, detail.value?.aff_quota ?? 0))
+const debtQuota = computed(() => {
+  const quota = detail.value?.aff_quota ?? 0
+  return quota < 0 ? -quota : 0
+})
 
 const inviteLink = computed(() => {
   if (!detail.value) return ''
   if (typeof window === 'undefined') return `/register?aff=${encodeURIComponent(detail.value.aff_code)}`
   return `${window.location.origin}/register?aff=${encodeURIComponent(detail.value.aff_code)}`
 })
+
+const salesLink = computed(() => {
+  const code = detail.value?.sales_code || ''
+  if (!code) return ''
+  if (typeof window === 'undefined') return `/register?sales=${encodeURIComponent(code)}`
+  return `${window.location.origin}/register?sales=${encodeURIComponent(code)}`
+})
+
+const subordinates = computed(() => detail.value?.subordinates ?? [])
+const cutMax = computed(() => {
+  const max = Number(detail.value?.master_cut_max_percent)
+  return Number.isFinite(max) ? max : 0
+})
+const formattedCutMax = computed(() => formatPercent(cutMax.value))
 
 // Rebate rate is a percentage in the range [0, 100]; backend already clamps it.
 // We trim trailing zeros (e.g. 20.00 → "20", 12.50 → "12.5") for a cleaner UI.
@@ -179,13 +280,25 @@ function formatCount(value: number): string {
   return value.toLocaleString()
 }
 
+function formatPercent(value: number): string {
+  const rounded = Math.round(value * 100) / 100
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
+}
+
 async function loadAffiliateDetail(silent = false): Promise<void> {
   if (!silent) {
     loading.value = true
   }
   try {
+    denied.value = false
     detail.value = await userAPI.getAffiliateDetail()
+    cutPercent.value = Number(detail.value.master_cut_percent) || 0
   } catch (error) {
+    detail.value = null
+    if (extractApiErrorCode(error) === 'AFFILIATE_INVITE_DISABLED') {
+      denied.value = true
+      return
+    }
     appStore.showError(extractApiErrorMessage(error, t('affiliate.loadFailed')))
   } finally {
     if (!silent) {
@@ -204,20 +317,31 @@ async function copyInviteLink(): Promise<void> {
   await copyToClipboard(inviteLink.value, t('affiliate.linkCopied'))
 }
 
-async function transferQuota(): Promise<void> {
-  if (!detail.value || detail.value.aff_quota <= 0 || transferring.value) return
-  transferring.value = true
+async function copySalesCode(): Promise<void> {
+  if (!detail.value?.sales_code) return
+  await copyToClipboard(detail.value.sales_code, t('affiliate.master.codeCopied'))
+}
+
+async function copySalesLink(): Promise<void> {
+  if (!salesLink.value) return
+  await copyToClipboard(salesLink.value, t('affiliate.master.linkCopied'))
+}
+
+async function saveCut(): Promise<void> {
+  const value = Number(cutPercent.value)
+  if (!Number.isFinite(value) || value < 0 || value > cutMax.value) {
+    appStore.showError(t('affiliate.master.cutInvalid', { max: formattedCutMax.value }))
+    return
+  }
+  cutSaving.value = true
   try {
-    const resp = await userAPI.transferAffiliateQuota()
-    appStore.showSuccess(t('affiliate.transfer.success', { amount: formatCurrency(resp.transferred_quota) }))
-    await Promise.all([
-      loadAffiliateDetail(true),
-      authStore.refreshUser().catch(() => undefined),
-    ])
+    detail.value = await userAPI.setAffiliateMasterCut(value)
+    cutPercent.value = Number(detail.value.master_cut_percent) || 0
+    appStore.showSuccess(t('affiliate.master.cutSaved'))
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('affiliate.transferFailed')))
+    appStore.showError(extractApiErrorMessage(error, t('affiliate.master.cutFailed')))
   } finally {
-    transferring.value = false
+    cutSaving.value = false
   }
 }
 

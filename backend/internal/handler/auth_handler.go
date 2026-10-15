@@ -18,13 +18,14 @@ import (
 
 // AuthHandler handles authentication-related requests
 type AuthHandler struct {
-	cfg           *config.Config
-	authService   *service.AuthService
-	userService   *service.UserService
-	settingSvc    *service.SettingService
-	promoService  *service.PromoService
-	redeemService *service.RedeemService
-	totpService   *service.TotpService
+	cfg              *config.Config
+	authService      *service.AuthService
+	userService      *service.UserService
+	settingSvc       *service.SettingService
+	promoService     *service.PromoService
+	redeemService    *service.RedeemService
+	totpService      *service.TotpService
+	affiliateService *service.AffiliateService
 }
 
 // NewAuthHandler creates a new AuthHandler
@@ -40,6 +41,12 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 	}
 }
 
+func (h *AuthHandler) SetAffiliateService(affiliateService *service.AffiliateService) {
+	if h != nil {
+		h.affiliateService = affiliateService
+	}
+}
+
 // RegisterRequest represents the registration request payload
 type RegisterRequest struct {
 	Email          string `json:"email" binding:"required,email"`
@@ -49,6 +56,7 @@ type RegisterRequest struct {
 	PromoCode      string `json:"promo_code"`      // 注册优惠码
 	InvitationCode string `json:"invitation_code"` // 邀请码
 	AffCode        string `json:"aff_code"`        // 邀请返利码
+	SalesCode      string `json:"sales_code"`      // 总代招募码
 }
 
 // SendVerifyCodeRequest 发送验证码请求
@@ -174,6 +182,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if err := service.RejectMixedAffiliateCodes(req.AffCode, req.SalesCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	affCode := req.AffCode
+	if strings.TrimSpace(req.SalesCode) != "" {
+		affCode = ""
+	}
+
 	_, user, err := h.authService.RegisterWithVerification(
 		c.Request.Context(),
 		req.Email,
@@ -181,11 +198,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		req.VerifyCode,
 		req.PromoCode,
 		req.InvitationCode,
-		req.AffCode,
+		affCode,
 	)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if h.affiliateService != nil && strings.TrimSpace(req.SalesCode) != "" && user != nil && user.ID > 0 {
+		if bindErr := h.affiliateService.BindSalesParentByCode(c.Request.Context(), user.ID, req.SalesCode); bindErr != nil {
+			slog.Error("failed to bind sales parent", "error", bindErr, "user_id", user.ID)
+		}
 	}
 
 	if user.Status == service.StatusPendingApproval {
@@ -443,8 +465,13 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		runMode = h.cfg.RunMode
 	}
 
+	profile := userProfileResponseFromService(user, identities)
+	if h.affiliateService != nil {
+		profile.AffInviteEnabled = h.affiliateService.InviteEnabled(c.Request.Context(), user.ID)
+		profile.IsMaster = h.affiliateService.IsMaster(c.Request.Context(), user.ID)
+	}
 	response.Success(c, UserResponse{
-		userProfileResponse: userProfileResponseFromService(user, identities),
+		userProfileResponse: profile,
 		RunMode:             runMode,
 	})
 }

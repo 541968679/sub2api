@@ -390,6 +390,9 @@ func (s *PaymentService) finishRefund(ctx context.Context, p *RefundPlan, resp *
 	}
 	switch strings.TrimSpace(resp.Status) {
 	case payment.ProviderStatusSuccess, payment.ProviderStatusRefunded:
+		if err := s.reverseAffiliateOnRefund(ctx, p); err != nil && !errors.Is(err, ErrAffiliateReverseAlreadyApplied) {
+			return nil, err
+		}
 		return s.markRefundOk(ctx, p)
 	case payment.ProviderStatusPending:
 		return s.markRefundPending(ctx, p, resp)
@@ -484,9 +487,17 @@ func (s *PaymentService) applyRefundFinalDeduction(ctx context.Context, p *Refun
 		return nil
 	}
 	if p.DeductionType == payment.DeductionTypeBalance && p.BalanceToDeduct > 0 {
-		if err := s.userRepo.DeductBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
+		if s.entClient != nil && s.affiliateService != nil && p.Order != nil && p.Order.OrderType == payment.OrderTypeBalance {
+			if err := s.deductBalanceAndReverseAffiliate(ctx, p); err != nil {
+				return err
+			}
+		} else if err := s.userRepo.DeductBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
 			return fmt.Errorf("deduction: %w", err)
+		} else if err := s.reverseAffiliateOnRefund(ctx, p); err != nil && !errors.Is(err, ErrAffiliateReverseAlreadyApplied) {
+			return err
 		}
+	} else if err := s.reverseAffiliateOnRefund(ctx, p); err != nil && !errors.Is(err, ErrAffiliateReverseAlreadyApplied) {
+		return err
 	}
 	if p.DeductionType == payment.DeductionTypeSubscription && p.SubDaysToDeduct > 0 && p.SubscriptionID > 0 {
 		if _, err := s.subscriptionSvc.ExtendSubscription(ctx, p.SubscriptionID, -p.SubDaysToDeduct); err != nil {
@@ -551,6 +562,66 @@ func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr e
 	_, _ = s.entClient.PaymentOrder.UpdateOneID(p.OrderID).SetStatus(OrderStatusRefundFailed).SetFailedAt(now).SetFailedReason(psErrMsg(gErr)).Save(ctx)
 	s.writeAuditLog(ctx, p.OrderID, "REFUND_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
 	return nil, infraerrors.InternalServer("REFUND_FAILED", psErrMsg(gErr))
+}
+
+func (s *PaymentService) deductBalanceAndReverseAffiliate(ctx context.Context, p *RefundPlan) error {
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin refund deduction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := s.userRepo.DeductBalance(txCtx, p.Order.UserID, p.BalanceToDeduct); err != nil {
+		return fmt.Errorf("deduction: %w", err)
+	}
+	if err := s.reverseAffiliateOnRefund(txCtx, p); err != nil {
+		if errors.Is(err, ErrAffiliateReverseAlreadyApplied) {
+			return nil
+		}
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit refund deduction: %w", err)
+	}
+	return nil
+}
+
+func refundedCreditUnits(order *dbent.PaymentOrder, refundAmount float64) (float64, float64) {
+	if order == nil {
+		return 0, 0
+	}
+	original := order.CreditAmount
+	if original <= 0 {
+		original = order.Amount
+	}
+	if original <= 0 || refundAmount <= 0 {
+		return 0, original
+	}
+	if order.Amount <= 0 || refundAmount >= order.Amount {
+		return original, original
+	}
+	return roundTo(original*(refundAmount/order.Amount), 8), original
+}
+
+func (s *PaymentService) reverseAffiliateOnRefund(ctx context.Context, p *RefundPlan) error {
+	if s == nil || s.affiliateService == nil || p == nil || p.Order == nil {
+		return nil
+	}
+	if p.Order.OrderType != payment.OrderTypeBalance {
+		return nil
+	}
+	refunded, original := refundedCreditUnits(p.Order, p.RefundAmount)
+	if refunded <= 0 || original <= 0 {
+		return nil
+	}
+	_, err := s.affiliateService.ReverseForPaymentRefund(ctx, AffiliatePaymentReverseInput{
+		InviteeUserID:    p.Order.UserID,
+		OrderID:          p.Order.ID,
+		RefundedCredited: refunded,
+		OriginalCredited: original,
+		ReverseSeq:       AffiliateRefundReverseSeq(refunded),
+	})
+	return err
 }
 
 func (s *PaymentService) markRefundOk(ctx context.Context, p *RefundPlan) (*RefundResult, error) {

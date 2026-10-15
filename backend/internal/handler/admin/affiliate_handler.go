@@ -49,13 +49,22 @@ func (h *AffiliateHandler) ListUsers(c *gin.Context) {
 // UpdateUserSettings updates a user's affiliate settings.
 // PUT /api/v1/admin/affiliates/users/:user_id
 //
-// Both fields are optional and applied independently.
+// Every field is optional and applied independently. A clear flag wins over
+// the matching value when both are present.
 type UpdateAffiliateUserRequest struct {
 	AffCode              *string  `json:"aff_code"`
 	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent"`
 	// ClearRebateRate explicitly clears the per-user rate (sets it to NULL).
 	// Used to disambiguate from "field not provided".
-	ClearRebateRate bool `json:"clear_rebate_rate"`
+	ClearRebateRate        bool     `json:"clear_rebate_rate"`
+	AffInviteEnabled       *bool    `json:"aff_invite_enabled"`
+	AffRebatePerInviteeCap *float64 `json:"aff_rebate_per_invitee_cap"`
+	ClearPerInviteeCap     bool     `json:"clear_per_invitee_cap"`
+	AffRebateFreezeHours   *int     `json:"aff_rebate_freeze_hours"`
+	ClearFreezeHours       bool     `json:"clear_freeze_hours"`
+	AffRebateDurationDays  *int     `json:"aff_rebate_duration_days"`
+	ClearDurationDays      bool     `json:"clear_duration_days"`
+	IsMaster               *bool    `json:"is_master"`
 }
 
 func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
@@ -90,15 +99,58 @@ func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
 		}
 	}
 
+	if req.AffInviteEnabled != nil {
+		if err := h.affiliateService.AdminSetInviteEnabled(c.Request.Context(), userID, *req.AffInviteEnabled); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	if req.ClearPerInviteeCap {
+		if err := h.affiliateService.AdminSetPerInviteeCap(c.Request.Context(), userID, nil); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	} else if req.AffRebatePerInviteeCap != nil {
+		if err := h.affiliateService.AdminSetPerInviteeCap(c.Request.Context(), userID, req.AffRebatePerInviteeCap); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	if req.ClearFreezeHours {
+		if err := h.affiliateService.AdminSetFreezeHours(c.Request.Context(), userID, nil); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	} else if req.AffRebateFreezeHours != nil {
+		if err := h.affiliateService.AdminSetFreezeHours(c.Request.Context(), userID, req.AffRebateFreezeHours); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	if req.ClearDurationDays {
+		if err := h.affiliateService.AdminSetDurationDays(c.Request.Context(), userID, nil); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	} else if req.AffRebateDurationDays != nil {
+		if err := h.affiliateService.AdminSetDurationDays(c.Request.Context(), userID, req.AffRebateDurationDays); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	if req.IsMaster != nil {
+		if err := h.affiliateService.AdminSetMaster(c.Request.Context(), userID, *req.IsMaster); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+
 	response.Success(c, gin.H{"user_id": userID})
 }
 
-// ClearUserSettings removes ALL of a user's custom affiliate settings — clears
-// the exclusive rebate rate AND regenerates the invite code as a new system
-// random one. Conceptually this "removes the user from the custom list".
-//
-// Both writes happen in this handler; failure of one leaves the other applied,
-// but the operation is idempotent so the admin can re-run it safely.
+// ClearUserSettings removes ALL of a user's custom affiliate settings: invite
+// permission, rate, per-invitee cap, freeze, and duration, then regenerates
+// the invite code. Conceptually this removes the user from the custom list.
 // DELETE /api/v1/admin/affiliates/users/:user_id
 func (h *AffiliateHandler) ClearUserSettings(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
@@ -106,11 +158,7 @@ func (h *AffiliateHandler) ClearUserSettings(c *gin.Context) {
 		response.BadRequest(c, "Invalid user_id")
 		return
 	}
-	if err := h.affiliateService.AdminSetUserRebateRate(c.Request.Context(), userID, nil); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if _, err := h.affiliateService.AdminResetUserAffCode(c.Request.Context(), userID); err != nil {
+	if err := h.affiliateService.AdminClearUserCustomSettings(c.Request.Context(), userID); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -155,6 +203,60 @@ func (h *AffiliateHandler) BatchSetRate(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"affected": len(req.UserIDs)})
+}
+
+// BatchSetInvite grants or revokes invite permission for many users.
+// POST /api/v1/admin/affiliates/users/batch-invite
+type BatchSetInviteRequest struct {
+	UserIDs []int64 `json:"user_ids" binding:"required"`
+	Enabled bool    `json:"enabled"`
+}
+
+func (h *AffiliateHandler) BatchSetInvite(c *gin.Context) {
+	var req BatchSetInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(req.UserIDs) == 0 {
+		response.BadRequest(c, "user_ids cannot be empty")
+		return
+	}
+	if err := h.affiliateService.AdminBatchSetInviteEnabled(c.Request.Context(), req.UserIDs, req.Enabled); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"affected": len(req.UserIDs)})
+}
+
+// SettleUser records an offline payout against settleable affiliate quota.
+// POST /api/v1/admin/affiliates/users/:user_id/settle
+type SettleAffiliateUserRequest struct {
+	Amount float64 `json:"amount"`
+	Note   string  `json:"note"`
+}
+
+func (h *AffiliateHandler) SettleUser(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+	var req SettleAffiliateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.affiliateService.AdminSettle(c.Request.Context(), userID, req.Amount, req.Note); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	overview, err := h.affiliateService.AdminGetUserOverview(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, overview)
 }
 
 // AffiliateUserSummary is the minimal user shape returned by LookupUsers,

@@ -679,6 +679,7 @@ type adminServiceImpl struct {
 	userSubRepo          UserSubscriptionRepository
 	privacyClientFactory PrivacyClientFactory
 	qualityLiveCache     AccountQualityLiveCache
+	affiliateService     *AffiliateService
 }
 
 // NewAdminService creates a new AdminService
@@ -722,6 +723,16 @@ func NewAdminService(
 		userSubRepo:          userSubRepo,
 		privacyClientFactory: privacyClientFactory,
 	}
+}
+
+// AttachAffiliateService wires invite rebate into admin balance changes.
+// A nil affiliate service keeps the historical best-effort adjustment record.
+func AttachAffiliateService(admin AdminService, affiliateService *AffiliateService) {
+	impl, ok := admin.(*adminServiceImpl)
+	if !ok || impl == nil {
+		return
+	}
+	impl.affiliateService = affiliateService
 }
 
 // SetQualityLiveCache attaches the Redis live 15-minute window used to stamp
@@ -1244,6 +1255,13 @@ func (s *adminServiceImpl) deleteUserWithAPIKeys(ctx context.Context, userID int
 }
 
 func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error) {
+	if s.affiliateService != nil && s.entClient != nil {
+		return s.updateUserBalanceWithAffiliate(ctx, userID, balance, operation, notes)
+	}
+	return s.updateUserBalanceDirect(ctx, userID, balance, operation, notes)
+}
+
+func (s *adminServiceImpl) updateUserBalanceDirect(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -1305,6 +1323,100 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 		}
 	}
 
+	return user, nil
+}
+
+func (s *adminServiceImpl) updateUserBalanceWithAffiliate(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error) {
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin balance adjustment: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	rows, err := tx.Client().QueryContext(txCtx, `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !rows.Next() {
+		closeErr := rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return nil, ErrUserNotFound
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	user, err := s.userRepo.GetByID(txCtx, userID)
+	if err != nil {
+		return nil, err
+	}
+	oldBalance := user.Balance
+	switch operation {
+	case "set":
+		user.Balance = balance
+	case "add":
+		user.Balance += balance
+	case "subtract":
+		user.Balance -= balance
+	}
+	if user.Balance < 0 {
+		return nil, fmt.Errorf("balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f", oldBalance, user.Balance)
+	}
+	if err := s.userRepo.Update(txCtx, user); err != nil {
+		return nil, err
+	}
+	balanceDiff := user.Balance - oldBalance
+	if balanceDiff != 0 {
+		code, err := GenerateRedeemCode()
+		if err != nil {
+			return nil, fmt.Errorf("generate adjustment redeem code: %w", err)
+		}
+		now := time.Now()
+		adjustmentRecord := &RedeemCode{
+			Code:   code,
+			Type:   AdjustmentTypeAdminBalance,
+			Value:  balanceDiff,
+			Status: StatusUsed,
+			UsedBy: &user.ID,
+			UsedAt: &now,
+			Notes:  notes,
+		}
+		if err := s.redeemCodeRepo.Create(txCtx, adjustmentRecord); err != nil {
+			return nil, fmt.Errorf("create balance adjustment redeem code: %w", err)
+		}
+		if balanceDiff > 0 {
+			if _, err := s.affiliateService.AccrueForCredit(txCtx, userID, balanceDiff, AffiliateSourceAdminBalance, adjustmentRecord.ID); err != nil {
+				return nil, err
+			}
+		} else if _, err := s.affiliateService.ReverseForAdminDebit(txCtx, AffiliateAdminDebitInput{
+			InviteeUserID: userID,
+			Debit:         -balanceDiff,
+			ReverseSeq:    adjustmentRecord.ID,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit balance adjustment: %w", err)
+	}
+	if s.authCacheInvalidator != nil && balanceDiff != 0 {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	if s.billingCacheService != nil {
+		go func() {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.billingCacheService.InvalidateUserBalance(cacheCtx, userID); err != nil {
+				logger.LegacyPrintf("service.admin", "invalidate user balance cache failed: user_id=%d err=%v", userID, err)
+			}
+		}()
+	}
 	return user, nil
 }
 

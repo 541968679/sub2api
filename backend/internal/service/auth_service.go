@@ -598,7 +598,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 // 与 LoginOrRegisterOAuth 功能相同，但返回 TokenPair 而非单个 token。
 // invitationCode 仅在邀请码注册模式下新用户注册时使用；已有账号登录时忽略。
 // affiliateCode 用于邀请返利绑定，仅在新用户注册时使用。
-func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode string) (*TokenPair, *User, error) {
+func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode, salesCode string) (*TokenPair, *User, error) {
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
 		return nil, nil, errors.New("refresh token cache not configured")
@@ -623,6 +623,9 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 			// OAuth 首次登录视为注册
 			if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 				return nil, nil, ErrRegDisabled
+			}
+			if err := RejectMixedAffiliateCodes(affiliateCode, salesCode); err != nil {
+				return nil, nil, err
 			}
 
 			// 检查是否需要邀请码
@@ -703,7 +706,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 					// snapshot user × platform quota（fail-open）
 					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
-					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode)
+					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode, salesCode)
 				}
 			} else {
 				if err := s.userRepo.Create(ctx, newUser); err != nil {
@@ -723,7 +726,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 					// snapshot user × platform quota（fail-open）
 					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
-					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode)
+					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode, salesCode)
 					if invitationRedeemCode != nil {
 						if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
 							return nil, nil, ErrInvitationCodeInvalid
@@ -844,12 +847,18 @@ func authSourceSignupSettings(defaults *AuthSourceDefaultSettings, signupSource 
 
 // bindOAuthAffiliate initializes the affiliate profile and binds the inviter
 // for an OAuth-registered user. Failures are logged but never block registration.
-func (s *AuthService) bindOAuthAffiliate(ctx context.Context, userID int64, affiliateCode string) {
+func (s *AuthService) bindOAuthAffiliate(ctx context.Context, userID int64, affiliateCode, salesCode string) {
 	if s.affiliateService == nil || userID <= 0 {
 		return
 	}
 	if _, err := s.affiliateService.EnsureUserAffiliate(ctx, userID); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to initialize affiliate profile for user %d: %v", userID, err)
+	}
+	if code := strings.TrimSpace(salesCode); code != "" {
+		if err := s.affiliateService.BindSalesParentByCode(ctx, userID, code); err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to bind sales parent for user %d: %v", userID, err)
+		}
+		return
 	}
 	if code := strings.TrimSpace(affiliateCode); code != "" {
 		if err := s.affiliateService.BindInviterByCode(ctx, userID, code); err != nil {

@@ -225,6 +225,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:                             settings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:                            settings.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:                           settings.AffiliateRebatePerInviteeCap,
+		AffiliateMasterCutMaxPercent:                           settings.AffiliateMasterCutMaxPercent,
 		DefaultUserRPMLimit:                                    settings.DefaultUserRPMLimit,
 		DefaultSubscriptions:                                   defaultSubscriptions,
 		DefaultPlatformQuotas:                                  settings.DefaultPlatformQuotas,
@@ -530,6 +531,7 @@ type UpdateSettingsRequest struct {
 	AffiliateRebateFreezeHours               *int                                             `json:"affiliate_rebate_freeze_hours"`
 	AffiliateRebateDurationDays              *int                                             `json:"affiliate_rebate_duration_days"`
 	AffiliateRebatePerInviteeCap             *float64                                         `json:"affiliate_rebate_per_invitee_cap"`
+	AffiliateMasterCutMaxPercent             *float64                                         `json:"affiliate_master_cut_max_percent"`
 	DefaultUserRPMLimit                      int                                              `json:"default_user_rpm_limit"`
 	DefaultSubscriptions                     []dto.DefaultSubscriptionSetting                 `json:"default_subscriptions"`
 	DefaultPlatformQuotas                    *map[string]*service.DefaultPlatformQuotaSetting `json:"default_platform_quotas"`
@@ -780,6 +782,13 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if affiliateRebatePerInviteeCap < 0 {
 		affiliateRebatePerInviteeCap = service.AffiliateRebatePerInviteeCapDefault
+	}
+	affiliateMasterCutMaxPercent := previousSettings.AffiliateMasterCutMaxPercent
+	if req.AffiliateMasterCutMaxPercent != nil {
+		affiliateMasterCutMaxPercent = service.ClampAffiliateMasterCutMax(*req.AffiliateMasterCutMaxPercent)
+	}
+	if affiliateMasterCutMaxPercent < 0 {
+		affiliateMasterCutMaxPercent = service.AffiliateMasterCutMaxDefault
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -1468,6 +1477,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:       affiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:      affiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:     affiliateRebatePerInviteeCap,
+		AffiliateMasterCutMaxPercent:     affiliateMasterCutMaxPercent,
 		DefaultUserRPMLimit:              req.DefaultUserRPMLimit,
 		DefaultSubscriptions:             defaultSubscriptions,
 		DefaultPlatformQuotas:            platformQuotaMapValueOrDefault(req.DefaultPlatformQuotas, previousSettings.DefaultPlatformQuotas),
@@ -1977,6 +1987,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebateFreezeHours:                             updatedSettings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:                            updatedSettings.AffiliateRebateDurationDays,
 		AffiliateRebatePerInviteeCap:                           updatedSettings.AffiliateRebatePerInviteeCap,
+		AffiliateMasterCutMaxPercent:                           updatedSettings.AffiliateMasterCutMaxPercent,
 		DefaultUserRPMLimit:                                    updatedSettings.DefaultUserRPMLimit,
 		DefaultSubscriptions:                                   updatedDefaultSubscriptions,
 		EnableModelFallback:                                    updatedSettings.EnableModelFallback,
@@ -2375,6 +2386,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.AffiliateRebatePerInviteeCap != after.AffiliateRebatePerInviteeCap {
 		changed = append(changed, "affiliate_rebate_per_invitee_cap")
+	}
+	if before.AffiliateMasterCutMaxPercent != after.AffiliateMasterCutMaxPercent {
+		changed = append(changed, "affiliate_master_cut_max_percent")
 	}
 	if !equalDefaultSubscriptions(before.DefaultSubscriptions, after.DefaultSubscriptions) {
 		changed = append(changed, "default_subscriptions")

@@ -102,6 +102,8 @@ type userProfileResponse struct {
 	LinuxDoBound      bool                                   `json:"linuxdo_bound"`
 	OIDCBound         bool                                   `json:"oidc_bound"`
 	WeChatBound       bool                                   `json:"wechat_bound"`
+	AffInviteEnabled  bool                                   `json:"aff_invite_enabled"`
+	IsMaster          bool                                   `json:"is_master"`
 }
 
 type userProfileSourceContext struct {
@@ -206,6 +208,35 @@ func (h *UserHandler) GetAffiliate(c *gin.Context) {
 		return
 	}
 
+	detail, err := h.affiliateService.GetAffiliateDetail(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+type setAffiliateMasterCutRequest struct {
+	Percent float64 `json:"percent"`
+}
+
+// SetAffiliateMasterCut stores the logged-in master's cut for future accruals.
+// PUT /api/v1/user/aff/master-cut
+func (h *UserHandler) SetAffiliateMasterCut(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req setAffiliateMasterCutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.affiliateService.SetOwnMasterCut(c.Request.Context(), subject.UserID, req.Percent); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	detail, err := h.affiliateService.GetAffiliateDetail(c.Request.Context(), subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -538,7 +569,12 @@ func (h *UserHandler) buildUserProfileResponse(ctx context.Context, userID int64
 	if err != nil {
 		return userProfileResponse{}, err
 	}
-	return userProfileResponseFromService(user, identities), nil
+	profile := userProfileResponseFromService(user, identities)
+	if h.affiliateService != nil {
+		profile.AffInviteEnabled = h.affiliateService.InviteEnabled(ctx, userID)
+		profile.IsMaster = h.affiliateService.IsMaster(ctx, userID)
+	}
+	return profile, nil
 }
 
 func userProfileResponseFromService(user *service.User, identities service.UserIdentitySummarySet) userProfileResponse {

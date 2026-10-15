@@ -123,6 +123,7 @@ type SystemSettings struct {
 	AffiliateRebateFreezeHours   int
 	AffiliateRebateDurationDays  int
 	AffiliateRebatePerInviteeCap float64
+	AffiliateMasterCutMaxPercent float64
 	DefaultUserRPMLimit          int
 	DefaultSubscriptions         []DefaultSubscriptionSetting
 
@@ -320,8 +321,8 @@ type PublicSettings struct {
 	PluginManagementEnabled              bool   `json:"plugin_management_enabled"`
 
 	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
-	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	AvailableChannelsEnabled   bool   `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests bool   `json:"allow_user_view_error_requests"`
 	ModelPlazaEnabled          bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth      bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription      string `json:"model_plaza_description"`

@@ -14,7 +14,15 @@ export interface AffiliateAdminEntry {
   aff_code: string
   aff_code_custom: boolean
   aff_rebate_rate_percent?: number | null
+  aff_invite_enabled?: boolean
+  aff_rebate_per_invitee_cap?: number | null
+  aff_rebate_freeze_hours?: number | null
+  aff_rebate_duration_days?: number | null
   aff_count: number
+  is_master?: boolean
+  sales_code?: string
+  master_cut_percent?: number | null
+  sales_parent_id?: number | null
 }
 
 export interface ListAffiliateUsersParams {
@@ -61,6 +69,7 @@ export interface AffiliateRebateRecord {
   payment_type: string
   order_status: string
   created_at: string
+  accrual_role?: string
 }
 
 export interface AffiliateTransferRecord {
@@ -75,6 +84,9 @@ export interface AffiliateTransferRecord {
   history_quota_after?: number | null
   snapshot_available: boolean
   created_at: string
+  action?: string
+  note?: string
+  accrual_role?: string
 }
 
 export interface AffiliateUserOverview {
@@ -86,6 +98,9 @@ export interface AffiliateUserOverview {
   invited_count: number
   rebated_invitee_count: number
   available_quota: number
+  frozen_quota?: number
+  debt?: number
+  invite_enabled?: boolean
   history_quota: number
 }
 
@@ -94,6 +109,14 @@ export interface UpdateAffiliateUserRequest {
   aff_rebate_rate_percent?: number | null
   /** Set true to explicitly clear the per-user rate (sets it to NULL). */
   clear_rebate_rate?: boolean
+  aff_invite_enabled?: boolean
+  aff_rebate_per_invitee_cap?: number | null
+  clear_per_invitee_cap?: boolean
+  aff_rebate_freeze_hours?: number | null
+  clear_freeze_hours?: boolean
+  aff_rebate_duration_days?: number | null
+  clear_duration_days?: boolean
+  is_master?: boolean
 }
 
 export interface BatchSetRateRequest {
@@ -149,6 +172,32 @@ export async function clearUserSettings(
 ): Promise<{ user_id: number }> {
   const { data } = await apiClient.delete<{ user_id: number }>(
     `/admin/affiliates/users/${userId}`,
+  )
+  return data
+}
+
+export interface BatchSetInviteRequest {
+  user_ids: number[]
+  enabled: boolean
+}
+
+export async function batchSetInvite(
+  payload: BatchSetInviteRequest,
+): Promise<{ affected: number }> {
+  const { data } = await apiClient.post<{ affected: number }>(
+    '/admin/affiliates/users/batch-invite',
+    payload,
+  )
+  return data
+}
+
+export async function settleUser(
+  userId: number,
+  payload: { amount: number; note: string },
+): Promise<AffiliateUserOverview> {
+  const { data } = await apiClient.post<AffiliateUserOverview>(
+    `/admin/affiliates/users/${userId}/settle`,
+    payload,
   )
   return data
 }
@@ -221,6 +270,8 @@ export const affiliatesAPI = {
   updateUserSettings,
   clearUserSettings,
   batchSetRate,
+  batchSetInvite,
+  settleUser,
   listInviteRecords,
   listRebateRecords,
   listTransferRecords,

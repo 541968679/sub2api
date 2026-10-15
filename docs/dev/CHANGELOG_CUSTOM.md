@@ -24,6 +24,37 @@ InferHub does not serve OpenAI `/v1/dashboard/billing/*` or Sub2API `/v1/usage`.
 ### Affected files
 `backend/internal/service/upstream_balance_probe.go`, `backend/internal/service/upstream_balance_probe_test.go`.
 
+## 2026-10-15 - affiliate: master cut is a split of the salesperson rebate
+
+### What
+- An administrator can mark a user as a master (`is_master`). That user gets a sales recruit code. Registration with `?sales=` sets `sales_parent_id` and does not set `inviter_id`. `?aff=` and `?sales=` together are rejected before the user is created.
+- Depth stays at master, salesperson, customer. A user who already has a sales parent cannot become a master. A salesperson cannot recruit another salesperson.
+- The master's cut is a share of the direct inviter's rebate R, not an extra payout. The master share is rounded first. The salesperson receives the rest. Refunds and admin balance decreases reverse the original two amounts. The per-invitee cap applies to gross R before the split.
+- The master sets one cut for every subordinate, from 0 through the admin ceiling (`affiliate_master_cut_max_percent`, default 50, absolute clamp 80). Later accruals use the smaller of the stored cut and the current ceiling. Turning master off stops new cuts. The sales code and existing salesperson bindings stay. Accrued quota stays settleable offline.
+- The master page shows the sales link, the cut control, and subordinate totals. It does not list a subordinate's customers. Admin rebate and settlement rows show `direct` or `master_cut`.
+
+### Why
+Sales recruiting needed a second relationship that cannot cycle, and the platform payout for one recharge has to stay equal to the direct inviter's rebate.
+
+### Affected files
+`backend/migrations/256_affiliate_master_agent.sql`, `backend/internal/service/affiliate_policy.go`, `backend/internal/service/affiliate_ledger_service.go`, `backend/internal/service/affiliate_service.go`, `backend/internal/repository/affiliate_ledger_repo.go`, `backend/internal/repository/affiliate_repo.go`, `backend/internal/handler/auth_handler.go`, `backend/internal/handler/auth_oauth_pending_flow.go`, `backend/internal/handler/user_handler.go`, `backend/internal/handler/admin/affiliate_handler.go`, `backend/internal/service/setting_service.go`, `frontend/src/views/user/AffiliateView.vue`, `frontend/src/views/auth/RegisterView.vue`, `frontend/src/utils/oauthAffiliate.ts`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/views/admin/affiliates/AdminAffiliateRecordsTable.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/affiliate.md`.
+
+## 2026-10-14 - affiliate: admin-gated rebate stays off spendable balance
+
+### What
+- Invite permission defaults off for every user, including people who already had an invite code. `user_affiliates.aff_invite_enabled` is false until an administrator turns it on.
+- Rebate accrues only when balance is actually credited: online balance orders use `CreditAmount`, balance redeem codes use face value, and admin balance increases use the positive delta. Usage logs, display tokens, and `actual_cost` are not inputs.
+- The accrual, and the matching reversal, run in the same transaction as the balance change. Turning permission off stops new rebate for already-bound invitees. Quota already recorded stays.
+- Rebate remains on the affiliate ledger. `POST /api/v1/user/aff/transfer` returns `AFFILIATE_TRANSFER_DISABLED` and does not credit `users.balance`. Historical transfers are left as they are.
+- Admin refunds and user-initiated payment refunds reverse the original rebate on that ledger. An admin balance decrease reverses oldest-first, capped at the net rebate for that invitee. An admin records an offline settlement, which reduces settleable quota and requires a note.
+- The user invite page and sidebar item require both the global switch and `aff_invite_enabled` from `GET /api/v1/auth/me`. The admin custom-user table can set permission, per-invitee cap, freeze hours, and duration. Empty overrides inherit the global value. Explicit 0 is kept. The old transfer list also shows settlement and reversal rows.
+
+### Why
+Invite rebate was available to every user and could be moved into spendable balance. This keeps it as an admin-gated payable ledger.
+
+### Affected files
+`backend/migrations/255_affiliate_invite_permission.sql`, `backend/internal/service/affiliate_policy.go`, `backend/internal/service/affiliate_ledger_service.go`, `backend/internal/service/affiliate_service.go`, `backend/internal/repository/affiliate_ledger_repo.go`, `backend/internal/repository/affiliate_repo.go`, `backend/internal/service/payment_fulfillment.go`, `backend/internal/service/redeem_service.go`, `backend/internal/service/payment_refund.go`, `backend/internal/service/admin_service.go`, `backend/internal/handler/admin/affiliate_handler.go`, `backend/internal/handler/auth_handler.go`, `backend/internal/handler/user_handler.go`, `backend/cmd/server/wire_gen.go`, `frontend/src/views/user/AffiliateView.vue`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/views/admin/affiliates/AdminAffiliateRecordsTable.vue`, `frontend/src/api/admin/affiliates.ts`, `frontend/src/components/layout/AppSidebar.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/affiliate.md`.
+
 ## 2026-10-14 - ops: record production deploy of v0.1.322
 
 ### What

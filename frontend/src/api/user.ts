@@ -186,6 +186,11 @@ export async function transferAffiliateQuota(): Promise<AffiliateTransferRespons
   return data
 }
 
+export async function setAffiliateMasterCut(percent: number): Promise<UserAffiliateDetail> {
+  const { data } = await apiClient.put<UserAffiliateDetail>('/user/aff/master-cut', { percent })
+  return data
+}
+
 /**
  * 获取当前用户的平台限额 + 用量。
  */
@@ -209,6 +214,7 @@ export const userAPI = {
   startOAuthBinding,
   getAffiliateDetail,
   transferAffiliateQuota,
+  setAffiliateMasterCut,
   getMyPlatformQuotas,
 }
 

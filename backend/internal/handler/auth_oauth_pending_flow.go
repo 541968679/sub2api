@@ -69,6 +69,7 @@ type createPendingOAuthAccountRequest struct {
 	Password         string `json:"password" binding:"required,min=6"`
 	InvitationCode   string `json:"invitation_code,omitempty"`
 	AffCode          string `json:"aff_code,omitempty"`
+	SalesCode        string `json:"sales_code,omitempty"`
 	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
 	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
@@ -1684,6 +1685,11 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		return
 	}
 
+	if err := service.RejectMixedAffiliateCodes(req.AffCode, req.SalesCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
 	tokenPair, user, err := h.authService.RegisterOAuthEmailAccount(
 		c.Request.Context(),
 		email,
@@ -1765,6 +1771,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		strings.TrimSpace(req.InvitationCode),
 		strings.TrimSpace(session.ProviderType),
 		strings.TrimSpace(req.AffCode),
+		strings.TrimSpace(req.SalesCode),
 	); err != nil {
 		_ = tx.Rollback()
 		if rollbackCreatedUser(err) {

@@ -118,6 +118,7 @@ type SystemSettings struct {
 	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
 	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
 	AffiliateRebatePerInviteeCap float64                      `json:"affiliate_rebate_per_invitee_cap"`
+	AffiliateMasterCutMaxPercent float64                      `json:"affiliate_master_cut_max_percent"`
 	DefaultUserRPMLimit          int                          `json:"default_user_rpm_limit"`
 	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
 
@@ -257,8 +258,8 @@ type SystemSettings struct {
 	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 
 	// Available Channels feature switch (user-facing aggregate view)
-	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
-	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	AvailableChannelsEnabled   bool   `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests bool   `json:"allow_user_view_error_requests"`
 	ModelPlazaEnabled          bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth      bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription      string `json:"model_plaza_description"`
@@ -357,8 +358,8 @@ type PublicSettings struct {
 	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 
-	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
-	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	AvailableChannelsEnabled   bool   `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests bool   `json:"allow_user_view_error_requests"`
 	ModelPlazaEnabled          bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth      bool   `json:"model_plaza_require_auth"`
 	ModelPlazaDescription      string `json:"model_plaza_description"`

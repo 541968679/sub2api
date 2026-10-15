@@ -32,7 +32,9 @@ SELECT ua.user_id,
        ua.aff_count,
        COALESCE(rebated.rebated_invitee_count, 0),
        (ua.aff_quota + COALESCE(matured.matured_frozen_quota, 0))::double precision,
-       ua.aff_history_quota::double precision
+       ua.aff_history_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_invite_enabled
 FROM user_affiliates ua
 JOIN users u ON u.id = ua.user_id
 LEFT JOIN (
@@ -112,6 +114,227 @@ func (r *affiliateRepository) BindInviter(ctx context.Context, userID, inviterID
 		return false, err
 	}
 	return bound, nil
+}
+
+func (r *affiliateRepository) GetAffiliateBySalesCode(ctx context.Context, code string) (*service.AffiliateSummary, error) {
+	client := clientFromContext(ctx, r.client)
+	return queryAffiliateBySalesCode(ctx, client, code)
+}
+
+func (r *affiliateRepository) BindSalesParent(ctx context.Context, userID, masterID int64) error {
+	if userID <= 0 || masterID <= 0 || userID == masterID {
+		return service.ErrAffiliateCodeInvalid
+	}
+	return r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, userID); err != nil {
+			return err
+		}
+		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, masterID); err != nil {
+			return err
+		}
+		locked, err := lockAffiliatePayees(txCtx, txClient, userID, masterID)
+		if err != nil {
+			return err
+		}
+		userRow, userOK := locked[userID]
+		masterRow, masterOK := locked[masterID]
+		if !userOK || !masterOK || !masterRow.IsMaster {
+			return service.ErrAffiliateCodeInvalid
+		}
+		if userRow.IsMaster {
+			return service.ErrAffiliateMasterHasParent
+		}
+		if userRow.SalesParentID != nil {
+			return service.ErrAffiliateAlreadyBound
+		}
+		if pointsAt(userRow.InviterID, masterID) || pointsAt(masterRow.InviterID, userID) {
+			return service.ErrAffiliateCodeInvalid
+		}
+		res, err := txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET sales_parent_id = $1,
+    aff_invite_enabled = true,
+    updated_at = NOW()
+WHERE user_id = $2
+  AND sales_parent_id IS NULL
+  AND is_master = false`, masterID, userID)
+		if err != nil {
+			return fmt.Errorf("bind sales parent: %w", err)
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			return service.ErrAffiliateAlreadyBound
+		}
+		return nil
+	})
+}
+
+func pointsAt(id *int64, target int64) bool {
+	return id != nil && *id == target
+}
+
+func (r *affiliateRepository) SetMaster(ctx context.Context, userID int64, enabled bool) error {
+	if userID <= 0 {
+		return service.ErrUserNotFound
+	}
+	return r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, userID); err != nil {
+			return err
+		}
+		row, err := lockAffiliateRow(txCtx, txClient, userID)
+		if err != nil {
+			return err
+		}
+		if !enabled {
+			_, err := txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET is_master = false, updated_at = NOW()
+WHERE user_id = $1`, userID)
+			if err != nil {
+				return fmt.Errorf("disable master: %w", err)
+			}
+			return nil
+		}
+		if row.SalesParentID != nil {
+			return service.ErrAffiliateMasterHasParent
+		}
+		code := strings.TrimSpace(row.SalesCode)
+		if code == "" {
+			generated, err := generateUniqueSalesCode(txCtx, txClient)
+			if err != nil {
+				return err
+			}
+			code = generated
+		}
+		_, err = txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET is_master = true,
+    sales_code = $1,
+    aff_invite_enabled = true,
+    updated_at = NOW()
+WHERE user_id = $2`, code, userID)
+		if err != nil {
+			if isAffiliateUniqueViolation(err) {
+				return service.ErrAffiliateCodeTaken
+			}
+			return fmt.Errorf("enable master: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *affiliateRepository) SetMasterCut(ctx context.Context, userID int64, percent float64) error {
+	if userID <= 0 {
+		return service.ErrUserNotFound
+	}
+	return r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, userID); err != nil {
+			return err
+		}
+		row, err := lockAffiliateRow(txCtx, txClient, userID)
+		if err != nil {
+			return err
+		}
+		if !row.IsMaster {
+			return service.ErrAffiliateNotMaster
+		}
+		_, err = txClient.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET master_cut_percent = $1, updated_at = NOW()
+WHERE user_id = $2`, percent, userID)
+		if err != nil {
+			return fmt.Errorf("set master cut: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *affiliateRepository) ListMasterSubordinates(ctx context.Context, masterID int64, limit int) ([]service.AffiliateSubordinate, error) {
+	if masterID <= 0 {
+		return nil, nil
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+SELECT ua.user_id,
+       COALESCE(u.email, ''),
+       COALESCE(u.username, ''),
+       COALESCE(gen.generated, 0)::double precision,
+       COALESCE(cut.taken, 0)::double precision
+FROM user_affiliates ua
+JOIN users u ON u.id = ua.user_id
+LEFT JOIN (
+    SELECT direct_inviter_id AS salesperson_id,
+           SUM(CASE WHEN action = 'accrue' THEN amount WHEN action = 'reverse' THEN -amount ELSE 0 END) AS generated
+    FROM user_affiliate_ledger
+    WHERE action IN ('accrue', 'reverse') AND direct_inviter_id IS NOT NULL
+    GROUP BY direct_inviter_id
+) gen ON gen.salesperson_id = ua.user_id
+LEFT JOIN (
+    SELECT direct_inviter_id AS salesperson_id,
+           SUM(CASE WHEN action = 'accrue' THEN amount WHEN action = 'reverse' THEN -amount ELSE 0 END) AS taken
+    FROM user_affiliate_ledger
+    WHERE user_id = $1
+      AND accrual_role = 'master_cut'
+      AND action IN ('accrue', 'reverse')
+      AND direct_inviter_id IS NOT NULL
+    GROUP BY direct_inviter_id
+) cut ON cut.salesperson_id = ua.user_id
+WHERE ua.sales_parent_id = $1
+ORDER BY ua.created_at DESC
+LIMIT $2`, masterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list master subordinates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]service.AffiliateSubordinate, 0)
+	for rows.Next() {
+		var item service.AffiliateSubordinate
+		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &item.RebateGenerated, &item.CutTaken); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func generateUniqueSalesCode(ctx context.Context, client affiliateQueryExecer) (string, error) {
+	for i := 0; i < affiliateCodeMaxAttempts; i++ {
+		code, err := generateSalesCode()
+		if err != nil {
+			return "", err
+		}
+		rows, err := client.QueryContext(ctx, `
+SELECT 1 FROM user_affiliates WHERE sales_code = $1 OR aff_code = $1 LIMIT 1`, code)
+		if err != nil {
+			return "", err
+		}
+		taken := rows.Next()
+		closeErr := rows.Close()
+		if closeErr != nil {
+			return "", closeErr
+		}
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+		if !taken {
+			return code, nil
+		}
+	}
+	return "", fmt.Errorf("generate sales code: exhausted attempts")
+}
+
+func generateSalesCode() (string, error) {
+	body, err := generateAffiliateCode()
+	if err != nil {
+		return "", err
+	}
+	if body == "" {
+		return "", fmt.Errorf("generate sales code: empty")
+	}
+	return "S" + body[1:], nil
 }
 
 func (r *affiliateRepository) AccrueQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceOrderID *int64) (bool, error) {
@@ -199,9 +422,28 @@ WITH matured AS (
     WHERE user_id = $1
       AND frozen_until IS NOT NULL
       AND frozen_until <= NOW()
-    RETURNING amount
+    RETURNING user_id, amount, source_kind, source_id, source_order_id, accrual_role
 )
-SELECT COALESCE(SUM(amount), 0) FROM matured`, userID)
+SELECT COALESCE(SUM(GREATEST(
+    m.amount - COALESCE((
+        SELECT SUM(r.amount)
+        FROM user_affiliate_ledger r
+        WHERE r.user_id = m.user_id
+          AND r.action = 'reverse'
+          AND (
+            (m.accrual_role IS NULL AND (r.accrual_role IS NULL OR r.accrual_role = 'direct'))
+            OR (m.accrual_role IS NOT NULL AND r.accrual_role = m.accrual_role)
+          )
+          AND (
+            (m.source_kind IS NOT NULL AND m.source_id IS NOT NULL
+              AND r.source_kind = m.source_kind AND r.source_id = m.source_id)
+            OR (m.source_kind IS NULL AND m.source_order_id IS NOT NULL
+              AND r.source_kind = 'payment_order' AND r.source_id = m.source_order_id)
+          )
+    ), 0),
+    0
+)), 0)
+FROM matured m`, userID)
 	if err != nil {
 		return 0, fmt.Errorf("thaw frozen quota: %w", err)
 	}
@@ -508,7 +750,8 @@ SELECT po.id,
        ual.amount::double precision,
        po.payment_type,
        po.status,
-       ual.created_at
+       ual.created_at,
+       COALESCE(ual.accrual_role, '')
 `+baseJoin+where+`
 `+orderBy+`
 LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
@@ -535,6 +778,7 @@ LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 			&item.PaymentType,
 			&item.OrderStatus,
 			&item.CreatedAt,
+			&item.AccrualRole,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -554,7 +798,7 @@ func (r *affiliateRepository) ListAffiliateTransferRecords(ctx context.Context, 
 	baseJoin := `
 FROM user_affiliate_ledger ual
 JOIN users u ON u.id = ual.user_id
-WHERE ual.action = 'transfer'`
+WHERE ual.action IN ('transfer', 'settle', 'reverse')`
 	if where != "" {
 		where = strings.Replace(where, "WHERE ", " AND ", 1)
 	}
@@ -584,7 +828,10 @@ SELECT ual.id,
        ual.aff_quota_after::double precision,
        ual.aff_frozen_quota_after::double precision,
        ual.aff_history_quota_after::double precision,
-       ual.created_at
+       ual.created_at,
+       ual.action,
+       COALESCE(ual.note, ''),
+       COALESCE(ual.accrual_role, '')
 `+baseJoin+where+`
 `+orderBy+`
 LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
@@ -611,6 +858,9 @@ LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 			&frozenQuotaAfter,
 			&historyQuotaAfter,
 			&item.CreatedAt,
+			&item.Action,
+			&item.Note,
+			&item.AccrualRole,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -662,6 +912,8 @@ func (r *affiliateRepository) GetAffiliateUserOverview(ctx context.Context, user
 		&overview.RebatedInviteeCount,
 		&overview.AvailableQuota,
 		&overview.HistoryQuota,
+		&overview.FrozenQuota,
+		&overview.InviteEnabled,
 	); err != nil {
 		return nil, err
 	}
@@ -790,7 +1042,15 @@ SELECT user_id,
        aff_frozen_quota::double precision,
        aff_history_quota::double precision,
        created_at,
-       updated_at
+       updated_at,
+       aff_invite_enabled,
+       aff_rebate_per_invitee_cap,
+       aff_rebate_freeze_hours,
+       aff_rebate_duration_days,
+       sales_parent_id,
+       COALESCE(sales_code, ''),
+       is_master,
+       master_cut_percent
 FROM user_affiliates
 WHERE user_id = $1`, userID)
 	if err != nil {
@@ -804,32 +1064,11 @@ WHERE user_id = $1`, userID)
 		return nil, service.ErrAffiliateProfileNotFound
 	}
 
-	var out service.AffiliateSummary
-	var inviterID sql.NullInt64
-	var rebateRate sql.NullFloat64
-	if err := rows.Scan(
-		&out.UserID,
-		&out.AffCode,
-		&out.AffCodeCustom,
-		&rebateRate,
-		&inviterID,
-		&out.AffCount,
-		&out.AffQuota,
-		&out.AffFrozenQuota,
-		&out.AffHistoryQuota,
-		&out.CreatedAt,
-		&out.UpdatedAt,
-	); err != nil {
+	out, err := scanAffiliateSummary(rows)
+	if err != nil {
 		return nil, err
 	}
-	if inviterID.Valid {
-		out.InviterID = &inviterID.Int64
-	}
-	if rebateRate.Valid {
-		v := rebateRate.Float64
-		out.AffRebateRatePercent = &v
-	}
-	return &out, nil
+	return out, nil
 }
 
 func queryAffiliateByCode(ctx context.Context, client affiliateQueryExecer, code string) (*service.AffiliateSummary, error) {
@@ -844,7 +1083,15 @@ SELECT user_id,
        aff_frozen_quota::double precision,
        aff_history_quota::double precision,
        created_at,
-       updated_at
+       updated_at,
+       aff_invite_enabled,
+       aff_rebate_per_invitee_cap,
+       aff_rebate_freeze_hours,
+       aff_rebate_duration_days,
+       sales_parent_id,
+       COALESCE(sales_code, ''),
+       is_master,
+       master_cut_percent
 FROM user_affiliates
 WHERE aff_code = $1
 LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
@@ -860,9 +1107,63 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 		return nil, service.ErrAffiliateProfileNotFound
 	}
 
+	out, err := scanAffiliateSummary(rows)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func queryAffiliateBySalesCode(ctx context.Context, client affiliateQueryExecer, code string) (*service.AffiliateSummary, error) {
+	rows, err := client.QueryContext(ctx, `
+SELECT user_id,
+       aff_code,
+       aff_code_custom,
+       aff_rebate_rate_percent,
+       inviter_id,
+       aff_count,
+       aff_quota::double precision,
+       aff_frozen_quota::double precision,
+       aff_history_quota::double precision,
+       created_at,
+       updated_at,
+       aff_invite_enabled,
+       aff_rebate_per_invitee_cap,
+       aff_rebate_freeze_hours,
+       aff_rebate_duration_days,
+       sales_parent_id,
+       COALESCE(sales_code, ''),
+       is_master,
+       master_cut_percent
+FROM user_affiliates
+WHERE sales_code = $1
+LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, service.ErrAffiliateProfileNotFound
+	}
+	out, err := scanAffiliateSummary(rows)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func scanAffiliateSummary(rows *sql.Rows) (*service.AffiliateSummary, error) {
 	var out service.AffiliateSummary
 	var inviterID sql.NullInt64
+	var salesParentID sql.NullInt64
 	var rebateRate sql.NullFloat64
+	var cap sql.NullFloat64
+	var masterCut sql.NullFloat64
+	var freeze sql.NullInt64
+	var duration sql.NullInt64
 	if err := rows.Scan(
 		&out.UserID,
 		&out.AffCode,
@@ -875,16 +1176,31 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 		&out.AffHistoryQuota,
 		&out.CreatedAt,
 		&out.UpdatedAt,
+		&out.AffInviteEnabled,
+		&cap,
+		&freeze,
+		&duration,
+		&salesParentID,
+		&out.SalesCode,
+		&out.IsMaster,
+		&masterCut,
 	); err != nil {
 		return nil, err
 	}
 	if inviterID.Valid {
 		out.InviterID = &inviterID.Int64
 	}
+	if salesParentID.Valid && salesParentID.Int64 > 0 {
+		out.SalesParentID = &salesParentID.Int64
+	}
 	if rebateRate.Valid {
 		v := rebateRate.Float64
 		out.AffRebateRatePercent = &v
 	}
+	out.AffRebatePerInviteeCap = nullableFloat64Ptr(cap)
+	out.AffRebateFreezeHours = nullInt64ToPtr(freeze)
+	out.AffRebateDurationDays = nullInt64ToPtr(duration)
+	out.MasterCutPercent = nullableFloat64Ptr(masterCut)
 	return &out, nil
 }
 
@@ -1143,7 +1459,17 @@ func (r *affiliateRepository) ListUsersWithCustomSettings(ctx context.Context, f
 	const baseFrom = `
 FROM user_affiliates ua
 JOIN users u ON u.id = ua.user_id
-WHERE (ua.aff_code_custom = true OR ua.aff_rebate_rate_percent IS NOT NULL)
+WHERE (
+    ua.aff_code_custom = true
+    OR ua.aff_rebate_rate_percent IS NOT NULL
+    OR ua.aff_invite_enabled = true
+    OR ua.aff_rebate_per_invitee_cap IS NOT NULL
+    OR ua.aff_rebate_freeze_hours IS NOT NULL
+    OR ua.aff_rebate_duration_days IS NOT NULL
+    OR ua.is_master = true
+    OR ua.sales_code IS NOT NULL
+    OR ua.master_cut_percent IS NOT NULL
+  )
   AND (u.email ILIKE $1 OR u.username ILIKE $1)`
 
 	client := clientFromContext(ctx, r.client)
@@ -1160,7 +1486,15 @@ SELECT ua.user_id,
        ua.aff_code,
        ua.aff_code_custom,
        ua.aff_rebate_rate_percent,
-       ua.aff_count` + baseFrom + `
+       ua.aff_invite_enabled,
+       ua.aff_rebate_per_invitee_cap,
+       ua.aff_rebate_freeze_hours,
+       ua.aff_rebate_duration_days,
+       ua.aff_count,
+       ua.is_master,
+       COALESCE(ua.sales_code, ''),
+       ua.master_cut_percent,
+       ua.sales_parent_id` + baseFrom + `
 ORDER BY ua.updated_at DESC
 LIMIT $2 OFFSET $3`
 
@@ -1174,13 +1508,26 @@ LIMIT $2 OFFSET $3`
 	for rows.Next() {
 		var e service.AffiliateAdminEntry
 		var rebate sql.NullFloat64
+		var cap sql.NullFloat64
+		var masterCut sql.NullFloat64
+		var freeze sql.NullInt64
+		var duration sql.NullInt64
+		var salesParent sql.NullInt64
 		if err := rows.Scan(&e.UserID, &e.Email, &e.Username, &e.AffCode,
-			&e.AffCodeCustom, &rebate, &e.AffCount); err != nil {
+			&e.AffCodeCustom, &rebate, &e.AffInviteEnabled, &cap, &freeze, &duration, &e.AffCount,
+			&e.IsMaster, &e.SalesCode, &masterCut, &salesParent); err != nil {
 			return nil, 0, err
 		}
 		if rebate.Valid {
 			v := rebate.Float64
 			e.AffRebateRatePercent = &v
+		}
+		e.AffRebatePerInviteeCap = nullableFloat64Ptr(cap)
+		e.AffRebateFreezeHours = nullInt64ToPtr(freeze)
+		e.AffRebateDurationDays = nullInt64ToPtr(duration)
+		e.MasterCutPercent = nullableFloat64Ptr(masterCut)
+		if salesParent.Valid && salesParent.Int64 > 0 {
+			e.SalesParentID = &salesParent.Int64
 		}
 		entries = append(entries, e)
 	}

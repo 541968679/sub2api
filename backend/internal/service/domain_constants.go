@@ -34,6 +34,14 @@ const (
 	AffiliateRebateDurationDaysDefault  = 0     // 0 = 永久有效
 	AffiliateRebateDurationDaysMax      = 3650  // ~10 年
 	AffiliateRebatePerInviteeCapDefault = 0.0   // 0 = 无上限
+	AffiliateMasterCutMaxDefault        = 50.0  // 总代抽成上限默认 50%
+	AffiliateMasterCutAbsoluteMax       = 80.0  // 抽成绝对上限，不允许配到 100
+)
+
+// Ledger roles for one recharge rebate. Historical rows leave the role NULL.
+const (
+	AffiliateAccrualRoleDirect    = "direct"
+	AffiliateAccrualRoleMasterCut = "master_cut"
 )
 
 // Platform constants
@@ -184,6 +192,7 @@ const (
 	SettingKeyAffiliateRebateFreezeHours       = "affiliate_rebate_freeze_hours"       // 返利冻结期（小时，0=不冻结）
 	SettingKeyAffiliateRebateDurationDays      = "affiliate_rebate_duration_days"      // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap     = "affiliate_rebate_per_invitee_cap"    // 单人返利上限（0=无上限）
+	SettingKeyAffiliateMasterCutMaxPercent     = "affiliate_master_cut_max_percent"    // 总代抽成上限（0-80，默认 50）
 	SettingKeyDistributionRMBPerUSD            = "distribution_rmb_per_usd"            // 分销生成余额兑换码/API Key 时每 1 USD 面值扣除的 RMB
 	SettingKeyDistributionSubscriptionDiscount = "distribution_subscription_discount"  // 分销生成订阅兑换码时按 RMB 面值扣款的折扣比例
 	SettingKeyDistributionAPIKeyGroupIDs       = "distribution_api_key_group_ids"      // 暴露给分销代理生成 API Key 的分组 ID（JSON 数组）

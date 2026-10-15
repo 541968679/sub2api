@@ -11,17 +11,28 @@
         </p>
       </div>
 
+      <div
+        v-if="referralConflict"
+        class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
+      >
+        <p class="text-sm text-amber-700 dark:text-amber-400">
+          {{ t('auth.affiliateCodeConflict') }}
+        </p>
+      </div>
+
       <div v-if="linuxdoOAuthEnabled || wechatOAuthEnabled || oidcOAuthEnabled" class="space-y-4">
         <LinuxDoOAuthSection
           v-if="linuxdoOAuthEnabled"
           :disabled="isLoading"
           :aff-code="formData.aff_code"
+          :sales-code="formData.sales_code"
           :show-divider="false"
         />
         <WechatOAuthSection
           v-if="wechatOAuthEnabled"
           :disabled="isLoading"
           :aff-code="formData.aff_code"
+          :sales-code="formData.sales_code"
           :show-divider="false"
         />
         <OidcOAuthSection
@@ -29,6 +40,7 @@
           :disabled="isLoading"
           :provider-name="oidcOAuthProviderName"
           :aff-code="formData.aff_code"
+          :sales-code="formData.sales_code"
           :show-divider="false"
         />
         <div class="flex items-center gap-3">
@@ -307,9 +319,8 @@ import {
   normalizeRegistrationEmailSuffixWhitelist
 } from '@/utils/registrationEmailPolicy'
 import {
-  clearAffiliateReferralCode,
-  loadAffiliateReferralCode,
-  resolveAffiliateReferralCode
+  clearAllAffiliateReferralCodes,
+  syncExclusiveReferralCodes
 } from '@/utils/oauthAffiliate'
 import {
   clearPendingRegisterLegalConsent,
@@ -385,8 +396,10 @@ const formData = reactive({
   password: '',
   promo_code: '',
   invitation_code: '',
-  aff_code: ''
+  aff_code: '',
+  sales_code: ''
 })
+const referralConflict = ref(false)
 
 const errors = reactive({
   email: '',
@@ -411,12 +424,14 @@ watch(validationToastMessage, (value, previousValue) => {
   }
 })
 
-function syncAffiliateReferralCode(): string {
-  const code = resolveAffiliateReferralCode(route.query.aff, route.query.aff_code)
-  if (code) {
-    formData.aff_code = code
-  }
-  return code
+function syncAffiliateReferralCode(): void {
+  const resolved = syncExclusiveReferralCodes(
+    [route.query.aff, route.query.aff_code],
+    [route.query.sales, route.query.sales_code]
+  )
+  formData.aff_code = resolved.aff
+  formData.sales_code = resolved.sales
+  referralConflict.value = resolved.conflict
 }
 
 // ==================== Lifecycle ====================
@@ -460,7 +475,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => [route.query.aff, route.query.aff_code],
+  () => [route.query.aff, route.query.aff_code, route.query.sales, route.query.sales_code],
   () => {
     syncAffiliateReferralCode()
   }
@@ -783,10 +798,14 @@ async function submitRegister(): Promise<void> {
   isLoading.value = true
 
   try {
-    const affCode = formData.aff_code.trim() || loadAffiliateReferralCode()
-    if (affCode) {
-      formData.aff_code = affCode
+    syncAffiliateReferralCode()
+    if (referralConflict.value) {
+      errorMessage.value = t('auth.affiliateCodeConflict')
+      appStore.showError(errorMessage.value)
+      return
     }
+    const affCode = formData.aff_code.trim()
+    const salesCode = formData.sales_code.trim()
 
     // If email verification is enabled, redirect to verification page
     if (emailVerifyEnabled.value) {
@@ -799,7 +818,8 @@ async function submitRegister(): Promise<void> {
           turnstile_token: turnstileToken.value,
           promo_code: formData.promo_code || undefined,
           invitation_code: formData.invitation_code || undefined,
-          ...(affCode ? { aff_code: affCode } : {})
+          ...(affCode ? { aff_code: affCode } : {}),
+          ...(salesCode ? { sales_code: salesCode } : {})
         })
       )
 
@@ -815,13 +835,14 @@ async function submitRegister(): Promise<void> {
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
       promo_code: formData.promo_code || undefined,
       invitation_code: formData.invitation_code || undefined,
-      ...(affCode ? { aff_code: affCode } : {})
+      ...(affCode ? { aff_code: affCode } : {}),
+      ...(salesCode ? { sales_code: salesCode } : {})
     })
     if (legalConsent) {
       markLegalConsentAccepted(registerResponse.user.id, legalConsent, legalConsentSettings.value)
     }
     clearPendingRegisterLegalConsent()
-    clearAffiliateReferralCode()
+    clearAllAffiliateReferralCodes()
 
     if (isRegisterApplicationPending(registerResponse)) {
       appStore.showSuccess(t('auth.applicationSubmittedSuccess'))

@@ -1586,6 +1586,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		settings.AffiliateRebatePerInviteeCap = AffiliateRebatePerInviteeCapDefault
 	}
 	updates[SettingKeyAffiliateRebatePerInviteeCap] = strconv.FormatFloat(settings.AffiliateRebatePerInviteeCap, 'f', 8, 64)
+	settings.AffiliateMasterCutMaxPercent = ClampAffiliateMasterCutMax(settings.AffiliateMasterCutMaxPercent)
+	updates[SettingKeyAffiliateMasterCutMaxPercent] = strconv.FormatFloat(settings.AffiliateMasterCutMaxPercent, 'f', 8, 64)
 	updates[SettingKeyDefaultUserRPMLimit] = strconv.Itoa(settings.DefaultUserRPMLimit)
 	defaultSubsJSON, err := json.Marshal(settings.DefaultSubscriptions)
 	if err != nil {
@@ -2268,6 +2270,20 @@ func (s *SettingService) GetAffiliateRebatePerInviteeCap(ctx context.Context) fl
 	return cap
 }
 
+// GetAffiliateMasterCutMaxPercent returns the admin ceiling for a master's cut.
+// Missing or invalid values fall back to 50. The result never exceeds 80.
+func (s *SettingService) GetAffiliateMasterCutMaxPercent(ctx context.Context) float64 {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateMasterCutMaxPercent)
+	if err != nil {
+		return AffiliateMasterCutMaxDefault
+	}
+	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return AffiliateMasterCutMaxDefault
+	}
+	return ClampAffiliateMasterCutMax(value)
+}
+
 // IsPasswordResetEnabled 检查是否启用密码重置功能
 // 要求：必须同时开启邮件验证
 func (s *SettingService) IsPasswordResetEnabled(ctx context.Context) bool {
@@ -2533,6 +2549,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAffiliateRebateFreezeHours:               strconv.Itoa(AffiliateRebateFreezeHoursDefault),
 		SettingKeyAffiliateRebateDurationDays:              strconv.Itoa(AffiliateRebateDurationDaysDefault),
 		SettingKeyAffiliateRebatePerInviteeCap:             strconv.FormatFloat(AffiliateRebatePerInviteeCapDefault, 'f', 2, 64),
+		SettingKeyAffiliateMasterCutMaxPercent:             strconv.FormatFloat(AffiliateMasterCutMaxDefault, 'f', 2, 64),
 		SettingKeyDistributionRMBPerUSD:                    "0.5",
 		SettingKeyDistributionSubscriptionDiscount:         "0.75",
 		SettingKeyDistributionAPIKeyGroupIDs:               "[]",
@@ -2730,6 +2747,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	if perInviteeCap, err := strconv.ParseFloat(settings[SettingKeyAffiliateRebatePerInviteeCap], 64); err == nil && perInviteeCap >= 0 {
 		result.AffiliateRebatePerInviteeCap = perInviteeCap
+	}
+	if cutMax, err := strconv.ParseFloat(settings[SettingKeyAffiliateMasterCutMaxPercent], 64); err == nil {
+		result.AffiliateMasterCutMaxPercent = ClampAffiliateMasterCutMax(cutMax)
+	} else {
+		result.AffiliateMasterCutMaxPercent = AffiliateMasterCutMaxDefault
 	}
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 

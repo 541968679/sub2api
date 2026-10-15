@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -138,6 +137,27 @@ type ctxKeySkipRedeemAffiliate struct{}
 
 func ContextSkipRedeemAffiliate(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ctxKeySkipRedeemAffiliate{}, true)
+}
+
+type paymentAffiliateFact struct {
+	OrderID  int64
+	Credited float64
+}
+
+type ctxKeyPaymentAffiliateFact struct{}
+
+// ContextWithPaymentAffiliateFact marks a balance redeem that was created to
+// fulfill a payment order. The order, not the generated code, is the rebate fact.
+func ContextWithPaymentAffiliateFact(ctx context.Context, orderID int64, credited float64) context.Context {
+	return context.WithValue(ctx, ctxKeyPaymentAffiliateFact{}, paymentAffiliateFact{OrderID: orderID, Credited: credited})
+}
+
+func paymentAffiliateFactFrom(ctx context.Context) (paymentAffiliateFact, bool) {
+	fact, ok := ctx.Value(ctxKeyPaymentAffiliateFact{}).(paymentAffiliateFact)
+	if !ok || fact.OrderID <= 0 || fact.Credited <= 0 {
+		return paymentAffiliateFact{}, false
+	}
+	return fact, true
 }
 
 func (s *RedeemService) SetAffiliateService(affiliateService *AffiliateService) {
@@ -514,6 +534,10 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, fmt.Errorf("unsupported redeem type: %s", redeemCode.Type)
 	}
 
+	if err := s.accrueAffiliateInsideRedeem(txCtx, userID, redeemCode); err != nil {
+		return nil, err
+	}
+
 	// 提交事务
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
@@ -521,9 +545,6 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 
 	// 事务提交成功后失效缓存
 	s.invalidateRedeemCaches(ctx, userID, redeemCode)
-	if redeemCode.Type == RedeemTypeBalance && redeemCode.Value > 0 {
-		s.tryAccrueAffiliateRebateForRedeem(ctx, userID, redeemCode.Value)
-	}
 
 	// 重新获取更新后的兑换码
 	redeemCode, err = s.redeemRepo.GetByID(ctx, redeemCode.ID)
@@ -534,13 +555,22 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	return redeemCode, nil
 }
 
-func (s *RedeemService) tryAccrueAffiliateRebateForRedeem(ctx context.Context, userID int64, amount float64) {
-	if s == nil || s.affiliateService == nil || ctx.Value(ctxKeySkipRedeemAffiliate{}) != nil {
-		return
+func (s *RedeemService) accrueAffiliateInsideRedeem(ctx context.Context, userID int64, redeemCode *RedeemCode) error {
+	if s == nil || s.affiliateService == nil || redeemCode == nil {
+		return nil
 	}
-	if _, err := s.affiliateService.AccrueInviteRebate(ctx, userID, amount); err != nil {
-		slog.Warn("redeem affiliate rebate failed", "user_id", userID, "amount", amount, "error", err)
+	if redeemCode.Type == AdjustmentTypeAdminBalance || redeemCode.Type != RedeemTypeBalance || redeemCode.Value <= 0 {
+		return nil
 	}
+	if fact, ok := paymentAffiliateFactFrom(ctx); ok {
+		_, err := s.affiliateService.AccrueForCredit(ctx, userID, fact.Credited, AffiliateSourcePaymentOrder, fact.OrderID)
+		return err
+	}
+	if ctx.Value(ctxKeySkipRedeemAffiliate{}) != nil {
+		return nil
+	}
+	_, err := s.affiliateService.AccrueForCredit(ctx, userID, redeemCode.Value, AffiliateSourceRedeemCode, redeemCode.ID)
+	return err
 }
 
 func unsupportedRedeemTypeError(codeType string) error {

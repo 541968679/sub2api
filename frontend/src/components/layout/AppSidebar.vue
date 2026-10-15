@@ -751,7 +751,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     // Agent / affiliate kept lower so they are not the visual focus
     { path: '/distribution', label: t('nav.distribution'), icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
+    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: () => flagAffiliate() === true && authStore.user?.aff_invite_enabled === true },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,

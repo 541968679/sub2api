@@ -5554,6 +5554,26 @@
                 </p>
               </div>
 
+              <div>
+                <label class="input-label">
+                  {{ t('admin.settings.features.affiliate.masterCutMax') }}
+                </label>
+                <div class="relative">
+                  <input
+                    v-model.number="form.affiliate_master_cut_max_percent"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="80"
+                    class="input pr-8"
+                  />
+                  <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-400">
+                  {{ t('admin.settings.features.affiliate.masterCutMaxDesc') }}
+                </p>
+              </div>
+
               <!-- 专属用户管理 -->
               <div class="border-t border-gray-100 pt-6 dark:border-dark-700">
                 <div class="mb-3 flex items-center justify-between">
@@ -5590,6 +5610,22 @@
                   >
                     {{ t('admin.settings.features.affiliate.customUsers.batchButton', { count: affiliateState.selected.length }) }}
                   </button>
+                  <button
+                    v-if="affiliateState.selected.length > 0"
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="askBatchInvite(true)"
+                  >
+                    {{ t('admin.settings.features.affiliate.customUsers.batchEnable', { count: affiliateState.selected.length }) }}
+                  </button>
+                  <button
+                    v-if="affiliateState.selected.length > 0"
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="askBatchInvite(false)"
+                  >
+                    {{ t('admin.settings.features.affiliate.customUsers.batchDisable', { count: affiliateState.selected.length }) }}
+                  </button>
                 </div>
 
                 <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700">
@@ -5607,17 +5643,22 @@
                         <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.username') }}</th>
                         <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.code') }}</th>
                         <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.rate') }}</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.invite') }}</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.master') }}</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.cap') }}</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.freeze') }}</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.duration') }}</th>
                         <th class="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{{ t('admin.settings.features.affiliate.customUsers.col.actions') }}</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
                       <tr v-if="affiliateState.loading">
-                        <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
+                        <td colspan="11" class="px-3 py-6 text-center text-sm text-gray-500">
                           {{ t('common.loading') }}
                         </td>
                       </tr>
                       <tr v-else-if="affiliateState.entries.length === 0">
-                        <td colspan="6" class="px-3 py-6 text-center text-sm text-gray-500">
+                        <td colspan="11" class="px-3 py-6 text-center text-sm text-gray-500">
                           {{ t('admin.settings.features.affiliate.customUsers.empty') }}
                         </td>
                       </tr>
@@ -5640,6 +5681,29 @@
                         </td>
                         <td class="px-3 py-2 text-sm">
                           <span v-if="entry.aff_rebate_rate_percent != null">{{ entry.aff_rebate_rate_percent }}%</span>
+                          <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                          <span v-if="entry.aff_invite_enabled">{{ t('admin.settings.features.affiliate.customUsers.inviteOn') }}</span>
+                          <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.inviteOff') }}</span>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                          <span
+                            v-if="entry.is_master"
+                            class="inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                          >{{ t('admin.settings.features.affiliate.customUsers.masterBadge') }}</span>
+                          <span v-else class="text-gray-400">-</span>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                          <span v-if="entry.aff_rebate_per_invitee_cap != null">{{ entry.aff_rebate_per_invitee_cap }}</span>
+                          <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                          <span v-if="entry.aff_rebate_freeze_hours != null">{{ entry.aff_rebate_freeze_hours }}</span>
+                          <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
+                        </td>
+                        <td class="px-3 py-2 text-sm">
+                          <span v-if="entry.aff_rebate_duration_days != null">{{ entry.aff_rebate_duration_days }}</span>
                           <span v-else class="text-gray-400">{{ t('admin.settings.features.affiliate.customUsers.useGlobal') }}</span>
                         </td>
                         <td class="px-3 py-2 text-sm">
@@ -5696,7 +5760,7 @@
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           @click.self="closeAffiliateModal"
         >
-          <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
+          <div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
             <h3 class="mb-4 text-lg font-semibold">
               {{ affiliateModal.mode === 'add' ? t('admin.settings.features.affiliate.modal.addTitle') : t('admin.settings.features.affiliate.modal.editTitle') }}
             </h3>
@@ -5787,6 +5851,70 @@
                 <p class="mt-1 text-xs text-gray-400">
                   {{ t('admin.settings.features.affiliate.modal.rateHint') }}
                 </p>
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <label class="input-label">{{ t('admin.settings.features.affiliate.modal.inviteLabel') }}</label>
+                  <p class="mt-0.5 text-xs text-gray-400">{{ t('admin.settings.features.affiliate.modal.inviteHint') }}</p>
+                </div>
+                <Toggle v-model="affiliateModal.inviteEnabled" />
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <label class="input-label">{{ t('admin.settings.features.affiliate.modal.masterLabel') }}</label>
+                  <p class="mt-0.5 text-xs text-gray-400">
+                    {{
+                      affiliateModal.editingEntry?.sales_parent_id
+                        ? t('admin.settings.features.affiliate.modal.masterBlocked')
+                        : t('admin.settings.features.affiliate.modal.masterHint')
+                    }}
+                  </p>
+                </div>
+                <Toggle
+                  :model-value="affiliateModal.isMaster"
+                  @update:model-value="setAffiliateMaster"
+                />
+              </div>
+
+              <div>
+                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.capLabel') }}</label>
+                <input
+                  v-model="affiliateModal.cap"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="input"
+                  :placeholder="t('admin.settings.features.affiliate.modal.capPlaceholder')"
+                />
+                <p class="mt-1 text-xs text-gray-400">{{ t('admin.settings.features.affiliate.modal.capHint') }}</p>
+              </div>
+
+              <div>
+                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.freezeLabel') }}</label>
+                <input
+                  v-model="affiliateModal.freezeHours"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="720"
+                  class="input"
+                  :placeholder="t('admin.settings.features.affiliate.modal.freezePlaceholder')"
+                />
+              </div>
+
+              <div>
+                <label class="input-label">{{ t('admin.settings.features.affiliate.modal.durationLabel') }}</label>
+                <input
+                  v-model="affiliateModal.durationDays"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="3650"
+                  class="input"
+                  :placeholder="t('admin.settings.features.affiliate.modal.durationPlaceholder')"
+                />
               </div>
             </div>
 
@@ -7238,6 +7366,7 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
+  affiliate_master_cut_max_percent: 50,
   default_concurrency: 1,
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
@@ -8399,6 +8528,7 @@ async function saveSettings() {
       affiliate_rebate_freeze_hours: Math.max(0, Math.min(720, Number(form.affiliate_rebate_freeze_hours) || 0)),
       affiliate_rebate_duration_days: Math.max(0, Math.min(3650, Math.floor(Number(form.affiliate_rebate_duration_days) || 0))),
       affiliate_rebate_per_invitee_cap: Math.max(0, Number(form.affiliate_rebate_per_invitee_cap) || 0),
+      affiliate_master_cut_max_percent: Math.max(0, Math.min(80, Number(form.affiliate_master_cut_max_percent) || 0)),
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
       default_platform_quotas: sanitizePlatformQuotasMap(
@@ -9757,6 +9887,11 @@ interface AffiliateModalState {
   editingEntry: AffiliateAdminEntry | null;
   code: string;
   rate: string | number;
+  inviteEnabled: boolean;
+  isMaster: boolean;
+  cap: string | number;
+  freezeHours: string | number;
+  durationDays: string | number;
   searchTimer: number | null;
 }
 
@@ -9770,6 +9905,11 @@ const affiliateModal = reactive<AffiliateModalState>({
   editingEntry: null,
   code: "",
   rate: "",
+  inviteEnabled: false,
+  isMaster: false,
+  cap: "",
+  freezeHours: "",
+  durationDays: "",
   searchTimer: null,
 });
 
@@ -9859,6 +9999,29 @@ function parseRebateRate(raw: unknown): number | null | undefined {
   return parsed;
 }
 
+function parseOptionalNumber(
+  raw: unknown,
+  errorKey: string,
+  opts?: { max?: number; integer?: boolean },
+): number | null | undefined {
+  const s = String(raw ?? "").trim();
+  if (s === "") return null;
+  const parsed = Number(s);
+  const overMax = opts?.max != null && parsed > opts.max;
+  if (!Number.isFinite(parsed) || parsed < 0 || overMax || (opts?.integer && !Number.isInteger(parsed))) {
+    appStore.showError(t(errorKey));
+    return undefined;
+  }
+  return parsed;
+}
+
+function optionalFieldIntent(raw: unknown, previous: number | null | undefined): "set" | "clear" | "none" {
+  if (String(raw ?? "").trim() === "") {
+    return previous != null ? "clear" : "none";
+  }
+  return "set";
+}
+
 async function loadAffiliateUsers() {
   affiliateState.loading = true;
   try {
@@ -9915,6 +10078,11 @@ function openAffiliateModal(entry: AffiliateAdminEntry | null) {
   affiliateModal.code = entry?.aff_code_custom ? entry.aff_code : "";
   affiliateModal.rate =
     entry?.aff_rebate_rate_percent != null ? String(entry.aff_rebate_rate_percent) : "";
+  affiliateModal.inviteEnabled = entry?.aff_invite_enabled === true;
+  affiliateModal.isMaster = entry?.is_master === true;
+  affiliateModal.cap = entry?.aff_rebate_per_invitee_cap != null ? String(entry.aff_rebate_per_invitee_cap) : "";
+  affiliateModal.freezeHours = entry?.aff_rebate_freeze_hours != null ? String(entry.aff_rebate_freeze_hours) : "";
+  affiliateModal.durationDays = entry?.aff_rebate_duration_days != null ? String(entry.aff_rebate_duration_days) : "";
 }
 
 function closeAffiliateModal() {
@@ -9952,6 +10120,17 @@ function clearSelectedAffiliateUser() {
   affiliateModal.selectedUser = null;
 }
 
+function setAffiliateMaster(value: boolean) {
+  if (affiliateModal.editingEntry?.sales_parent_id != null) {
+    affiliateModal.isMaster = false;
+    return;
+  }
+  affiliateModal.isMaster = value;
+  if (value) {
+    affiliateModal.inviteEnabled = true;
+  }
+}
+
 // affiliateModalCanSubmit guards the Save button: must have a user picked AND
 // produce at least one field change. Without this the admin could "save" an
 // empty payload that silently does nothing — the user reported exactly that
@@ -9962,15 +10141,25 @@ const affiliateModalCanSubmit = computed(() => {
   } else if (!affiliateModal.editingEntry) {
     return false;
   }
+  const entry = affiliateModal.editingEntry;
   const codeFilled = affiliateModal.code.trim() !== "";
   const rateFilled = String(affiliateModal.rate ?? "").trim() !== "";
   if (codeFilled || rateFilled) return true;
-  // Edit mode + empty rate input is a meaningful "clear" only if the user
-  // currently has an exclusive rate to clear.
-  return (
-    affiliateModal.mode === "edit" &&
-    affiliateModal.editingEntry?.aff_rebate_rate_percent != null
-  );
+  if (affiliateModal.mode === "edit" && entry?.aff_rebate_rate_percent != null && !rateFilled) {
+    return true;
+  }
+  const inviteWas = entry?.aff_invite_enabled === true;
+  if (affiliateModal.mode === "add" ? affiliateModal.inviteEnabled : affiliateModal.inviteEnabled !== inviteWas) {
+    return true;
+  }
+  const masterWas = entry?.is_master === true;
+  if (affiliateModal.mode === "add" ? affiliateModal.isMaster : affiliateModal.isMaster !== masterWas) {
+    return true;
+  }
+  if (optionalFieldIntent(affiliateModal.cap, entry?.aff_rebate_per_invitee_cap) !== "none") return true;
+  if (optionalFieldIntent(affiliateModal.freezeHours, entry?.aff_rebate_freeze_hours) !== "none") return true;
+  if (optionalFieldIntent(affiliateModal.durationDays, entry?.aff_rebate_duration_days) !== "none") return true;
+  return false;
 });
 
 async function submitAffiliateModal() {
@@ -10001,6 +10190,40 @@ async function submitAffiliateModal() {
     payload.aff_rebate_rate_percent = rateInput;
   }
 
+  const entry = affiliateModal.editingEntry;
+  const inviteWas = entry?.aff_invite_enabled === true;
+  if (affiliateModal.mode === "add" ? affiliateModal.inviteEnabled : affiliateModal.inviteEnabled !== inviteWas) {
+    payload.aff_invite_enabled = affiliateModal.inviteEnabled;
+  }
+  const masterWas = entry?.is_master === true;
+  if (affiliateModal.mode === "add" ? affiliateModal.isMaster : affiliateModal.isMaster !== masterWas) {
+    payload.is_master = affiliateModal.isMaster;
+  }
+
+  const capInput = parseOptionalNumber(affiliateModal.cap, "admin.settings.features.affiliate.modal.errorBadCap");
+  if (capInput === undefined) return;
+  if (capInput === null) {
+    if (affiliateModal.mode === "edit" && entry?.aff_rebate_per_invitee_cap != null) payload.clear_per_invitee_cap = true;
+  } else {
+    payload.aff_rebate_per_invitee_cap = capInput;
+  }
+
+  const freezeInput = parseOptionalNumber(affiliateModal.freezeHours, "admin.settings.features.affiliate.modal.errorBadFreeze", { max: 720, integer: true });
+  if (freezeInput === undefined) return;
+  if (freezeInput === null) {
+    if (affiliateModal.mode === "edit" && entry?.aff_rebate_freeze_hours != null) payload.clear_freeze_hours = true;
+  } else {
+    payload.aff_rebate_freeze_hours = freezeInput;
+  }
+
+  const durationInput = parseOptionalNumber(affiliateModal.durationDays, "admin.settings.features.affiliate.modal.errorBadDuration", { max: 3650, integer: true });
+  if (durationInput === undefined) return;
+  if (durationInput === null) {
+    if (affiliateModal.mode === "edit" && entry?.aff_rebate_duration_days != null) payload.clear_duration_days = true;
+  } else {
+    payload.aff_rebate_duration_days = durationInput;
+  }
+
   affiliateModal.saving = true;
   try {
     await affiliatesAPI.updateUserSettings(userId, payload);
@@ -10026,6 +10249,28 @@ function askResetAffiliateUser(entry: AffiliateAdminEntry) {
     }),
     t("common.delete"),
     () => affiliatesAPI.clearUserSettings(entry.user_id),
+  );
+}
+
+function askBatchInvite(enabled: boolean) {
+  const count = affiliateState.selected.length;
+  if (count === 0) return;
+  openAffiliateConfirm(
+    t("admin.settings.features.affiliate.customUsers.batchInviteTitle"),
+    t(
+      enabled
+        ? "admin.settings.features.affiliate.customUsers.batchInviteEnableMessage"
+        : "admin.settings.features.affiliate.customUsers.batchInviteDisableMessage",
+      { count },
+    ),
+    t("common.save"),
+    async () => {
+      await affiliatesAPI.batchSetInvite({
+        user_ids: [...affiliateState.selected],
+        enabled,
+      });
+      affiliateState.selected = [];
+    },
   );
 }
 

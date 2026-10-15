@@ -343,8 +343,7 @@ import {
 } from '@/api/auth'
 import {
   clearAllAffiliateReferralCodes,
-  loadOAuthAffiliateCode,
-  oauthAffiliatePayload
+  oauthReferralPayload
 } from '@/utils/oauthAffiliate'
 
 const route = useRoute()
@@ -877,20 +876,23 @@ async function handleSubmitInvitation() {
 
   isSubmitting.value = true
   try {
-    const affCode = loadOAuthAffiliateCode()
+    const referral = oauthReferralPayload()
     const decision = currentAdoptionDecision()
     const completion: PendingWeChatCompletion = legacyPendingOAuthToken.value
       ? (
           await apiClient.post<PendingWeChatCompletion>('/auth/oauth/wechat/complete-registration', {
             pending_oauth_token: legacyPendingOAuthToken.value,
             invitation_code: invitationCode.value.trim(),
-            ...oauthAffiliatePayload(affCode),
+            ...referral,
             ...serializeAdoptionDecision(decision)
           })
         ).data
-      : affCode
-        ? await completeWeChatOAuthRegistration(invitationCode.value.trim(), decision, affCode)
-        : await completeWeChatOAuthRegistration(invitationCode.value.trim(), decision)
+      : await completeWeChatOAuthRegistration(
+          invitationCode.value.trim(),
+          decision,
+          referral.aff_code,
+          referral.sales_code
+        )
     await finalizePendingAccountResponse(completion)
   } catch (e: unknown) {
     const err = e as { message?: string; response?: { data?: { message?: string } } }
@@ -925,7 +927,7 @@ async function handleCreateAccount(payload: PendingOAuthCreateAccountPayload) {
       password: payload.password,
       verify_code: payload.verifyCode || undefined,
       invitation_code: payload.invitationCode || undefined,
-      ...oauthAffiliatePayload(loadOAuthAffiliateCode()),
+      ...oauthReferralPayload(),
       ...serializeAdoptionDecision(currentAdoptionDecision())
     })
     await finalizePendingAccountResponse(data)

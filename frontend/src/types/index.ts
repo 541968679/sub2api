@@ -100,6 +100,10 @@ export interface User {
   created_at: string
   updated_at: string
   deleted_at?: string | null
+  // Present on GET /api/v1/auth/me. Missing or false hides the user invite page.
+  aff_invite_enabled?: boolean
+  // Present on GET /api/v1/auth/me. True when an admin designated this user as a master agent.
+  is_master?: boolean
 }
 
 export type DownstreamUsageTokenMode = 'real' | 'display'
@@ -139,6 +143,7 @@ export interface RegisterRequest {
   promo_code?: string
   invitation_code?: string
   aff_code?: string
+  sales_code?: string
 }
 
 export interface AffiliateInvitee {
@@ -147,6 +152,14 @@ export interface AffiliateInvitee {
   username: string
   created_at?: string
   total_rebate: number
+}
+
+export interface AffiliateSubordinate {
+  user_id: number
+  email: string
+  username: string
+  rebate_generated: number
+  cut_taken: number
 }
 
 export interface UserAffiliateDetail {
@@ -160,6 +173,12 @@ export interface UserAffiliateDetail {
   /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
   effective_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
+  is_master?: boolean
+  sales_code?: string
+  master_cut_percent?: number
+  master_cut_max_percent?: number
+  subordinate_count?: number
+  subordinates?: AffiliateSubordinate[]
 }
 
 export interface AffiliateTransferResponse {

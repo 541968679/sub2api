@@ -45,7 +45,19 @@
             />
           </template>
           <template #cell-user="{ row }">
-            <UserCell :id="row.user_id" :email="row.user_email" :username="row.username" />
+            <UserCell
+              :id="row.user_id"
+              :email="row.user_email"
+              :username="row.username"
+              :clickable="props.type === 'transfers'"
+              @open="openUserOverview"
+            />
+          </template>
+          <template #cell-action="{ row }">
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ ledgerActionLabel(row.action) }}</span>
+          </template>
+          <template #cell-note="{ row }">
+            <span class="max-w-56 truncate text-sm text-gray-700 dark:text-gray-300">{{ row.note || '-' }}</span>
           </template>
           <template #cell-aff_code="{ row }">
             <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ row.aff_code || '-' }}</span>
@@ -73,6 +85,9 @@
           </template>
           <template #cell-rebate_amount="{ row }">
             <AmountText :value="row.rebate_amount" strong />
+          </template>
+          <template #cell-accrual_role="{ row }">
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ accrualRoleLabel('accrual_role' in row ? row.accrual_role : undefined) }}</span>
           </template>
           <template #cell-amount="{ row }">
             <AmountText :value="row.amount" strong />
@@ -127,9 +142,30 @@
           <OverviewStat :label="t('admin.affiliates.overview.rebateRate')" :value="formatPercent(selectedOverview.rebate_rate_percent)" />
           <OverviewStat :label="t('admin.affiliates.overview.invitedCount')" :value="String(selectedOverview.invited_count)" />
           <OverviewStat :label="t('admin.affiliates.overview.rebatedInviteeCount')" :value="String(selectedOverview.rebated_invitee_count)" />
-          <OverviewStat :label="t('admin.affiliates.overview.availableQuota')" :value="'$' + formatAmount(selectedOverview.available_quota)" />
+          <OverviewStat :label="t('admin.affiliates.overview.inviteEnabled')" :value="selectedOverview.invite_enabled ? t('admin.affiliates.overview.inviteOn') : t('admin.affiliates.overview.inviteOff')" />
+          <OverviewStat :label="t('admin.affiliates.overview.availableQuota')" :value="'$' + formatAmount(settleableQuota(selectedOverview))" />
+          <OverviewStat :label="t('admin.affiliates.overview.frozenQuota')" :value="'$' + formatAmount(selectedOverview.frozen_quota)" />
+          <OverviewStat :label="t('admin.affiliates.overview.debt')" :value="'$' + formatAmount(selectedOverview.debt)" />
           <OverviewStat :label="t('admin.affiliates.overview.historyQuota')" :value="'$' + formatAmount(selectedOverview.history_quota)" />
         </div>
+        <form class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700" @submit.prevent="submitSettle">
+          <p v-if="settleableQuota(selectedOverview) <= 0" class="text-sm text-amber-600 dark:text-amber-400">
+            {{ t('admin.affiliates.overview.settleUnavailable') }}
+          </p>
+          <div>
+            <label class="input-label">{{ t('admin.affiliates.overview.settleAmount') }}</label>
+            <input v-model.number="settleAmount" type="number" min="0" step="any" class="input" :disabled="settleableQuota(selectedOverview) <= 0" />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.affiliates.overview.settleNote') }}</label>
+            <textarea v-model="settleNote" rows="3" class="input" :placeholder="t('admin.affiliates.overview.settleNotePlaceholder')" :disabled="settleableQuota(selectedOverview) <= 0"></textarea>
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="btn btn-primary" :disabled="!canSubmitSettle">
+              {{ settling ? t('admin.affiliates.overview.settleSettling') : t('admin.affiliates.overview.settleSubmit') }}
+            </button>
+          </div>
+        </form>
       </div>
     </BaseDialog>
   </AppLayout>
@@ -168,6 +204,17 @@ const pagination = reactive({ page: 1, page_size: 20, total: 0 })
 const overviewDialog = ref(false)
 const overviewLoading = ref(false)
 const selectedOverview = ref<AffiliateUserOverview | null>(null)
+const settleAmount = ref<number | null>(null)
+const settleNote = ref('')
+const settling = ref(false)
+
+const canSubmitSettle = computed(() => {
+  const overview = selectedOverview.value
+  if (!overview || settling.value) return false
+  if (settleableQuota(overview) <= 0) return false
+  const amount = Number(settleAmount.value)
+  return Number.isFinite(amount) && amount > 0 && amount <= settleableQuota(overview) + 1e-8 && settleNote.value.trim() !== ''
+})
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const columns = computed<Column[]>(() => {
@@ -188,6 +235,7 @@ const columns = computed<Column[]>(() => {
       { key: 'order_amount', label: t('admin.affiliates.records.orderAmount'), sortable: true },
       { key: 'pay_amount', label: t('admin.affiliates.records.payAmount'), sortable: true },
       { key: 'rebate_amount', label: t('admin.affiliates.records.rebateAmount') },
+      { key: 'accrual_role', label: t('admin.affiliates.records.accrualRole'), sortable: false },
       { key: 'payment_type', label: t('admin.affiliates.records.paymentType'), sortable: true },
       { key: 'order_status', label: t('admin.affiliates.records.orderStatus'), sortable: true },
       { key: 'created_at', label: t('admin.affiliates.records.rebatedAt'), sortable: true },
@@ -195,7 +243,10 @@ const columns = computed<Column[]>(() => {
   }
   return [
     { key: 'user', label: t('admin.affiliates.records.user'), sortable: true },
+    { key: 'action', label: t('admin.affiliates.records.action'), sortable: false },
+    { key: 'accrual_role', label: t('admin.affiliates.records.accrualRole'), sortable: false },
     { key: 'amount', label: t('admin.affiliates.records.transferAmount'), sortable: true },
+    { key: 'note', label: t('admin.affiliates.records.note'), sortable: false },
     { key: 'balance_after', label: t('admin.affiliates.records.balanceAfter'), sortable: true },
     { key: 'available_quota_after', label: t('admin.affiliates.records.availableQuotaAfter'), sortable: true },
     { key: 'frozen_quota_after', label: t('admin.affiliates.records.frozenQuotaAfter'), sortable: true },
@@ -301,6 +352,23 @@ function formatAmount(value: number | null | undefined): string {
   return Number(value || 0).toFixed(2)
 }
 
+function settleableQuota(overview: AffiliateUserOverview): number {
+  return Math.max(0, Number(overview.available_quota) || 0)
+}
+
+function ledgerActionLabel(action: string | undefined): string {
+  if (action === 'settle') return t('admin.affiliates.records.actionSettle')
+  if (action === 'reverse') return t('admin.affiliates.records.actionReverse')
+  if (action === 'transfer') return t('admin.affiliates.records.actionTransfer')
+  return action || '-'
+}
+
+function accrualRoleLabel(role: string | undefined): string {
+  if (role === 'direct') return t('admin.affiliates.records.roleDirect')
+  if (role === 'master_cut') return t('admin.affiliates.records.roleMasterCut')
+  return role || '-'
+}
+
 function formatPercent(value: number | null | undefined): string {
   const rounded = Math.round(Number(value || 0) * 100) / 100
   return `${Number.isInteger(rounded) ? rounded.toString() : rounded.toString()}%`
@@ -315,6 +383,8 @@ async function openUserOverview(userId: number) {
   overviewDialog.value = true
   overviewLoading.value = true
   selectedOverview.value = null
+  settleAmount.value = null
+  settleNote.value = ''
   try {
     selectedOverview.value = await affiliatesAPI.getUserOverview(userId)
   } catch (error) {
@@ -322,6 +392,26 @@ async function openUserOverview(userId: number) {
     appStore.showError(extractI18nErrorMessage(error, t, 'admin.affiliates.errors', t('common.error')))
   } finally {
     overviewLoading.value = false
+  }
+}
+
+async function submitSettle() {
+  const overview = selectedOverview.value
+  if (!overview || !canSubmitSettle.value) return
+  settling.value = true
+  try {
+    selectedOverview.value = await affiliatesAPI.settleUser(overview.user_id, {
+      amount: Number(settleAmount.value),
+      note: settleNote.value.trim(),
+    })
+    settleAmount.value = null
+    settleNote.value = ''
+    appStore.showSuccess(t('admin.affiliates.overview.settleSuccess'))
+    if (props.type === 'transfers') void loadRecords()
+  } catch (error) {
+    appStore.showError(extractI18nErrorMessage(error, t, 'admin.affiliates.errors', t('common.error')))
+  } finally {
+    settling.value = false
   }
 }
 
