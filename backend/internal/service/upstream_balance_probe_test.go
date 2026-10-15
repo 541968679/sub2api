@@ -824,3 +824,104 @@ func TestProbeUpstreamBalance_TokenRhythmSession(t *testing.T) {
 	require.InDelta(t, 0.000099, result.UsedUSD, 0.0000001)
 	require.NotContains(t, result.Error, session)
 }
+
+func TestInferHubUsageURL(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "https://api.inferhub.dev/v1/me/usage", inferHubUsageURL("https://api.inferhub.dev/v1", "sk-test"))
+	require.Equal(t, "https://api.inferhub.dev/v1/me/usage", inferHubUsageURL("https://inferhub.dev", "sk-test"))
+	require.Equal(t, "https://api.inferhub.dev/v1/me/usage", inferHubUsageURL("https://www.inferhub.dev/dashboard", "sk-test"))
+	require.Equal(t, "https://relay.example/v1/me/usage", inferHubUsageURL("https://relay.example/v1", "sk-airo-test"))
+	require.Empty(t, inferHubUsageURL("https://relay.example/v1", "sk-test"))
+	require.Empty(t, inferHubUsageURL("https://api.openai.com/v1", "sk-airo-test"))
+}
+
+func TestProbeUpstreamBalance_InferHubUsage(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/me/usage", r.URL.Path)
+		require.Equal(t, "Bearer sk-airo-test", r.Header.Get("Authorization"))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object":   "account.usage",
+			"currency": "USDC",
+			"balance":  map[string]any{"amount_usdc": "198.561978"},
+			"all_time": map[string]any{"spend_usdc": "0.138021"},
+			"window":   map[string]any{"spend_usdc": "0.050000"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-airo-test",
+			"base_url": srv.URL + "/v1",
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error)
+	require.Equal(t, balanceSourceInferHubUsage, result.Source)
+	require.Empty(t, result.Currency)
+	require.InDelta(t, 198.561978, result.BalanceUSD, 0.000001)
+	require.True(t, result.HasUsed)
+	require.InDelta(t, 0.138021, result.UsedUSD, 0.000001)
+}
+
+func TestProbeUpstreamBalance_InferHubZeroBalance(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/me/usage", r.URL.Path)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object":   "account.usage",
+			"balance":  map[string]any{"amount_usdc": "0"},
+			"all_time": map[string]any{"spend_usdc": "0"},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-airo-empty",
+			"base_url": srv.URL,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error)
+	require.Equal(t, balanceSourceInferHubUsage, result.Source)
+	require.InDelta(t, 0, result.BalanceUSD, 0.000001)
+	require.True(t, result.HasUsed)
+	require.InDelta(t, 0, result.UsedUSD, 0.000001)
+}
+
+func TestProbeUpstreamBalance_InferHubHTMLFallsThrough(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/me/usage":
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = w.Write([]byte("<!DOCTYPE html><html><body>site</body></html>"))
+		case "/v1/usage", "/api/usage/token", "/api/usage/token/", "/api/status":
+			http.NotFound(w, r)
+		case "/v1/dashboard/billing/credit_grants":
+			_ = json.NewEncoder(w).Encode(map[string]any{"total_available": 3})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-airo-html",
+			"base_url": srv.URL,
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error)
+	require.Equal(t, balanceSourceCreditGrants, result.Source)
+	require.InDelta(t, 3, result.BalanceUSD, 0.001)
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -32,6 +33,12 @@ const (
 	// Token Rhythm wallet: GET {origin}/api/wallet/summary with the sess_ bearer.
 	// The number is CNY. It is stored in the same balance field the usage window reads.
 	balanceSourceTokenRhythmWallet = "tokenrhythm_wallet"
+	// InferHub: GET https://api.inferhub.dev/v1/me/usage. amount_usdc is USDC and
+	// is stored in the USD balance field (InferHub bills 1 USDC = 1 USD).
+	balanceSourceInferHubUsage = "inferhub_v1_me_usage"
+
+	inferHubAPIKeyPrefix = "sk-airo-"
+	inferHubUsagePath    = "/v1/me/usage"
 
 	credentialKeyNewAPIAccessToken  = "newapi_access_token"
 	credentialKeyNewAPIUserID       = "newapi_user_id"
@@ -171,6 +178,7 @@ func originFromBaseURL(baseURL string) string {
 //
 //	0a. GET {origin}/api/wallet/summary when credentials.tokenrhythm_session_token is set
 //	0. GET {origin}/api/user/self when credentials.newapi_access_token + newapi_user_id are set
+//	0b. GET {inference}/v1/me/usage for InferHub (host *.inferhub.dev or an sk-airo- key)
 //	1. GET {base}/v1/usage  → balance / remaining (Sub2API / ZeroCode)
 //	2. GET {origin}/api/usage/token → New API token_usage (token-bits / one-api)
 //	3. GET {base}/v1/dashboard/billing/credit_grants
@@ -243,6 +251,18 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 			return composed
 		}
 		appendErr(probeErr)
+	}
+
+	// 0b) InferHub account usage. OpenAI dashboard billing is not on this host.
+	if !isOfficialOpenAIOrAnthropicHost(baseURL) {
+		if usageURL := inferHubUsageURL(baseURL, apiKey); usageURL != "" {
+			wallet, ok, probeErr := fetchInferHubUsageBalance(ctx, client, account, apiKey, usageURL)
+			if ok {
+				wallet.FetchedAt = result.FetchedAt
+				return wallet
+			}
+			appendErr(probeErr)
+		}
 	}
 
 	// 1–2) Third-party first: Sub2API then New API (credit_grants often 404 there).
@@ -721,6 +741,96 @@ func resolveNewAPIQuotaPerUnit(ctx context.Context, client *http.Client, account
 		return resp.Data.QuotaPerUnit
 	}
 	return defaultNewAPIQuotaPerUnit
+}
+
+// inferHubUsageURL is the account-usage URL for an InferHub key.
+// The JSON lives on the inference host. inferhub.dev/api/v1/me/usage is the site HTML.
+// An sk-airo- key on another base uses that base, so a relay in front of InferHub still works.
+func inferHubUsageURL(baseURL, apiKey string) string {
+	host := balanceProbeHost(baseURL)
+	switch {
+	case host == "api.inferhub.dev":
+		origin := originFromBaseURL(baseURL)
+		if origin == "" {
+			return ""
+		}
+		return origin + inferHubUsagePath
+	case host == "inferhub.dev" || strings.HasSuffix(host, ".inferhub.dev"):
+		return "https://api.inferhub.dev" + inferHubUsagePath
+	case strings.HasPrefix(strings.TrimSpace(apiKey), inferHubAPIKeyPrefix):
+		if isOfficialOpenAIOrAnthropicHost(baseURL) {
+			return ""
+		}
+		origin := originFromBaseURL(baseURL)
+		if origin == "" {
+			return ""
+		}
+		return origin + inferHubUsagePath
+	default:
+		return ""
+	}
+}
+
+func balanceProbeHost(baseURL string) string {
+	u := strings.TrimSpace(strings.ToLower(baseURL))
+	u = strings.TrimPrefix(u, "https://")
+	u = strings.TrimPrefix(u, "http://")
+	if i := strings.Index(u, "/"); i >= 0 {
+		u = u[:i]
+	}
+	if host, _, err := net.SplitHostPort(u); err == nil {
+		u = host
+	}
+	return strings.TrimSuffix(u, ".")
+}
+
+type inferHubUsageResponse struct {
+	Object  string `json:"object"`
+	Balance struct {
+		AmountUSDC json.RawMessage `json:"amount_usdc"`
+	} `json:"balance"`
+	AllTime struct {
+		SpendUSDC json.RawMessage `json:"spend_usdc"`
+	} `json:"all_time"`
+	Window struct {
+		SpendUSDC json.RawMessage `json:"spend_usdc"`
+	} `json:"window"`
+}
+
+func fetchInferHubUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, usageURL string) (UpstreamBalanceResult, bool, string) {
+	body, status, err := doBalanceGET(ctx, client, account, apiKey, usageURL)
+	if err != nil {
+		return UpstreamBalanceResult{}, false, "inferhub usage: " + err.Error()
+	}
+	if status != http.StatusOK {
+		return UpstreamBalanceResult{}, false, fmt.Sprintf("inferhub usage status %d: %s", status, truncateForErr(body, 200))
+	}
+	if looksLikeHTML(body) {
+		return UpstreamBalanceResult{}, false, "inferhub usage returned HTML"
+	}
+	var resp inferHubUsageResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return UpstreamBalanceResult{}, false, "inferhub usage decode failed"
+	}
+	if resp.Object != "account.usage" {
+		return UpstreamBalanceResult{}, false, "inferhub usage: unexpected object"
+	}
+	amount, ok := parseLooseFloat(resp.Balance.AmountUSDC)
+	if !ok {
+		return UpstreamBalanceResult{}, false, "inferhub usage: balance missing"
+	}
+	result := UpstreamBalanceResult{
+		BalanceUSD: amount,
+		Source:     balanceSourceInferHubUsage,
+	}
+	if used, usedOK := parseLooseFloat(resp.AllTime.SpendUSDC); usedOK {
+		result.UsedUSD = used
+		result.HasUsed = true
+	} else if used, usedOK := parseLooseFloat(resp.Window.SpendUSDC); usedOK {
+		result.UsedUSD = used
+		result.HasUsed = true
+	}
+	return result, true, ""
 }
 
 // sub2apiUsageBalanceResponse matches GatewayHandler.Usage JSON for balance mode.

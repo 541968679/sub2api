@@ -1,3 +1,16 @@
+## 2026-10-16 - balance: InferHub account usage probe
+
+### What
+- OpenAI API-key accounts on `*.inferhub.dev`, and accounts whose key starts with `sk-airo-`, now read balance from `GET /v1/me/usage`.
+- `balance.amount_usdc` is stored as the USD balance. `all_time.spend_usdc` is the used amount. Currency stays empty because InferHub bills 1 USDC as 1 USD.
+- The apex site host is rewritten to `https://api.inferhub.dev/v1/me/usage`. An HTML body does not count as a balance and the older probes still run.
+
+### Why
+InferHub does not serve OpenAI `/v1/dashboard/billing/*` or Sub2API `/v1/usage`. The account balance is `amount_usdc` on the inference usage endpoint.
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`, `backend/internal/service/upstream_balance_probe_test.go`.
+
 ## 2026-10-14 - ops: record production deploy of v0.1.322
 
 ### What
