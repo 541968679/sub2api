@@ -197,6 +197,7 @@ type CreateGroupRequest struct {
 	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
+	DomesticCategory         string  `json:"domestic_category"`
 }
 
 // UpdateGroupRequest represents update group request
@@ -260,6 +261,7 @@ type UpdateGroupRequest struct {
 	ProfitSafetyBuffer   *float64 `json:"profit_safety_buffer"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
+	DomesticCategory         *string `json:"domestic_category"`
 }
 
 // List handles listing all groups with pagination
@@ -431,6 +433,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ProfitMinMargin:                 req.ProfitMinMargin,
 		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
+		DomesticCategory:                req.DomesticCategory,
 	}
 	if h.simpleMode() {
 		sanitizeSimpleModeCreateGroup(createInput)
@@ -512,6 +515,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ProfitMinMargin:                 req.ProfitMinMargin,
 		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
+		DomesticCategory:                req.DomesticCategory,
 	}
 	if h.simpleMode() {
 		sanitizeSimpleModeUpdateGroup(updateInput)

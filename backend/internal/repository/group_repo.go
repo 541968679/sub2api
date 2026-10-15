@@ -106,6 +106,9 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		if persistErr := persistGroupModelAllowlist(ctx, r.sql, groupIn.ID, groupIn.ModelAllowlist); persistErr != nil {
 			return persistErr
 		}
+		if persistErr := persistDomesticCategory(ctx, r.sql, groupIn.ID, groupIn.DomesticCategory); persistErr != nil {
+			return persistErr
+		}
 		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 			logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group create failed: group=%d err=%v", groupIn.ID, err)
 		}
@@ -135,6 +138,7 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 	}
 	out := groupEntityToService(m)
 	attachGroupModelAllowlists(ctx, r.sql, out)
+	attachDomesticCategories(ctx, r.sql, out)
 	return out, nil
 }
 
@@ -255,6 +259,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 	if persistErr := persistGroupModelAllowlist(ctx, r.sql, groupIn.ID, groupIn.ModelAllowlist); persistErr != nil {
 		return persistErr
 	}
+	if persistErr := persistDomesticCategory(ctx, r.sql, groupIn.ID, groupIn.DomesticCategory); persistErr != nil {
+		return persistErr
+	}
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group update failed: group=%d err=%v", groupIn.ID, err)
 	}
@@ -328,6 +335,7 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 		ptrs = append(ptrs, &outGroups[i])
 	}
 	attachGroupModelAllowlists(ctx, r.sql, ptrs...)
+	attachDomesticCategories(ctx, r.sql, ptrs...)
 
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
 	if err == nil {
@@ -362,6 +370,7 @@ func (r *groupRepository) listWithAccountCountSort(ctx context.Context, q *dbent
 		ptrs = append(ptrs, &outGroups[i])
 	}
 	attachGroupModelAllowlists(ctx, r.sql, ptrs...)
+	attachDomesticCategories(ctx, r.sql, ptrs...)
 
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
 	if err != nil {
@@ -466,6 +475,7 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 		ptrs = append(ptrs, &outGroups[i])
 	}
 	attachGroupModelAllowlists(ctx, r.sql, ptrs...)
+	attachDomesticCategories(ctx, r.sql, ptrs...)
 
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
 	if err == nil {
@@ -517,6 +527,7 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 		ptrs = append(ptrs, &outGroups[i])
 	}
 	attachGroupModelAllowlists(ctx, r.sql, ptrs...)
+	attachDomesticCategories(ctx, r.sql, ptrs...)
 
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
 	if err == nil {

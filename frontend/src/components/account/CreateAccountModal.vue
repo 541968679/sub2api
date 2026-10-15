@@ -92,7 +92,7 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
         <div
-          class="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 lg:grid-cols-5"
+          class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-6"
           data-tour="account-form-platform"
           data-testid="create-account-platform-grid"
         >
@@ -111,10 +111,10 @@
           </button>
           <button
             type="button"
-            @click="form.platform = 'openai'"
+            @click="selectOpenAICreatePlatform"
             :class="[
               'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
-              form.platform === 'openai'
+              form.platform === 'openai' && !accountUsesDomesticView
                 ? 'bg-white text-green-600 shadow-sm dark:bg-dark-600 dark:text-green-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
@@ -187,59 +187,17 @@
           </button>
           <button
             type="button"
-            data-testid="create-platform-kimi"
-            @click="form.platform = 'kimi'; form.type = 'apikey'"
+            data-testid="create-platform-domestic"
+            @click="selectDomesticCreatePlatform"
             :class="[
               'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
-              form.platform === 'kimi'
+              accountUsesDomesticView
                 ? 'bg-white text-sky-600 shadow-sm dark:bg-dark-600 dark:text-sky-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="kimi" size="sm" />
-            <span class="whitespace-nowrap">Kimi</span>
-          </button>
-          <button
-            type="button"
-            data-testid="create-platform-zhipu"
-            @click="form.platform = 'zhipu'; form.type = 'apikey'"
-            :class="[
-              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
-              form.platform === 'zhipu'
-                ? 'bg-white text-blue-700 shadow-sm dark:bg-dark-600 dark:text-blue-300'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-            ]"
-          >
-            <PlatformIcon platform="zhipu" size="sm" />
-            <span class="whitespace-nowrap">Zhipu</span>
-          </button>
-          <button
-            type="button"
-            data-testid="create-platform-minimax"
-            @click="form.platform = 'minimax'; form.type = 'apikey'"
-            :class="[
-              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
-              form.platform === 'minimax'
-                ? 'bg-white text-rose-600 shadow-sm dark:bg-dark-600 dark:text-rose-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-            ]"
-          >
-            <PlatformIcon platform="minimax" size="sm" />
-            <span class="whitespace-nowrap">MiniMax</span>
-          </button>
-          <button
-            type="button"
-            data-testid="create-platform-deepseek"
-            @click="form.platform = 'deepseek'; form.type = 'apikey'"
-            :class="[
-              'flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-xs font-medium transition-all sm:gap-1.5 sm:px-2 sm:text-sm',
-              form.platform === 'deepseek'
-                ? 'bg-white text-indigo-600 shadow-sm dark:bg-dark-600 dark:text-indigo-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-            ]"
-          >
-            <PlatformIcon platform="deepseek" size="sm" />
-            <span class="whitespace-nowrap">DeepSeek</span>
+            <span class="whitespace-nowrap">{{ t('admin.accounts.platforms.domestic') }}</span>
           </button>
         </div>
       </div>
@@ -375,7 +333,7 @@
       </div>
 
       <!-- Account Type Selection (OpenAI) -->
-      <div v-if="form.platform === 'openai'">
+      <div v-if="form.platform === 'openai' && !accountUsesDomesticView">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
         <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-tour="account-form-type">
           <button
@@ -1345,15 +1303,8 @@
             v-model="apiKeyBaseUrl"
             type="text"
             class="input"
-            :placeholder="
-              form.platform === 'openai'
-                ? 'https://api.openai.com'
-                : form.platform === 'gemini'
-                  ? 'https://generativelanguage.googleapis.com'
-                  : form.platform === 'grok'
-                    ? 'https://api.x.ai/v1'
-                    : 'https://api.anthropic.com'
-            "
+            data-testid="create-account-base-url"
+            :placeholder="platformDefaultAPIKeyBaseURL(form.platform)"
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
         </div>
@@ -3912,6 +3863,7 @@ import {
 import NewAPIWalletFields from '@/components/account/NewAPIWalletFields.vue'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { defaultUpstreamRateMultiplier } from '@/utils/accountUpstreamRate'
+import { isDomesticStoredPlatform } from '@/utils/domesticPlatformChoice'
 import {
   API_KEY_IMPORT_MAX,
   applyTokenRhythmCredentials,
@@ -3974,6 +3926,7 @@ const baseUrlHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (form.platform === 'grok') return t('admin.accounts.grok.baseUrlHint')
+  if (isDomesticStoredPlatform(form.platform)) return t('admin.accounts.domesticBaseUrlHint')
   return t('admin.accounts.baseUrlHint')
 })
 
@@ -4060,6 +4013,7 @@ const zone2Expanded = ref(true)
 const zone3Expanded = ref(true)
 const submitting = ref(false)
 const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
+const accountUsesDomesticView = ref(false)
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
@@ -4563,10 +4517,26 @@ watch(
   }
 )
 
-// Sync form.type based on accountCategory, addMethod, and platform-specific type
+const selectOpenAICreatePlatform = () => {
+  accountUsesDomesticView.value = false
+  form.platform = 'openai'
+}
+
+const selectDomesticCreatePlatform = () => {
+  accountUsesDomesticView.value = true
+  form.platform = 'openai'
+  accountCategory.value = 'apikey'
+  form.type = 'apikey'
+}
+
 watch(
   [accountCategory, addMethod, antigravityAccountType, () => form.platform],
   ([category, method, agType]) => {
+    // Domestic vendors are API-key accounts. The choice is the vendor, not OAuth.
+    if (isDomesticStoredPlatform(form.platform)) {
+      form.type = 'apikey'
+      return
+    }
     // Antigravity upstream 类型（实际创建为 apikey）
     if (form.platform === 'antigravity' && agType === 'upstream') {
       form.type = 'apikey'
@@ -4599,15 +4569,9 @@ watch(
 watch(
   () => form.platform,
   (newPlatform) => {
+    if (newPlatform !== 'openai') accountUsesDomesticView.value = false
     // Reset base URL based on platform
-    apiKeyBaseUrl.value =
-      (newPlatform === 'openai')
-        ? 'https://api.openai.com'
-        : newPlatform === 'gemini'
-          ? 'https://generativelanguage.googleapis.com'
-          : newPlatform === 'grok'
-            ? 'https://api.x.ai/v1'
-            : 'https://api.anthropic.com'
+    apiKeyBaseUrl.value = platformDefaultAPIKeyBaseURL(newPlatform)
     // Clear model-related settings
     allowedModels.value = []
     modelMappings.value = []
@@ -5179,6 +5143,7 @@ const resetForm = () => {
   form.notes = ''
   form.platform = 'anthropic'
   form.type = 'oauth'
+  accountUsesDomesticView.value = false
   form.credentials = {}
   form.proxy_id = null
   form.auto_assign_proxy = false

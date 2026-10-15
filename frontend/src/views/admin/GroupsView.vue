@@ -122,7 +122,7 @@
             }}</span>
           </template>
 
-          <template #cell-platform="{ value }">
+          <template #cell-platform="{ row, value }">
             <span
               :class="[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
@@ -134,11 +134,13 @@
                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                       : value === 'grok'
                         ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                        : isDomesticStoredPlatform(String(value ?? '')) || isDomesticGroupCategory(row?.domestic_category)
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
               ]"
             >
-              <PlatformIcon :platform="value" size="xs" />
-              {{ t("admin.groups.platforms." + value) }}
+              <PlatformIcon :platform="groupPlatformMark(row, value)" size="xs" />
+              {{ formatGroupPlatform(value, row?.domestic_category) }}
             </span>
           </template>
 
@@ -435,12 +437,37 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
-            v-model="createForm.platform"
+            :model-value="createPlatformChoice"
             :options="platformOptions"
             data-tour="group-form-platform"
-            @change="createForm.copy_accounts_from_group_ids = []"
+            data-testid="create-group-platform"
+            @update:model-value="onCreatePlatformChoice"
           />
           <p class="input-hint">{{ t("admin.groups.platformHint") }}</p>
+          <div
+            v-if="createPlatformChoice === 'domestic'"
+            class="mt-3"
+            data-testid="create-group-domestic-category"
+          >
+            <label class="input-label">{{ t("admin.groups.form.domesticCategory") }}</label>
+            <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              <button
+                v-for="category in DOMESTIC_GROUP_CATEGORIES"
+                :key="category"
+                type="button"
+                class="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium sm:text-sm"
+                :data-testid="`create-group-category-${category}`"
+                :class="createForm.domestic_category === category
+                  ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300'
+                  : 'border-gray-200 text-gray-600 dark:border-dark-600 dark:text-gray-300'"
+                @click="createForm.domestic_category = category"
+              >
+                <PlatformIcon :platform="category" size="sm" />
+                <span class="truncate">{{ t(`admin.groups.domesticCategories.${category}`) }}</span>
+              </button>
+            </div>
+            <p class="input-hint">{{ t("admin.groups.domesticCategoryHint") }}</p>
+          </div>
         </div>
         <!-- 从分组复制账号 -->
         <div v-if="copyAccountsGroupOptions.length > 0">
@@ -1983,12 +2010,30 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
-            v-model="editForm.platform"
+            :model-value="groupPlatformChoice(editForm.platform, editForm.domestic_category)"
             :options="platformOptions"
             :disabled="true"
             data-tour="group-form-platform"
           />
           <p class="input-hint">{{ t("admin.groups.platformNotEditable") }}</p>
+          <div v-if="groupPlatformChoice(editForm.platform, editForm.domestic_category) === 'domestic'" class="mt-3">
+            <label class="input-label">{{ t("admin.groups.form.domesticCategory") }}</label>
+            <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              <button
+                v-for="category in DOMESTIC_GROUP_CATEGORIES"
+                :key="category"
+                type="button"
+                class="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium sm:text-sm"
+                :class="editForm.domestic_category === category
+                  ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300'
+                  : 'border-gray-200 text-gray-600 dark:border-dark-600 dark:text-gray-300'"
+                @click="editForm.domestic_category = category"
+              >
+                <PlatformIcon :platform="category" size="sm" />
+                <span class="truncate">{{ t(`admin.groups.domesticCategories.${category}`) }}</span>
+              </button>
+            </div>
+          </div>
         </div>
         <!-- 从分组复制账号（编辑时） -->
         <div v-if="copyAccountsGroupOptionsForEdit.length > 0">
@@ -3537,7 +3582,7 @@
                           : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
                   ]"
                 >
-                  {{ t("admin.groups.platforms." + group.platform) }}
+                  {{ formatGroupPlatform(group.platform, group.domestic_category) }}
                 </span>
               </div>
             </div>
@@ -3632,6 +3677,12 @@ import GroupModelsListConfigPanel from "@/components/admin/group/GroupModelsList
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
+import {
+  groupPlatformChoice,
+  isDomesticStoredPlatform,
+  storedPlatformForGroupChoice,
+} from "@/utils/domesticPlatformChoice";
+import { DOMESTIC_GROUP_CATEGORIES, isDomesticGroupCategory } from "@/utils/domesticGroupCategory";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
@@ -3790,10 +3841,27 @@ const exclusiveOptions = computed(() => [
 const platformOptions = computed(() => [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
+  { value: "domestic", label: t("admin.groups.platforms.domestic") },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
   { value: "grok", label: "Grok" },
 ]);
+
+const groupPlatformMark = (row: { domestic_category?: string | null } | null | undefined, platform: unknown) => {
+  const category = String(row?.domestic_category ?? "").trim().toLowerCase();
+  if (isDomesticGroupCategory(category)) return category;
+  return String(platform ?? "");
+};
+
+const formatGroupPlatform = (platform: unknown, category?: unknown) => {
+  const explicit = String(category ?? "").trim().toLowerCase();
+  if (isDomesticGroupCategory(explicit)) {
+    return `${t("admin.groups.platforms.domestic")} · ${t(`admin.groups.domesticCategories.${explicit}`)}`;
+  }
+  const value = String(platform ?? "");
+  if (!isDomesticStoredPlatform(value)) return t(`admin.groups.platforms.${value}`);
+  return `${t("admin.groups.platforms.domestic")} · ${t(`admin.groups.platforms.${value}`)}`;
+};
 
 const platformFilterOptions = computed(() => [
   { value: "", label: t("admin.groups.allPlatforms") },
@@ -3990,6 +4058,7 @@ const createForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  domestic_category: "mixed",
   rate_multiplier: 1.0,
   peak_rate_enabled: false,
   peak_start: "",
@@ -4045,6 +4114,26 @@ const createForm = reactive({
   ccs_import_model_picker_enabled: false,
   ccs_import_default_model: "",
 });
+
+const createPlatformChoice = computed(() => groupPlatformChoice(createForm.platform, createForm.domestic_category));
+
+const onCreatePlatformChoice = (value: string | number | boolean | null) => {
+  const choice = String(value ?? "");
+  if (choice === "domestic") {
+    if (createForm.platform !== "openai") {
+      createForm.platform = "openai";
+      createForm.copy_accounts_from_group_ids = [];
+    }
+    if (!isDomesticGroupCategory(createForm.domestic_category)) createForm.domestic_category = "mixed";
+    return;
+  }
+  const next = storedPlatformForGroupChoice(choice, createForm.platform);
+  if (next !== createForm.platform) {
+    createForm.platform = next as GroupPlatform;
+    createForm.copy_accounts_from_group_ids = [];
+  }
+  createForm.domestic_category = "";
+};
 
 // 简单账号类型（用于模型路由选择）
 interface SimpleAccount {
@@ -4424,6 +4513,7 @@ const editForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  domestic_category: "",
   rate_multiplier: 1.0,
   peak_rate_enabled: false,
   peak_start: "",
@@ -4647,6 +4737,7 @@ const closeCreateModal = () => {
   createForm.name = "";
   createForm.description = "";
   createForm.platform = "anthropic";
+  createForm.domestic_category = "mixed";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
@@ -4720,6 +4811,12 @@ const handleCreateGroup = async () => {
   }
   if (createForm.platform !== "openai") {
     createForm.ccs_import_model_picker_enabled = false;
+  }
+  if (createPlatformChoice.value === "domestic") {
+    createForm.platform = "openai";
+    if (!isDomesticGroupCategory(createForm.domestic_category)) createForm.domestic_category = "mixed";
+  } else if (!isDomesticStoredPlatform(createForm.platform)) {
+    createForm.domestic_category = "";
   }
   if (
     createForm.platform === "openai" &&
@@ -4806,6 +4903,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.name = group.name;
   editForm.description = group.description || "";
   editForm.platform = group.platform;
+  editForm.domestic_category = group.domestic_category || (isDomesticStoredPlatform(group.platform) ? "mixed" : "");
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;

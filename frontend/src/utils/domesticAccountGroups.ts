@@ -1,4 +1,5 @@
 import { isDomesticPricingModel } from '@/utils/pricingPageModels'
+import { isDomesticGroupCategory } from '@/utils/domesticGroupCategory'
 
 /**
  * OpenAI-platform groups that sell domestic coding models share `platform=openai`
@@ -32,12 +33,14 @@ export interface DomesticAccountGroupHint {
   platform?: string | null
   name?: string | null
   description?: string | null
+  domestic_category?: string | null
   default_mapped_model?: string | null
   ccs_import_default_model?: string | null
   allowed_models?: readonly string[] | null
 }
 
 export function isDomesticAccountGroup(group: DomesticAccountGroupHint): boolean {
+  if (isDomesticGroupCategory(group.domestic_category)) return true
   const platform = (group.platform || '').trim().toLowerCase()
   if (DOMESTIC_GROUP_PLATFORMS.has(platform)) return true
   if (platform && platform !== 'openai') return false

@@ -378,7 +378,7 @@ describe('CreateAccountModal', () => {
       .toBe('authorization_bearer')
   })
 
-  it('exposes CN first-class platforms on the create form', async () => {
+  it('groups CN vendors under the domestic platform on the create form', async () => {
     const wrapper = mount(CreateAccountModal, {
       props: { show: true, proxies: [], groups: [] },
       global: {
@@ -395,14 +395,19 @@ describe('CreateAccountModal', () => {
         }
       }
     })
-    expect(wrapper.find('[data-testid="create-platform-kimi"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="create-platform-zhipu"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="create-platform-minimax"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-platform-kimi"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-platform-domestic"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-domestic-vendor"]').exists()).toBe(false)
     const grid = wrapper.get('[data-testid="create-account-platform-grid"]')
-    expect(grid.classes()).toContain('lg:grid-cols-5')
-    expect(grid.classes().some((c) => c.includes('grid-cols-9'))).toBe(false)
+    expect(grid.classes()).toContain('lg:grid-cols-6')
     expect(wrapper.text()).toContain('Antigravity')
-    expect(wrapper.text()).toContain('DeepSeek')
+    expect(wrapper.text()).toContain('admin.accounts.platforms.domestic')
+
+    await wrapper.get('[data-testid="create-platform-domestic"]').trigger('click')
+    expect(wrapper.find('[data-testid="create-domestic-vendor"]').exists()).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="create-account-base-url"]').element.value).toBe(
+      'https://api.openai.com'
+    )
   })
 
   it('creates a Grok API key account with the official xAI base URL', async () => {

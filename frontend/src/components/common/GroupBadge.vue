@@ -6,7 +6,8 @@
     ]"
   >
     <!-- Platform logo -->
-    <PlatformIcon v-if="platform" :platform="platform" size="sm" />
+    <DomesticCategoryMark v-if="isDomesticGroupCategory(category)" :category="category" />
+    <PlatformIcon v-else-if="platform" :platform="platform" size="sm" />
     <!-- Group name -->
     <span class="truncate">{{ name }}</span>
     <!-- Right side label -->
@@ -33,10 +34,13 @@ import type { SubscriptionType, GroupPlatform } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import PlatformIcon from './PlatformIcon.vue'
+import DomesticCategoryMark from './DomesticCategoryMark.vue'
+import { isDomesticGroupCategory } from '@/utils/domesticGroupCategory'
 
 interface Props {
   name: string
   platform?: GroupPlatform
+  category?: string | null
   subscriptionType?: SubscriptionType
   rateMultiplier?: number
   userRateMultiplier?: number | null // 用户专属倍率
@@ -173,6 +177,19 @@ const badgeClass = computed(() => {
     return isSubscription.value
       ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
       : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+  } else if (isDomesticGroupCategory(props.category)) {
+    switch (props.category) {
+      case 'deepseek':
+        return 'bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
+      case 'kimi':
+        return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'
+      case 'glm':
+        return 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'
+      case 'qwen':
+        return 'bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200'
+      default:
+        return 'bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200'
+    }
   } else if (props.platform === 'openai') {
     // OpenAI: green theme
     return isSubscription.value

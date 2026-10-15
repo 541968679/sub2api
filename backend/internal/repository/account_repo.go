@@ -681,6 +681,18 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 	} else if groupID > 0 {
 		q = q.Where(dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDEQ(groupID)))
 	}
+	if filter, ok := service.AccountListGroupFilterFrom(ctx); ok {
+		if filter.MatchNone {
+			q = q.Where(dbaccount.IDEQ(0))
+		} else {
+			if len(filter.Include) > 0 {
+				q = q.Where(dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDIn(filter.Include...)))
+			}
+			if len(filter.Exclude) > 0 {
+				q = q.Where(dbaccount.Not(dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDIn(filter.Exclude...))))
+			}
+		}
+	}
 	if privacyMode != "" {
 		q = q.Where(dbpredicate.Account(func(s *entsql.Selector) {
 			path := sqljson.Path("privacy_mode")

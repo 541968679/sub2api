@@ -10,6 +10,10 @@ export type AccountListFilterState = {
   group?: string
   privacy_mode?: string
   search?: string
+  /** Group ids that define the 国产模型 tab. Not an account.platform value. */
+  platform_view_group_ids?: number[]
+  /** Group ids hidden from the OpenAI tab when no single group is selected. */
+  exclude_group_ids?: number[]
 }
 
 function accountGroupIds(account: Pick<Account, 'group_ids' | 'groups'>): number[] {
@@ -37,7 +41,19 @@ export function accountMatchesListFilters(
   filters: AccountListFilterState,
   now = Date.now()
 ): boolean {
-  if (filters.platform && account.platform !== filters.platform) return false
+  if (filters.platform === 'domestic') {
+    if (!filters.group) {
+      const wanted = filters.platform_view_group_ids ?? []
+      const memberIDs = accountGroupIds(account)
+      if (!memberIDs.some((id) => wanted.includes(id))) return false
+    }
+  } else if (filters.platform && account.platform !== filters.platform) {
+    return false
+  }
+  if (!filters.group && filters.exclude_group_ids && filters.exclude_group_ids.length > 0) {
+    const memberIDs = accountGroupIds(account)
+    if (memberIDs.some((id) => filters.exclude_group_ids?.includes(id))) return false
+  }
   if (filters.type && account.type !== filters.type) return false
   if (filters.status) {
     const rateLimitResetAt = account.rate_limit_reset_at ? new Date(account.rate_limit_reset_at).getTime() : Number.NaN

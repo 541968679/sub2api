@@ -575,6 +575,11 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 		search = search[:100]
 	}
 
+	ctx, _, _, filterErr := withAccountListGroupFilter(c, ctx)
+	if filterErr != nil {
+		return nil, filterErr
+	}
+
 	groupID := int64(0)
 	if groupIDStr := c.Query("group"); groupIDStr != "" {
 		if groupIDStr == accountListGroupUngroupedQueryValue {

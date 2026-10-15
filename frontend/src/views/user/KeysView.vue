@@ -524,6 +524,7 @@
                 v-if="option && !isSelectGroupHeader(option)"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :category="(option as unknown as GroupOption).category"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
@@ -535,12 +536,17 @@
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
             </template>
             <template #option="{ option, selected }">
-              <span v-if="isSelectGroupHeader(option)" class="inline-flex min-w-0 items-center gap-1.5">
-                <PlatformIcon :platform="groupHeaderPlatform(option)" size="xs" />
-                <span class="truncate">{{ option.label }}</span>
-              </span>
+              <div
+                v-if="isSelectGroupHeader(option)"
+                class="flex w-full min-w-0 items-center gap-2 normal-case tracking-normal"
+              >
+                <DomesticCategoryMark :category="groupHeaderPlatform(option)" size="md" />
+                <span class="truncate text-xs font-semibold text-gray-800 dark:text-gray-100">{{ option.label }}</span>
+              </div>
               <GroupOptionItem
                 v-else
+                class="min-w-0 flex-1"
+                :category="(option as unknown as GroupOption).category"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
@@ -1188,7 +1194,7 @@
             <div
               class="sticky top-0 z-10 -mx-1.5 mb-1 flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:bg-dark-900 dark:text-gray-400"
             >
-              <PlatformIcon :platform="asGroupPlatform(section.platform)" size="xs" />
+              <PlatformIcon :platform="section.platform" size="xs" />
               <span>{{ section.label }}</span>
             </div>
             <button
@@ -1259,6 +1265,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import GettingStartedGuide from '@/components/keys/GettingStartedGuide.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+	import DomesticCategoryMark from '@/components/common/DomesticCategoryMark.vue'
 	import PlatformIcon from '@/components/common/PlatformIcon.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -1270,9 +1277,10 @@ import { platformBadgeLightClass } from '@/utils/platformColors'
 import {
   KEY_GROUP_PROVIDERS,
   KEY_GROUP_PROVIDER_ICONS,
-  getKeyGroupProvider,
+  keyGroupProviderForGroup,
   type KeyGroupProvider
 } from '@/utils/keyGroupProviders'
+import { DOMESTIC_GROUP_CATEGORIES, resolveDomesticGroupCategory } from '@/utils/domesticGroupCategory'
 import {
   buildCcSwitchImportDeeplink,
   buildCcSwitchProviderName,
@@ -1308,6 +1316,7 @@ interface GroupOption {
   peakRateMultiplier: number
   subscriptionType: SubscriptionType
   platform: GroupPlatform
+  category?: string
 }
 
 const appStore = useAppStore()
@@ -1583,11 +1592,9 @@ const platformSectionLabel = (platform: string) => {
   return translated === key ? platform : translated
 }
 
-const asGroupPlatform = (platform: string): GroupPlatform => platform as GroupPlatform
-
-const groupHeaderPlatform = (option: unknown): GroupPlatform | undefined => {
+const groupHeaderPlatform = (option: unknown): string | undefined => {
   if (!isSelectGroupHeader(option) || !option.platform) return undefined
-  return asGroupPlatform(option.platform)
+  return option.platform
 }
 
 // Filter dropdown options. "All" and "No group" stay above the platform sections.
@@ -1658,14 +1665,35 @@ const createProvider = ref<KeyGroupProvider>('anthropic')
 const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => ({
   value,
   label: t(`keys.providers.${value}`),
-  count: groups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
+  count: groups.value.filter((group) => keyGroupProviderForGroup(group) === value).length
 })))
 
 const formGroupOptions = computed<SelectOption[]>(() => {
   if (showEditModal.value) return groupPickerSelectOptions.value
-  const filtered = groupOptions.value.filter(
-    (group) => getKeyGroupProvider(group.platform) === createProvider.value
-  )
+  const filtered = groupOptions.value.filter((group) => {
+    const source = groups.value.find((item) => item.id === group.value)
+    return keyGroupProviderForGroup(source ?? {
+      platform: group.platform,
+      name: group.label,
+      description: group.description
+    }) === createProvider.value
+  })
+  if (createProvider.value === 'domestic') {
+    const sections = DOMESTIC_GROUP_CATEGORIES.map((category) => ({
+      platform: category,
+      label: t(`admin.groups.domesticCategories.${category}`),
+      items: filtered
+        .filter((group) => {
+          const source = groups.value.find((item) => item.id === group.value)
+          return resolveDomesticGroupCategory(source ?? {
+            name: group.label,
+            description: group.description
+          }) === category
+        })
+        .map((group) => ({ ...group, category }))
+    }))
+    return flattenPlatformSections(sections) as unknown as SelectOption[]
+  }
   return flattenPlatformSections(
     sectionsByPlatform(filtered, platformSectionLabel)
   ) as unknown as SelectOption[]

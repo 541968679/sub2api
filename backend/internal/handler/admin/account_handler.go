@@ -607,6 +607,11 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if lite {
 		ctx = service.WithAccountListLite(ctx)
 	}
+	ctx, groupIDsRaw, excludeGroupIDsRaw, filterErr := withAccountListGroupFilter(c, ctx)
+	if filterErr != nil {
+		response.ErrorFrom(c, filterErr)
+		return
+	}
 	// 调度分需要跨候选池批量打分并读取负载，默认列表不计算；只有前端列可见时才显式开启。
 	includeSchedulerScore := parseBoolQueryWithDefault(c.Query("include_scheduler_score"), false)
 
@@ -796,7 +801,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		applyAccountListLiteProjection(result)
 	}
 
-	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
+	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite, groupIDsRaw, excludeGroupIDsRaw)
 	if etag != "" {
 		c.Header("ETag", etag)
 		c.Header("Vary", "If-None-Match")
@@ -834,33 +839,62 @@ func liteAccountCredentials(creds map[string]any) map[string]any {
 	return out
 }
 
+func withAccountListGroupFilter(c *gin.Context, ctx context.Context) (context.Context, string, string, error) {
+	includeRaw := strings.TrimSpace(c.Query("group_ids"))
+	excludeRaw := strings.TrimSpace(c.Query("exclude_group_ids"))
+	if includeRaw == "" && excludeRaw == "" {
+		return ctx, "", "", nil
+	}
+	include, matchNone, err := service.ParseAccountGroupIDList(includeRaw)
+	if err != nil {
+		return ctx, includeRaw, excludeRaw, infraerrors.BadRequest("INVALID_GROUP_FILTER", "invalid group filter")
+	}
+	exclude, excludeNone, err := service.ParseAccountGroupIDList(excludeRaw)
+	if err != nil || excludeNone {
+		return ctx, includeRaw, excludeRaw, infraerrors.BadRequest("INVALID_GROUP_FILTER", "invalid group filter")
+	}
+	if matchNone || len(include) > 0 || len(exclude) > 0 {
+		ctx = service.WithAccountListGroupFilter(ctx, service.AccountListGroupFilter{
+			Include:   include,
+			Exclude:   exclude,
+			MatchNone: matchNone,
+		})
+	}
+	return ctx, includeRaw, excludeRaw, nil
+}
+
 func buildAccountsListETag(
 	items []AccountWithConcurrency,
 	total int64,
 	page, pageSize int,
 	platform, accountType, status, search string,
 	lite bool,
+	groupIDs, excludeGroupIDs string,
 ) string {
 	payload := struct {
-		Total       int64                    `json:"total"`
-		Page        int                      `json:"page"`
-		PageSize    int                      `json:"page_size"`
-		Platform    string                   `json:"platform"`
-		AccountType string                   `json:"type"`
-		Status      string                   `json:"status"`
-		Search      string                   `json:"search"`
-		Lite        bool                     `json:"lite"`
-		Items       []AccountWithConcurrency `json:"items"`
+		Total           int64                    `json:"total"`
+		Page            int                      `json:"page"`
+		PageSize        int                      `json:"page_size"`
+		Platform        string                   `json:"platform"`
+		AccountType     string                   `json:"type"`
+		Status          string                   `json:"status"`
+		Search          string                   `json:"search"`
+		Lite            bool                     `json:"lite"`
+		GroupIDs        string                   `json:"group_ids"`
+		ExcludeGroupIDs string                   `json:"exclude_group_ids"`
+		Items           []AccountWithConcurrency `json:"items"`
 	}{
-		Total:       total,
-		Page:        page,
-		PageSize:    pageSize,
-		Platform:    platform,
-		AccountType: accountType,
-		Status:      status,
-		Search:      search,
-		Lite:        lite,
-		Items:       items,
+		Total:           total,
+		Page:            page,
+		PageSize:        pageSize,
+		Platform:        platform,
+		AccountType:     accountType,
+		Status:          status,
+		Search:          search,
+		Lite:            lite,
+		GroupIDs:        groupIDs,
+		ExcludeGroupIDs: excludeGroupIDs,
+		Items:           items,
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

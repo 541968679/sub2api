@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getKeyGroupProvider } from '../keyGroupProviders'
+import { getKeyGroupProvider, keyGroupProviderForGroup } from '../keyGroupProviders'
 
 describe('getKeyGroupProvider', () => {
   it('keeps Claude and OpenAI on their own buttons', () => {
@@ -18,5 +18,11 @@ describe('getKeyGroupProvider', () => {
     expect(getKeyGroupProvider('gemini')).toBe('other')
     expect(getKeyGroupProvider('grok')).toBe('other')
     expect(getKeyGroupProvider('antigravity')).toBe('other')
+  })
+
+  it('files an OpenAI-platform domestic group under 国产模型', () => {
+    expect(keyGroupProviderForGroup({ platform: 'openai', name: '国产模型：聚合渠道' })).toBe('domestic')
+    expect(keyGroupProviderForGroup({ platform: 'openai', name: 'gpt 每月2000刀' })).toBe('openai')
+    expect(keyGroupProviderForGroup({ platform: 'kimi', name: '线路' })).toBe('domestic')
   })
 })

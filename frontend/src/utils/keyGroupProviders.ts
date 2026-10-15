@@ -1,4 +1,5 @@
 import type { GroupPlatform } from '@/types'
+import { isDomesticAccountGroup, type DomesticAccountGroupHint } from '@/utils/domesticAccountGroups'
 
 export type KeyGroupProvider = 'anthropic' | 'openai' | 'domestic' | 'other'
 
@@ -19,6 +20,13 @@ const PROVIDER_BY_PLATFORM: Record<GroupPlatform, KeyGroupProvider> = {
 
 export function getKeyGroupProvider(platform: GroupPlatform): KeyGroupProvider {
   return PROVIDER_BY_PLATFORM[platform] ?? 'other'
+}
+
+// OpenAI-platform groups that sell domestic models stay platform=openai in storage.
+// The create-key picker still files them under 国产模型.
+export function keyGroupProviderForGroup(group: DomesticAccountGroupHint & { platform?: string | null }): KeyGroupProvider {
+  if (isDomesticAccountGroup(group)) return 'domestic'
+  return getKeyGroupProvider((group.platform || '') as GroupPlatform)
 }
 
 // Collections use representative provider marks rather than an invented brand logo.

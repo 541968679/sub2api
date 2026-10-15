@@ -152,6 +152,7 @@ type Group struct {
 
 	CcsImportModelPickerEnabled bool   `json:"ccs_import_model_picker_enabled"`
 	CcsImportDefaultModel       string `json:"ccs_import_default_model"`
+	DomesticCategory            string `json:"domestic_category"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

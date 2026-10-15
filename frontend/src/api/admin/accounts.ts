@@ -39,6 +39,8 @@ export async function list(
     type?: string
     status?: string
     group?: string
+    group_ids?: string
+    exclude_group_ids?: string
     search?: string
     privacy_mode?: string
     lite?: string
@@ -76,6 +78,8 @@ export async function listWithEtag(
     type?: string
     status?: string
     group?: string
+    group_ids?: string
+    exclude_group_ids?: string
     search?: string
     privacy_mode?: string
     lite?: string
@@ -1103,6 +1107,8 @@ export async function exportData(options?: {
     type?: string
     status?: string
     group?: string
+    group_ids?: string
+    exclude_group_ids?: string
     privacy_mode?: string
     search?: string
     sort_by?: string
@@ -1117,11 +1123,13 @@ export async function exportData(options?: {
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    const { platform, type, status, group, group_ids, exclude_group_ids, privacy_mode, search, sort_by, sort_order } = options.filters
     if (platform) params.platform = platform
     if (type) params.type = type
     if (status) params.status = status
     if (group) params.group = group
+    if (group_ids) params.group_ids = group_ids
+    if (exclude_group_ids) params.exclude_group_ids = exclude_group_ids
     if (privacy_mode) params.privacy_mode = privacy_mode
     if (search) params.search = search
     if (sort_by) params.sort_by = sort_by
@@ -1150,6 +1158,8 @@ export async function exportCodexAuth(options?: {
     type?: string
     status?: string
     group?: string
+    group_ids?: string
+    exclude_group_ids?: string
     privacy_mode?: string
     search?: string
     sort_by?: string
@@ -1166,11 +1176,13 @@ export async function exportCodexAuth(options?: {
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    const { platform, type, status, group, group_ids, exclude_group_ids, privacy_mode, search, sort_by, sort_order } = options.filters
     if (platform) params.platform = platform
     if (type) params.type = type
     if (status) params.status = status
     if (group) params.group = group
+    if (group_ids) params.group_ids = group_ids
+    if (exclude_group_ids) params.exclude_group_ids = exclude_group_ids
     if (privacy_mode) params.privacy_mode = privacy_mode
     if (search) params.search = search
     if (sort_by) params.sort_by = sort_by

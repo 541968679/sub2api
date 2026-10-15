@@ -1,3 +1,5 @@
+import { domesticPlatformDefaultBaseURL } from '@/utils/domesticPlatformChoice'
+
 export const TOKENRHYTHM_ORIGIN = 'https://tokenrhythm.studio'
 export const API_KEY_IMPORT_MAX = 500
 
@@ -119,6 +121,8 @@ export function assignAPIKeyImportNames(prefix: string, apiKeys: string[]): stri
 }
 
 export function platformDefaultAPIKeyBaseURL(platform: string): string {
+  const domestic = domesticPlatformDefaultBaseURL(platform)
+  if (domestic) return domestic
   if (platform === 'openai') return 'https://api.openai.com'
   if (platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (platform === 'grok') return 'https://api.x.ai/v1'

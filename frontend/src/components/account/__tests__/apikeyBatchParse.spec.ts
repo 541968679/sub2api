@@ -60,6 +60,8 @@ describe('parseAPIKeyImport', () => {
     expect(resolveAPIKeyImportBaseURL('', 'https://api.openai.com', false)).toBe('https://api.openai.com')
     expect(platformDefaultAPIKeyBaseURL('openai')).toBe('https://api.openai.com')
     expect(platformDefaultAPIKeyBaseURL('gemini')).toBe('https://generativelanguage.googleapis.com')
+    expect(platformDefaultAPIKeyBaseURL('kimi')).toBe('https://api.moonshot.cn/v1')
+    expect(platformDefaultAPIKeyBaseURL('minimax')).toBe('https://api.minimaxi.com/v1')
   })
 
   it('names batch accounts from the prefix and key tail', () => {

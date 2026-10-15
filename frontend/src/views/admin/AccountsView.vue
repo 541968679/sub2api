@@ -233,9 +233,7 @@
             </div>
           </div>
 
-          <!-- Right column: public-quality editor (OAI Pro pool card hidden for now) -->
-          <div class="flex w-full shrink-0 flex-col self-stretch xl:w-[min(48rem,46%)]">
-            <PublicScheduleQualityGlobalCard class="min-h-0 flex-1" />
+          <div v-if="totalAICredits > 0" class="shrink-0 self-start">
             <template v-if="false">
             <div
               v-if="(openaiFleetUsage?.included_count ?? 0) > 0"
@@ -325,7 +323,6 @@
             </div>
             </template>
             <span
-              v-if="totalAICredits > 0"
               class="inline-flex items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -869,6 +866,8 @@ import type { PairAdmissionLiveState } from '@/composables/smartSchedulePoolAdmi
 import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
 import { ACCOUNT_QUALITY_WINDOW_N_DEFAULT, resolveAccountQualityWindowN } from '@/utils/accountQualityWindowN'
 import { accountMatchesListFilters } from '@/utils/accountListFilters'
+import { accountListQueryForPlatformView } from '@/utils/accountPlatformView'
+import { isDomesticAccountGroup } from '@/utils/domesticAccountGroups'
 import {
   PUBLIC_POOL_AUTO_SORT_MAX_IDS,
   accountListOrderFromExtra,
@@ -918,7 +917,6 @@ import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vu
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import PublicScheduleQualityStateCell from '@/components/account/PublicScheduleQualityStateCell.vue'
 import AccountStabilityDialog from '@/components/account/AccountStabilityDialog.vue'
-import PublicScheduleQualityGlobalCard from '@/components/account/PublicScheduleQualityGlobalCard.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountUserScheduleCell from '@/components/account/AccountUserScheduleCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
@@ -940,6 +938,12 @@ const authStore = useAuthStore()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
+
+const translateAccountListFilters = <T extends { platform?: string; group?: string }>(filters: T) =>
+  accountListQueryForPlatformView(
+    filters,
+    groups.value.filter((group) => isDomesticAccountGroup(group))
+  )
 
 const saveAccountGroupOrder = async (orderedLists: number[][]) => {
   const updates = mergeGroupSortOrders(groups.value, orderedLists)
@@ -1146,7 +1150,7 @@ type AccountListFiltersState = {
   group: string
   search: string
 }
-const ACCOUNT_FILTER_PLATFORMS = new Set(['', 'anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+const ACCOUNT_FILTER_PLATFORMS = new Set(['', 'anthropic', 'openai', 'domestic', 'gemini', 'antigravity', 'grok'])
 const ACCOUNT_FILTER_TYPES = new Set(['', 'oauth', 'setup-token', 'apikey', 'bedrock'])
 const ACCOUNT_FILTER_STATUSES = new Set([
   '',
@@ -1795,7 +1799,12 @@ const {
   handlePageChange: baseHandlePageChange,
   handlePageSizeChange: baseHandlePageSizeChange
 } = useTableLoader<Account, any>({
-  fetchFn: adminAPI.accounts.list,
+  fetchFn: (page, pageSize, filters, options) => adminAPI.accounts.list(
+    page,
+    pageSize,
+    translateAccountListFilters(filters),
+    options
+  ),
   initialParams: {
     platform: initialAccountFilters.platform,
     type: initialAccountFilters.type,
@@ -2112,7 +2121,7 @@ const refreshAccountsIncrementally = async (options?: { skipAutoSort?: boolean }
     const result = await adminAPI.accounts.listWithEtag(
       pagination.page,
       pagination.page_size,
-      toRaw(params) as {
+      translateAccountListFilters(toRaw(params) as {
         platform?: string
         type?: string
         status?: string
@@ -2121,8 +2130,7 @@ const refreshAccountsIncrementally = async (options?: { skipAutoSort?: boolean }
         search?: string
         sort_by?: string
         sort_order?: AccountSortOrder
-
-      },
+      }),
       { etag: autoRefreshETag.value }
     )
 
@@ -2607,7 +2615,7 @@ const handleBulkToggleSchedulable = async (schedulable: boolean) => {
 const buildBulkEditFilterSnapshot = () => {
   const rawParams = toRaw(params) as Record<string, unknown>
   const sortOrder: AccountSortOrder = rawParams.sort_order === 'desc' ? 'desc' : 'asc'
-  return {
+  return translateAccountListFilters({
     platform: typeof rawParams.platform === 'string' ? rawParams.platform : '',
     type: typeof rawParams.type === 'string' ? rawParams.type : '',
     status: typeof rawParams.status === 'string' ? rawParams.status : '',
@@ -2616,7 +2624,7 @@ const buildBulkEditFilterSnapshot = () => {
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
     sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
     sort_order: sortOrder
-  }
+  })
 }
 
 const collectFilteredAccounts = async (options?: { lite?: boolean }) => {
@@ -2856,7 +2864,7 @@ const handleUnbindSubscriptionApplied = () => {
   reload()
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
-const buildAccountQueryFilters = () => ({
+const buildAccountQueryFilters = () => translateAccountListFilters({
   platform: params.platform || '',
   type: params.type || '',
   status: params.status || '',
@@ -2866,8 +2874,21 @@ const buildAccountQueryFilters = () => ({
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
-const accountMatchesCurrentFilters = (account: Account) =>
-  accountMatchesListFilters(account, buildAccountQueryFilters())
+const accountMatchesCurrentFilters = (account: Account) => {
+  const platform = params.platform || ''
+  const group = params.group || ''
+  const domesticIDs = groups.value.filter((item) => isDomesticAccountGroup(item)).map((item) => item.id)
+  return accountMatchesListFilters(account, {
+    platform,
+    type: params.type || '',
+    status: params.status || '',
+    group,
+    privacy_mode: params.privacy_mode || '',
+    search: params.search || '',
+    platform_view_group_ids: platform === 'domestic' ? domesticIDs : undefined,
+    exclude_group_ids: platform === 'openai' && !group ? domesticIDs : undefined
+  })
+}
 const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Account => ({
   ...updatedAccount,
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
@@ -3553,7 +3574,6 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
-  load()
   try {
     const [p, g] = await Promise.all([adminAPI.proxies.getAllWithCount(), adminAPI.groups.getAll()])
     proxies.value = p
@@ -3561,6 +3581,7 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to load proxies/groups:', error)
   }
+  load()
   window.addEventListener('scroll', handleScroll, true)
   document.addEventListener('click', handleClickOutside)
 

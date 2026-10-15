@@ -312,6 +312,8 @@ type CreateGroupInput struct {
 	ProfitSafetyBuffer   float64
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
 	CopyAccountsFromGroupIDs []int64
+	// DomesticCategory is mixed, deepseek, kimi, glm, or qwen. Empty leaves it unset.
+	DomesticCategory string
 }
 
 type UpdateGroupInput struct {
@@ -375,6 +377,8 @@ type UpdateGroupInput struct {
 	ProfitSafetyBuffer   *float64
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64
+	// DomesticCategory is set only when the request includes the field.
+	DomesticCategory *string
 }
 
 type CreateAccountInput struct {
@@ -1853,6 +1857,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if err := validateCcsImportModelPicker(input.CcsImportModelPickerEnabled, ccsImportDefaultModel); err != nil {
 		return nil, err
 	}
+	domesticCategory, err := NormalizeDomesticCategory(input.DomesticCategory)
+	if err != nil {
+		return nil, err
+	}
 	allowlist, err := normalizeGroupModelAllowlist(input.ModelAllowlist)
 	if err != nil {
 		return nil, err
@@ -2014,6 +2022,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DefaultMappedModel:              input.DefaultMappedModel,
 		CcsImportModelPickerEnabled:     input.CcsImportModelPickerEnabled,
 		CcsImportDefaultModel:           ccsImportDefaultModel,
+		DomesticCategory:                domesticCategory,
 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
 		ModelAllowlist:                  allowlist,
@@ -2341,6 +2350,13 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.CcsImportDefaultModel != nil {
 		group.CcsImportDefaultModel = strings.TrimSpace(*input.CcsImportDefaultModel)
+	}
+	if input.DomesticCategory != nil {
+		domesticCategory, err := NormalizeDomesticCategory(*input.DomesticCategory)
+		if err != nil {
+			return nil, err
+		}
+		group.DomesticCategory = domesticCategory
 	}
 	if err := validateCcsImportModelPicker(group.CcsImportModelPickerEnabled, group.CcsImportDefaultModel); err != nil {
 		return nil, err

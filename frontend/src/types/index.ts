@@ -720,6 +720,7 @@ export interface Group {
   name: string
   description: string | null
   platform: GroupPlatform
+  domestic_category?: string
   rate_multiplier: number
 	peak_rate_enabled: boolean
 	peak_start: string

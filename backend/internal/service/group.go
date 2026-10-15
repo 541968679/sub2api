@@ -77,6 +77,9 @@ type Group struct {
 	DefaultMappedModel          string
 	CcsImportModelPickerEnabled bool
 	CcsImportDefaultModel       string
+	// DomesticCategory is a display bucket for 国产模型 groups.
+	// Empty means unset. It does not change gateway platform routing.
+	DomesticCategory            string
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
 	ModelsListConfig            GroupModelsListConfig
 	ModelAllowlist              GroupModelAllowlist

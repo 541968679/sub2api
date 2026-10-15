@@ -56,7 +56,7 @@ describe('AccountTableFilters sort options', () => {
     wrapper.unmount()
   })
 
-  it('splits domestic OpenAI groups into their own dropdown on the OpenAI platform', async () => {
+  it('keeps the domestic dropdown inside OpenAI when the platform tabs are hidden', async () => {
     const groups = [
       { id: 9, name: 'gpt 每月2000刀', platform: 'openai' },
       { id: 23, name: 'Ccmax高质量', platform: 'anthropic' },
@@ -68,7 +68,8 @@ describe('AccountTableFilters sort options', () => {
       props: {
         searchQuery: '',
         filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' },
-        groups: groups as never
+        groups: groups as never,
+        hidePlatform: true
       },
       global: {
         stubs: {
@@ -127,6 +128,90 @@ describe('AccountTableFilters sort options', () => {
     wrapper.unmount()
   })
 
+  it('puts domestic groups on the 国产模型 platform tab', async () => {
+    const groups = [
+      { id: 9, name: 'gpt 每月2000刀', platform: 'openai' },
+      { id: 46, name: '国产模型：聚合渠道', platform: 'openai' },
+      { id: 48, name: 'kimi k3 官key', platform: 'openai' }
+    ]
+    const wrapper = mount(AccountTableFilters, {
+      props: {
+        searchQuery: '',
+        filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '9', sort_by: 'created_at', sort_order: 'desc' },
+        groups: groups as never
+      },
+      global: {
+        stubs: {
+          SearchInput: true,
+          Select: SelectStub
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="account-filter-platform-domestic"]').text()).toBe('admin.accounts.platforms.domestic')
+    expect(wrapper.find('[data-testid="account-filter-domestic-group"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.allGroups',
+      'admin.accounts.ungroupedGroup',
+      'gpt 每月2000刀'
+    ])
+
+    await wrapper.get('[data-testid="account-filter-platform-domestic"]').trigger('click')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({ platform: 'domestic', group: '' })
+
+    await wrapper.setProps({
+      filters: { platform: 'domestic', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' }
+    })
+    expect(wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.allGroups',
+      'admin.groups.domesticCategories.mixed',
+      '国产模型：聚合渠道',
+      'admin.groups.domesticCategories.kimi',
+      'kimi k3 官key'
+    ])
+    wrapper.unmount()
+  })
+
+  it('keeps each platform dropdown on that platform and clears a mismatched group', async () => {
+    const groups = [
+      { id: 9, name: 'gpt 每月2000刀', platform: 'openai' },
+      { id: 23, name: 'Ccmax高质量', platform: 'anthropic' },
+      { id: 46, name: '国产模型：聚合渠道', platform: 'openai' }
+    ]
+    const wrapper = mount(AccountTableFilters, {
+      props: {
+        searchQuery: '',
+        filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '9', sort_by: 'created_at', sort_order: 'desc' },
+        groups: groups as never
+      },
+      global: {
+        stubs: {
+          SearchInput: true,
+          Select: SelectStub
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.allGroups',
+      'admin.accounts.ungroupedGroup',
+      'gpt 每月2000刀'
+    ])
+
+    await wrapper.get('[data-testid="account-filter-platform-anthropic"]').trigger('click')
+    expect(wrapper.emitted('update:filters')?.at(-1)?.[0]).toMatchObject({ platform: 'anthropic', group: '' })
+
+    await wrapper.setProps({
+      filters: { platform: 'anthropic', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' }
+    })
+    expect(wrapper.get('[data-testid="account-filter-group"]').findAll('option').map((opt) => opt.text())).toEqual([
+      'admin.accounts.allGroups',
+      'admin.accounts.ungroupedGroup',
+      'Ccmax高质量'
+    ])
+    wrapper.unmount()
+  })
+
   it('orders group options by sort_order and saves a reordered dropdown', async () => {
     const reorderGroups = vi.fn().mockResolvedValue(undefined)
     const groups = [
@@ -140,7 +225,8 @@ describe('AccountTableFilters sort options', () => {
         searchQuery: '',
         filters: { platform: 'openai', type: '', status: '', privacy_mode: '', group: '', sort_by: 'created_at', sort_order: 'desc' },
         groups: groups as never,
-        reorderGroups
+        reorderGroups,
+        hidePlatform: true
       },
       global: {
         stubs: {

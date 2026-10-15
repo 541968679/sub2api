@@ -220,6 +220,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		ProfitSafetyBuffer:              g.ProfitSafetyBuffer,
 		CcsImportModelPickerEnabled:     g.CcsImportModelPickerEnabled,
 		CcsImportDefaultModel:           g.CcsImportDefaultModel,
+		DomesticCategory:                g.DomesticCategory,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

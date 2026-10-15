@@ -1,3 +1,16 @@
+## 2026-10-16 - ui: show domestic model groups without changing the OpenAI gateway
+
+### What
+- Account management, group creation, and API key creation show a 国产模型 view. Categories are 混合, DeepSeek, Kimi, GLM, and Qwen.
+- A new domestic group stores `platform=openai` plus `groups.domestic_category`. Existing OpenAI groups are classified in the browser from their name, description, or mapped model. The admin account list can filter by `group_ids` and `exclude_group_ids`.
+- Gateway routing, scheduler platform selection, and account `platform` are unchanged.
+
+### Why
+Domestic pools need their own screen grouping while requests keep using the OpenAI gateway.
+
+### Affected files
+`backend/migrations/257_group_domestic_category.sql`, `backend/internal/service/domestic_category.go`, `backend/internal/service/account_list_group_filter.go`, `backend/internal/repository/group_domestic_category_repo.go`, `backend/internal/repository/group_repo.go`, `backend/internal/repository/account_repo.go`, `backend/internal/handler/admin/account_handler.go`, `backend/internal/handler/admin/group_handler.go`, `frontend/src/views/admin/AccountsView.vue`, `frontend/src/views/admin/GroupsView.vue`, `frontend/src/views/user/KeysView.vue`, `frontend/src/components/admin/account/AccountTableFilters.vue`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/common/DomesticCategoryMark.vue`, `frontend/src/utils/domesticAccountGroups.ts`, `frontend/src/utils/domesticGroupCategory.ts`, `frontend/src/utils/domesticPlatformChoice.ts`, `docs/dev/codebase/account.md`.
+
 ## 2026-10-16 - balance: InferHub account usage probe
 
 ### What
