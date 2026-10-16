@@ -54,8 +54,8 @@
           </span>
           <span v-else class="flex w-full min-w-0 items-center gap-2 pl-1 normal-case tracking-normal">
             <DomesticCategoryMark
-              v-if="isDomesticGroupCategory(option.platform)"
-              :category="String(option.platform)"
+              v-if="isDomesticGroupCategory(typeof option.platform === 'string' ? option.platform : '')"
+              :category="typeof option.platform === 'string' ? option.platform : ''"
             />
             <span class="min-w-0 flex-1 truncate text-left">{{ option.label }}</span>
           </span>
@@ -63,8 +63,8 @@
         <template #selected="{ option }">
           <span v-if="option" class="flex w-full min-w-0 items-center gap-2 normal-case tracking-normal">
             <DomesticCategoryMark
-              v-if="isDomesticGroupCategory(option.platform)"
-              :category="String(option.platform)"
+              v-if="isDomesticGroupCategory(typeof option.platform === 'string' ? option.platform : '')"
+              :category="typeof option.platform === 'string' ? option.platform : ''"
             />
             <span class="min-w-0 flex-1 truncate text-left">{{ option.label }}</span>
           </span>
@@ -214,7 +214,7 @@ function groupFitsPlatform(platform: string, group: string): boolean {
 
 function setPlatform(value: string) {
   if (props.filters.platform === value) return
-  const next = { ...props.filters, platform: value }
+  const next: Record<string, any> = { ...props.filters, platform: value }
   const group = String(props.filters.group ?? '')
   if (!groupFitsPlatform(value, group)) next.group = ''
   emit('update:filters', next)
