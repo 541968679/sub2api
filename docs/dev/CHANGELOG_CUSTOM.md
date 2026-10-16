@@ -1,3 +1,16 @@
+## 2026-10-16 - ops: record production deploy of v0.1.325
+
+### What
+- Production new-origin is `ghcr.io/541968679/sub2api:0.1.325`, digest `sha256:fa825ad32970bc931ffa675b3408f5b02cc58a3548359dff324cdcd43d2853a0`, revision `be710db3f`. Release run `38837547522`.
+- Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Postgres and Redis were not recreated. Postgres has been up since 2026-10-01 and stayed healthy. Rollback image is v0.1.324 digest `sha256:770513e27c74c62bcdcb1f456b045b98812c6155c86136f7c3d52b7ef1ace00f`.
+- `http://127.0.0.1:8080/health` on the host and public `https://zerocode.kaynlab.com/health` both returned `{"status":"ok"}`.
+
+### Why
+`v0.1.324` held the user row lock and then opened a second transaction to write the balance, so the admin recharge waited until the browser canceled it. This image writes that update on the same transaction. The database was not rolled back.
+
+### Affected files
+`docs/dev/CHANGELOG_CUSTOM.md`.
+
 ## 2026-10-16 - fix: admin balance update stays on one database transaction
 
 ### What
