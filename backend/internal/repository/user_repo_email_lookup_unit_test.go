@@ -225,3 +225,39 @@ func TestUserRepositoryCreateSerializesNormalizedEmailConflictsUnderConcurrency(
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+func TestUserRepositoryUpdateJoinsCallerTransaction(t *testing.T) {
+	repo, client := newUserEntRepo(t)
+	ctx := context.Background()
+
+	user := &service.User{
+		Email:        "outer-balance@example.com",
+		Username:     "outer-balance",
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+		Balance:      10,
+	}
+	require.NoError(t, repo.Create(ctx, user))
+	require.NotZero(t, user.ID)
+	_, err := client.ExecContext(ctx, "ALTER TABLE users ADD COLUMN quality_window_n INTEGER")
+	require.NoError(t, err)
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	_, err = tx.Client().User.UpdateOneID(user.ID).SetNotes("hold").Save(txCtx)
+	require.NoError(t, err)
+
+	user.Balance = 25
+	updateCtx, cancel := context.WithTimeout(txCtx, 3*time.Second)
+	defer cancel()
+	require.NoError(t, repo.Update(updateCtx, user))
+	require.NoError(t, tx.Rollback())
+
+	outside, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.InDelta(t, 10, outside.Balance, 0.000001)
+}

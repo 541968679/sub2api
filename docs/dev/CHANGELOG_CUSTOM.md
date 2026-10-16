@@ -1,3 +1,14 @@
+## 2026-10-16 - fix: admin balance update stays on one database transaction
+
+### What
+- `userRepository.Update` reuses a transaction already stored on the context. Admin balance adjustments no longer open a second connection while the user row is locked.
+
+### Why
+`v0.1.324` locks the user row and then updates it. The update opened its own transaction, waited on that lock, and the request sat until the browser canceled it. The balance was not changed. Postgres is left as it is.
+
+### Affected files
+`backend/internal/repository/user_repo.go`, `backend/internal/repository/user_repo_email_lookup_unit_test.go`.
+
 ## 2026-10-16 - gateway: force listed upstream hosts onto HTTP/1.1
 
 ### What
