@@ -1,3 +1,17 @@
+## 2026-10-16 - ops: record production deploy of v0.1.324
+
+### What
+- Production new-origin is `ghcr.io/541968679/sub2api:0.1.324`, digest `sha256:770513e27c74c62bcdcb1f456b045b98812c6155c86136f7c3d52b7ef1ace00f`, revision `bdd20e8ee773ec833bad106210b812e40e4b7847`. Release run `38834355722`. VERSION sync `86bea94a1`.
+- Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Postgres and Redis were not recreated. Restart count is 0. Started at `2026-10-16T01:24:11Z`. Rollback is v0.1.322 digest `sha256:bf0668e06e50c6052e6d0c5dab16472ccd8ab1a99891e9acd2d8cc976d3a8c23`.
+- Local `http://127.0.0.1:8080/health` and public `https://zerocode.kaynlab.com/health` both returned `{"status":"ok"}`.
+- Tag `v0.1.323` did not publish an image. Its Release failed the frontend typecheck. `v0.1.324` is that fix plus the three commits already on main: InferHub balance, domestic group UI, and invite rebate.
+
+### Why
+Ship the domestic group screens. Requests for those groups still use the OpenAI gateway.
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-10-16 - ui: show domestic model groups without changing the OpenAI gateway
 
 ### What
