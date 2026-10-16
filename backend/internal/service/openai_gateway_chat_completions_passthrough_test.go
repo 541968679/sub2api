@@ -77,6 +77,8 @@ func TestForwardAsChatCompletions_PassthroughKeepsChatCompletionsBody(t *testing
 	require.Equal(t, "medium", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
 	require.Equal(t, "", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Exists())
+	require.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+	require.Equal(t, "close", rec.Header().Get("Connection"))
 
 	written := rec.Body.String()
 	require.Contains(t, written, `"content":"half an ans"`)

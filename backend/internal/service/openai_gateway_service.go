@@ -4605,7 +4605,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	// SSE headers
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
+	c.Header("Connection", "close")
 	c.Header("X-Accel-Buffering", "no")
 	if v := resp.Header.Get("x-request-id"); v != "" {
 		RememberUpstreamRequestID(c, v)
@@ -5593,7 +5593,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	// Set SSE response headers
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
+	c.Header("Connection", "close")
 	c.Header("X-Accel-Buffering", "no")
 
 	// Pass through other headers

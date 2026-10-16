@@ -8,7 +8,7 @@
 {
 	admin 127.0.0.1:2019
 	servers {
-		protocols h1 h2 h2c
+		protocols h1
 		timeouts {
 			read_body 3600s
 			read_header 60s
@@ -28,10 +28,13 @@
 		header_up Host zerocode.kaynlab.com
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-Host zerocode.kaynlab.com
+		# Public site the client used. Origin Caddy keeps this only from the relay peer.
+		header_up X-Sub2-Entry-Host {http.request.host}
+		header_up -X-Sub2-Entry-Via
 		flush_interval -1
 
 		transport http {
-			versions 1.1 2
+			versions 1.1
 			compression off
 			read_timeout 3600s
 			write_timeout 3600s
@@ -50,6 +53,8 @@
 		format json
 		level INFO
 	}
+	# Join this value to usage_logs.request_id as client:<id>. Not reloaded on the box in this change.
+	log_append x_request_id {http.response.header.X-Request-Id}
 }
 
 zerocode.kaynlab.asia {

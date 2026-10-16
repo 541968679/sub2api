@@ -620,6 +620,8 @@ type AdminUsageLog struct {
 
 	// IPAddress 用户请求 IP（仅管理员可见）
 	IPAddress *string `json:"ip_address,omitempty"`
+	// InboundHost is the public entry hostname (仅管理员可见).
+	InboundHost *string `json:"inbound_host,omitempty"`
 
 	// TrueFirstTokenMs is first useful/non-preamble output used by scheduling
 	// and account quality. Distinct from UsageLog.FirstTokenMs (display).

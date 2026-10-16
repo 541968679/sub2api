@@ -188,6 +188,9 @@ type UsageLog struct {
 	TrueFirstTokenMs *int
 	UserAgent        *string
 	IPAddress        *string
+	// InboundHost is the public entry hostname. A trusted relay header wins;
+	// otherwise it is the host the gateway actually received.
+	InboundHost *string
 
 	// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）
 	CacheTTLOverridden bool

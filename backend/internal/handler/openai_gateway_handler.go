@@ -95,6 +95,9 @@ func usageRecordContext(parent context.Context, base context.Context) context.Co
 	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
 		base = context.WithValue(base, ctxkey.RequestID, strings.TrimSpace(requestID))
 	}
+	if host, _ := parent.Value(ctxkey.InboundHost).(string); strings.TrimSpace(host) != "" {
+		base = context.WithValue(base, ctxkey.InboundHost, strings.TrimSpace(host))
+	}
 	return base
 }
 
@@ -127,6 +130,9 @@ func turnUsageRecordContext(parent context.Context, turn int, turnRequestID stri
 	}
 	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
 		derived = context.WithValue(derived, ctxkey.RequestID, strings.TrimSpace(requestID)+":t:"+suffix)
+	}
+	if host, _ := parent.Value(ctxkey.InboundHost).(string); strings.TrimSpace(host) != "" {
+		derived = context.WithValue(derived, ctxkey.InboundHost, strings.TrimSpace(host))
 	}
 	return derived
 }

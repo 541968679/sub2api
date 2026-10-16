@@ -214,6 +214,13 @@ func (UsageLog) Fields() []ent.Field {
 			Default(0),
 		field.Int64("display_output_token_max_used").
 			Default(0),
+		// inbound_host is appended here so generated ent/runtime indexes stay
+		// stable. go generate ./ent still fails on account_schedule_user.
+		// Gateway writes this column through the raw usage insert.
+		field.String("inbound_host").
+			MaxLen(255).
+			Optional().
+			Nillable(),
 	}
 }
 

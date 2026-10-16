@@ -33,6 +33,9 @@ const messages: Record<string, string> = {
   'usage.inputPerSecond': 'in {n} t/s',
   'usage.outputPerSecond': 'out {n} t/s',
   'usage.tokenRateHint': 'token rate hint',
+  'usage.inbound': 'Inbound',
+  'usage.inboundHost': 'Entry host',
+  'usage.upstream': 'Upstream',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -436,5 +439,43 @@ describe('admin UsageTable tooltip', () => {
 
     expect(wrapper.text()).toContain('in 406 t/s')
     expect(wrapper.text()).toContain('out 10 t/s')
+  })
+
+  it('shows the entry host beside the inbound path', () => {
+    const row = {
+      request_id: 'req-entry-1',
+      inbound_endpoint: '/v1/chat/completions',
+      inbound_host: 'zerocode.kaynlab.asia',
+      upstream_endpoint: 'https://api.inferhub.dev/v1/chat/completions',
+    }
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: {
+            props: ['data'],
+            template: `
+              <div>
+                <div v-for="row in data" :key="row.request_id">
+                  <slot name="cell-endpoint" :row="row" />
+                </div>
+              </div>
+            `,
+          },
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain('Entry host')
+    expect(text).toContain('zerocode.kaynlab.asia')
+    expect(text).toContain('/v1/chat/completions')
   })
 })

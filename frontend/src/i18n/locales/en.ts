@@ -1187,6 +1187,7 @@ const enBase = {
     mapping: 'Mapping',
     path: 'Path',
     inboundEndpoint: 'Inbound Endpoint',
+    inboundHost: 'Entry host',
     upstreamEndpoint: 'Upstream Endpoint',
     type: 'Type',
     tokens: 'Tokens',

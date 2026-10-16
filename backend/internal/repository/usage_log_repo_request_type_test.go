@@ -105,6 +105,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // display_context_token_max_used
 			sqlmock.AnyArg(), // display_output_token_max_used
 			sqlmock.AnyArg(), // upstream_request_id
+			sqlmock.AnyArg(), // inbound_host
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -202,6 +203,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // display_context_token_max_used
 			sqlmock.AnyArg(), // display_output_token_max_used
 			sqlmock.AnyArg(), // upstream_request_id
+			sqlmock.AnyArg(), // inbound_host
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -249,7 +251,7 @@ func TestBuildUsageLogBestEffortInsertQuery_IncludesUpstreamRequestIDWithoutChan
 	require.Contains(t, query, "upstream_request_id")
 	require.Equal(t, 1.25, prepared.args[24], "actual_cost argument position must not shift")
 	require.Contains(t, args, 1.25)
-	gotID, ok := prepared.args[len(prepared.args)-2].(sql.NullString)
+	gotID, ok := prepared.args[len(prepared.args)-3].(sql.NullString)
 	require.True(t, ok)
 	require.True(t, gotID.Valid)
 	require.Equal(t, id, gotID.String)
@@ -840,6 +842,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // display_context_token_max_used
 			int64(0),          // display_output_token_max_used
 			sql.NullString{},  // upstream_request_id
+			sql.NullString{Valid: true, String: "zerocode.kaynlab.asia"}, // inbound_host
 			now,
 		}})
 		require.NoError(t, err)
@@ -848,6 +851,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.Equal(t, service.RequestTypeWSV2, log.RequestType)
 		require.True(t, log.Stream)
 		require.True(t, log.OpenAIWSMode)
+		require.NotNil(t, log.InboundHost)
+		require.Equal(t, "zerocode.kaynlab.asia", *log.InboundHost)
 	})
 
 	t.Run("request_type_unknown_falls_back_to_legacy", func(t *testing.T) {
@@ -906,6 +911,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // display_context_token_max_used
 			int64(0),          // display_output_token_max_used
 			sql.NullString{},  // upstream_request_id
+			sql.NullString{},  // inbound_host
 			now,
 		}})
 		require.NoError(t, err)
@@ -972,6 +978,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // display_context_token_max_used
 			int64(0),          // display_output_token_max_used
 			sql.NullString{},  // upstream_request_id
+			sql.NullString{},  // inbound_host
 			now,
 		}})
 		require.NoError(t, err)
@@ -1048,6 +1055,7 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 		int64(0),          // display_context_token_max_used
 		int64(0),          // display_output_token_max_used
 		sql.NullString{},  // upstream_request_id
+		sql.NullString{},  // inbound_host
 		now,
 	}})
 

@@ -381,7 +381,7 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 			if !*streamStarted {
 				c.Header("Content-Type", "text/event-stream")
 				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
+				c.Header("Connection", "close")
 				c.Header("X-Accel-Buffering", "no")
 				*streamStarted = true
 			}

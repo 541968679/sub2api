@@ -79,12 +79,14 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	serviceTier := "priority"
 	inboundEndpoint := "/v1/chat/completions"
 	upstreamEndpoint := "/v1/responses"
+	inboundHost := "zerocode.kaynlab.asia"
 	log := &service.UsageLog{
 		RequestID:             "req_3",
 		Model:                 "gpt-5.4",
 		ServiceTier:           &serviceTier,
 		InboundEndpoint:       &inboundEndpoint,
 		UpstreamEndpoint:      &upstreamEndpoint,
+		InboundHost:           &inboundHost,
 		AccountRateMultiplier: f64Ptr(1.5),
 	}
 
@@ -105,6 +107,8 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	require.Equal(t, upstreamEndpoint, *adminDTO.UpstreamEndpoint)
 	require.NotNil(t, adminDTO.AccountRateMultiplier)
 	require.InDelta(t, 1.5, *adminDTO.AccountRateMultiplier, 1e-12)
+	require.NotNil(t, adminDTO.InboundHost)
+	require.Equal(t, inboundHost, *adminDTO.InboundHost)
 }
 
 func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *testing.T) {

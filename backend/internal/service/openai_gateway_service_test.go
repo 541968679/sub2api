@@ -2256,6 +2256,9 @@ func TestOpenAIStreamingHeadersOverride(t *testing.T) {
 	if rec.Header().Get("Content-Type") != "text/event-stream" {
 		t.Fatalf("expected Content-Type override, got %q", rec.Header().Get("Content-Type"))
 	}
+	if rec.Header().Get("Connection") != "close" {
+		t.Fatalf("expected SSE Connection close, got %q", rec.Header().Get("Connection"))
+	}
 	if rec.Header().Get("X-Request-Id") != "" {
 		t.Fatalf("expected upstream X-Request-Id to stay off the client response, got %q", rec.Header().Get("X-Request-Id"))
 	}
@@ -3118,6 +3121,7 @@ func TestHandleSSEToJSON_ResponseFailedReturnsProtocolError(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Contains(t, rec.Body.String(), "upstream rejected request")
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
+	require.NotEqual(t, "close", rec.Header().Get("Connection"))
 }
 
 func TestOpenAIChatBufferedDisplayUsageRewritesDownstreamOnly(t *testing.T) {

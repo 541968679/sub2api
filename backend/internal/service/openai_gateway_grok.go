@@ -325,7 +325,7 @@ func writeGrokResponsesStreamError(c *gin.Context, statusCode int, message strin
 	}
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
+	c.Header("Connection", "close")
 	c.Status(statusCode)
 	payload, err := json.Marshal(map[string]any{
 		"type":            "error",

@@ -27,6 +27,11 @@ func TestTurnUsageRecordContext_DistinctPerTurn(t *testing.T) {
 	rid2, _ := turn2.Value(ctxkey.RequestID).(string)
 	require.Equal(t, "local-id:t:1-resp_a", rid1)
 	require.Equal(t, "local-id:t:2-resp_b", rid2)
+
+	parent = context.WithValue(parent, ctxkey.InboundHost, "zerocode.kaynlab.asia")
+	turn1 = turnUsageRecordContext(parent, 1, "resp_a")
+	host, _ := turn1.Value(ctxkey.InboundHost).(string)
+	require.Equal(t, "zerocode.kaynlab.asia", host)
 }
 
 func TestTurnUsageRecordContext_FallsBackToTurnNumber(t *testing.T) {

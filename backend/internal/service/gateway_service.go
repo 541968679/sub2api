@@ -5522,7 +5522,9 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	if c.Writer.Header().Get("Cache-Control") == "" {
 		c.Header("Cache-Control", "no-cache")
 	}
-	if c.Writer.Header().Get("Connection") == "" {
+	if strings.Contains(strings.ToLower(contentType), "text/event-stream") {
+		c.Header("Connection", "close")
+	} else if c.Writer.Header().Get("Connection") == "" {
 		c.Header("Connection", "keep-alive")
 	}
 	c.Header("X-Accel-Buffering", "no")
@@ -7593,10 +7595,10 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
 
-	// 设置SSE响应头
+	// 设置SSE响应头。HTTP/1.1 close 让香港在处理函数返回后结束这条连接。
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
+	c.Header("Connection", "close")
 	c.Header("X-Accel-Buffering", "no")
 
 	// 透传其他响应头
@@ -8750,10 +8752,26 @@ func (s *GatewayService) billingDeps() *billingDeps {
 	}
 }
 
+func applyInboundHost(ctx context.Context, usageLog *UsageLog) {
+	if usageLog == nil || ctx == nil {
+		return
+	}
+	if usageLog.InboundHost != nil && strings.TrimSpace(*usageLog.InboundHost) != "" {
+		return
+	}
+	host, _ := ctx.Value(ctxkey.InboundHost).(string)
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return
+	}
+	usageLog.InboundHost = &host
+}
+
 func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) bool {
 	if repo == nil || usageLog == nil {
 		return false
 	}
+	applyInboundHost(ctx, usageLog)
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 

@@ -84,6 +84,10 @@
               <span class="ml-1">{{ row.inbound_endpoint?.trim() || '-' }}</span>
             </div>
             <div class="break-all text-gray-700 dark:text-gray-300">
+              <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.inboundHost') }}:</span>
+              <span class="ml-1">{{ row.inbound_host?.trim() || '-' }}</span>
+            </div>
+            <div class="break-all text-gray-700 dark:text-gray-300">
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.upstream') }}:</span>
               <span class="ml-1">{{ row.upstream_endpoint?.trim() || '-' }}</span>
             </div>

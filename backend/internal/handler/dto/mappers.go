@@ -783,6 +783,7 @@ func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPr
 		AccountRateMultiplier: l.AccountRateMultiplier,
 		AccountStatsCost:      l.AccountStatsCost,
 		IPAddress:             l.IPAddress,
+		InboundHost:           l.InboundHost,
 		TrueFirstTokenMs:      l.TrueFirstTokenMs,
 		Account:               AccountSummaryFromService(l.Account),
 	}

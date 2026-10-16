@@ -2070,7 +2070,7 @@ func detectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeC
 func sendMockInterceptStream(c *gin.Context, model string, interceptType InterceptType) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
+	c.Header("Connection", "close")
 	c.Header("X-Accel-Buffering", "no")
 
 	// 根据拦截类型决定响应内容

@@ -1126,6 +1126,7 @@ const zhBase = {
     mapping: '映射',
     path: '路径',
     inboundEndpoint: '入站端点',
+    inboundHost: '入口主机',
     upstreamEndpoint: '上游端点',
     type: '类型',
     tokens: 'Token',

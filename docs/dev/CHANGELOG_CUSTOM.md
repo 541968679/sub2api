@@ -1,3 +1,16 @@
+## 2026-10-16 - gateway: close SSE after the handler and record the entry host
+
+### What
+- Client SSE responses now send `Connection: close`. Sync JSON is unchanged. This covers raw Chat Completions, Responses streaming, passthrough streams, and the other gateway writers that emit `text/event-stream` to the client.
+- `usage_logs.inbound_host` stores the public entry hostname. `X-Sub2-Entry-Host` is kept only when `X-Sub2-Entry-Via` is `hk-relay`. Otherwise the column is the host the gateway received. Admin usage shows it beside the inbound path. User cost and token columns are unchanged.
+- Repo copies: Hong Kong Caddy sets `X-Sub2-Entry-Host` and logs response `X-Request-Id`. `docs/dev/origin-caddy/zerocode.kaynlab.com.snippet.caddy` records the encode match that skips event streams, and the origin rule that forwards the entry host only from `191.40.32.186`. Neither file was reloaded on a server.
+
+### Why
+A finished gateway stream could leave the Hong Kong connection open for minutes. The handler had already returned, so the extra time was the tail after `duration_ms`. The gateway Host cannot tell `.asia` from a direct `.com` hit because the relay rewrites Host.
+
+### Affected files
+`backend/migrations/258_usage_log_inbound_host.sql`, `backend/ent/schema/usage_log.go` (field appended after the generated index window; `go generate ./ent` still fails on the existing `account_schedule_user` edge, so generated Ent SQL does not read this column), `backend/internal/repository/usage_log_repo.go`, `backend/internal/service/usage_log.go`, `backend/internal/service/gateway_service.go`, OpenAI and gateway SSE writers, `backend/internal/pkg/inboundhost/host.go`, `backend/internal/server/middleware/client_request_id.go`, admin usage table and i18n, `docs/dev/hk-relay/Caddyfile`, `docs/dev/origin-caddy/zerocode.kaynlab.com.snippet.caddy`.
+
 ## 2026-10-16 - ops: record production deploy of v0.1.325
 
 ### What

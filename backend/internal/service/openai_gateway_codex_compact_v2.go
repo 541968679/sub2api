@@ -541,7 +541,7 @@ func writeCodexCompactV2SSE(c *gin.Context, statusCode int, payload []byte) {
 	header := c.Writer.Header()
 	header.Set("Content-Type", "text/event-stream")
 	header.Set("Cache-Control", "no-cache")
-	header.Set("Connection", "keep-alive")
+	header.Set("Connection", "close")
 	header.Set("X-Accel-Buffering", "no")
 	c.Writer.WriteHeader(statusCode)
 	_, _ = c.Writer.Write(payload)
