@@ -8795,6 +8795,15 @@ const zhBase = {
         saved: 'OpenAI 等待超时设置保存成功',
         saveFailed: '保存 OpenAI 等待超时设置失败'
       },
+      gatewayHTTP1Hosts: {
+        title: '强制 HTTP/1.1 的上游域名',
+        description: '写在这里的上游域名单独走 HTTP/1.1。一条卡住的 HTTP/2 连接不会再拖住同域名上的其它请求。名单为空时保持原来的连接方式。',
+        hosts: '域名',
+        hostsHint: '一行一个。可以写 api.inferhub.dev，或 *.inferhub.dev 覆盖该域名和全部子域名。粘贴完整 URL 时只保留主机名。',
+        placeholder: 'api.inferhub.dev',
+        saved: 'HTTP/1.1 域名已保存',
+        saveFailed: '保存 HTTP/1.1 域名失败'
+      },
       rectifier: {
         title: '请求整流器',
         description: '当上游返回特定错误时，自动修正请求参数并重试，提高请求成功率',

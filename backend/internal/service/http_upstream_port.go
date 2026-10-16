@@ -19,6 +19,12 @@ type GatewayNetworkRetrySettingsReader interface {
 	GetGatewayNetworkRetryMax(ctx context.Context) int
 }
 
+// GatewayHTTP1HostReader is implemented by SettingService. The upstream
+// client type-asserts this so a retry-only stub does not force HTTP/1.1.
+type GatewayHTTP1HostReader interface {
+	ForceHTTP1(ctx context.Context, host string) bool
+}
+
 func ClampGatewayNetworkRetryMax(value int) int {
 	if value < GatewayNetworkRetryMaxMin {
 		return GatewayNetworkRetryMaxMin

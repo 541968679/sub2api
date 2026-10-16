@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -61,6 +62,7 @@ const (
 	upstreamProtocolModeDefault      = "default"
 	upstreamProtocolModeLongStreamH2 = "long_stream_h2"
 	upstreamProtocolModeOpenAIH2     = "openai_h2"
+	upstreamProtocolModeHTTP1        = "http1"
 	longStreamHTTP2ReadIdleTimeout   = 10 * time.Second
 	longStreamHTTP2PingTimeout       = 5 * time.Second
 )
@@ -156,8 +158,9 @@ func (s *httpUpstreamService) doPlainOnce(req *http.Request, proxyURL string, ac
 		return nil, err
 	}
 
-	// 获取或创建对应的客户端，并标记请求占用
-	entry, err := s.acquireClient(proxyURL, accountID, accountConcurrency, protocolModeFromRequest(req))
+	// 获取或创建对应的客户端，并标记请求占用。
+	// HTTP/1.1 名单命中时使用独立连接池，避免关掉同池其它域名的 HTTP/2。
+	entry, err := s.acquireClient(proxyURL, accountID, accountConcurrency, s.protocolModeFor(req))
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +194,9 @@ func (s *httpUpstreamService) doPlainOnce(req *http.Request, proxyURL string, ac
 func (s *httpUpstreamService) doTLSOnce(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
 	if profile == nil {
 		return s.Do(req, proxyURL, accountID, accountConcurrency)
+	}
+	if s.requestForcesHTTP1(req) {
+		return s.doPlainOnce(req, proxyURL, accountID, accountConcurrency)
 	}
 
 	targetHost := ""
@@ -884,6 +890,32 @@ func protocolModeFromRequest(req *http.Request) string {
 	return upstreamProtocolModeDefault
 }
 
+func (s *httpUpstreamService) protocolModeFor(req *http.Request) string {
+	if s.requestForcesHTTP1(req) {
+		return upstreamProtocolModeHTTP1
+	}
+	return protocolModeFromRequest(req)
+}
+
+func (s *httpUpstreamService) requestForcesHTTP1(req *http.Request) bool {
+	if s == nil || s.retrySettings == nil || req == nil || req.URL == nil {
+		return false
+	}
+	reader, ok := s.retrySettings.(service.GatewayHTTP1HostReader)
+	if !ok {
+		return false
+	}
+	host := strings.TrimSpace(req.URL.Hostname())
+	if host == "" {
+		return false
+	}
+	ctx := req.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return reader.ForceHTTP1(ctx, host)
+}
+
 // normalizeProxyURL 标准化代理 URL
 // 处理空值和解析错误，返回标准化的键和解析后的 URL
 //
@@ -999,11 +1031,24 @@ func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL, protocolMo
 		if _, err := enableHTTP2KeepAlive(transport); err != nil {
 			return nil, err
 		}
+	case upstreamProtocolModeHTTP1:
+		disableUpstreamHTTP2(transport)
 	}
 	if err := proxyutil.ConfigureTransportProxy(transport, proxyURL); err != nil {
 		return nil, err
 	}
 	return transport, nil
+}
+
+func disableUpstreamHTTP2(transport *http.Transport) {
+	if transport == nil {
+		return
+	}
+	transport.ForceAttemptHTTP2 = false
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	transport.Protocols = protocols
+	transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
 }
 
 func enableHTTP2KeepAlive(transport *http.Transport) (*http2.Transport, error) {

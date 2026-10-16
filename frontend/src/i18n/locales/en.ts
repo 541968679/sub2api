@@ -9196,6 +9196,15 @@ const enBase = {
         saved: 'OpenAI wait timeout settings saved',
         saveFailed: 'Failed to save OpenAI wait timeout settings'
       },
+      gatewayHTTP1Hosts: {
+        title: 'Upstream hosts forced to HTTP/1.1',
+        description: 'Hosts listed here use their own HTTP/1.1 connection pool. A stalled HTTP/2 connection no longer holds other requests to the same host. An empty list keeps the current transport.',
+        hosts: 'Hosts',
+        hostsHint: 'One host per line. Use api.inferhub.dev, or *.inferhub.dev to cover that name and every subdomain. A pasted URL is reduced to its hostname.',
+        placeholder: 'api.inferhub.dev',
+        saved: 'HTTP/1.1 hosts saved',
+        saveFailed: 'Failed to save HTTP/1.1 hosts'
+      },
       rectifier: {
         title: 'Request Rectifier',
         description: 'Automatically fix request parameters and retry when upstream returns specific errors',

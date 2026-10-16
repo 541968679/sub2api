@@ -2,13 +2,16 @@ package repository
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,6 +83,65 @@ func TestBuildUpstreamTransport_LongStreamH2_NegotiatesHTTP2(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, 2, resp.ProtoMajor, "long_stream_h2 must negotiate HTTP/2")
+}
+
+func TestBuildUpstreamTransport_HTTP1_NegotiatesHTTP1(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+
+	tr, err := buildUpstreamTransport(http2KeepAliveTestPoolSettings(), nil, upstreamProtocolModeHTTP1)
+	require.NoError(t, err)
+	defer tr.CloseIdleConnections()
+	require.NotNil(t, tr.Protocols)
+	require.True(t, tr.Protocols.HTTP1())
+	require.False(t, tr.Protocols.HTTP2())
+	require.NotNil(t, tr.TLSNextProto)
+	roots := x509.NewCertPool()
+	roots.AddCert(srv.Certificate())
+	tr.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+	resp, err := tr.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, 1, resp.ProtoMajor)
+}
+
+func TestProtocolModeFor_HTTP1HostOverridesOpenAIProfile(t *testing.T) {
+	upstream := NewHTTPUpstream(nil, staticHTTP1Hosts{host: "api.inferhub.dev"}).(*httpUpstreamService)
+
+	listed, err := http.NewRequestWithContext(
+		service.WithHTTPUpstreamProfile(context.Background(), service.HTTPUpstreamProfileOpenAI),
+		http.MethodPost,
+		"https://api.inferhub.dev/v1/chat/completions",
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, upstreamProtocolModeHTTP1, upstream.protocolModeFor(listed))
+
+	other, err := http.NewRequestWithContext(
+		service.WithHTTPUpstreamProfile(context.Background(), service.HTTPUpstreamProfileOpenAI),
+		http.MethodPost,
+		"https://api.openai.com/v1/chat/completions",
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, upstreamProtocolModeOpenAIH2, upstream.protocolModeFor(other))
+}
+
+type staticHTTP1Hosts struct {
+	host string
+}
+
+func (s staticHTTP1Hosts) GetGatewayNetworkRetryMax(context.Context) int { return 0 }
+
+func (s staticHTTP1Hosts) ForceHTTP1(_ context.Context, host string) bool {
+	return strings.EqualFold(host, s.host)
 }
 
 func TestBuildUpstreamTransport_LongStreamH2_WithHTTPProxy_EnablesKeepAlive(t *testing.T) {

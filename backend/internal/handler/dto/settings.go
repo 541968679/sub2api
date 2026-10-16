@@ -431,6 +431,11 @@ type OpenAIWaitTimeoutSettings struct {
 	FirstUsefulFrameSeconds int `json:"first_useful_frame_seconds"`
 }
 
+// GatewayHTTP1HostsSettings is the admin DTO for upstream hosts forced onto HTTP/1.1.
+type GatewayHTTP1HostsSettings struct {
+	Hosts []string `json:"hosts"`
+}
+
 // RectifierSettings 闂佽崵濮村ú顓㈠绩闁秵鍎戝ù鍏兼綑閺嬩線鎮楀☉娆樼劷闁靛牞绠撻弻娑㈡晲閸愩劌顫囬梺鍛娗滈崐妤冩?DTO
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`

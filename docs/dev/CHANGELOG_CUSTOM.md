@@ -1,3 +1,15 @@
+## 2026-10-16 - gateway: force listed upstream hosts onto HTTP/1.1
+
+### What
+- Admin settings gain “强制 HTTP/1.1 的上游域名”. Hosts saved there use a separate HTTP/1.1 connection pool. Other upstreams keep the current transport.
+- `*.example.com` covers that name and its subdomains. A pasted URL is stored as the hostname. The list is empty until an admin saves one.
+
+### Why
+Inferhub sits behind Cloudflare and negotiates HTTP/2. A stalled multiplexed connection held tiny `deepseek-v4.1-flash` calls for about two minutes while Inferhub itself answered in 1–3 seconds. One request per connection keeps that stall off the rest of the host.
+
+### Affected files
+`backend/internal/service/gateway_http1_hosts.go`, `backend/internal/service/domain_constants.go`, `backend/internal/repository/http_upstream.go`, `backend/internal/handler/admin/setting_handler.go`, `backend/internal/server/routes/admin.go`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/api/admin/settings.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/gateway.md`.
+
 ## 2026-10-16 - ops: record production deploy of v0.1.324
 
 ### What

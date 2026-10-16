@@ -1445,6 +1445,27 @@ export async function updateOpenAIWaitTimeoutSettings(
   return data;
 }
 
+export interface GatewayHTTP1HostsSettings {
+  hosts: string[];
+}
+
+export async function getGatewayHTTP1Hosts(): Promise<GatewayHTTP1HostsSettings> {
+  const { data } = await apiClient.get<GatewayHTTP1HostsSettings>(
+    "/admin/settings/gateway-http1-hosts",
+  );
+  return data;
+}
+
+export async function updateGatewayHTTP1Hosts(
+  settings: GatewayHTTP1HostsSettings,
+): Promise<GatewayHTTP1HostsSettings> {
+  const { data } = await apiClient.put<GatewayHTTP1HostsSettings>(
+    "/admin/settings/gateway-http1-hosts",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Rectifier Settings ====================
 
 /**
@@ -1639,6 +1660,8 @@ export const settingsAPI = {
   updateStreamTimeoutSettings,
   getOpenAIWaitTimeoutSettings,
   updateOpenAIWaitTimeoutSettings,
+  getGatewayHTTP1Hosts,
+  updateGatewayHTTP1Hosts,
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,

@@ -206,6 +206,12 @@ Uncommitted timeout: `HandleStreamTimeout` + `UpstreamFailoverError` 502 with ma
 
 `stream_timeout_settings` still only controls post-timeout account action (default `Enabled=false`). Stream **interval** timeout is idle between body frames after reads have started; R2 is “headers arrived, no useful frame yet”.
 
+## Upstream hosts forced to HTTP/1.1
+
+Settings KV `gateway_http1_hosts` is `{"hosts":["api.inferhub.dev"]}`. Admin GET/PUT `/api/v1/admin/settings/gateway-http1-hosts`. Missing, empty, or bad JSON keeps the default transport. The hot path caches the list for 30 seconds.
+
+A listed hostname uses its own upstream client (`|proto:http1`). That transport sets `Protocols` to HTTP/1 only and a non-nil empty `TLSNextProto`, so Go does not negotiate HTTP/2. Other hosts on the same account keep their existing pool. `*.example.com` matches the apex and every subdomain. A pasted URL is stored as its hostname. The HTTP/1.1 list wins over the OpenAI HTTP/2 profile. TLS-fingerprint requests to a listed host use this plain HTTP/1.1 client.
+
 Recovered hops with those markers count toward account schedule last-N even when `schedule_use_failover_error_rate` is off. They never enter the user error rate. Whitelist cannot exclude the markers.
 
 ## Core Flow

@@ -3698,6 +3698,41 @@ func (h *SettingHandler) UpdateOpenAIWaitTimeoutSettings(c *gin.Context) {
 	})
 }
 
+type UpdateGatewayHTTP1HostsRequest struct {
+	Hosts []string `json:"hosts"`
+}
+
+// GetGatewayHTTP1Hosts GET /api/v1/admin/settings/gateway-http1-hosts
+func (h *SettingHandler) GetGatewayHTTP1Hosts(c *gin.Context) {
+	hosts, err := h.settingService.GetGatewayHTTP1Hosts(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	response.Success(c, dto.GatewayHTTP1HostsSettings{Hosts: hosts})
+}
+
+// UpdateGatewayHTTP1Hosts PUT /api/v1/admin/settings/gateway-http1-hosts
+func (h *SettingHandler) UpdateGatewayHTTP1Hosts(c *gin.Context) {
+	var req UpdateGatewayHTTP1HostsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	hosts, err := h.settingService.SetGatewayHTTP1Hosts(c.Request.Context(), req.Hosts)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	response.Success(c, dto.GatewayHTTP1HostsSettings{Hosts: hosts})
+}
+
 // GetWebSearchEmulationConfig 获取 Web Search 模拟配置
 // GET /api/v1/admin/settings/web-search-emulation
 func (h *SettingHandler) GetWebSearchEmulationConfig(c *gin.Context) {

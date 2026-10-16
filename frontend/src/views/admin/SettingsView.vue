@@ -1018,6 +1018,63 @@
             </div>
           </div>
 
+          <!-- Hosts forced onto HTTP/1.1 -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.gatewayHTTP1Hosts.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.gatewayHTTP1Hosts.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="gatewayHTTP1HostsLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.gatewayHTTP1Hosts.hosts") }}
+                  </label>
+                  <textarea
+                    v-model="gatewayHTTP1HostsText"
+                    rows="5"
+                    class="input w-full font-mono text-xs"
+                    :placeholder="t('admin.settings.gatewayHTTP1Hosts.placeholder')"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayHTTP1Hosts.hostsHint") }}
+                  </p>
+                </div>
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    :disabled="gatewayHTTP1HostsSaving"
+                    @click="saveGatewayHTTP1Hosts"
+                  >
+                    {{
+                      gatewayHTTP1HostsSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Request Rectifier Settings -->
           <div class="card">
             <div
@@ -7271,6 +7328,10 @@ const openaiWaitTimeoutForm = reactive({
   first_useful_frame_seconds: 30,
 });
 
+const gatewayHTTP1HostsLoading = ref(true);
+const gatewayHTTP1HostsSaving = ref(false);
+const gatewayHTTP1HostsText = ref("");
+
 // Rectifier 状态
 const rectifierLoading = ref(true);
 const rectifierSaving = ref(false);
@@ -9213,6 +9274,49 @@ async function saveStreamTimeoutSettings() {
   }
 }
 
+function gatewayHTTP1HostsToText(hosts: string[] | null | undefined): string {
+  return (hosts ?? []).join("\n");
+}
+
+function gatewayHTTP1HostsFromText(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+async function loadGatewayHTTP1Hosts() {
+  gatewayHTTP1HostsLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getGatewayHTTP1Hosts();
+    gatewayHTTP1HostsText.value = gatewayHTTP1HostsToText(settings.hosts);
+  } catch (_error: unknown) {
+    // Silent fail - an empty list keeps the current transport.
+  } finally {
+    gatewayHTTP1HostsLoading.value = false;
+  }
+}
+
+async function saveGatewayHTTP1Hosts() {
+  gatewayHTTP1HostsSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateGatewayHTTP1Hosts({
+      hosts: gatewayHTTP1HostsFromText(gatewayHTTP1HostsText.value),
+    });
+    gatewayHTTP1HostsText.value = gatewayHTTP1HostsToText(updated.hosts);
+    appStore.showSuccess(t("admin.settings.gatewayHTTP1Hosts.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.gatewayHTTP1Hosts.saveFailed"),
+      ),
+    );
+  } finally {
+    gatewayHTTP1HostsSaving.value = false;
+  }
+}
+
 async function loadOpenAIWaitTimeoutSettings() {
   openaiWaitTimeoutLoading.value = true;
   try {
@@ -9843,6 +9947,7 @@ onMounted(() => {
   loadQualityHardCloseSettings();
   loadStreamTimeoutSettings();
   loadOpenAIWaitTimeoutSettings();
+  loadGatewayHTTP1Hosts();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();

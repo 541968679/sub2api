@@ -576,6 +576,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
 		adminSettings.GET("/openai-wait-timeout", h.Admin.Setting.GetOpenAIWaitTimeoutSettings)
 		adminSettings.PUT("/openai-wait-timeout", h.Admin.Setting.UpdateOpenAIWaitTimeoutSettings)
+		adminSettings.GET("/gateway-http1-hosts", h.Admin.Setting.GetGatewayHTTP1Hosts)
+		adminSettings.PUT("/gateway-http1-hosts", h.Admin.Setting.UpdateGatewayHTTP1Hosts)
 		// 请求整流器配置
 		adminSettings.GET("/rectifier", h.Admin.Setting.GetRectifierSettings)
 		adminSettings.PUT("/rectifier", h.Admin.Setting.UpdateRectifierSettings)

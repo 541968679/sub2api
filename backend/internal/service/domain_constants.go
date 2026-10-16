@@ -471,6 +471,10 @@ const (
 	// (that KV only controls post-timeout account action and defaults Enabled=false).
 	SettingKeyOpenAIWaitTimeoutSettings = "openai_wait_timeout_settings"
 
+	// SettingKeyGatewayHTTP1Hosts stores the upstream hostnames that must use
+	// HTTP/1.1. Missing or empty means every host keeps the default transport.
+	SettingKeyGatewayHTTP1Hosts = "gateway_http1_hosts"
+
 	// =========================
 	// Request Rectifier (请求整流器)
 	// =========================
