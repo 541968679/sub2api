@@ -1,11 +1,14 @@
-# Recorded from new-origin on 2026-10-16. This file is not the live Caddyfile.
-# Encode for text/event-stream was already reloaded that day
-# (backup /etc/caddy/Caddyfile.bak-sse-encode-20261016).
-# The X-Sub2-Entry-Host rules below are not on the box yet. Reload them only
-# with a separate approval. Do not copy this snippet onto a2 or InvokeAI.
+# zerocode.kaynlab.com site on new-origin, reloaded 2026-10-16.
+# Backup: /etc/caddy/Caddyfile.bak-entry-host-20261016
+# Earlier encode backup: /etc/caddy/Caddyfile.bak-sse-encode-20261016
+# The live file also has a2.zerocode.kaynlab.com and the InvokeAI site.
+# Those two sites were not changed. Do not replace the live file with this snippet.
 
 zerocode.kaynlab.com {
-	encode {
+	# Do not compress text/event-stream. Gzip holds the tail of an SSE body in
+	# the compression window, so Hong Kong does not see the response end when
+	# the app finishes and the client connection stays open.
+	encode zstd gzip {
 		match {
 			header Content-Type text/html*
 			header Content-Type text/css*
@@ -20,24 +23,23 @@ zerocode.kaynlab.com {
 			header Content-Type application/xml*
 			header Content-Type font/*
 		}
-		zstd gzip
 	}
 
-	# Hong Kong relay is the only peer allowed to name the public entry host.
-	# Other clients, including ones that send these headers themselves, lose them.
-	@from_hk remote_ip 191.40.32.186
-	handle @from_hk {
-		reverse_proxy 127.0.0.1:8080 {
-			flush_interval -1
-			header_up X-Sub2-Entry-Host {http.request.header.X-Sub2-Entry-Host}
-			header_up X-Sub2-Entry-Via hk-relay
-		}
+	@static path /assets/* /favicon.ico /logo* /manifest.webmanifest
+	header @static Cache-Control public max-age=31536000 immutable
+
+	request_body {
+		max_size 256MB
 	}
-	handle {
-		reverse_proxy 127.0.0.1:8080 {
-			flush_interval -1
-			header_up -X-Sub2-Entry-Host
-			header_up -X-Sub2-Entry-Via
-		}
+
+	# Only the Hong Kong relay may name the public entry host.
+	@from_hk remote_ip 191.40.32.186
+
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+		header_up -X-Sub2-Entry-Host
+		header_up -X-Sub2-Entry-Via
+		header_up @from_hk X-Sub2-Entry-Host {http.request.header.X-Sub2-Entry-Host}
+		header_up @from_hk X-Sub2-Entry-Via hk-relay
 	}
 }

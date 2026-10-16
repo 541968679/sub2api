@@ -1,3 +1,19 @@
+## 2026-10-16 - ops: deploy v0.1.326 and forward the entry host
+
+### What
+- Production new-origin is `ghcr.io/541968679/sub2api:0.1.326`, digest `sha256:2dd5625366f6a3d8d4a3562cf66cf34448603f74fc5d50a8e31f75f9e4fbd84b`, revision `e7f2ffdeb`, version label `0.1.326`. Release run `38860619582`.
+- Preflight passed on attempt 2/36. Live health passed on attempt 1/5. Restart count 0. Postgres and Redis were not recreated. Rollback image is v0.1.325 digest `sha256:fa825ad32970bc931ffa675b3408f5b02cc58a3548359dff324cdcd43d2853a0`.
+- `usage_logs.inbound_host` exists. Local `/health`, `https://zerocode.kaynlab.com/health`, and `https://zerocode.kaynlab.asia/health` returned ok. The homepage still sends `Content-Encoding: gzip`.
+- Origin Caddy and Hong Kong Caddy were reloaded. Each box keeps `/etc/caddy/Caddyfile.bak-entry-host-20261016`. Hong Kong sets `X-Sub2-Entry-Host` and logs `x_request_id`. Origin forwards that host and sets `X-Sub2-Entry-Via: hk-relay` only when the peer is `191.40.32.186`. a2 and InvokeAI were not changed.
+- A long `.asia` stream has not yet been paired against the Hong Kong access duration.
+
+### Why
+Client SSE now sends `Connection: close`. The entry host is stored only after the relay and origin agree on the via header.
+
+### Affected files
+Live `/etc/caddy/Caddyfile` on new-origin and hk-relay. `docs/dev/origin-caddy/zerocode.kaynlab.com.snippet.caddy`.
+
+
 ## 2026-10-16 - gateway: close SSE after the handler and record the entry host
 
 ### What
