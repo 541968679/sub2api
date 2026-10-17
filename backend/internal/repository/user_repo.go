@@ -785,9 +785,10 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 	return nil
 }
 
-// DeductBalance 扣除用户余额
-// 透支策略：允许余额变为负数，确保当前请求能够完成
-// 中间件会阻止余额 <= 0 的用户发起后续请求
+// DeductBalance 扣除用户余额。
+// 已打到上游的这一笔仍允许记成负数。后续请求由余额下限和在途预留拦住，
+// 不再靠「缓存余额 > 0」单独放行。
+
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	client := clientFromContext(ctx, r.client)
 	n, err := client.User.Update().

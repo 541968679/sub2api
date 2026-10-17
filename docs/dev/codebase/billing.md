@@ -3,6 +3,12 @@
 > 模型定价解析、费用计算、费率乘数、展示变换。
 > 五级定价链（User → Channel → Global → LiteLLM → 内置兜底）+ 两条独立费率乘数（用户扣费 vs 账号 quota）+ 展示变换体系。
 
+## Balance-mode admission
+
+Preflight rejects a cached balance below `billing.minimum_balance_reserve` (default `0.000001`; `0` keeps `balance <= 0`). After that check, balance mode registers a Redis in-flight hold (`billing.inflight_reservation`, default on, TTL 900s). A later request is rejected when `cached balance - in-flight sum < estimate`. The first in-flight request is still admitted. Redis or pricing failure fails open unless `fail_closed_on_unpriced` is true. Simple mode and subscription mode do not reserve. Token-count endpoints do not take a generation-sized hold.
+
+The completed request is still charged at `actual_cost`, including below zero. Deduct tries `balance >= cost` first and sets `BalanceOverdrafted` when it falls through. A new balance below the floor invalidates the balance cache before the billing task returns; otherwise an enabled reservation deducts the cache synchronously in that task. Display-token rewrite and the charged amount are unchanged. Batch-image holds keep their own `balance >= hold` guard.
+
 ## Account model mapping
 
 `accounts.credentials.model_mapping` rewrites the model sent upstream. The usage bill uses the client-requested name from before that mapping. `openAIBillingModelForAccountMapping` applies this on Chat Completions (raw and CC→Responses), the Responses chat fallback, the Grok chat bridge, and OpenAI `/v1/messages`. `/v1/responses` already left `BillingModel` empty for an account mapping, so `RecordUsage` priced `result.Model`.

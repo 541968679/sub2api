@@ -880,11 +880,26 @@ func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userI
 		s.circuitBreaker.OnSuccess()
 	}
 
-	if balance <= 0 {
+	if s.balanceBelowEligibilityThreshold(balance) {
 		return ErrInsufficientBalance
 	}
 
 	return nil
+}
+
+// balanceBelowEligibilityThreshold reports whether a cached balance must be
+// rejected before a balance-mode request is forwarded. A positive
+// minimum_balance_reserve rejects dust and negative balances. Zero keeps the
+// legacy balance <= 0 gate.
+func (s *BillingCacheService) balanceBelowEligibilityThreshold(balance float64) bool {
+	var threshold float64
+	if s != nil && s.cfg != nil {
+		threshold = s.cfg.Billing.MinimumBalanceReserve
+	}
+	if threshold > 0 {
+		return balance < threshold
+	}
+	return balance <= 0
 }
 
 // checkSubscriptionEligibility 检查订阅模式资格

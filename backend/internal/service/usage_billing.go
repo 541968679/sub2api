@@ -116,6 +116,9 @@ type UsageBillingApplyResult struct {
 	APIKeyQuotaExhausted bool
 	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)
 	QuotaState           *AccountQuotaState // post-increment quota state (nil = no quota increment)
+	// BalanceOverdrafted is true when the sufficient-balance guard missed and the
+	// completed request was still charged, possibly below zero.
+	BalanceOverdrafted bool
 }
 
 // BatchImageBalanceHoldCommand describes an idempotent balance hold operation.

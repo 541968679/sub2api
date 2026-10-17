@@ -1010,6 +1010,21 @@ billing:
   # Cache TTL (seconds) for per-user × per-platform quota records
   # 用户 × 平台 quota 缓存 TTL（秒），默认 86400=1天，覆盖典型 daily 窗口
   user_platform_quota_cache_ttl_seconds: 86400
+  # Balance-mode admission floor. A cached balance below this value is rejected
+  # even when it is still positive. 0 keeps the legacy balance <= 0 gate.
+  # 余额模式准入下限。缓存余额低于该值即拒绝，即使仍为正数。0 表示沿用余额 <= 0。
+  minimum_balance_reserve: 0.000001
+  # In-flight balance reservation. Stops concurrent requests from all passing
+  # the same cached balance and overdrafting together.
+  # 在途余额预留。防止并发请求同时看到同一份缓存余额后集体透支。
+  inflight_reservation:
+    enabled: true
+    ttl_seconds: 900
+    default_max_tokens: 8192
+    max_output_tokens: 128000
+    max_input_tokens: 200000
+    max_reservation_usd: 0
+    fail_closed_on_unpriced: false
 
 # =============================================================================
 # Turnstile Configuration

@@ -1,3 +1,41 @@
+## 2026-10-17 - billing: stop balance-mode concurrent overdraft
+
+### What
+- Balance-mode admission rejects a cached balance below `billing.minimum_balance_reserve` (default `0.000001`). `0` keeps the old `balance <= 0` gate.
+- Usage deduct tries `balance >= cost` first, still records the completed request when that misses, and sets `BalanceOverdrafted`. A balance below the floor invalidates the cache before the billing task returns. In-flight reservation deducts the cache synchronously.
+- Redis in-flight reservation is on by default. A later request is rejected when `cached balance - in-flight sum < estimate`. The first in-flight request is still admitted. Redis or pricing failure fails open unless `fail_closed_on_unpriced` is set. Token-count endpoints and the Antigravity fallback recheck do not take a second hold.
+
+### Why
+User 723 stayed active at about -$17.95 after a burst of hundreds of balance-mode requests in one minute. Preflight only checked `balance > 0`, and the cache was decremented asynchronously after upstream had already answered. Upstream PRs #3404 and #7681 close that pile-up. This port keeps stored `actual_cost` and display-token billing unchanged.
+
+### Affected files
+`backend/internal/config/config.go`, `backend/internal/repository/usage_billing_repo.go`, `backend/internal/repository/usage_billing_repo_unit_test.go`, `backend/internal/repository/billing_inflight_cache.go`, `backend/internal/repository/billing_inflight_cache_test.go`, `backend/internal/service/usage_billing.go`, `backend/internal/service/billing_cache_service.go`, `backend/internal/service/billing_cache_service_test.go`, `backend/internal/service/billing_inflight_reservation.go`, `backend/internal/service/gateway_service.go`, `backend/internal/handler/gateway_inflight_reservation.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_handler_chat_completions.go`, `backend/internal/handler/gateway_handler_responses.go`, `backend/internal/handler/gemini_v1beta_handler.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_chat_completions.go`, `backend/internal/handler/openai_embeddings.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/openai_alpha_search.go`, `backend/internal/handler/grok_media.go`, `deploy/config.example.yaml`, this changelog.
+
+## 2026-10-17 - admin: mark non-official Kimi K3 checks
+
+### What
+- The Kimi K3 adaptive validation card labels `prediction.type`, message structure, object `tool_choice`, context window, and string `image_url` rewrite as non-official. Each hint says how that check differs from the current Kimi docs. The other six rows are labeled as official constraints.
+
+### Why
+Those five checks are stricter than, or implemented differently from, the published Kimi K3 contract. The settings page needs to show that before someone turns them on.
+
+### Affected files
+`frontend/src/api/admin/settings.ts`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-17 - gateway: split Kimi K3 adaptive checks and add sampling validation
+
+### What
+- `kimi_k3_adaptive_validation_checks` stores one switch per check: output budget, prediction type, reasoning_effort, stop, top_logprobs, function name, message structure, object tool_choice, context window, string image_url rewrite, and sampling parameters.
+- Sampling rejects a present `temperature` other than 1, `top_p` other than 0.95, `n` other than integer 1, or a penalty other than 0, with HTTP 400 before the request reaches upstream. Omitted sampling fields stay unchanged.
+- A missing checks record still honors the old `kimi_k3_adaptive_validation_enabled=true` switch for the older checks. Sampling stays off until its own field is saved. Invalid checks JSON enables nothing. Production currently stores the master switch as false, so nothing turns on by itself.
+- Admin settings replaces the single Kimi K3 toggle with the eleven checks.
+
+### Why
+Official K3 sampling values were forwarded and accepted upstream. The old switch could only turn every existing check on or off together.
+
+### Affected files
+`backend/internal/service/kimi_k3_adaptive_validation.go`, `backend/internal/service/setting_kimi_k3_adaptive.go`, `backend/internal/service/setting_service.go`, `backend/internal/service/domain_constants.go`, `backend/internal/service/settings_view.go`, `backend/internal/service/openai_gateway_chat_completions_raw.go`, `backend/internal/handler/admin/setting_handler.go`, `backend/internal/handler/dto/settings.go`, `frontend/src/api/admin/settings.ts`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-17 - admin: mark non-official Kimi K3 checks
 
 ### What

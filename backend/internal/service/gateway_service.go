@@ -8466,6 +8466,10 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 		if cost.ActualCost > 0 {
 			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, cost.ActualCost); err != nil {
 				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
+			} else if deps.billingCacheService != nil {
+				if err := deps.billingCacheService.InvalidateUserBalance(billingCtx, p.User.ID); err != nil {
+					slog.Warn("invalidate balance cache after legacy deduction failed", "user_id", p.User.ID, "error", err)
+				}
 			}
 		}
 	}
@@ -8612,11 +8616,11 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 		}
 	}
 
-	finalizePostUsageBilling(p, deps, result)
+	finalizePostUsageBilling(billingCtx, p, deps, result)
 	return true, nil
 }
 
-func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
+func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
 	if p == nil || p.Cost == nil || deps == nil {
 		return
 	}
@@ -8626,7 +8630,7 @@ func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps, resu
 			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
 	} else if p.Cost.ActualCost > 0 && p.User != nil {
-		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
+		syncBalanceCacheAfterDeduction(ctx, p, deps, result)
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
@@ -8639,6 +8643,39 @@ func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps, resu
 	// no dependency on the request context or upstream connection.
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+// syncBalanceCacheAfterDeduction updates the admission cache before the billing
+// task returns. A balance below the eligibility floor is invalidated so the next
+// preflight reads the database. With in-flight reservation enabled the cache
+// deduct is synchronous, because the reservation is released when this task
+// returns. The async queue remains the fallback.
+func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
+	if p == nil || p.Cost == nil || p.User == nil || deps == nil || deps.billingCacheService == nil || p.Cost.ActualCost <= 0 {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if result != nil && result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			slog.Warn("invalidate balance cache after exhausted deduction failed",
+				"user_id", p.User.ID,
+				"new_balance", *result.NewBalance,
+				"balance_overdrafted", result.BalanceOverdrafted,
+				"error", err,
+			)
+		}
+		return
+	}
+	if deps.billingCacheService.InflightReservationEnabled() {
+		if err := deps.billingCacheService.DeductBalanceCache(ctx, p.User.ID, p.Cost.ActualCost); err == nil {
+			return
+		} else {
+			logger.LegacyPrintf("service.gateway", "Warning: sync deduct balance cache failed for user %d, falling back to queue: %v", p.User.ID, err)
+		}
+	}
+	deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
 }
 
 // notifyBalanceLow sends balance low notification after deduction.

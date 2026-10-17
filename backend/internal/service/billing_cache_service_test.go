@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBalanceBelowEligibilityThreshold(t *testing.T) {
+	legacy := &BillingCacheService{}
+	require.True(t, legacy.balanceBelowEligibilityThreshold(0))
+	require.True(t, legacy.balanceBelowEligibilityThreshold(-1))
+	require.False(t, legacy.balanceBelowEligibilityThreshold(0.01))
+
+	floored := &BillingCacheService{cfg: &config.Config{Billing: config.BillingConfig{MinimumBalanceReserve: 0.000001}}}
+	require.True(t, floored.balanceBelowEligibilityThreshold(0))
+	require.True(t, floored.balanceBelowEligibilityThreshold(-17.9))
+	require.False(t, floored.balanceBelowEligibilityThreshold(0.01))
+}
+
 type billingCacheWorkerStub struct {
 	balanceUpdates      int64
 	subscriptionUpdates int64
