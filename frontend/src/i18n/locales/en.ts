@@ -8310,7 +8310,7 @@ const enBase = {
             context_window: 'Context window',
             context_windowHint: 'Not an official implementation. The 1M limit comes from the docs, but this check estimates tokens locally and returns HTTP 403 instead of invalid_request_error.',
             image_url_rewrite: 'String image_url',
-            image_url_rewriteHint: 'Not official. The documented example is already {"url":"..."}. When on, a string image_url is rewritten to that object and the request is not rejected. video_url stays unchanged.',
+            image_url_rewriteHint: 'Not official. The documented example is already {\'{"url":"..."}\'}. When on, a string image_url is rewritten to that object and the request is not rejected. video_url stays unchanged.',
             sampling_params: 'Sampling parameters',
             sampling_paramsHint: 'temperature must be 1, top_p must be 0.95, n must be 1, and both penalties must be 0. Omitted fields are forwarded. Any other value returns HTTP 400 locally.',
           },

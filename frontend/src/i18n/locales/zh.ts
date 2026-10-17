@@ -7914,7 +7914,7 @@ const zhBase = {
             context_window: '上下文窗口',
             context_windowHint: '非官方实现。1M 上限来自官方，但这里用本地 token 估算，超出返回 403，不是官方的 invalid_request_error。',
             image_url_rewrite: '字符串 image_url',
-            image_url_rewriteHint: '非官方。官方示例本来就是 {"url":"..."}。打开后只把字符串改成这个对象，不拒绝请求。video_url 保持原样。',
+            image_url_rewriteHint: '非官方。官方示例本来就是 {\'{"url":"..."}\'}。打开后只把字符串改成这个对象，不拒绝请求。video_url 保持原样。',
             sampling_params: '采样参数',
             sampling_paramsHint: 'temperature 必须是 1，top_p 必须是 0.95，n 必须是 1，presence_penalty 和 frequency_penalty 必须是 0。没传的字段不检查，其他值本地返回 400。',
           },
