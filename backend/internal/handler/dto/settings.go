@@ -154,20 +154,21 @@ type SystemSettings struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification        bool    `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough           bool    `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                    bool    `json:"enable_cch_signing"`
-	EnableAnthropicCacheTTL1hInjection  bool    `json:"enable_anthropic_cache_ttl_1h_injection"`
-	EnableClientDatelineNormalization   bool    `json:"enable_client_dateline_normalization"`
-	OpenAIResponsesFlushPreamble        bool    `json:"openai_responses_flush_preamble"`
-	OpenAIResponsesFlushPreambleUserIDs []int64 `json:"openai_responses_flush_preamble_user_ids"`
-	OpenAINewAPISlimCompleted           bool    `json:"openai_newapi_slim_completed"`
-	OpenAINewAPISlimCompletedUserIDs    []int64 `json:"openai_newapi_slim_completed_user_ids"`
-	CodexCompactV2FallbackEnabled       bool    `json:"codex_compact_v2_fallback_enabled"`
-	OpenAILongContextBillingEnabled     bool    `json:"openai_long_context_billing_enabled"`
-	KimiK3AdaptiveValidationEnabled     bool    `json:"kimi_k3_adaptive_validation_enabled"`
-	ForceRequestedResponseModel         bool    `json:"force_requested_response_model"`
-	GatewayNetworkRetryMax              int     `json:"gateway_network_retry_max"`
+	EnableFingerprintUnification        bool                         `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough           bool                         `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                    bool                         `json:"enable_cch_signing"`
+	EnableAnthropicCacheTTL1hInjection  bool                         `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClientDatelineNormalization   bool                         `json:"enable_client_dateline_normalization"`
+	OpenAIResponsesFlushPreamble        bool                         `json:"openai_responses_flush_preamble"`
+	OpenAIResponsesFlushPreambleUserIDs []int64                      `json:"openai_responses_flush_preamble_user_ids"`
+	OpenAINewAPISlimCompleted           bool                         `json:"openai_newapi_slim_completed"`
+	OpenAINewAPISlimCompletedUserIDs    []int64                      `json:"openai_newapi_slim_completed_user_ids"`
+	CodexCompactV2FallbackEnabled       bool                         `json:"codex_compact_v2_fallback_enabled"`
+	OpenAILongContextBillingEnabled     bool                         `json:"openai_long_context_billing_enabled"`
+	KimiK3AdaptiveValidationEnabled     bool                         `json:"kimi_k3_adaptive_validation_enabled"`
+	KimiK3AdaptiveChecks                service.KimiK3AdaptiveChecks `json:"kimi_k3_adaptive_checks"`
+	ForceRequestedResponseModel         bool                         `json:"force_requested_response_model"`
+	GatewayNetworkRetryMax              int                          `json:"gateway_network_retry_max"`
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`

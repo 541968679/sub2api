@@ -231,7 +231,9 @@ type SystemSettings struct {
 	OpenAILongContextBillingEnabled bool
 
 	// Kimi K3 Chat Completions adaptive validation. Default false.
+	// Enabled is true when any per-check flag is on.
 	KimiK3AdaptiveValidationEnabled bool
+	KimiK3AdaptiveChecks            KimiK3AdaptiveChecks
 
 	// Force client-facing response model names back to the requested model.
 	// Default false. Does not change billing or the observed upstream name.

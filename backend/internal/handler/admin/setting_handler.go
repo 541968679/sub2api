@@ -262,6 +262,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		CodexCompactV2FallbackEnabled:                          settings.CodexCompactV2FallbackEnabled,
 		OpenAILongContextBillingEnabled:                        settings.OpenAILongContextBillingEnabled,
 		KimiK3AdaptiveValidationEnabled:                        settings.KimiK3AdaptiveValidationEnabled,
+		KimiK3AdaptiveChecks:                                   settings.KimiK3AdaptiveChecks,
 		ForceRequestedResponseModel:                            settings.ForceRequestedResponseModel,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
@@ -594,20 +595,21 @@ type UpdateSettingsRequest struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification        *bool    `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough           *bool    `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                    *bool    `json:"enable_cch_signing"`
-	EnableAnthropicCacheTTL1hInjection  *bool    `json:"enable_anthropic_cache_ttl_1h_injection"`
-	EnableClientDatelineNormalization   *bool    `json:"enable_client_dateline_normalization"`
-	OpenAIResponsesFlushPreamble        *bool    `json:"openai_responses_flush_preamble"`
-	OpenAIResponsesFlushPreambleUserIDs *[]int64 `json:"openai_responses_flush_preamble_user_ids"`
-	OpenAINewAPISlimCompleted           *bool    `json:"openai_newapi_slim_completed"`
-	OpenAINewAPISlimCompletedUserIDs    *[]int64 `json:"openai_newapi_slim_completed_user_ids"`
-	CodexCompactV2FallbackEnabled       *bool    `json:"codex_compact_v2_fallback_enabled"`
-	OpenAILongContextBillingEnabled     *bool    `json:"openai_long_context_billing_enabled"`
-	KimiK3AdaptiveValidationEnabled     *bool    `json:"kimi_k3_adaptive_validation_enabled"`
-	ForceRequestedResponseModel         *bool    `json:"force_requested_response_model"`
-	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
+	EnableFingerprintUnification        *bool                         `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough           *bool                         `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                    *bool                         `json:"enable_cch_signing"`
+	EnableAnthropicCacheTTL1hInjection  *bool                         `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClientDatelineNormalization   *bool                         `json:"enable_client_dateline_normalization"`
+	OpenAIResponsesFlushPreamble        *bool                         `json:"openai_responses_flush_preamble"`
+	OpenAIResponsesFlushPreambleUserIDs *[]int64                      `json:"openai_responses_flush_preamble_user_ids"`
+	OpenAINewAPISlimCompleted           *bool                         `json:"openai_newapi_slim_completed"`
+	OpenAINewAPISlimCompletedUserIDs    *[]int64                      `json:"openai_newapi_slim_completed_user_ids"`
+	CodexCompactV2FallbackEnabled       *bool                         `json:"codex_compact_v2_fallback_enabled"`
+	OpenAILongContextBillingEnabled     *bool                         `json:"openai_long_context_billing_enabled"`
+	KimiK3AdaptiveValidationEnabled     *bool                         `json:"kimi_k3_adaptive_validation_enabled"`
+	KimiK3AdaptiveChecks                *service.KimiK3AdaptiveChecks `json:"kimi_k3_adaptive_checks"`
+	ForceRequestedResponseModel         *bool                         `json:"force_requested_response_model"`
+	GatewayNetworkRetryMax              *int                          `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -1593,12 +1595,13 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAILongContextBillingEnabled
 		}(),
-		KimiK3AdaptiveValidationEnabled: func() bool {
-			if req.KimiK3AdaptiveValidationEnabled != nil {
-				return *req.KimiK3AdaptiveValidationEnabled
+		KimiK3AdaptiveChecks: func() service.KimiK3AdaptiveChecks {
+			if req.KimiK3AdaptiveChecks != nil {
+				return *req.KimiK3AdaptiveChecks
 			}
-			return previousSettings.KimiK3AdaptiveValidationEnabled
+			return previousSettings.KimiK3AdaptiveChecks
 		}(),
+		KimiK3AdaptiveValidationEnabled: false,
 		ForceRequestedResponseModel: func() bool {
 			if req.ForceRequestedResponseModel != nil {
 				return *req.ForceRequestedResponseModel
@@ -2023,6 +2026,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CodexCompactV2FallbackEnabled:                          updatedSettings.CodexCompactV2FallbackEnabled,
 		OpenAILongContextBillingEnabled:                        updatedSettings.OpenAILongContextBillingEnabled,
 		KimiK3AdaptiveValidationEnabled:                        updatedSettings.KimiK3AdaptiveValidationEnabled,
+		KimiK3AdaptiveChecks:                                   updatedSettings.KimiK3AdaptiveChecks,
 		ForceRequestedResponseModel:                            updatedSettings.ForceRequestedResponseModel,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
@@ -2491,6 +2495,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.KimiK3AdaptiveValidationEnabled != after.KimiK3AdaptiveValidationEnabled {
 		changed = append(changed, "kimi_k3_adaptive_validation_enabled")
+	}
+	if before.KimiK3AdaptiveChecks != after.KimiK3AdaptiveChecks {
+		changed = append(changed, "kimi_k3_adaptive_validation_checks")
 	}
 	if before.ForceRequestedResponseModel != after.ForceRequestedResponseModel {
 		changed = append(changed, "force_requested_response_model")

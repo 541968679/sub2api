@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 
@@ -31,18 +32,64 @@ const (
 	kimiK3ErrEmptyContent     = "content must not be empty"
 	kimiK3ErrMessageStructure = "message does not match the kimi-k3 message structure"
 	kimiK3ErrSpecifiedTool    = "tool_choice 'specified' is incompatible with thinking enabled"
+	kimiK3ErrTemperature      = "temperature must be 1"
+	kimiK3ErrTopP             = "top_p must be 0.95"
+	kimiK3ErrN                = "n must be 1"
+	kimiK3ErrPresencePenalty  = "presence_penalty must be 0"
+	kimiK3ErrFrequencyPenalty = "frequency_penalty must be 0"
 )
+
+// KimiK3AdaptiveChecks is the per-check admin policy for kimi-k3 Chat
+// Completions. A false field skips that check and leaves the field unchanged.
+type KimiK3AdaptiveChecks struct {
+	OutputBudget     bool `json:"output_budget"`
+	PredictionType   bool `json:"prediction_type"`
+	ReasoningEffort  bool `json:"reasoning_effort"`
+	Stop             bool `json:"stop"`
+	TopLogprobs      bool `json:"top_logprobs"`
+	FunctionName     bool `json:"function_name"`
+	MessageStructure bool `json:"message_structure"`
+	ToolChoice       bool `json:"tool_choice"`
+	ContextWindow    bool `json:"context_window"`
+	ImageURLRewrite  bool `json:"image_url_rewrite"`
+	SamplingParams   bool `json:"sampling_params"`
+}
+
+// Any reports whether at least one check runs.
+func (c KimiK3AdaptiveChecks) Any() bool {
+	return c.OutputBudget || c.PredictionType || c.ReasoningEffort || c.Stop ||
+		c.TopLogprobs || c.FunctionName || c.MessageStructure || c.ToolChoice ||
+		c.ContextWindow || c.ImageURLRewrite || c.SamplingParams
+}
+
+// kimiK3AdaptiveChecksLegacy is the old single-switch behavior.
+// Sampling stays off until its own check is stored.
+func kimiK3AdaptiveChecksLegacy() KimiK3AdaptiveChecks {
+	return KimiK3AdaptiveChecks{
+		OutputBudget:     true,
+		PredictionType:   true,
+		ReasoningEffort:  true,
+		Stop:             true,
+		TopLogprobs:      true,
+		FunctionName:     true,
+		MessageStructure: true,
+		ToolChoice:       true,
+		ContextWindow:    true,
+		ImageURLRewrite:  true,
+		SamplingParams:   false,
+	}
+}
 
 // Official Kimi pattern, including the unescaped hyphen range between '9' and '_'.
 var kimiK3FunctionName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9-_]{0,127}$`)
 
 // isKimiK3UpstreamModel is true for kimi-k3 after a case-insensitive trim and
 // at most one vendor/ prefix. kimi-k2 and deeper paths do not match.
-func (s *OpenAIGatewayService) kimiK3AdaptiveValidationEnabled(ctx context.Context) bool {
+func (s *OpenAIGatewayService) kimiK3AdaptiveChecks(ctx context.Context) KimiK3AdaptiveChecks {
 	if s == nil || s.settingService == nil {
-		return false
+		return KimiK3AdaptiveChecks{}
 	}
-	return s.settingService.IsKimiK3AdaptiveValidationEnabled(ctx)
+	return s.settingService.KimiK3AdaptiveChecks(ctx)
 }
 
 func isKimiK3UpstreamModel(model string) bool {
@@ -53,45 +100,115 @@ func isKimiK3UpstreamModel(model string) bool {
 	return model == "kimi-k3"
 }
 
-// AdaptKimiK3ChatBody checks one Chat Completions body against the Kimi K3
-// limits. A non-empty rejectMessage leaves out as the original body.
-// budgetReject means the caller returns HTTP 403. Every other reject is HTTP
-// 400. changed means out replaced a string image_url with {"url":...}.
-// video_url is left unchanged. Logprob arrays are never invented.
-func AdaptKimiK3ChatBody(body []byte) (out []byte, rejectMessage string, changed bool, budgetReject bool) {
-	budget, msg := resolveKimiK3OutputBudget(body)
-	if msg != "" {
-		return body, msg, false, false
+// AdaptKimiK3ChatBody checks one Chat Completions body against the enabled
+// Kimi K3 limits. A disabled check leaves that field unchanged. A non-empty
+// rejectMessage leaves out as the original body. budgetReject means the
+// caller returns HTTP 403. Every other reject is HTTP 400. changed means out
+// replaced a string image_url with {"url":...}. video_url is left unchanged.
+// Logprob arrays are never invented. Omitted sampling fields are allowed.
+func AdaptKimiK3ChatBody(body []byte, checks KimiK3AdaptiveChecks) (out []byte, rejectMessage string, changed bool, budgetReject bool) {
+	budget, budgetMsg := resolveKimiK3OutputBudget(body)
+	if checks.OutputBudget && budgetMsg != "" {
+		return body, budgetMsg, false, false
 	}
-	if msg := rejectKimiK3Prediction(body); msg != "" {
-		return body, msg, false, false
+	if checks.PredictionType {
+		if msg := rejectKimiK3Prediction(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3ReasoningEffort(body); msg != "" {
-		return body, msg, false, false
+	if checks.ReasoningEffort {
+		if msg := rejectKimiK3ReasoningEffort(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3Stop(body); msg != "" {
-		return body, msg, false, false
+	if checks.SamplingParams {
+		if msg := rejectKimiK3Sampling(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3TopLogprobs(body); msg != "" {
-		return body, msg, false, false
+	if checks.Stop {
+		if msg := rejectKimiK3Stop(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3Tools(body); msg != "" {
-		return body, msg, false, false
+	if checks.TopLogprobs {
+		if msg := rejectKimiK3TopLogprobs(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3Messages(body); msg != "" {
-		return body, msg, false, false
+	if checks.FunctionName {
+		if msg := rejectKimiK3Tools(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg := rejectKimiK3SpecifiedToolChoice(body); msg != "" {
-		return body, msg, false, false
+	if checks.MessageStructure {
+		if msg := rejectKimiK3Messages(body); msg != "" {
+			return body, msg, false, false
+		}
 	}
-	if msg, over := rejectKimiK3InputBudget(body, budget); over {
-		return body, msg, false, true
+	if checks.ToolChoice {
+		if msg := rejectKimiK3SpecifiedToolChoice(body); msg != "" {
+			return body, msg, false, false
+		}
+	}
+	if checks.ContextWindow && budgetMsg == "" {
+		if msg, over := rejectKimiK3InputBudget(body, budget); over {
+			return body, msg, false, true
+		}
+	}
+	if !checks.ImageURLRewrite {
+		return body, "", false, false
 	}
 	rewritten, did := rewriteKimiK3StringImageURLs(body)
 	if !did {
 		return body, "", false, false
 	}
 	return rewritten, "", true, false
+}
+
+func rejectKimiK3Sampling(body []byte) string {
+	checks := []struct {
+		field   string
+		want    string
+		integer bool
+		msg     string
+	}{
+		{field: "temperature", want: "1", msg: kimiK3ErrTemperature},
+		{field: "top_p", want: "0.95", msg: kimiK3ErrTopP},
+		{field: "n", want: "1", integer: true, msg: kimiK3ErrN},
+		{field: "presence_penalty", want: "0", msg: kimiK3ErrPresencePenalty},
+		{field: "frequency_penalty", want: "0", msg: kimiK3ErrFrequencyPenalty},
+	}
+	for _, check := range checks {
+		value := gjson.GetBytes(body, check.field)
+		if !value.Exists() {
+			continue
+		}
+		if check.integer {
+			n, ok := kimiK3JSONInt(value)
+			if !ok || n != 1 {
+				return check.msg
+			}
+			continue
+		}
+		if !kimiK3NumberEquals(value, check.want) {
+			return check.msg
+		}
+	}
+	return ""
+}
+
+func kimiK3NumberEquals(value gjson.Result, want string) bool {
+	if value.Type != gjson.Number {
+		return false
+	}
+	raw := strings.TrimSpace(value.Raw)
+	if raw == "" || strings.ContainsAny(raw, "eE") {
+		return false
+	}
+	got, ok := new(big.Rat).SetString(raw)
+	target, okTarget := new(big.Rat).SetString(want)
+	return ok && okTarget && got.Cmp(target) == 0
 }
 
 func kimiK3JSONInt(v gjson.Result) (int64, bool) {

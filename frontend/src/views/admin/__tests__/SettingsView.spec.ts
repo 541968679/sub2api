@@ -221,6 +221,7 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.features.openaiLongContextBilling.enabledHint": "默认开启。",
     "admin.settings.features.kimiK3AdaptiveValidation.title": "Kimi K3 自适应校验",
     "admin.settings.features.kimiK3AdaptiveValidation.description": "只作用于 kimi-k3 Chat Completions。默认关闭。",
+    "admin.settings.features.kimiK3AdaptiveValidation.nonOfficial": "非官方",
     "admin.settings.features.kimiK3AdaptiveValidation.enabled": "启用 Kimi K3 自适应校验",
     "admin.settings.features.kimiK3AdaptiveValidation.enabledHint": "默认关闭。",
     "admin.settings.features.forceRequestedResponseModel.title": "强制响应模型名",
@@ -825,6 +826,11 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         kimi_k3_adaptive_validation_enabled: true,
+        kimi_k3_adaptive_checks: expect.objectContaining({
+          reasoning_effort: true,
+          sampling_params: false,
+          image_url_rewrite: true,
+        }),
       }),
     );
   });

@@ -1667,7 +1667,13 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAINewAPISlimCompleted] = strconv.FormatBool(settings.OpenAINewAPISlimCompleted)
 	updates[SettingKeyCodexCompactV2FallbackEnabled] = strconv.FormatBool(settings.CodexCompactV2FallbackEnabled)
 	updates[SettingKeyOpenAILongContextBillingEnabled] = strconv.FormatBool(settings.OpenAILongContextBillingEnabled)
+	settings.KimiK3AdaptiveValidationEnabled = settings.KimiK3AdaptiveChecks.Any()
 	updates[SettingKeyKimiK3AdaptiveValidationEnabled] = strconv.FormatBool(settings.KimiK3AdaptiveValidationEnabled)
+	kimiChecksJSON, err := json.Marshal(settings.KimiK3AdaptiveChecks)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kimi k3 adaptive validation checks: %w", err)
+	}
+	updates[SettingKeyKimiK3AdaptiveValidationChecks] = string(kimiChecksJSON)
 	updates[SettingKeyForceRequestedResponseModel] = strconv.FormatBool(settings.ForceRequestedResponseModel)
 	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
 	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
@@ -1811,7 +1817,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 	})
 	refreshOpenAILongContextBillingCache(settings.OpenAILongContextBillingEnabled)
-	refreshKimiK3AdaptiveValidationCache(settings.KimiK3AdaptiveValidationEnabled)
+	refreshKimiK3AdaptiveValidationCache(settings.KimiK3AdaptiveChecks)
 	refreshForceRequestedResponseModelCache(settings.ForceRequestedResponseModel)
 	gatewayForwardingSF.Forget("gateway_forwarding")
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
@@ -2644,6 +2650,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyCodexCompactV2FallbackEnabled:             "true",
 		SettingKeyOpenAILongContextBillingEnabled:           "true",
 		SettingKeyKimiK3AdaptiveValidationEnabled:           "false",
+		SettingKeyKimiK3AdaptiveValidationChecks:            "",
 		SettingKeyForceRequestedResponseModel:               "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
@@ -3037,7 +3044,11 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAINewAPISlimCompletedUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAINewAPISlimCompletedUserIDs])
 	result.CodexCompactV2FallbackEnabled = settings[SettingKeyCodexCompactV2FallbackEnabled] != "false"
 	result.OpenAILongContextBillingEnabled = parseOpenAILongContextBillingEnabled(settings[SettingKeyOpenAILongContextBillingEnabled])
-	result.KimiK3AdaptiveValidationEnabled = parseKimiK3AdaptiveValidationEnabled(settings[SettingKeyKimiK3AdaptiveValidationEnabled])
+	result.KimiK3AdaptiveChecks = resolveKimiK3AdaptiveChecks(
+		settings[SettingKeyKimiK3AdaptiveValidationEnabled],
+		settings[SettingKeyKimiK3AdaptiveValidationChecks],
+	)
+	result.KimiK3AdaptiveValidationEnabled = result.KimiK3AdaptiveChecks.Any()
 	result.ForceRequestedResponseModel = parseForceRequestedResponseModelEnabled(settings[SettingKeyForceRequestedResponseModel])
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])

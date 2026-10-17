@@ -50,6 +50,24 @@ func TestSettingService_KimiK3AdaptiveValidationDefaultOff(t *testing.T) {
 	require.True(t, svc.IsKimiK3AdaptiveValidationEnabled(ctx))
 	repo.data[SettingKeyKimiK3AdaptiveValidationEnabled] = "false"
 	require.True(t, svc.IsKimiK3AdaptiveValidationEnabled(ctx))
-	refreshKimiK3AdaptiveValidationCache(false)
+	refreshKimiK3AdaptiveValidationCache(KimiK3AdaptiveChecks{})
 	require.False(t, svc.IsKimiK3AdaptiveValidationEnabled(ctx))
+
+	repo.data[SettingKeyKimiK3AdaptiveValidationEnabled] = "true"
+	delete(repo.data, SettingKeyKimiK3AdaptiveValidationChecks)
+	resetKimiK3AdaptiveValidationCacheForTest()
+	legacy := svc.KimiK3AdaptiveChecks(ctx)
+	require.True(t, legacy.ReasoningEffort)
+	require.False(t, legacy.SamplingParams)
+
+	repo.data[SettingKeyKimiK3AdaptiveValidationChecks] = `{"sampling_params":true}`
+	resetKimiK3AdaptiveValidationCacheForTest()
+	onlySampling := svc.KimiK3AdaptiveChecks(ctx)
+	require.True(t, onlySampling.SamplingParams)
+	require.False(t, onlySampling.ReasoningEffort)
+	require.False(t, svc.KimiK3AdaptiveChecks(ctx).OutputBudget)
+
+	repo.data[SettingKeyKimiK3AdaptiveValidationChecks] = `not-json`
+	resetKimiK3AdaptiveValidationCacheForTest()
+	require.False(t, svc.KimiK3AdaptiveChecks(ctx).Any())
 }

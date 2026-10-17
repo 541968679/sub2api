@@ -5,6 +5,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -237,7 +238,7 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, msg, changed, budget := AdaptKimiK3ChatBody([]byte(tc.body))
+			out, msg, changed, budget := AdaptKimiK3ChatBody([]byte(tc.body), kimiK3AdaptiveChecksLegacy())
 			require.Equal(t, tc.budget, budget)
 			if tc.budget {
 				require.Contains(t, msg, "output budget")
@@ -251,7 +252,7 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 	}
 
 	original := []byte(`{"model":"kimi-k3","temperature":0,"messages":[{"role":"user","content":[{"type":"text","text":"see"},{"type":"image_url","image_url":"data:image/png;base64,abc"},{"type":"video_url","video_url":"data:video/mp4;base64,zzz"},{"type":"image_url","image_url":{"url":"data:image/png;base64,obj"}}]}]}`)
-	out, msg, changed, budget := AdaptKimiK3ChatBody(original)
+	out, msg, changed, budget := AdaptKimiK3ChatBody(original, kimiK3AdaptiveChecksLegacy())
 	require.False(t, budget)
 	require.Empty(t, msg)
 	require.True(t, changed)
@@ -263,14 +264,14 @@ func TestKimiK3AdaptiveChatBody(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,obj", gjson.GetBytes(out, "messages.0.content.3.image_url.url").String())
 
 	rejected := []byte(`{"model":"kimi-k3","max_completion_tokens":1048577,"messages":[{"role":"user","content":[{"type":"image_url","image_url":"data:image/png;base64,abc"}]}]}`)
-	out, msg, changed, budget = AdaptKimiK3ChatBody(rejected)
+	out, msg, changed, budget = AdaptKimiK3ChatBody(rejected, kimiK3AdaptiveChecksLegacy())
 	require.False(t, budget)
 	require.Equal(t, "max_completion_tokens exceeds kimi-k3 maximum 1048576", msg)
 	require.False(t, changed)
 	require.True(t, bytes.Equal(rejected, out))
 
 	huge := `{"model":"kimi-k3","max_completion_tokens":16,"messages":[{"role":"user","content":"` + strings.Repeat("x", (8<<20)+1) + `"}]}`
-	_, hugeMsg, _, hugeBudget := AdaptKimiK3ChatBody([]byte(huge))
+	_, hugeMsg, _, hugeBudget := AdaptKimiK3ChatBody([]byte(huge), kimiK3AdaptiveChecksLegacy())
 	require.True(t, hugeBudget)
 	require.Contains(t, hugeMsg, "output budget 16")
 }
@@ -420,6 +421,39 @@ func TestKimiK3AdaptiveGateway(t *testing.T) {
 		require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "tool_choice 'specified' is incompatible with thinking enabled")
 	})
 
+	t.Run("legacy switch forwards non-fixed temperature", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":1.1,"messages":[{"role":"user","content":"hi"}]}`)
+		rec, upstream := forwardKimiK3Adaptive(t, kimiK3AdaptiveSettingsForTest(t, "true"), rawChatCompletionsTestAccount(), body)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, 1.1, gjson.GetBytes(upstream.lastBody, "temperature").Float())
+	})
+
+	t.Run("sampling check rejects before upstream", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":0.6,"reasoning_effort":"medium","messages":[{"role":"user","content":"hi"}]}`)
+		upstream := &httpUpstreamRecorder{err: io.ErrClosedPipe}
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true}),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+		require.Error(t, err)
+		require.Empty(t, upstream.requests)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "temperature must be 1", gjson.Get(rec.Body.String(), "error.message").String())
+	})
+
+	t.Run("sampling check leaves reasoning effort alone", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":1,"reasoning_effort":"none","messages":[{"role":"user","content":"hi"}]}`)
+		rec, upstream := forwardKimiK3Adaptive(t, kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true}), rawChatCompletionsTestAccount(), body)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "none", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
+		require.Equal(t, float64(1), gjson.GetBytes(upstream.lastBody, "temperature").Float())
+	})
+
 	t.Run("switch on allows 128 char name and top logprobs 1", func(t *testing.T) {
 		name := strings.Repeat("a", 128)
 		body := []byte(`{"model":"kimi-k3","logprobs":true,"top_logprobs":1,"tools":[{"type":"function","function":{"name":"` + name + `"}}]}`)
@@ -431,6 +465,50 @@ func TestKimiK3AdaptiveGateway(t *testing.T) {
 	})
 }
 
+func TestKimiK3AdaptiveSamplingAndPerCheck(t *testing.T) {
+	sampling := KimiK3AdaptiveChecks{SamplingParams: true}
+	cases := []struct {
+		name   string
+		body   string
+		reject string
+	}{
+		{name: "omitted sampling passes", body: `{"model":"kimi-k3","messages":[{"role":"user","content":"hi"}]}`},
+		{name: "fixed integers pass", body: `{"model":"kimi-k3","temperature":1,"top_p":0.95,"n":1,"presence_penalty":0,"frequency_penalty":0}`},
+		{name: "fixed decimals pass", body: `{"model":"kimi-k3","temperature":1.0,"top_p":0.950,"presence_penalty":0.0,"frequency_penalty":0.00}`},
+		{name: "temperature 0", body: `{"model":"kimi-k3","temperature":0}`, reject: "temperature must be 1"},
+		{name: "temperature 0.6", body: `{"model":"kimi-k3","temperature":0.6}`, reject: "temperature must be 1"},
+		{name: "temperature 1.1", body: `{"model":"kimi-k3","temperature":1.1}`, reject: "temperature must be 1"},
+		{name: "temperature 2", body: `{"model":"kimi-k3","temperature":2.0}`, reject: "temperature must be 1"},
+		{name: "temperature negative", body: `{"model":"kimi-k3","temperature":-0.1}`, reject: "temperature must be 1"},
+		{name: "temperature scientific", body: `{"model":"kimi-k3","temperature":1e0}`, reject: "temperature must be 1"},
+		{name: "top_p 1", body: `{"model":"kimi-k3","top_p":1}`, reject: "top_p must be 0.95"},
+		{name: "top_p 0.8", body: `{"model":"kimi-k3","top_p":0.8}`, reject: "top_p must be 0.95"},
+		{name: "n 2", body: `{"model":"kimi-k3","n":2}`, reject: "n must be 1"},
+		{name: "n decimal", body: `{"model":"kimi-k3","n":1.0}`, reject: "n must be 1"},
+		{name: "presence penalty", body: `{"model":"kimi-k3","presence_penalty":0.5}`, reject: "presence_penalty must be 0"},
+		{name: "frequency penalty", body: `{"model":"kimi-k3","frequency_penalty":0.5}`, reject: "frequency_penalty must be 0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, msg, changed, budget := AdaptKimiK3ChatBody([]byte(tc.body), sampling)
+			require.False(t, budget)
+			require.False(t, changed)
+			require.Equal(t, tc.reject, msg)
+			require.True(t, bytes.Equal([]byte(tc.body), out))
+		})
+	}
+
+	body := []byte(`{"model":"kimi-k3","reasoning_effort":"medium","temperature":2}`)
+	_, msg, _, _ := AdaptKimiK3ChatBody(body, KimiK3AdaptiveChecks{ReasoningEffort: true})
+	require.Equal(t, "reasoning_effort must be low, high, or max", msg)
+	_, msg, _, _ = AdaptKimiK3ChatBody(body, sampling)
+	require.Equal(t, "temperature must be 1", msg)
+	out, msg, changed, _ := AdaptKimiK3ChatBody(body, KimiK3AdaptiveChecks{})
+	require.Empty(t, msg)
+	require.False(t, changed)
+	require.True(t, bytes.Equal(body, out))
+}
+
 func kimiK3AdaptiveSettingsForTest(t *testing.T, raw string) *SettingService {
 	t.Helper()
 	resetKimiK3AdaptiveValidationCacheForTest()
@@ -438,6 +516,18 @@ func kimiK3AdaptiveSettingsForTest(t *testing.T, raw string) *SettingService {
 	if raw != "" {
 		repo.data[SettingKeyKimiK3AdaptiveValidationEnabled] = raw
 	}
+	return NewSettingService(repo, &config.Config{})
+}
+
+func kimiK3AdaptiveSettingsWithChecks(t *testing.T, checks KimiK3AdaptiveChecks) *SettingService {
+	t.Helper()
+	resetKimiK3AdaptiveValidationCacheForTest()
+	encoded, err := json.Marshal(checks)
+	require.NoError(t, err)
+	repo := &gatewayTTLSettingRepo{data: map[string]string{
+		SettingKeyKimiK3AdaptiveValidationEnabled: "true",
+		SettingKeyKimiK3AdaptiveValidationChecks:  string(encoded),
+	}}
 	return NewSettingService(repo, &config.Config{})
 }
 

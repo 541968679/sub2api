@@ -369,6 +369,92 @@ export function deriveWeChatConnectStoredMode(
 /**
  * System settings interface
  */
+export interface KimiK3AdaptiveChecks {
+  output_budget: boolean;
+  prediction_type: boolean;
+  reasoning_effort: boolean;
+  stop: boolean;
+  top_logprobs: boolean;
+  function_name: boolean;
+  message_structure: boolean;
+  tool_choice: boolean;
+  context_window: boolean;
+  image_url_rewrite: boolean;
+  sampling_params: boolean;
+}
+
+export const KIMI_K3_ADAPTIVE_CHECK_KEYS = [
+  "output_budget",
+  "prediction_type",
+  "reasoning_effort",
+  "stop",
+  "top_logprobs",
+  "function_name",
+  "message_structure",
+  "tool_choice",
+  "context_window",
+  "image_url_rewrite",
+  "sampling_params",
+] as const satisfies readonly (keyof KimiK3AdaptiveChecks)[];
+
+// These checks are stricter than, or different from, the current Kimi K3 docs.
+export const KIMI_K3_NON_OFFICIAL_CHECK_KEYS = [
+  "prediction_type",
+  "message_structure",
+  "tool_choice",
+  "context_window",
+  "image_url_rewrite",
+] as const satisfies readonly (typeof KIMI_K3_ADAPTIVE_CHECK_KEYS)[number][];
+
+export function kimiK3AdaptiveCheckIsNonOfficial(
+  key: (typeof KIMI_K3_ADAPTIVE_CHECK_KEYS)[number],
+): boolean {
+  return (KIMI_K3_NON_OFFICIAL_CHECK_KEYS as readonly string[]).includes(key);
+}
+
+export function emptyKimiK3AdaptiveChecks(): KimiK3AdaptiveChecks {
+  return {
+    output_budget: false,
+    prediction_type: false,
+    reasoning_effort: false,
+    stop: false,
+    top_logprobs: false,
+    function_name: false,
+    message_structure: false,
+    tool_choice: false,
+    context_window: false,
+    image_url_rewrite: false,
+    sampling_params: false,
+  };
+}
+
+// A missing checks object with the legacy master on keeps the older checks
+// and leaves sampling off. An object, even an empty one, is explicit.
+export function normalizeKimiK3AdaptiveChecks(
+  raw: Partial<KimiK3AdaptiveChecks> | null | undefined,
+  legacyMaster: boolean,
+): KimiK3AdaptiveChecks {
+  if (raw && typeof raw === "object") {
+    const checks = emptyKimiK3AdaptiveChecks();
+    for (const key of KIMI_K3_ADAPTIVE_CHECK_KEYS) {
+      checks[key] = raw[key] === true;
+    }
+    return checks;
+  }
+  if (!legacyMaster) {
+    return emptyKimiK3AdaptiveChecks();
+  }
+  const legacy = emptyKimiK3AdaptiveChecks();
+  for (const key of KIMI_K3_ADAPTIVE_CHECK_KEYS) {
+    legacy[key] = key !== "sampling_params";
+  }
+  return legacy;
+}
+
+export function kimiK3AdaptiveChecksEnabled(checks: KimiK3AdaptiveChecks): boolean {
+  return KIMI_K3_ADAPTIVE_CHECK_KEYS.some((key) => checks[key]);
+}
+
 export interface SystemSettings {
   // Registration settings
   registration_enabled: boolean;
@@ -539,6 +625,7 @@ export interface SystemSettings {
   codex_compact_v2_fallback_enabled: boolean;
   openai_long_context_billing_enabled: boolean;
   kimi_k3_adaptive_validation_enabled: boolean;
+  kimi_k3_adaptive_checks: KimiK3AdaptiveChecks;
   force_requested_response_model: boolean;
   gateway_network_retry_max: number;
   web_search_emulation_enabled?: boolean;
@@ -785,6 +872,7 @@ export interface UpdateSettingsRequest {
   codex_compact_v2_fallback_enabled?: boolean;
   openai_long_context_billing_enabled?: boolean;
   kimi_k3_adaptive_validation_enabled?: boolean;
+  kimi_k3_adaptive_checks?: KimiK3AdaptiveChecks;
   force_requested_response_model?: boolean;
   gateway_network_retry_max?: number;
   // Payment configuration
@@ -1000,6 +1088,10 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     codex_compact_v2_fallback_enabled: s.codex_compact_v2_fallback_enabled !== false,
     openai_long_context_billing_enabled: s.openai_long_context_billing_enabled !== false,
     kimi_k3_adaptive_validation_enabled: s.kimi_k3_adaptive_validation_enabled === true,
+    kimi_k3_adaptive_checks: normalizeKimiK3AdaptiveChecks(
+      s.kimi_k3_adaptive_checks,
+      s.kimi_k3_adaptive_validation_enabled === true,
+    ),
     force_requested_response_model: s.force_requested_response_model === true,
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:

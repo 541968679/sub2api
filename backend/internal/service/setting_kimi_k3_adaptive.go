@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -12,7 +13,7 @@ import (
 )
 
 type cachedKimiK3AdaptiveValidation struct {
-	enabled   bool
+	checks    KimiK3AdaptiveChecks
 	expiresAt int64
 }
 
@@ -27,58 +28,100 @@ func parseKimiK3AdaptiveValidationEnabled(raw string) bool {
 	return strings.TrimSpace(raw) == "true"
 }
 
-func storeKimiK3AdaptiveValidationCache(enabled bool, ttl time.Duration) {
+func storeKimiK3AdaptiveValidationCache(checks KimiK3AdaptiveChecks, ttl time.Duration) {
 	kimiK3AdaptiveValidationCache.Store(&cachedKimiK3AdaptiveValidation{
-		enabled:   enabled,
+		checks:    checks,
 		expiresAt: time.Now().Add(ttl).UnixNano(),
 	})
 }
 
-func refreshKimiK3AdaptiveValidationCache(enabled bool) {
+func refreshKimiK3AdaptiveValidationCache(checks KimiK3AdaptiveChecks) {
 	kimiK3AdaptiveValidationSF.Forget("kimi_k3_adaptive_validation")
-	storeKimiK3AdaptiveValidationCache(enabled, kimiK3AdaptiveValidationCacheTTL)
+	storeKimiK3AdaptiveValidationCache(checks, kimiK3AdaptiveValidationCacheTTL)
 }
 
-// IsKimiK3AdaptiveValidationEnabled reports whether kimi-k3 Chat Completions
-// adaptive validation is on. Missing, invalid, unread, and nil service values
-// are off. Only the stored string "true" enables it.
+// resolveKimiK3AdaptiveChecks turns the stored master switch and the per-check
+// JSON into the policy that runs. A present checks JSON wins, including {}.
+// Invalid JSON enables nothing. A missing JSON with master string "true" keeps
+// the older checks on and leaves sampling off.
+func resolveKimiK3AdaptiveChecks(masterRaw, checksRaw string) KimiK3AdaptiveChecks {
+	if strings.TrimSpace(checksRaw) != "" {
+		parsed, ok := parseKimiK3AdaptiveChecks(checksRaw)
+		if !ok {
+			return KimiK3AdaptiveChecks{}
+		}
+		return parsed
+	}
+	if parseKimiK3AdaptiveValidationEnabled(masterRaw) {
+		return kimiK3AdaptiveChecksLegacy()
+	}
+	return KimiK3AdaptiveChecks{}
+}
+
+func parseKimiK3AdaptiveChecks(raw string) (KimiK3AdaptiveChecks, bool) {
+	var checks KimiK3AdaptiveChecks
+	if err := json.Unmarshal([]byte(raw), &checks); err != nil {
+		return KimiK3AdaptiveChecks{}, false
+	}
+	return checks, true
+}
+
+func (s *SettingService) readKimiK3AdaptiveSetting(ctx context.Context, key string) (string, bool) {
+	value, err := s.settingRepo.GetValue(ctx, key)
+	if err == nil {
+		return value, true
+	}
+	if errors.Is(err, ErrSettingNotFound) {
+		return "", true
+	}
+	slog.Warn("failed to get kimi k3 adaptive validation setting", "key", key, "error", err)
+	return "", false
+}
+
+// IsKimiK3AdaptiveValidationEnabled reports whether any kimi-k3 adaptive check
+// is on. Missing, invalid, unread, and nil service values are off.
 func (s *SettingService) IsKimiK3AdaptiveValidationEnabled(ctx context.Context) bool {
+	return s.KimiK3AdaptiveChecks(ctx).Any()
+}
+
+// KimiK3AdaptiveChecks returns the cached per-check policy.
+func (s *SettingService) KimiK3AdaptiveChecks(ctx context.Context) KimiK3AdaptiveChecks {
 	if s == nil {
-		return false
+		return KimiK3AdaptiveChecks{}
 	}
 	if cached, ok := kimiK3AdaptiveValidationCache.Load().(*cachedKimiK3AdaptiveValidation); ok && cached != nil {
 		if time.Now().UnixNano() < cached.expiresAt {
-			return cached.enabled
+			return cached.checks
 		}
 	}
 	result, _, _ := kimiK3AdaptiveValidationSF.Do("kimi_k3_adaptive_validation", func() (any, error) {
 		if cached, ok := kimiK3AdaptiveValidationCache.Load().(*cachedKimiK3AdaptiveValidation); ok && cached != nil {
 			if time.Now().UnixNano() < cached.expiresAt {
-				return cached.enabled, nil
+				return cached.checks, nil
 			}
 		}
 		if s.settingRepo == nil {
-			storeKimiK3AdaptiveValidationCache(false, kimiK3AdaptiveValidationCacheTTL)
-			return false, nil
+			storeKimiK3AdaptiveValidationCache(KimiK3AdaptiveChecks{}, kimiK3AdaptiveValidationCacheTTL)
+			return KimiK3AdaptiveChecks{}, nil
 		}
 		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), kimiK3AdaptiveValidationDBTimeout)
 		defer cancel()
-		value, err := s.settingRepo.GetValue(dbCtx, SettingKeyKimiK3AdaptiveValidationEnabled)
-		if err != nil {
-			if !errors.Is(err, ErrSettingNotFound) {
-				slog.Warn("failed to get kimi_k3_adaptive_validation_enabled setting", "error", err)
-				storeKimiK3AdaptiveValidationCache(false, kimiK3AdaptiveValidationErrorTTL)
-				return false, nil
-			}
-			storeKimiK3AdaptiveValidationCache(false, kimiK3AdaptiveValidationCacheTTL)
-			return false, nil
+		master, ok := s.readKimiK3AdaptiveSetting(dbCtx, SettingKeyKimiK3AdaptiveValidationEnabled)
+		if !ok {
+			storeKimiK3AdaptiveValidationCache(KimiK3AdaptiveChecks{}, kimiK3AdaptiveValidationErrorTTL)
+			return KimiK3AdaptiveChecks{}, nil
 		}
-		enabled := parseKimiK3AdaptiveValidationEnabled(value)
-		storeKimiK3AdaptiveValidationCache(enabled, kimiK3AdaptiveValidationCacheTTL)
-		return enabled, nil
+		checksRaw, ok := s.readKimiK3AdaptiveSetting(dbCtx, SettingKeyKimiK3AdaptiveValidationChecks)
+		if !ok {
+			storeKimiK3AdaptiveValidationCache(KimiK3AdaptiveChecks{}, kimiK3AdaptiveValidationErrorTTL)
+			return KimiK3AdaptiveChecks{}, nil
+		}
+		checks := resolveKimiK3AdaptiveChecks(master, checksRaw)
+		storeKimiK3AdaptiveValidationCache(checks, kimiK3AdaptiveValidationCacheTTL)
+		return checks, nil
 	})
-	if val, ok := result.(bool); ok {
-		return val
+	if checks, ok := result.(KimiK3AdaptiveChecks); ok {
+		return checks
 	}
-	return false
+	return KimiK3AdaptiveChecks{}
 }

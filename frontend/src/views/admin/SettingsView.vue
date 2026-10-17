@@ -5210,16 +5210,26 @@
             </p>
           </div>
           <div class="space-y-5 p-6">
-            <div class="flex items-center justify-between gap-4">
+            <div
+              v-for="key in KIMI_K3_ADAPTIVE_CHECK_KEYS"
+              :key="key"
+              class="flex items-center justify-between gap-4"
+            >
               <div>
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ t('admin.settings.features.kimiK3AdaptiveValidation.enabled') }}
+                <label class="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span>{{ t(`admin.settings.features.kimiK3AdaptiveValidation.checks.${key}`) }}</span>
+                  <span
+                    v-if="kimiK3AdaptiveCheckIsNonOfficial(key)"
+                    class="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                  >
+                    {{ t('admin.settings.features.kimiK3AdaptiveValidation.nonOfficial') }}
+                  </span>
                 </label>
                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.settings.features.kimiK3AdaptiveValidation.enabledHint') }}
+                  {{ t(`admin.settings.features.kimiK3AdaptiveValidation.checks.${key}Hint`) }}
                 </p>
               </div>
-              <Toggle v-model="form.kimi_k3_adaptive_validation_enabled" />
+              <Toggle v-model="form.kimi_k3_adaptive_checks[key]" />
             </div>
           </div>
         </div>
@@ -7140,6 +7150,10 @@ import {
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
   resolveWeChatConnectModeCapabilities,
+  KIMI_K3_ADAPTIVE_CHECK_KEYS,
+  normalizeKimiK3AdaptiveChecks,
+  kimiK3AdaptiveChecksEnabled,
+  kimiK3AdaptiveCheckIsNonOfficial,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
@@ -7600,6 +7614,7 @@ const form = reactive<SettingsForm>({
   codex_compact_v2_fallback_enabled: true,
   openai_long_context_billing_enabled: true,
   kimi_k3_adaptive_validation_enabled: false,
+  kimi_k3_adaptive_checks: normalizeKimiK3AdaptiveChecks(undefined, false),
   force_requested_response_model: false,
   gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
@@ -8237,6 +8252,10 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.kimi_k3_adaptive_checks = normalizeKimiK3AdaptiveChecks(
+      settings.kimi_k3_adaptive_checks,
+      settings.kimi_k3_adaptive_validation_enabled === true,
+    );
     if (!Array.isArray(form.openai_responses_flush_preamble_user_ids)) {
       form.openai_responses_flush_preamble_user_ids = [];
     }
@@ -8712,8 +8731,10 @@ async function saveSettings() {
         form.openai_newapi_slim_completed_user_ids || [],
       codex_compact_v2_fallback_enabled: form.codex_compact_v2_fallback_enabled,
       openai_long_context_billing_enabled: form.openai_long_context_billing_enabled,
-      kimi_k3_adaptive_validation_enabled:
-        form.kimi_k3_adaptive_validation_enabled,
+      kimi_k3_adaptive_validation_enabled: kimiK3AdaptiveChecksEnabled(
+        form.kimi_k3_adaptive_checks,
+      ),
+      kimi_k3_adaptive_checks: { ...form.kimi_k3_adaptive_checks },
       force_requested_response_model: form.force_requested_response_model,
       gateway_network_retry_max: Math.max(
         0,

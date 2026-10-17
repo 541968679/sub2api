@@ -1,3 +1,28 @@
+## 2026-10-17 - admin: mark non-official Kimi K3 checks
+
+### What
+- The Kimi K3 adaptive validation card labels \prediction.type\, message structure, object \	ool_choice\, context window, and string \image_url\ rewrite as non-official. Each hint says how that check differs from the current Kimi docs. The other six rows are labeled as official constraints.
+
+### Why
+Those five checks are stricter than, or implemented differently from, the published Kimi K3 contract. The settings page needs to show that before someone turns them on.
+
+### Affected files
+\rontend/src/api/admin/settings.ts\, \rontend/src/views/admin/SettingsView.vue\, \rontend/src/i18n/locales/zh.ts\, \rontend/src/i18n/locales/en.ts\, this changelog.
+
+## 2026-10-17 - gateway: split Kimi K3 adaptive checks and add sampling validation
+
+### What
+- \kimi_k3_adaptive_validation_checks\ stores one switch per check: output budget, prediction type, reasoning_effort, stop, top_logprobs, function name, message structure, object tool_choice, context window, string image_url rewrite, and sampling parameters.
+- Sampling rejects a present \	emperature\ other than 1, \	op_p\ other than 0.95, \ other than integer 1, or a penalty other than 0, with HTTP 400 before the request reaches upstream. Omitted sampling fields stay unchanged.
+- A missing checks record still honors the old \kimi_k3_adaptive_validation_enabled=true\ switch for the older checks. Sampling stays off until its own field is saved. Invalid checks JSON enables nothing. Production currently stores the master switch as false, so nothing turns on by itself.
+- Admin settings replaces the single Kimi K3 toggle with the eleven checks.
+
+### Why
+Official K3 sampling values were forwarded and accepted upstream. The old switch could only turn every existing check on or off together.
+
+### Affected files
+\ackend/internal/service/kimi_k3_adaptive_validation.go\, \ackend/internal/service/setting_kimi_k3_adaptive.go\, \ackend/internal/service/setting_service.go\, \ackend/internal/service/domain_constants.go\, \ackend/internal/service/settings_view.go\, \ackend/internal/service/openai_gateway_chat_completions_raw.go\, \ackend/internal/handler/admin/setting_handler.go\, \ackend/internal/handler/dto/settings.go\, \rontend/src/api/admin/settings.ts\, \rontend/src/views/admin/SettingsView.vue\, \rontend/src/i18n/locales/zh.ts\, \rontend/src/i18n/locales/en.ts\, this changelog.
+
 ## 2026-10-16 - ops: deploy v0.1.326 and forward the entry host
 
 ### What

@@ -547,10 +547,15 @@ const (
 	// OpenAI GPT-5.4/5.5/5.6 session-level long-context multipliers.
 	// Default true. Missing/invalid values are treated as enabled. Not a public setting.
 	SettingKeyOpenAILongContextBillingEnabled = "openai_long_context_billing_enabled"
-	// SettingKeyKimiK3AdaptiveValidationEnabled is the admin switch for
-	// kimi-k3 Chat Completions parameter checks and the string image_url rewrite.
-	// Default false. Only the string "true" enables it. Not a public setting.
+	// SettingKeyKimiK3AdaptiveValidationEnabled is the legacy admin switch for
+	// kimi-k3 Chat Completions checks. Default false. Only the string "true"
+	// enables the older checks, and only when the per-check JSON is absent.
+	// Not a public setting.
 	SettingKeyKimiK3AdaptiveValidationEnabled = "kimi_k3_adaptive_validation_enabled"
+	// SettingKeyKimiK3AdaptiveValidationChecks stores the per-check policy.
+	// A present value, including {}, replaces the legacy switch. Sampling is
+	// off unless its own field is true. Not a public setting.
+	SettingKeyKimiK3AdaptiveValidationChecks = "kimi_k3_adaptive_validation_checks"
 	// SettingKeyForceRequestedResponseModel overwrites client-facing response
 	// model names with the model the client requested. Default on. Only the
 	// stored string "false" disables it. Billing and upstream_response_model
