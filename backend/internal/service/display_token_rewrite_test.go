@@ -716,6 +716,31 @@ func TestDisplayToken_UnknownModelDoesNotBorrowDefaultTestModelDisplayPrice(t *t
 	require.Nil(t, mult.AllocDisplayCacheReadPrice)
 }
 
+func TestDisplayToken_ConfiguredRealPriceBecomesDisplayPrice(t *testing.T) {
+	inputPrice := 8e-7
+	outputPrice := 2.7e-6
+	cachePrice := 1e-7
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:          "qwen3.8-flash",
+		BillingMode:    BillingModeToken,
+		InputPrice:     &inputPrice,
+		OutputPrice:    &outputPrice,
+		CacheReadPrice: &cachePrice,
+		Enabled:        true,
+	})
+	billing := &BillingService{pricingService: &PricingService{pricingData: map[string]*LiteLLMModelPricing{}}}
+	resolver := NewModelPricingResolver(&ChannelService{}, billing, cache, nil)
+
+	mult := computeDisplayTokenMultipliers(context.Background(), "qwen3.8-flash", 42, nil, 1, 1, resolver)
+	require.True(t, mult.UseTokenAlloc)
+	require.InDelta(t, 1.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 1.0, mult.OutputMult, 1e-12)
+	require.InDelta(t, inputPrice, *mult.AllocDisplayInputPrice, 1e-18)
+	require.InDelta(t, outputPrice, *mult.AllocDisplayOutputPrice, 1e-18)
+	require.InDelta(t, cachePrice, *mult.AllocDisplayCacheReadPrice, 1e-18)
+	require.False(t, mult.IsNonTrivial())
+}
+
 func TestDisplayToken_UserCacheWrite1hPriceFeedsMultipliers(t *testing.T) {
 	// 用户级真实 1h 价覆盖(6.4e-6)+ 全局展示创建价(2e-6)→ Mult1h = 3.2。
 	displayCreate := 2e-6

@@ -1,3 +1,14 @@
+## 2026-10-18 - billing: unset display price equals the configured real price
+
+### What
+- When a model has a configured billing unit price and no display price, that real price is used as the display price for user usage, admin display tokens, and the downstream display rewrite.
+- An explicit display price on input, output, or cache-read still blocks filling the other components. Models with no configured real price, including the billing default-model fallback, stay without a display layer.
+
+### Why
+Qwen 3.8 flash and max had billing prices but empty display prices, so the admin display-token column was blank even though the real price was known.
+
+### Affected files
+`backend/internal/handler/dto/display_pricing.go`, `backend/internal/handler/dto/display_pricing_test.go`, `backend/internal/handler/usage_handler.go`, `backend/internal/handler/admin/usage_handler.go`, `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/display_token_rewrite_test.go`, `.trellis/spec/backend/display-token-pricing.md`, this changelog.
 ## 2026-10-18 - gateway: hide upstream identity on OpenAI /v1/messages
 
 ### What

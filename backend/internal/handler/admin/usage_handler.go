@@ -983,7 +983,11 @@ func (h *UsageHandler) displayConfigForUsageLog(ctx context.Context, log *servic
 		model = log.Model
 	}
 	cfg := dto.DisplayPricingConfigForModel(displayMap, model)
+	configuredReal := dto.HasConfiguredRealUnitPrice(cfg)
 	if h.pricingResolver == nil {
+		if configuredReal {
+			return dto.ApplyConfiguredRealPricesAsDisplayPrices(cfg)
+		}
 		return cfg
 	}
 	inPrice, outPrice, cachePrice := h.pricingResolver.LiteLLMDisplayFallbackPrices(model)
@@ -1002,7 +1006,11 @@ func (h *UsageHandler) displayConfigForUsageLog(ctx context.Context, log *servic
 		GroupID: log.GroupID,
 		UserID:  userID,
 	}, log.InputTokens+log.CacheReadTokens, serviceTier, false, 0, 0)
-	return dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
+	cfg = dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
+	if configuredReal {
+		cfg = dto.ApplyConfiguredRealPricesAsDisplayPrices(cfg)
+	}
+	return cfg
 }
 
 func snapshotFromDTO(d *dto.UsageLog) UserViewSnapshot {

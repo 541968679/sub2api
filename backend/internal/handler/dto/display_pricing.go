@@ -169,6 +169,53 @@ func ApplyLiteLLMDisplayPriceFallback(cfg *DisplayPricingConfig, inputPrice, out
 	return cfg
 }
 
+// HasConfiguredRealUnitPrice reports whether this config already carries a
+// configured billing unit price. Prices invented later by the resolver's
+// default-model fallback do not count.
+func HasConfiguredRealUnitPrice(cfg *DisplayPricingConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	return positivePrice(cfg.UnitInputPrice) || positivePrice(cfg.UnitOutputPrice) || positivePrice(cfg.UnitCacheReadPrice)
+}
+
+func positivePrice(price *float64) bool {
+	return price != nil && *price > 0
+}
+
+// ApplyConfiguredRealPricesAsDisplayPrices makes an unset display price equal
+// the configured real unit price. One explicit display component on input,
+// output, or cache-read leaves the config unchanged. The default-model billing
+// fallback is not a real price and must not be passed in here.
+func ApplyConfiguredRealPricesAsDisplayPrices(cfg *DisplayPricingConfig) *DisplayPricingConfig {
+	if cfg == nil {
+		return nil
+	}
+	if cfg.DisplayInputPrice != nil || cfg.DisplayOutputPrice != nil || cfg.DisplayCacheReadPrice != nil {
+		return cfg
+	}
+	filled := false
+	if positivePrice(cfg.UnitInputPrice) {
+		value := *cfg.UnitInputPrice
+		cfg.DisplayInputPrice = &value
+		filled = true
+	}
+	if positivePrice(cfg.UnitOutputPrice) {
+		value := *cfg.UnitOutputPrice
+		cfg.DisplayOutputPrice = &value
+		filled = true
+	}
+	if positivePrice(cfg.UnitCacheReadPrice) {
+		value := *cfg.UnitCacheReadPrice
+		cfg.DisplayCacheReadPrice = &value
+		filled = true
+	}
+	if filled {
+		cfg.HasDisplayOverride = true
+	}
+	return cfg
+}
+
 func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *DisplayPricingConfig {
 	return cfg
 }

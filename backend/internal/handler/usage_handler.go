@@ -870,12 +870,16 @@ func displayConfigForUsageRecord(
 		model = record.Model
 	}
 	cfg := dto.DisplayPricingConfigForModel(displayMap, model)
+	configuredReal := dto.HasConfiguredRealUnitPrice(cfg)
 	if pricingResolver != nil {
 		inPrice, outPrice, cachePrice := pricingResolver.LiteLLMDisplayFallbackPrices(model)
 		cfg = dto.ApplyLiteLLMDisplayPriceFallback(cfg, inPrice, outPrice, cachePrice)
 	}
 	cfg = applyDisplayAllocControlsToConfig(ctx, cfg, settingService, userCacheMaxMult)
 	if pricingResolver == nil {
+		if configuredReal {
+			cfg = dto.ApplyConfiguredRealPricesAsDisplayPrices(cfg)
+		}
 		return cfg
 	}
 
@@ -894,7 +898,11 @@ func displayConfigForUsageRecord(
 		GroupID: record.GroupID,
 		UserID:  userID,
 	}, record.InputTokens+record.CacheReadTokens, serviceTier, false, 0, 0)
-	return dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
+	cfg = dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
+	if configuredReal {
+		cfg = dto.ApplyConfiguredRealPricesAsDisplayPrices(cfg)
+	}
+	return cfg
 }
 
 func applyDisplayAllocControlsToConfig(

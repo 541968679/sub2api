@@ -38,6 +38,11 @@ DB real → L1 (Display*Price + AllocateDisplayTokens M/α)
   filled. The fallback does not use billing hardcoded prices or the default
   test-model catch-all. The filled prices also replace those components' unit
   labels, so the shown price is the price used to allocate tokens.
+- If those three display prices are still unset and the model has a configured
+  real unit price, that real price becomes the display price. Admin
+  `display_fields` is then present. Token counts stay equal to billing tokens
+  when component cost is `tokens * real price`. A model with no configured real
+  price still has no display layer.
 
 ## Wrong vs Correct
 

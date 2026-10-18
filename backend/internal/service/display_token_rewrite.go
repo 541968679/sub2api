@@ -33,15 +33,15 @@ type DisplayTokenMultipliers struct {
 	// Alloc path (M + α residual sink). When UseTokenAlloc is true,
 	// computeSeparatedDisplayUsage prefers AllocateDisplayTokens over linear mults
 	// for input/output/cache_read so usage-log and downstream stay aligned.
-	UseTokenAlloc             bool
-	RealInputPrice            float64
-	RealOutputPrice           float64
-	RealCacheReadPrice        float64
-	AllocDisplayInputPrice    *float64
-	AllocDisplayOutputPrice   *float64
+	UseTokenAlloc              bool
+	RealInputPrice             float64
+	RealOutputPrice            float64
+	RealCacheReadPrice         float64
+	AllocDisplayInputPrice     *float64
+	AllocDisplayOutputPrice    *float64
 	AllocDisplayCacheReadPrice *float64
-	CacheTokenMaxMult         float64
-	OutputResidualGrowthRatio *float64
+	CacheTokenMaxMult          float64
+	OutputResidualGrowthRatio  *float64
 	// CacheReadOutputMult is retained for diagnostics / legacy linear fallbacks.
 	CacheReadOutputMult float64
 }
@@ -379,18 +379,48 @@ func resolveDisplayTokenPricing(ctx context.Context, model string, userID int64,
 		cfg.CacheCreation1hPrice = resolved.BasePricing.CacheCreation1hPrice
 		cfg.SupportsCacheBreakdown = resolved.BasePricing.SupportsCacheBreakdown
 	}
+	configuredRow := false
 	if resolver.globalPricingCache != nil {
 		if gp := resolver.globalPricingCache.Get(model); gp != nil {
 			mergeGlobalDisplayTokenPricing(&cfg, gp)
+			configuredRow = true
 		}
 	}
 	if userID > 0 && resolver.userModelPricingRepo != nil {
 		if override, err := resolver.userModelPricingRepo.GetByUserAndModel(ctx, userID, model); err == nil && override != nil && override.Enabled {
 			mergeUserDisplayTokenPricing(&cfg, override)
+			configuredRow = true
 		}
 	}
 	applyLiteLLMDisplayPriceFallback(&cfg, resolver, model)
+	if configuredRow {
+		applyConfiguredRealPriceAsDisplay(&cfg)
+	}
 	return cfg
+}
+
+// applyConfiguredRealPriceAsDisplay copies configured real unit prices into
+// unset display prices. An explicit display component blocks the copy. A model
+// that only matches the billing default-model fallback is not a configured row.
+func applyConfiguredRealPriceAsDisplay(cfg *displayTokenPricingConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.DisplayInputPrice != nil || cfg.DisplayOutputPrice != nil || cfg.DisplayCacheReadPrice != nil {
+		return
+	}
+	if cfg.InputPrice > 0 {
+		value := cfg.InputPrice
+		cfg.DisplayInputPrice = &value
+	}
+	if cfg.OutputPrice > 0 {
+		value := cfg.OutputPrice
+		cfg.DisplayOutputPrice = &value
+	}
+	if cfg.CacheReadPrice > 0 {
+		value := cfg.CacheReadPrice
+		cfg.DisplayCacheReadPrice = &value
+	}
 }
 
 // LiteLLMDisplayFallbackPrices returns LiteLLM input/output/cache-read prices

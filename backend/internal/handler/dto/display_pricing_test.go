@@ -767,6 +767,58 @@ func TestComputeDisplayFields_RealPriceOnlyDoesNotCreateAdminDisplayFields(t *te
 	}
 }
 
+func TestApplyConfiguredRealPricesAsDisplayPrices_EqualsRealAndKeepsTokens(t *testing.T) {
+	inputPrice := 8e-7
+	outputPrice := 2.7e-6
+	cachePrice := 1e-7
+	cfg := ApplyConfiguredRealPricesAsDisplayPrices(&DisplayPricingConfig{
+		UnitInputPrice:     &inputPrice,
+		UnitOutputPrice:    &outputPrice,
+		UnitCacheReadPrice: &cachePrice,
+	})
+	if cfg == nil || !cfg.HasDisplayOverride {
+		t.Fatal("configured real prices must become display prices")
+	}
+	if cfg.DisplayInputPrice == nil || *cfg.DisplayInputPrice != inputPrice ||
+		cfg.DisplayOutputPrice == nil || *cfg.DisplayOutputPrice != outputPrice ||
+		cfg.DisplayCacheReadPrice == nil || *cfg.DisplayCacheReadPrice != cachePrice {
+		t.Fatalf("display prices = %#v", cfg)
+	}
+
+	log := UsageLog{
+		InputTokens:     500,
+		OutputTokens:    552,
+		CacheReadTokens: 3072,
+		InputCost:       500 * inputPrice,
+		OutputCost:      552 * outputPrice,
+		CacheReadCost:   3072 * cachePrice,
+		RateMultiplier:  0.3,
+	}
+	log.TotalCost = log.InputCost + log.OutputCost + log.CacheReadCost
+	fields := ComputeDisplayFields(&log, cfg, nil)
+	if fields == nil {
+		t.Fatal("display fields expected when display price equals real price")
+	}
+	if fields.InputTokens != 500 || fields.OutputTokens != 552 || fields.CacheReadTokens != 3072 {
+		t.Fatalf("tokens changed: in=%d out=%d cache=%d", fields.InputTokens, fields.OutputTokens, fields.CacheReadTokens)
+	}
+}
+
+func TestApplyConfiguredRealPricesAsDisplayPrices_KeepsExplicitDisplayComponent(t *testing.T) {
+	realInput := 8e-7
+	displayOutput := 1e-6
+	cfg := ApplyConfiguredRealPricesAsDisplayPrices(&DisplayPricingConfig{
+		UnitInputPrice:     &realInput,
+		DisplayOutputPrice: &displayOutput,
+	})
+	if cfg.DisplayInputPrice != nil {
+		t.Fatal("an explicit display component must not pull in the other real prices")
+	}
+	if cfg.DisplayOutputPrice == nil || *cfg.DisplayOutputPrice != displayOutput {
+		t.Fatal("explicit display output price changed")
+	}
+}
+
 func TestComputeDisplayFields_RateOnlyEmitsFields(t *testing.T) {
 	log := UsageLog{
 		InputTokens:     1000,
@@ -1020,17 +1072,17 @@ func TestBuildUserVisibleUsage_HistoryPathUnchangedWhenNotApplied(t *testing.T) 
 	inPrice := 4e-6
 	cachePrice := 4e-7
 	log := UsageLog{
-		RequestID:         "hist-1",
-		InputTokens:       900_000,
-		CacheReadTokens:   600_000,
-		OutputTokens:      10_000,
-		InputCost:         3.6,
-		CacheReadCost:     0.24,
-		OutputCost:        0.2,
-		TotalCost:         4.04,
-		ActualCost:        0.5656,
-		RateMultiplier:    0.14,
-		DisplayInputPrice: &inPrice,
+		RequestID:             "hist-1",
+		InputTokens:           900_000,
+		CacheReadTokens:       600_000,
+		OutputTokens:          10_000,
+		InputCost:             3.6,
+		CacheReadCost:         0.24,
+		OutputCost:            0.2,
+		TotalCost:             4.04,
+		ActualCost:            0.5656,
+		RateMultiplier:        0.14,
+		DisplayInputPrice:     &inPrice,
 		DisplayCacheReadPrice: &cachePrice,
 	}
 	before := log
