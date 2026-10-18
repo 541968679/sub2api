@@ -91,6 +91,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// Kimi 校验默认也不跑。apply_to_passthrough 打开后，只对即将原样转发的
 	// kimi-k3 执行已经启用的校验，不按账号映射改模型名。
 	if account.IsOpenAIPassthroughEnabled() {
+		if err := s.rejectUnpricedModel(ctx, c, originalModel); err != nil {
+			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Model price is not configured")
+			return nil, err
+		}
 		if isKimiK3UpstreamModel(originalModel) {
 			checks := s.kimiK3AdaptiveChecks(ctx)
 			if checks.ApplyToPassthrough {
@@ -109,6 +113,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// the client-requested name.
 	forwardModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	billingModel := openAIBillingModelForAccountMapping(account, originalModel, forwardModel)
+	if err := s.rejectUnpricedModel(ctx, c, billingModel); err != nil {
+		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Model price is not configured")
+		return nil, err
+	}
 	upstreamModel := normalizeOpenAIModelForUpstream(account, forwardModel)
 	grokCacheIdentity := ""
 	if account.Platform == PlatformGrok {

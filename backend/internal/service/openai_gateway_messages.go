@@ -688,6 +688,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		setOpenAICompatMessagesBridgeContext(c, true)
 	}
 	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, isStream)
+	if err := s.rejectUnpricedModel(upstreamCtx, c, billingModel); err != nil {
+		writeAnthropicLocalError(c, http.StatusBadRequest, "invalid_request_error", "Model price is not configured")
+		return nil, err
+	}
 	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false)
 	releaseUpstreamCtx()
 	if err != nil {

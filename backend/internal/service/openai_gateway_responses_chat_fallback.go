@@ -52,6 +52,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		})
 		return nil, fmt.Errorf("missing model in request")
 	}
+	if err := s.rejectUnpricedModel(ctx, c, originalModel); err != nil {
+		writeUnpricedModelError(c)
+		return nil, err
+	}
 
 	clientStream := responsesReq.Stream
 	serviceTier := extractOpenAIServiceTierFromBody(body)

@@ -1057,6 +1057,64 @@ func (s *OpenAIGatewayService) detectCodexClientRestriction(c *gin.Context, acco
 	return detector.Detect(c, account, nil)
 }
 
+func apiKeyFromGin(c *gin.Context) *APIKey {
+	if c == nil {
+		return nil
+	}
+	v, exists := c.Get("api_key")
+	if !exists {
+		return nil
+	}
+	apiKey, ok := v.(*APIKey)
+	if !ok {
+		return nil
+	}
+	return apiKey
+}
+
+// rejectUnpricedModel stops a request before upstream when the billing model
+// has no positive price. Simple mode keeps the old open behavior.
+func rejectUnpricedModel(resolver *ModelPricingResolver, cfg *config.Config, ctx context.Context, c *gin.Context, billingModel string) error {
+	if resolver == nil || (cfg != nil && cfg.RunMode == config.RunModeSimple) {
+		return nil
+	}
+	var groupID, userID *int64
+	if apiKey := apiKeyFromGin(c); apiKey != nil {
+		groupID = apiKey.GroupID
+		if apiKey.UserID > 0 {
+			id := apiKey.UserID
+			userID = &id
+		}
+	}
+	return resolver.RequireBillablePrice(ctx, billingModel, groupID, userID)
+}
+
+func (s *OpenAIGatewayService) rejectUnpricedModel(ctx context.Context, c *gin.Context, billingModel string) error {
+	if s == nil {
+		return nil
+	}
+	return rejectUnpricedModel(s.resolver, s.cfg, ctx, c, billingModel)
+}
+
+func (s *GatewayService) rejectUnpricedModel(ctx context.Context, c *gin.Context, billingModel string) error {
+	if s == nil {
+		return nil
+	}
+	return rejectUnpricedModel(s.resolver, s.cfg, ctx, c, billingModel)
+}
+
+func writeUnpricedModelError(c *gin.Context) {
+	if c == nil || c.Writer == nil || c.Writer.Written() {
+		return
+	}
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": gin.H{
+			"type":    "invalid_request_error",
+			"message": "Model price is not configured",
+		},
+	})
+}
+
 func getAPIKeyIDFromContext(c *gin.Context) int64 {
 	if c == nil {
 		return 0
@@ -2687,6 +2745,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
+	priceModel := openAIBillingModelForAccountMapping(account, reqModel, resolveOpenAIForwardModel(account, reqModel, ""))
+	if err := s.rejectUnpricedModel(ctx, c, priceModel); err != nil {
+		writeUnpricedModelError(c)
+		return nil, err
+	}
 	originalModel := reqModel
 	s.armForceRequestedResponseModel(ctx, c, originalModel)
 	if account.Platform == PlatformGrok {

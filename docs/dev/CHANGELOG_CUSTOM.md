@@ -1,3 +1,14 @@
+## 2026-10-18 - billing: reject models with no billable price
+
+### What
+- Chat Completions, Responses, Messages, and the Anthropic forward path now return HTTP 400 `Model price is not configured` before calling upstream when the billing model resolves to no positive token, per-request, or image price.
+- Simple mode is unchanged.
+
+### Why
+Unpriced models were still forwarded. Usage was stored with `actual_cost = 0`, so those requests were free.
+
+### Affected files
+`backend/internal/service/model_pricing_billable.go`, `backend/internal/service/model_pricing_billable_test.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_gateway_chat_completions_raw.go`, `backend/internal/service/openai_gateway_messages.go`, `backend/internal/service/openai_gateway_responses_chat_fallback.go`, `backend/internal/service/gateway_service.go`, this changelog.
 ## 2026-10-18 - billing: unset display price equals the configured real price
 
 ### What
