@@ -7892,7 +7892,9 @@ const zhBase = {
         },
         kimiK3AdaptiveValidation: {
           title: 'Kimi K3 自适应校验',
-          description: '只作用于 Chat Completions 里、映射之后的上游模型 kimi-k3。每一项单独开关，默认都关。标成「非官方」的项比现行 Kimi 文档更严，或实现方式和文档不同。没有保存过细项、只打开过旧总开关时，旧校验项仍按开启处理，采样参数保持关闭。',
+          description: '只作用于 Chat Completions 里的 kimi-k3。普通账号看映射之后的上游模型，自动透传看原样转发的模型名。每一项单独开关，默认都关。标成「非官方」的项比现行 Kimi 文档更严，或实现方式和文档不同。没有保存过细项、只打开过旧总开关时，旧校验项仍按开启处理，采样参数和透传校验保持关闭。',
+          applyToPassthrough: '透传账号也校验',
+          applyToPassthroughHint: '自动透传默认跳过上面的校验，请求原样交给上游。打开后，已启用的校验同样作用在透传的 kimi-k3 上，不合规的值在本地返回 400 或 403。模型名、include_usage 和缺收尾处理仍然不改。',
           nonOfficial: '非官方',
           checks: {
             output_budget: '输出预算上限',

@@ -1,3 +1,16 @@
+## 2026-10-17 - gateway: optional Kimi K3 checks on passthrough accounts
+
+### What
+- `kimi_k3_adaptive_validation_checks.apply_to_passthrough` controls whether the already enabled Kimi K3 checks also run for an `openai_passthrough` Chat Completions account. The default is off, including a missing field and the legacy master switch.
+- When the switch is on, a forwarded model of `kimi-k3` is checked before the body is posted. A reject is the same local HTTP 400 or 403 and does not call upstream. A pass still does not rewrite the model, inject `include_usage`, or change truncated-stream handling.
+- The admin Kimi K3 card has one extra toggle, 透传账号也校验.
+
+### Why
+Group 52's only account forwards with passthrough, so the sampling check that was already on never saw `temperature`, `top_p`, or the penalty fields. Upstream then accepted every value inside 0 to 2.
+
+### Affected files
+`backend/internal/service/kimi_k3_adaptive_validation.go`, `backend/internal/service/openai_gateway_chat_completions_raw.go`, `backend/internal/service/openai_gateway_chat_completions_passthrough.go`, `backend/internal/service/kimi_k3_adaptive_validation_test.go`, `backend/internal/service/setting_kimi_k3_adaptive_test.go`, `frontend/src/api/admin/settings.ts`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `.trellis/spec/backend/openai-apikey-upstream-routing.md`, this changelog.
+
 ## 2026-10-17 - billing: stop balance-mode concurrent overdraft
 
 ### What

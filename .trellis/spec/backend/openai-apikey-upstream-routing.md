@@ -89,7 +89,8 @@ Model or platform match short-circuits to the raw chat-completions upstream.
 
 ### 3. Contracts
 - No second switch. The same account flag covers Chat Completions and Responses.
-- Request body is forwarded except for fast-policy `service_tier` changes. Do not rewrite `model`, inject `stream_options.include_usage`, normalize GLM reasoning, or run `AdaptKimiK3ChatBody`.
+- Request body is forwarded except for fast-policy `service_tier` changes. Do not rewrite `model`, inject `stream_options.include_usage`, or normalize GLM reasoning.
+- `AdaptKimiK3ChatBody` stays off unless `kimi_k3_adaptive_validation_checks.apply_to_passthrough` is true. The flag defaults off, including a missing field and the legacy master switch. When it is on, enabled checks run against the model name that will be forwarded, before this function. A reject is local HTTP 400 or 403 and does not call upstream. A passing body, including an image-url rewrite from that check, is what this function posts. Model mapping still does not run.
 - Replace `Authorization`. Copy only `accept-language` and `user-agent`, then apply the account User-Agent and header overrides. Do not copy `X-Forwarded-For`.
 - Return the upstream status and body. Rewrite client-facing Chat Completions `usage` with the same display-token function as raw Chat Completions, after billing usage is captured from the original bytes. An upstream usage number that is 0 stays 0, including `prompt_tokens` / `completion_tokens` / `total_tokens` and cache-write fields. Do not fill an empty `model`, strip an empty tool-call id, hold output for silent refusal, or turn a clean end without `finish_reason` / `usage` / `[DONE]` into a 502.
 - Fail over only on 429 and 529. `RetryableOnSameAccount` is set only when pool mode is on and the status is pool-retryable (429, not 529).
@@ -103,7 +104,8 @@ Model or platform match short-circuits to the raw chat-completions upstream.
 - Upstream 429/529 → `UpstreamFailoverError`. Pool mode retries the same account only for 429.
 
 ### 5. Good/Base/Bad Cases
-- Good: passthrough + `force_responses` + `kimi-k3` inbound Chat Completions → `POST {base}/v1/chat/completions` with the original body, including empty message content, while Kimi adaptive validation is on.
+- Good: passthrough + `force_responses` + `kimi-k3` inbound Chat Completions → `POST {base}/v1/chat/completions` with the original body, including empty message content, while Kimi adaptive validation is on and `apply_to_passthrough` is off.
+- Good: passthrough + `apply_to_passthrough` + sampling check on + `temperature` other than 1 → local 400 `temperature must be 1`, no upstream request. Fixed or omitted sampling is forwarded with the client model name.
 - Good: upstream SSE that ends after a content chunk → client receives that chunk and the call returns success.
 - Good: non-zero `prompt_tokens` / `completion_tokens` on the client body follow the display multipliers, while `ForwardResult.Usage` stays on the upstream counts. A field that arrived as 0 stays 0.
 - Base: passthrough off → raw Chat Completions still injects `include_usage` and records a truncated stream.
@@ -115,6 +117,7 @@ Model or platform match short-circuits to the raw chat-completions upstream.
 - `TestForwardAsRawChatCompletions_PassthroughJSONKeepsEmptyModel`
 - `TestForwardAsRawChatCompletions_PassthroughRequiresModel`
 - `TestForwardAsRawChatCompletions_PassthroughKeepsZeroUsage`
+- `TestKimiK3AdaptivePassthroughSwitch`
 - `TestForwardAsRawChatCompletions_PassthroughKeepsZeroCompletion`
 - `TestRewriteOpenAIChatPassthroughDisplayUsage_ZeroStaysZero`
 
@@ -132,7 +135,7 @@ API-key passthrough enters `forwardRawChatCompletionsPassthrough` from `ForwardA
 ### 2. Signatures
 - Setting key `kimi_k3_adaptive_validation_enabled`. Only the stored string `true` enables it.
 - `AdaptKimiK3ChatBody(body []byte) (out []byte, rejectMessage string, changed bool)`
-- `OpenAIGatewayService.forwardAsRawChatCompletions` calls it after model mapping and the GLM reasoning-effort normalizer, and before fast policy and `GetAccessToken`. `IsOpenAIPassthroughEnabled` returns before that call.
+- `OpenAIGatewayService.forwardAsRawChatCompletions` calls it after model mapping and the GLM reasoning-effort normalizer, and before fast policy and `GetAccessToken`. Passthrough returns before that call unless `apply_to_passthrough` is true. That flag uses the client model, not the mapped model.
 
 ### 3. Contracts
 - Default off. A nil setting service, a missing key, a read error, and any value other than `true` leave the body unchanged.

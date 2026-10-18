@@ -36,8 +36,9 @@ var openAIChatPassthroughZeroUsagePaths = []string{
 // forwardRawChatCompletionsPassthrough posts the inbound Chat Completions body
 // to the account's /v1/chat/completions URL. It replaces Authorization, keeps
 // the Chat Completions header allowlist, and returns the upstream status and
-// body without model rewrite, Kimi validation, usage injection, silent-refusal
-// holdback, or truncated-stream failover. The top-level completion id is still
+// body without model rewrite, usage injection, silent-refusal holdback, or
+// truncated-stream failover. Kimi checks run only before this call, and only
+// when apply_to_passthrough is on. The top-level completion id is still
 // replaced with a gateway id. Client-facing usage still uses the
 // raw Chat Completions display-token rewrite. Billing keeps the usage captured
 // before that rewrite, and an upstream usage field that is 0 stays 0.

@@ -381,6 +381,7 @@ export interface KimiK3AdaptiveChecks {
   context_window: boolean;
   image_url_rewrite: boolean;
   sampling_params: boolean;
+  apply_to_passthrough: boolean;
 }
 
 export const KIMI_K3_ADAPTIVE_CHECK_KEYS = [
@@ -425,6 +426,7 @@ export function emptyKimiK3AdaptiveChecks(): KimiK3AdaptiveChecks {
     context_window: false,
     image_url_rewrite: false,
     sampling_params: false,
+    apply_to_passthrough: false,
   };
 }
 
@@ -439,6 +441,7 @@ export function normalizeKimiK3AdaptiveChecks(
     for (const key of KIMI_K3_ADAPTIVE_CHECK_KEYS) {
       checks[key] = raw[key] === true;
     }
+    checks.apply_to_passthrough = raw.apply_to_passthrough === true;
     return checks;
   }
   if (!legacyMaster) {

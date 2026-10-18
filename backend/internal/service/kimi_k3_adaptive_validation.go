@@ -53,9 +53,14 @@ type KimiK3AdaptiveChecks struct {
 	ContextWindow    bool `json:"context_window"`
 	ImageURLRewrite  bool `json:"image_url_rewrite"`
 	SamplingParams   bool `json:"sampling_params"`
+	// ApplyToPassthrough runs the enabled checks on an openai_passthrough
+	// account. The body is otherwise forwarded unchanged. Default off, so a
+	// missing field keeps today's passthrough behavior.
+	ApplyToPassthrough bool `json:"apply_to_passthrough"`
 }
 
-// Any reports whether at least one check runs.
+// Any reports whether at least one body check runs. ApplyToPassthrough only
+// decides whether those checks also run on a passthrough account.
 func (c KimiK3AdaptiveChecks) Any() bool {
 	return c.OutputBudget || c.PredictionType || c.ReasoningEffort || c.Stop ||
 		c.TopLogprobs || c.FunctionName || c.MessageStructure || c.ToolChoice ||

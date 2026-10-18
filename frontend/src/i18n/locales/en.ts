@@ -8288,7 +8288,9 @@ const enBase = {
         },
         kimiK3AdaptiveValidation: {
           title: 'Kimi K3 adaptive validation',
-          description: 'Applies only to Chat Completions whose mapped upstream model is kimi-k3. Each check has its own switch and starts off. Rows marked Not official are stricter than the current Kimi docs, or implemented differently. A stored legacy master switch with no per-check record still enables the older checks. Sampling stays off until its own switch is saved.',
+          description: 'Applies only to kimi-k3 Chat Completions. A normal account uses the mapped upstream model. An auth-only passthrough account uses the model name that is forwarded unchanged. Each check has its own switch and starts off. Rows marked Not official are stricter than the current Kimi docs, or implemented differently. A stored legacy master switch with no per-check record still enables the older checks. Sampling and the passthrough switch stay off until they are saved.',
+          applyToPassthrough: 'Also check passthrough accounts',
+          applyToPassthroughHint: 'Auth-only passthrough skips the checks above and forwards the body unchanged. When this is on, enabled checks also run for a forwarded kimi-k3 request, and illegal values return HTTP 400 or 403 locally. The model name, include_usage, and truncated-stream handling stay unchanged.',
           nonOfficial: 'Not official',
           checks: {
             output_budget: 'Output budget',

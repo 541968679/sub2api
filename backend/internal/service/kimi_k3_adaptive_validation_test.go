@@ -465,6 +465,90 @@ func TestKimiK3AdaptiveGateway(t *testing.T) {
 	})
 }
 
+func TestKimiK3AdaptivePassthroughSwitch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	account := openAIChatPassthroughTestAccount()
+	okUpstream := func() *httpUpstreamRecorder {
+		return &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":"chatcmpl_pass","object":"chat.completion","model":"kimi-k3","choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":3,"completion_tokens":1}}`)),
+		}}
+	}
+
+	t.Run("flag off forwards non-fixed sampling", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":1.1,"messages":[{"role":"user","content":"hi"}]}`)
+		upstream := okUpstream()
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true}),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "gpt-4o-mini")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(upstream.lastBody, "model").String())
+		require.Equal(t, 1.1, gjson.GetBytes(upstream.lastBody, "temperature").Float())
+		require.False(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Exists())
+	})
+
+	t.Run("flag on rejects temperature before upstream", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":0.6,"top_p":0.8,"presence_penalty":0.5,"messages":[{"role":"user","content":"hi"}]}`)
+		upstream := &httpUpstreamRecorder{err: io.ErrClosedPipe}
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true, ApplyToPassthrough: true}),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "gpt-4o-mini")
+		require.Error(t, err)
+		require.Empty(t, upstream.requests)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "temperature must be 1", gjson.Get(rec.Body.String(), "error.message").String())
+	})
+
+	t.Run("flag on forwards fixed sampling without model rewrite", func(t *testing.T) {
+		body := []byte(`{"model":"kimi-k3","temperature":1,"top_p":0.95,"n":1,"presence_penalty":0,"frequency_penalty":0,"messages":[{"role":"user","content":"hi"}]}`)
+		upstream := okUpstream()
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true, ApplyToPassthrough: true}),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "gpt-4o-mini")
+		require.NoError(t, err)
+		require.Equal(t, "kimi-k3", gjson.GetBytes(upstream.lastBody, "model").String())
+		require.Equal(t, float64(1), gjson.GetBytes(upstream.lastBody, "temperature").Float())
+		require.False(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Exists())
+	})
+
+	t.Run("flag on leaves a non-kimi model alone", func(t *testing.T) {
+		body := []byte(`{"model":"gpt-4o-mini","temperature":2,"messages":[{"role":"user","content":"hi"}]}`)
+		upstream := okUpstream()
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+		svc := &OpenAIGatewayService{
+			cfg:            rawChatCompletionsTestConfig(),
+			httpUpstream:   upstream,
+			settingService: kimiK3AdaptiveSettingsWithChecks(t, KimiK3AdaptiveChecks{SamplingParams: true, ApplyToPassthrough: true}),
+		}
+		_, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
+		require.NoError(t, err)
+		require.Equal(t, "gpt-4o-mini", gjson.GetBytes(upstream.lastBody, "model").String())
+		require.Equal(t, float64(2), gjson.GetBytes(upstream.lastBody, "temperature").Float())
+	})
+}
+
 func TestKimiK3AdaptiveSamplingAndPerCheck(t *testing.T) {
 	sampling := KimiK3AdaptiveChecks{SamplingParams: true}
 	cases := []struct {

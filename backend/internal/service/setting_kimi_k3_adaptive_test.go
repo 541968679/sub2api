@@ -59,13 +59,21 @@ func TestSettingService_KimiK3AdaptiveValidationDefaultOff(t *testing.T) {
 	legacy := svc.KimiK3AdaptiveChecks(ctx)
 	require.True(t, legacy.ReasoningEffort)
 	require.False(t, legacy.SamplingParams)
+	require.False(t, legacy.ApplyToPassthrough)
 
 	repo.data[SettingKeyKimiK3AdaptiveValidationChecks] = `{"sampling_params":true}`
 	resetKimiK3AdaptiveValidationCacheForTest()
 	onlySampling := svc.KimiK3AdaptiveChecks(ctx)
 	require.True(t, onlySampling.SamplingParams)
 	require.False(t, onlySampling.ReasoningEffort)
+	require.False(t, onlySampling.ApplyToPassthrough)
 	require.False(t, svc.KimiK3AdaptiveChecks(ctx).OutputBudget)
+
+	repo.data[SettingKeyKimiK3AdaptiveValidationChecks] = `{"apply_to_passthrough":true}`
+	resetKimiK3AdaptiveValidationCacheForTest()
+	passthroughOnly := svc.KimiK3AdaptiveChecks(ctx)
+	require.True(t, passthroughOnly.ApplyToPassthrough)
+	require.False(t, passthroughOnly.Any())
 
 	repo.data[SettingKeyKimiK3AdaptiveValidationChecks] = `not-json`
 	resetKimiK3AdaptiveValidationCacheForTest()

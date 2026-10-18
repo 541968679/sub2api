@@ -29,6 +29,28 @@ var openaiCCRawAllowedHeaders = map[string]bool{
 	"user-agent":      true,
 }
 
+// applyEnabledKimiK3Checks runs the enabled Kimi K3 checks when model is
+// kimi-k3. A non-matching model or a policy with no body check returns body
+// unchanged. A reject is written on c and must not be forwarded.
+func applyEnabledKimiK3Checks(c *gin.Context, body []byte, model string, checks KimiK3AdaptiveChecks) ([]byte, error) {
+	if !isKimiK3UpstreamModel(model) || !checks.Any() {
+		return body, nil
+	}
+	adapted, rejectMessage, changed, budgetReject := AdaptKimiK3ChatBody(body, checks)
+	if rejectMessage != "" {
+		status := http.StatusBadRequest
+		if budgetReject {
+			status = http.StatusForbidden
+		}
+		writeChatCompletionsError(c, status, "invalid_request_error", rejectMessage)
+		return nil, fmt.Errorf("non-streaming openai protocol error: %s", rejectMessage)
+	}
+	if changed {
+		return adapted, nil
+	}
+	return body, nil
+}
+
 // forwardAsRawChatCompletions 直转客户端的 Chat Completions 请求到上游
 // `{base_url}/v1/chat/completions`，**不**做 CC↔Responses 协议转换。
 //
@@ -64,10 +86,21 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 	clientStream := gjson.GetBytes(body, "stream").Bool()
 	serviceTier := extractOpenAIServiceTierFromBody(body)
-	// 自动透传只替换认证。模型改写、Kimi 本地校验、include_usage、
-	// 静默拒绝缓冲和缺收尾 502 都不跑。下游 usage 仍按展示倍率改写，
-	// 计费先取上游原文，上游为 0 的字段保持 0。
+	// 自动透传只替换认证。模型改写、include_usage、静默拒绝缓冲和缺收尾 502
+	// 都不跑。下游 usage 仍按展示倍率改写，计费先取上游原文，上游为 0 的字段保持 0。
+	// Kimi 校验默认也不跑。apply_to_passthrough 打开后，只对即将原样转发的
+	// kimi-k3 执行已经启用的校验，不按账号映射改模型名。
 	if account.IsOpenAIPassthroughEnabled() {
+		if isKimiK3UpstreamModel(originalModel) {
+			checks := s.kimiK3AdaptiveChecks(ctx)
+			if checks.ApplyToPassthrough {
+				checked, checkErr := applyEnabledKimiK3Checks(c, body, originalModel, checks)
+				if checkErr != nil {
+					return nil, checkErr
+				}
+				body = checked
+			}
+		}
 		return s.forwardRawChatCompletionsPassthrough(ctx, c, account, body, originalModel, clientStream, startTime)
 	}
 
@@ -95,20 +128,11 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// never read the checks. A disabled check is not sent through Adapt.
 	// A reject is written here and is not sent upstream.
 	if isKimiK3UpstreamModel(upstreamModel) {
-		if checks := s.kimiK3AdaptiveChecks(ctx); checks.Any() {
-			adapted, rejectMessage, changed, budgetReject := AdaptKimiK3ChatBody(upstreamBody, checks)
-			if rejectMessage != "" {
-				status := http.StatusBadRequest
-				if budgetReject {
-					status = http.StatusForbidden
-				}
-				writeChatCompletionsError(c, status, "invalid_request_error", rejectMessage)
-				return nil, fmt.Errorf("non-streaming openai protocol error: %s", rejectMessage)
-			}
-			if changed {
-				upstreamBody = adapted
-			}
+		checked, checkErr := applyEnabledKimiK3Checks(c, upstreamBody, upstreamModel, s.kimiK3AdaptiveChecks(ctx))
+		if checkErr != nil {
+			return nil, checkErr
 		}
+		upstreamBody = checked
 	}
 
 	// 4. Apply OpenAI fast policy on the CC body
