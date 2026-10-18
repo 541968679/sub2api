@@ -219,6 +219,11 @@ func writeAnthropicJSONResponse(c *gin.Context, status int, resp *apicompat.Anth
 	if c == nil {
 		return
 	}
+	if resp != nil {
+		copied := *resp
+		copied.ID = newClientAnthropicMessageID()
+		resp = &copied
+	}
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if mult := getDisplayTokenMultipliers(c); mult != nil || forceRequestedResponseModelArmed(c) {
 		body, err := json.Marshal(resp)
@@ -646,7 +651,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if policyErr != nil {
 		var blocked *OpenAIFastBlockedError
 		if errors.As(policyErr, &blocked) {
-			writeAnthropicError(c, http.StatusForbidden, "forbidden_error", scrubBridgeClientText(c, blocked.Message))
+			writeAnthropicLocalError(c, http.StatusForbidden, "forbidden_error", scrubBridgeClientText(c, ScrubClientErrorDisclosure(blocked.Message)))
 		}
 		return nil, policyErr
 	}
@@ -1020,11 +1025,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 				UpstreamInTok:  usage.InputTokens,
 				UpstreamOutTok: usage.OutputTokens,
 			})
-			clientMsg := scrubBridgeClientText(c, msg)
-			if clientMsg == "" {
-				clientMsg = "Request blocked by upstream cyber-security policy"
-			}
-			writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", clientMsg)
+			writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Request blocked by upstream cyber-security policy")
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
 		message := extractOpenAISSEErrorMessage(payload)
@@ -1470,6 +1471,14 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 
 	state := apicompat.NewResponsesEventToAnthropicState()
 	state.Model = originalModel
+	messageIDs := &anthropicClientMessageIDs{}
+	prepareClientSSE := func(sse string) string {
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			sse = rewriteAnthropicSSEUsageTokens(sse, mult)
+		}
+		sse = applyForcedRequestedResponseModelSSEText(c, sse)
+		return messageIDs.applySSE(sse)
+	}
 	var usage OpenAIUsage
 	responseID := ""
 	var firstTokenMs *int
@@ -1613,11 +1622,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					})
 					if !clientDisconnected {
 						writeStreamHeaders()
-						clientMsg := scrubBridgeClientText(c, msg)
-						if clientMsg == "" {
-							clientMsg = "Request blocked by upstream cyber-security policy"
-						}
-						if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE("invalid_request_error", clientMsg)); err == nil {
+						if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE("invalid_request_error", "Request blocked by upstream cyber-security policy")); err == nil {
 							c.Writer.Flush()
 						}
 						clientDisconnected = true
@@ -1651,10 +1656,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					)
 					continue
 				}
-				if mult := getDisplayTokenMultipliers(c); mult != nil {
-					sse = rewriteAnthropicSSEUsageTokens(sse, mult)
-				}
-				sse = applyForcedRequestedResponseModelSSEText(c, sse)
+				sse = prepareClientSSE(sse)
 				if !clientVisibleOutputStarted {
 					pendingClientSSE = append(pendingClientSSE, sse)
 					if anthropicStreamEventHasVisibleOutput(evt) {
@@ -1711,11 +1713,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				errMessage = message
 			}
 			// bridge 出口消毒：上游 error.type/message 可能带 OpenAI/gpt-* 指纹。
-			errType = scrubBridgeClientText(c, errType)
-			if errType == "" {
-				errType = "api_error"
-			}
-			errMessage = scrubBridgeClientText(c, errMessage)
+			errStatus, errType, errMessage = PresentAnthropicUpstreamError(c, errStatus, errType, errMessage)
 			if clientVisibleOutputStarted && !clientDisconnected {
 				writeStreamHeaders()
 				if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE(errType, errMessage)); err == nil {
@@ -1755,10 +1753,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				if err != nil {
 					continue
 				}
-				if mult := getDisplayTokenMultipliers(c); mult != nil {
-					sse = rewriteAnthropicSSEUsageTokens(sse, mult)
-				}
-				sse = applyForcedRequestedResponseModelSSEText(c, sse)
+				sse = prepareClientSSE(sse)
 				if !clientVisibleOutputStarted {
 					pendingClientSSE = append(pendingClientSSE, sse)
 					if anthropicStreamEventHasVisibleOutput(evt) {
@@ -2223,8 +2218,15 @@ func (d *openAIMessagesStreamDiagnostic) ZapFields() []zap.Field {
 	}
 }
 
-// writeAnthropicError writes an error response in Anthropic Messages API format.
+// writeAnthropicError writes an upstream failure in Anthropic Messages API format.
+// The sentence is the client template, not the upstream body.
 func writeAnthropicError(c *gin.Context, statusCode int, errType, message string) {
+	statusCode, errType, message = PresentAnthropicUpstreamError(c, statusCode, errType, message)
+	writeAnthropicLocalError(c, statusCode, errType, message)
+}
+
+// writeAnthropicLocalError writes a sentence this gateway already authored.
+func writeAnthropicLocalError(c *gin.Context, statusCode int, errType, message string) {
 	if OpenAIAnthropicResponseTerminated(c) {
 		return
 	}

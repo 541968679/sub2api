@@ -1185,6 +1185,9 @@ func writeAnthropicResponseAsSSE(c *gin.Context, resp *apicompat.AnthropicRespon
 	if c == nil || resp == nil {
 		return errors.New("anthropic SSE response is nil")
 	}
+	copied := *resp
+	copied.ID = newClientAnthropicMessageID()
+	resp = &copied
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "close")

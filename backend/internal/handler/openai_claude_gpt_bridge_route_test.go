@@ -382,12 +382,14 @@ func TestHandleAnthropicFailoverExhausted_BridgeMode429PropagatesRetryAfter(t *t
 	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
 
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
-	require.Equal(t, "usage_limit_reached", gjson.Get(rec.Body.String(), "error.type").String())
+	require.Equal(t, "rate_limit_error", gjson.Get(rec.Body.String(), "error.type").String())
+	require.Equal(t, "Upstream rate limit exceeded, please retry later", gjson.Get(rec.Body.String(), "error.message").String())
+	require.NotContains(t, rec.Body.String(), "usage_limit_reached")
 	require.Equal(t, "300", rec.Header().Get("Retry-After"))
 }
 
-// 失败回放会把原始上游 error.type/message 逐字转发；bridge 模式必须消毒掉
-// 其中的 OpenAI/gpt-* 品牌指纹，而 OpenAI 原生分组保留原文。
+// 失败回放不再转发上游句子。bridge 和国产分组都使用状态模板，
+// 客户端看不到品牌词、模型名和上游域名。
 func TestHandleAnthropicFailoverExhausted_BridgeModeScrubsUpstreamBrand(t *testing.T) {
 	h := &OpenAIGatewayHandler{}
 	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeRouteTestBody)
@@ -401,22 +403,25 @@ func TestHandleAnthropicFailoverExhausted_BridgeModeScrubsUpstreamBrand(t *testi
 	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
 
 	body := rec.Body.String()
-	for _, token := range []string{"OpenAI", "openai", "gpt-5.5", "openai.com"} {
-		require.NotContainsf(t, body, token, "failover replay must scrub %q; got: %s", token, body)
+	for _, token := range []string{"OpenAI", "openai", "gpt-5.5", "openai.com", "claude-opus-4-8"} {
+		require.NotContainsf(t, body, token, "failover replay must hide %q; got: %s", token, body)
 	}
-	require.Contains(t, body, "claude-opus-4-8")
+	require.Equal(t, "Upstream request failed", gjson.Get(body, "error.message").String())
 }
 
-func TestHandleAnthropicFailoverExhausted_NonBridgeModeKeepsUpstreamBrand(t *testing.T) {
+func TestHandleAnthropicFailoverExhausted_NonBridgeModeHidesUpstreamBrand(t *testing.T) {
 	h := &OpenAIGatewayHandler{}
 	c, rec := newBridgeRouteTestContext(t, service.PlatformOpenAI, bridgeRouteTestBody)
 
 	failoverErr := &service.UpstreamFailoverError{
 		StatusCode:   http.StatusBadRequest,
-		ResponseBody: []byte(`{"error":{"type":"invalid_request_error","message":"The model gpt-5.5 from OpenAI is unavailable"}}`),
+		ResponseBody: []byte(`{"error":{"type":"invalid_request_error","message":"The model gpt-5.5 from OpenAI is unavailable, see https://api.vendor.example/v1"}}`),
 	}
 	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
-	require.Contains(t, rec.Body.String(), "OpenAI", "OpenAI-platform native path keeps provider wording")
+	require.NotContains(t, rec.Body.String(), "OpenAI")
+	require.NotContains(t, rec.Body.String(), "gpt-5.5")
+	require.NotContains(t, rec.Body.String(), "vendor.example")
+	require.Equal(t, "Upstream request failed", gjson.Get(rec.Body.String(), "error.message").String())
 }
 
 func TestHandleAnthropicFailoverExhausted_NonBridgeModeDoesNotAddRetryAfter(t *testing.T) {

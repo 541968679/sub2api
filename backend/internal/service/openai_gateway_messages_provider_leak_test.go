@@ -102,8 +102,8 @@ func TestBridgeCompactContextLengthErrorIsProviderNeutral(t *testing.T) {
 
 // ---- 上游文本透传通道：原始 OpenAI 错误文本经消毒器中立化 ----
 
-// 真实形态：上游 429 body 里点名 OpenAI + gpt-5.5，构造器必须消毒后再入
-// ResponseBody（该 body 会被 handler mapAnthropicFailoverBodyError 逐字回放）。
+// 真实形态：上游 429 body 里点名 OpenAI + gpt-5.5。构造器仍消毒 ResponseBody。
+// handler 不再回放这句原文，客户端看到的是状态模板。
 func TestBridgeConstructorScrubsUpstreamProviderText(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
 	_, c, _, _, account := messagesTestStream(t)

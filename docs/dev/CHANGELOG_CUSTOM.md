@@ -1,3 +1,14 @@
+## 2026-10-18 - gateway: hide upstream identity on OpenAI /v1/messages
+
+### What
+- OpenAI-family `POST /v1/messages` now returns a local `msg_` id. The upstream Responses id stays on the server for session continuation. Tool-call ids are unchanged.
+- Upstream error sentences on that path use the same client templates as Chat Completions and Responses. A context-window failure uses the fixed 413 sentence. Gateway-authored sentences stay. Ops still keeps the upstream body.
+
+### Why
+Domestic groups that enable messages dispatch were still showing the upstream response id and the upstream error sentence. Those two fields are enough to identify the next hop.
+
+### Affected files
+`backend/internal/service/openai_messages_client_trace.go`, `backend/internal/service/openai_messages_client_trace_test.go`, `backend/internal/service/openai_gateway_messages.go`, `backend/internal/service/openai_gateway_messages_compact.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_gateway_handler_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/service/openai_gateway_messages_provider_leak_test.go`, `.trellis/spec/backend/anthropic-messages-sse.md`, this changelog.
 ## 2026-10-17 - gateway: optional Kimi K3 checks on passthrough accounts
 
 ### What

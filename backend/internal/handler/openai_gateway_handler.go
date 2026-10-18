@@ -1285,17 +1285,12 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 		}, service.FailoverOpsRawBody(failoverErr))
 	}
 	if status, errType, errMsg, ok := h.mapAnthropicFailoverBodyError(failoverErr); ok {
-		// bridge 出口消毒：失败回放会把原始上游 error.type/message 逐字转发，
-		// 其中常带 OpenAI/gpt-*/openai.com 指纹。
-		errType = service.ScrubBridgeClientText(c, errType)
-		if strings.TrimSpace(errType) == "" {
-			errType = "api_error"
-		}
-		errMsg = service.ScrubBridgeClientText(c, errMsg)
+		status, errType, errMsg = service.PresentAnthropicUpstreamError(c, status, errType, errMsg)
 		h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
 		return
 	}
 	status, errType, errMsg := h.mapUpstreamErrorFrom(c, failoverErr.StatusCode, failoverErr.ResponseBody)
+	errMsg = service.ScrubClientErrorDisclosure(errMsg)
 	h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 

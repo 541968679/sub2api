@@ -335,9 +335,10 @@ func TestOpenAIHandleAnthropicFailoverExhaustedPreservesClientError(t *testing.T
 		ResponseBody: []byte(`{"error":{"type":"invalid_request_error","message":"context window exceeded"}}`),
 	}, false)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 	assert.Equal(t, "invalid_request_error", gjson.GetBytes(w.Body.Bytes(), "error.type").String())
-	assert.Equal(t, "context window exceeded", gjson.GetBytes(w.Body.Bytes(), "error.message").String())
+	assert.True(t, strings.HasPrefix(gjson.GetBytes(w.Body.Bytes(), "error.message").String(), "Prompt is too long"))
+	assert.NotContains(t, w.Body.String(), "context window exceeded")
 }
 
 func TestOpenAIAnthropicClientFailoverErrorStopsAccountSwitching(t *testing.T) {

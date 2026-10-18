@@ -20,6 +20,8 @@
 - Any `content_block_start` / `content_block_delta` must be preceded by `message_start`, even if upstream never sent `response.created`.
 - Repeat `ensureResponsesAnthropicMessageStart` is a no-op once `MessageStartSent`.
 - Do not synthesize a preamble content block or empty `text_delta` only to reset a client watchdog.
+- Client-facing `message.id` on the OpenAI `/v1/messages` write path is a local `msg_` id. The upstream Responses id stays on `OpenAIForwardResult.ResponseID` for continuation. Tool-call ids are not rewritten.
+- Client-facing upstream errors on that path use `PresentAnthropicUpstreamError`: gateway-authored sentences stay, context-window text becomes the fixed 413 sentence, and every other upstream sentence becomes the Chat Completions / Responses status template. Ops bodies stay raw.
 
 ### 4. Validation & Error Matrix
 | Compact / empty-visible outcome | Downstream | Failover |
