@@ -1,3 +1,14 @@
+## 2026-10-21 - ops: plain HTTP origin endpoint on port 8088
+
+### What
+- US origin `15.204.102.44` serves the API on `http://15.204.102.44:8088` without redirecting to HTTPS. Streaming is not compressed. The real client address is written to `X-Real-IP`.
+
+### Why
+Some customers need an IP and port instead of a domain. Port 80 only redirects to HTTPS, and the certificate on 443 is issued for `zerocode.kaynlab.com`, so `https://15.204.102.44` fails name checks.
+
+### Affected files
+Live `/etc/caddy/Caddyfile` on new-origin, backup `Caddyfile.bak-http8088-20261021`. Firewall allows `8088/tcp`. This changelog.
+
 ## 2026-10-21 - admin: quality cells show first-token p50/p95 again
 
 ### What
