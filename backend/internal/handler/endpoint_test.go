@@ -30,6 +30,9 @@ func TestNormalizeInboundEndpoint(t *testing.T) {
 		{"/v1/images/generations", EndpointImagesGenerations},
 		{"/v1/images/edits", EndpointImagesEdits},
 		{"/v1beta/models", EndpointGeminiModels},
+		{"/api/v3/contents/generations/tasks", EndpointSeedanceTasks},
+		{"/v1/contents/generations/tasks/task_1", EndpointSeedanceTasks},
+		{"/contents/generations/tasks/task_1", EndpointSeedanceTasks},
 
 		// Prefixed paths (antigravity, openai).
 		{"/antigravity/v1/messages", EndpointMessages},
@@ -84,6 +87,7 @@ func TestDeriveUpstreamEndpoint(t *testing.T) {
 		{"openai alpha search", EndpointAlphaSearch, "/backend-api/codex/alpha/search", service.PlatformOpenAI, EndpointAlphaSearch},
 		{"openai image generations", EndpointImagesGenerations, "/v1/images/generations", service.PlatformOpenAI, EndpointImagesGenerations},
 		{"openai image edits", EndpointImagesEdits, "/openai/v1/images/edits", service.PlatformOpenAI, EndpointImagesEdits},
+		{"openai seedance", EndpointSeedanceTasks, "/api/v3/contents/generations/tasks/task_1", service.PlatformOpenAI, EndpointSeedanceTasks},
 		{"grok chat defaults to responses", EndpointChatCompletions, "/v1/chat/completions", service.PlatformGrok, EndpointResponses},
 		{"grok responses", EndpointResponses, "/v1/responses", service.PlatformGrok, EndpointResponses},
 

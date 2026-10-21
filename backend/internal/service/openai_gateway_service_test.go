@@ -372,6 +372,7 @@ func (c stubConcurrencyCache) GetAccountWaitingCount(ctx context.Context, accoun
 
 type stubGatewayCache struct {
 	sessionBindings map[string]int64
+	sessionRaw      map[string]string
 	deletedSessions map[string]int
 }
 
@@ -383,6 +384,11 @@ func (c *stubGatewayCache) GetSessionAccountID(ctx context.Context, groupID int6
 }
 
 func (c *stubGatewayCache) GetSessionBinding(ctx context.Context, groupID int64, sessionHash string) (StickySessionBinding, error) {
+	if c.sessionRaw != nil {
+		if raw, ok := c.sessionRaw[sessionHash]; ok {
+			return ParseStickySessionValue(raw)
+		}
+	}
 	id, err := c.GetSessionAccountID(ctx, groupID, sessionHash)
 	if err != nil {
 		return StickySessionBinding{}, err
@@ -399,6 +405,10 @@ func (c *stubGatewayCache) SetSessionAccountID(ctx context.Context, groupID int6
 }
 
 func (c *stubGatewayCache) SetSessionBinding(ctx context.Context, groupID int64, sessionHash string, binding StickySessionBinding, ttl time.Duration) error {
+	if c.sessionRaw == nil {
+		c.sessionRaw = make(map[string]string)
+	}
+	c.sessionRaw[sessionHash] = EncodeStickySessionValue(binding)
 	return c.SetSessionAccountID(ctx, groupID, sessionHash, binding.AccountID, ttl)
 }
 

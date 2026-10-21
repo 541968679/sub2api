@@ -5778,9 +5778,10 @@ const enBase = {
           'Allow this OpenAI account to bind Antigravity groups and serve Claude /v1/messages requests through the current model mapping.',
         endpointCapabilities: 'API Key endpoint capabilities',
         endpointCapabilitiesDesc:
-          'Restrict which endpoint types this OpenAI API Key can be scheduled for. Keep at least one selected. Default allows text and embeddings.',
+          'Restrict which endpoint types this OpenAI API Key can be scheduled for. Keep at least one selected. Default allows text and embeddings. Seedance stays off until selected.',
         capabilityChatCompletions: 'Text / Chat / Responses',
         capabilityEmbeddings: 'Embeddings',
+        capabilitySeedance: 'Seedance video',
         responsesRouteMode: 'Upstream endpoint routing',
         responsesRouteModeDesc:
           'Chooses the upstream endpoint from the inbound path. The default is native mapping: inbound /v1/chat/completions stays Chat Completions, inbound /v1/responses stays Responses. Auto probe is an explicit option: when Responses is supported or unprobed, inbound Chat Completions still converts to /v1/responses. This is not request-body passthrough or WS passthrough.',

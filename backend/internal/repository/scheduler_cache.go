@@ -579,7 +579,10 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	if len(credentials) == 0 {
 		return nil
 	}
-	keys := []string{"model_mapping", "api_key", "project_id", "oauth_type", "plan_type"}
+	// base_url and openai_capabilities stay so Seedance selection can see an explicit
+	// capability plus the Ark host. Empty capability sets still mean "unset".
+	// api_key was already projected; base_url is the same class of routing secret.
+	keys := []string{"model_mapping", "api_key", "base_url", "openai_capabilities", "project_id", "oauth_type", "plan_type"}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {
