@@ -1,3 +1,16 @@
+## 2026-10-21 - ops: Hong Kong relay is a TCP splice
+
+### What
+- `zerocode.kaynlab.asia` still resolves to `191.40.32.186`. HAProxy now splices TCP on port 443 to `new-origin:8443` with PROXY protocol v2. Hong Kong no longer parses HTTP.
+- Origin Caddy terminates TLS for that name on port 8443 and reverse-proxies to the app. The port accepts connections only from `191.40.32.186`. The certificate is the relay certificate copied on this date, valid through 2026-12-29.
+- Client IP is taken from the PROXY header. `inbound_host` is `zerocode.kaynlab.asia`.
+
+### Why
+The HTTP reverse proxy on the relay kept growing timeouts: one HTTP/2 connection, then HTTP/1.1 only, then write-idle. A reseller burst still left accepted connections with no response headers for minutes. Splicing bytes removes that HTTP layer. The US origin already serves direct clients.
+
+### Affected files
+`docs/dev/HK_RELAY.md`, `docs/dev/hk-relay/haproxy.cfg`, `docs/dev/hk-relay/Caddyfile`, `backend/internal/pkg/inboundhost/host.go`, this changelog. Live files: `/etc/haproxy/haproxy.cfg` on hk-relay, `/etc/caddy/Caddyfile` and `/etc/caddy/certs/zerocode.kaynlab.asia.*` on new-origin.
+
 ## 2026-10-21 - admin: settings search covers every tab
 
 ### What

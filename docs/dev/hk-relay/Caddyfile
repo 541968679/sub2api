@@ -1,8 +1,13 @@
+# Rollback only. Since 2026-10-21 the live relay is HAProxy TCP splice
+# (haproxy.cfg in this directory, /etc/haproxy/haproxy.cfg on the box).
+# Caddy is installed and this file is still /etc/caddy/Caddyfile, but the
+# service is disabled. To roll back: systemctl stop haproxy && systemctl enable --now caddy
+#
 # hk-relay: HTTPS customer/operator entry + leftover IP HTTP for operator tests.
 # Public URL to hand out: https://zerocode.kaynlab.asia
 # Do not give http://191.40.32.186 to customers (Authorization is cleartext).
 #
-# Live path on the box: /etc/caddy/Caddyfile
+# On the box this text is still /etc/caddy/Caddyfile, kept for rollback.
 # Copy: scp -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes docs/dev/hk-relay/Caddyfile root@191.40.32.186:/etc/caddy/Caddyfile
 
 {
@@ -14,6 +19,10 @@
 			read_header 60s
 			write 3600s
 			idle 3600s
+			# Abort a write that makes no progress for 60s. A completed write
+			# resets the clock, so a live stream is not cut. Requires Caddy >= 2.11.7.
+			write_idle 60s
+			write_max_chunk 16KiB
 		}
 		max_header_size 1MB
 	}

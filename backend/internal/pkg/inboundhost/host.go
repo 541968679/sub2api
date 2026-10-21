@@ -11,7 +11,10 @@ import (
 const (
 	// HeaderEntryHost is set by the Hong Kong relay to the site the client used.
 	HeaderEntryHost = "X-Sub2-Entry-Host"
-	// HeaderEntryVia is set by origin Caddy only when the TCP peer is the relay.
+	// HeaderEntryVia is set by origin Caddy, never trusted from the client.
+	// The public :443 site adds it only when the TCP peer is the relay.
+	// The relay listener :8443 adds it for every request: PROXY protocol has
+	// already replaced that peer with the real client address.
 	// A client-supplied entry host without this marker is ignored.
 	HeaderEntryVia = "X-Sub2-Entry-Via"
 	// EntryViaHKRelay is the only accepted marker value.

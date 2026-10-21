@@ -1,4 +1,7 @@
 # zerocode.kaynlab.com site on new-origin, reloaded 2026-10-16.
+# 2026-10-21 added zerocode.kaynlab.asia:8443 on the live file for the Hong Kong
+# TCP splice. Backup: /etc/caddy/Caddyfile.bak-tcp-relay-20261021. Do not paste
+# this snippet over that live file.
 # Backup: /etc/caddy/Caddyfile.bak-entry-host-20261016
 # Earlier encode backup: /etc/caddy/Caddyfile.bak-sse-encode-20261016
 # The live file also has a2.zerocode.kaynlab.com and the InvokeAI site.
