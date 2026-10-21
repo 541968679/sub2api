@@ -22,4 +22,9 @@ export interface Column {
    * Useful when labels intentionally differ only by case (e.g. token vs TOKEN).
    */
   preserveHeaderCase?: boolean
+  /**
+   * Skip this column on the phone card list. The desktop table still renders it.
+   * Use when the card already shows the value in a summary row.
+   */
+  hideOnMobile?: boolean
 }

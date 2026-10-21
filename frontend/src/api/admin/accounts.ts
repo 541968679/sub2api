@@ -593,6 +593,8 @@ export async function getTodayStats(id: number): Promise<WindowStats> {
 
 export interface BatchTodayStatsResponse {
   stats: Record<string, WindowStats>
+  /** Account-side cost since local midnight on the 1st, keyed by account id. */
+  month_cost?: Record<string, number>
 }
 
 /**

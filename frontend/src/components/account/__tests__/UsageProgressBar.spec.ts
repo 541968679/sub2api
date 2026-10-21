@@ -120,11 +120,12 @@ describe('UsageProgressBar', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('A $1.23')
+    expect(wrapper.text()).not.toContain('A $1.23')
+    expect(wrapper.text()).not.toContain('U $0.40')
+    expect(wrapper.text()).not.toContain('req')
     expect(wrapper.text()).toContain('L $3.50')
-    expect(wrapper.text()).toContain('U $0.40')
     const titles = wrapper.findAll('span[title]').map((node) => node.attributes('title'))
-    expect(titles).toContain('usage.accountBilled')
+    expect(titles).not.toContain('usage.accountBilled')
     expect(titles).toContain('usage.litellmCostHint')
   })
 

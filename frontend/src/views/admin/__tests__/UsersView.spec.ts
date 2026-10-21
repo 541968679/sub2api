@@ -108,6 +108,7 @@ const DataTableStub = {
       <button data-test="sort-burn-rate" @click="$emit('sort', 'burn_rate', 'desc')">sort burn rate</button>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-email" :value="row.email" :row="row" />
+        <slot name="cell-usage" :row="row" />
         <slot name="cell-smart_schedule" :row="row" />
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
         <slot name="cell-actions" :row="row" />
@@ -208,8 +209,13 @@ const mountUsersView = () => {
     const visibleColumns = columns.split(',')
     expect(visibleColumns.slice(-4, -1)).toEqual(['last_active_at', 'last_used_at', 'created_at'])
     expect(visibleColumns).not.toContain('last_login_at')
+    const usageIdx = visibleColumns.indexOf('usage')
+    const balanceIdx = visibleColumns.indexOf('balance')
+    expect(usageIdx).toBeGreaterThan(balanceIdx)
     const concurrencyIdx = visibleColumns.indexOf('current_concurrency')
-    expect(concurrencyIdx).toBeGreaterThanOrEqual(0)
+    expect(concurrencyIdx).toBeGreaterThan(usageIdx)
+    expect(wrapper.get('[data-testid="user-usage-cost"]').text()).toContain('admin.users.todayCost')
+    expect(wrapper.get('[data-testid="user-usage-cost"]').text()).toContain('admin.users.totalCost')
     expect(visibleColumns[concurrencyIdx + 1]).toBe('smart_schedule')
     expect(visibleColumns[concurrencyIdx + 2]).toBe('schedule_pnl')
     expect(visibleColumns[concurrencyIdx + 3]).toBe('quality_ttft')
@@ -346,6 +352,46 @@ const mountUsersView = () => {
     }
     expect(saved.enabled).toBe(true)
     expect(saved.interval_seconds).toBe(5)
+  })
+
+  it('reveals a previously hidden usage column once so today and total spend show', async () => {
+    localStorage.setItem(
+      'user-hidden-columns',
+      JSON.stringify(['notes', 'groups', 'subscriptions', 'usage'])
+    )
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('usage')
+    expect(localStorage.getItem('user-usage-column-revealed')).toBe('1')
+    const saved = JSON.parse(localStorage.getItem('user-hidden-columns') || '[]') as string[]
+    expect(saved).not.toContain('usage')
+
+    localStorage.setItem(
+      'user-hidden-columns',
+      JSON.stringify(['notes', 'groups', 'subscriptions', 'usage'])
+    )
+    const again = mountUsersView()
+    await flushPromises()
+    expect(again.get('[data-test="columns"]').text().split(',')).not.toContain('usage')
+  })
+
+  it('shows the burn-rate total and each user rate on a phone without a saved switch', async () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    try {
+      const wrapper = mountUsersView()
+      await flushPromises()
+      await waitForDeferredSecondaryLoad()
+
+      expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('burn_rate')
+      expect(getBatchUsersBurnRate).toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="user-burn-rate-total-mobile"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="user-card-burn-rate"]').text()).toContain('admin.users.columns.burnRate')
+      expect(localStorage.getItem('user-burn-rate-enabled')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    }
   })
 
   it('keeps burn-rate off by default and only fetches when enabled', async () => {

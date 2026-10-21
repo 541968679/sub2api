@@ -2838,7 +2838,7 @@ func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 
 	accountIDs := normalizeInt64IDList(req.AccountIDs)
 	if len(accountIDs) == 0 {
-		response.Success(c, gin.H{"stats": map[string]any{}})
+		response.Success(c, gin.H{"stats": map[string]any{}, "month_cost": map[string]any{}})
 		return
 	}
 
@@ -2862,8 +2862,13 @@ func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	monthCost, err := h.accountUsageService.GetMonthCostBatch(c.Request.Context(), accountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 
-	payload := gin.H{"stats": stats}
+	payload := gin.H{"stats": stats, "month_cost": monthCost}
 	cached := accountTodayStatsBatchCache.Set(cacheKey, payload)
 	if cached.ETag != "" {
 		c.Header("ETag", cached.ETag)

@@ -593,6 +593,7 @@
               :account="row"
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
+              :month-cost="monthCostByAccountId[String(row.id)] ?? null"
               :manual-refresh-token="usageManualRefreshToken"
               @account-updated="patchAccountInList"
             />
@@ -1224,6 +1225,7 @@ const autoSortEnabled = ref(false)
 const autoSorting = ref(false)
 const hasPendingListSync = ref(false)
 const todayStatsByAccountId = ref<Record<string, WindowStats>>({})
+const monthCostByAccountId = ref<Record<string, number>>({})
 const todayStatsLoading = ref(false)
 const todayStatsError = ref<string | null>(null)
 const todayStatsReqSeq = ref(0)
@@ -1375,6 +1377,7 @@ const refreshTodayStatsBatch = async () => {
   const reqSeq = ++todayStatsReqSeq.value
   if (accountIDs.length === 0) {
     todayStatsByAccountId.value = {}
+    monthCostByAccountId.value = {}
     todayStatsError.value = null
     todayStatsLoading.value = false
     return
@@ -1393,6 +1396,14 @@ const refreshTodayStatsBatch = async () => {
       nextStats[key] = serverStats[key] ?? buildDefaultTodayStats()
     }
     todayStatsByAccountId.value = nextStats
+    const monthCost = result.month_cost ?? {}
+    const nextMonth: Record<string, number> = {}
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      const value = monthCost[key]
+      nextMonth[key] = typeof value === 'number' && Number.isFinite(value) ? value : 0
+    }
+    monthCostByAccountId.value = nextMonth
   } catch (error) {
     if (reqSeq !== todayStatsReqSeq.value) return
     todayStatsError.value = 'Failed'

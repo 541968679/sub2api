@@ -669,7 +669,7 @@ describe('AccountUsageCell', () => {
   expect(wrapper.text()).toContain('7d|100|106540000')
   })
 
-  it('Key 账号会展示 today stats 徽章并带 A/U 提示', async () => {
+  it('Key 账号用量窗口展示今日和本月消耗，不再展示请求数和 A/U', async () => {
 		const wrapper = mount(AccountUsageCell, {
 		  props: {
 		    account: makeAccount({
@@ -683,7 +683,8 @@ describe('AccountUsageCell', () => {
 		      cost: 12.345,
 		      standard_cost: 12.345,
 		      user_cost: 6.789
-		    }
+		    },
+		    monthCost: 20.5
 		  },
 		  global: {
 		    stubs: {
@@ -695,15 +696,14 @@ describe('AccountUsageCell', () => {
 
 		await flushPromises()
 
-		// OpenAI/Anthropic apikey: balance-first cell; stats remain visible but muted.
-		expect(wrapper.text()).toContain('1.0M req')
-		expect(wrapper.text()).toContain('1.0B')
-		expect(wrapper.text()).toContain('A $12.35')
-		expect(wrapper.text()).toContain('U $6.79')
-
-		const badges = wrapper.findAll('span[title]')
-		expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
-		expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
+		const spend = wrapper.get('[data-testid="account-usage-spend"]')
+		expect(spend.text()).toContain('admin.accounts.usageWindow.todaySpend')
+		expect(spend.text()).toContain('$12.35')
+		expect(spend.text()).toContain('admin.accounts.usageWindow.monthSpend')
+		expect(spend.text()).toContain('$20.50')
+		expect(wrapper.text()).not.toContain('req')
+		expect(wrapper.text()).not.toContain('A $')
+		expect(wrapper.text()).not.toContain('U $')
   })
 
   it('Grok OAuth 会展示本地 user billed 用量并把耗尽配额显示为 0% 剩余', async () => {
@@ -747,15 +747,11 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(getUsage).toHaveBeenCalledWith(3861)
-    expect(wrapper.text()).toContain('4 req')
-    expect(wrapper.text()).toContain('1.2K')
-    expect(wrapper.text()).toContain('A $0.12')
-    expect(wrapper.text()).toContain('U $0.34')
+    expect(wrapper.text()).not.toContain('4 req')
+    expect(wrapper.text()).not.toContain('A $')
+    expect(wrapper.text()).not.toContain('U $')
     expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokRequests|0|2026-07-09T16:00:00Z')
-
-    const badges = wrapper.findAll('span[title]')
-    expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
-    expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
+    expect(wrapper.get('[data-testid="account-usage-spend"]').text()).toContain('admin.accounts.usageWindow.todaySpend')
   })
 
   it('Grok OAuth 配额条按剩余容量显示 100% 满格和 25% 低量', async () => {
@@ -885,7 +881,7 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain(`24h|${expected}`)
-    expect(wrapper.findAll('span').filter((node) => node.text() === compact)).toHaveLength(1)
+    expect(wrapper.text()).not.toContain(`${compact} req`)
     expect(wrapper.findAll('.usage-bar')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('admin.accounts.usageWindow.grokRequests|')
     expect(wrapper.text()).not.toContain('admin.accounts.usageWindow.grokTokens|')
@@ -933,7 +929,7 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('24h|75|admin.accounts.usageWindow.grokFreeQuota24hHint')
-    expect(wrapper.text()).toContain('1.5M')
+    expect(wrapper.text()).not.toContain('1.5M')
     expect(wrapper.text()).not.toContain('7d|')
     expect(wrapper.text()).not.toContain('200.0K')
     expect(wrapper.text()).not.toContain('250.0K')
@@ -1139,7 +1135,7 @@ describe('AccountUsageCell', () => {
     await wrapper.get('.probe').trigger('click')
 
     expect(wrapper.text()).toContain('7d|42|2026-07-17T00:00:00Z')
-    expect(wrapper.text()).toContain('1.0M')
+    expect(wrapper.text()).not.toContain('1.0M')
     expect(wrapper.text()).not.toContain('750.0K')
     expect(wrapper.text()).toContain('ACTIVE')
     expect(wrapper.text()).not.toContain('stale error')
@@ -1181,7 +1177,7 @@ describe('AccountUsageCell', () => {
     await wrapper.get('.probe').trigger('click')
 
     expect(wrapper.text()).toContain('24h|75')
-    expect(wrapper.text()).toContain('1.5M')
+    expect(wrapper.text()).not.toContain('1.5M')
     expect(wrapper.text()).not.toContain('7d|')
   })
 
@@ -1234,7 +1230,9 @@ describe('AccountUsageCell', () => {
 
 		await flushPromises()
 
-		expect(wrapper.text().trim()).toBe('-')
+		expect(wrapper.get('[data-testid="account-usage-spend"]').text()).toContain('admin.accounts.usageWindow.todaySpend')
+		expect(wrapper.get('[data-testid="account-usage-spend"]').text()).toContain('$0.00')
+		expect(wrapper.text()).not.toContain('req')
   })
 
   it('Anthropic apikey 无余额时展示余额待查询而非短横线', async () => {
@@ -1301,10 +1299,13 @@ describe('AccountUsageCell', () => {
 
 		await flushPromises()
 
-		expect(wrapper.text()).toContain('0 req')
-		expect(wrapper.text()).toContain('0')
-		expect(wrapper.text()).toContain('A $0.00')
-		expect(wrapper.text()).toContain('U $0.00')
+		const spend = wrapper.get('[data-testid="account-usage-spend"]')
+		expect(spend.text()).toContain('admin.accounts.usageWindow.todaySpend')
+		expect(spend.text()).toContain('admin.accounts.usageWindow.monthSpend')
+		expect(spend.text()).toContain('$0.00')
+		expect(wrapper.text()).not.toContain('req')
+		expect(wrapper.text()).not.toContain('A $')
+		expect(wrapper.text()).not.toContain('U $')
   })
 
   it('Anthropic OAuth 会渲染 7d F (Fable) 进度条，且 7d S 逻辑保留', async () => {

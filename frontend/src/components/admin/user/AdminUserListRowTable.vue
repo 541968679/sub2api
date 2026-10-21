@@ -115,13 +115,13 @@
       <template #cell-usage>
         <div class="text-sm">
           <div class="flex items-center gap-1.5">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.today') }}:</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.todayCost') }}:</span>
             <span class="font-medium text-gray-900 dark:text-white">
               ${{ (usageStats?.today_actual_cost ?? 0).toFixed(4) }}
             </span>
           </div>
           <div class="mt-0.5 flex items-center gap-1.5">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.total') }}:</span>
+            <span class="text-gray-500 dark:text-gray-400" :title="t('admin.users.totalCostHint')">{{ t('admin.users.totalCost') }}:</span>
             <span class="font-medium text-gray-900 dark:text-white">
               ${{ (usageStats?.total_actual_cost ?? 0).toFixed(4) }}
             </span>

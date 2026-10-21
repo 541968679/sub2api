@@ -1,5 +1,10 @@
 <template>
   <div ref="rootRef" v-if="showUsageWindows">
+    <AccountUsageSpend
+      :today-cost="todayStats?.cost ?? null"
+      :month-cost="monthCost"
+      :loading="todayStatsLoading"
+    />
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
       v-if="
@@ -412,26 +417,6 @@
             {{ grokEntitlementLabel }}
           </span>
         </div>
-        <div v-if="grokLocalUsage" class="mb-0.5 flex items-center">
-          <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-              {{ formatWindowRequests(grokLocalUsage) }} req
-            </span>
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-              {{ formatWindowTokens(grokLocalUsage) }}
-            </span>
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-              A ${{ formatWindowCost(grokLocalUsage) }}
-            </span>
-            <span
-              v-if="grokLocalUsage.user_cost != null"
-              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-              :title="t('usage.userBilled')"
-            >
-              U ${{ formatWindowUserCost(grokLocalUsage) }}
-            </span>
-          </div>
-        </div>
         <UsageProgressBar
           v-if="grokWeeklyBillingBar"
           label="7d"
@@ -528,37 +513,6 @@
 
       <!-- Usage data or unlimited flow -->
       <div class="space-y-1">
-        <div
-          v-if="showGeminiTodayStats && todayStats"
-          class="mb-0.5 flex items-center"
-        >
-          <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-              {{ formatKeyRequests }} req
-            </span>
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-              {{ formatKeyTokens }}
-            </span>
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-              A ${{ formatKeyCost }}
-            </span>
-            <span
-              v-if="todayStats.user_cost != null"
-              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-              :title="t('usage.userBilled')"
-            >
-              U ${{ formatKeyUserCost }}
-            </span>
-          </div>
-        </div>
-        <div
-          v-else-if="showGeminiTodayStats && todayStatsLoading"
-          class="mb-0.5 flex items-center gap-1"
-        >
-          <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-3 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        </div>
         <div v-if="loading" class="space-y-1">
           <div class="flex items-center gap-1">
             <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -685,28 +639,6 @@
           </div>
         </div>
 
-        <!-- Weakened today stats -->
-        <div
-          v-if="todayStats"
-          class="flex flex-wrap items-center gap-1 text-[9px] text-gray-400 dark:text-gray-500 opacity-80"
-        >
-          <span>{{ formatKeyRequests }} req</span>
-          <span>·</span>
-          <span>{{ formatKeyTokens }}</span>
-          <span>·</span>
-          <span :title="t('usage.accountBilled')">A ${{ formatKeyCost }}</span>
-          <template v-if="todayStats.user_cost != null">
-            <span>·</span>
-            <span :title="t('usage.userBilled')">U ${{ formatKeyUserCost }}</span>
-          </template>
-        </div>
-        <div
-          v-else-if="todayStatsLoading"
-          class="flex items-center gap-1"
-        >
-          <div class="h-2.5 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        </div>
-
         <!-- Local quota bars (muted) -->
         <div class="opacity-70 scale-[0.92] origin-left">
           <UsageProgressBar
@@ -764,44 +696,15 @@
 
   <!-- Non-OAuth/Setup-Token accounts (e.g. Gemini apikey, Bedrock, other keys) -->
   <div ref="rootRef" v-else>
+    <AccountUsageSpend
+      :today-cost="todayStats?.cost ?? null"
+      :month-cost="monthCost"
+      :loading="todayStatsLoading"
+    />
     <!-- Gemini API Key accounts: show quota info -->
     <AccountQuotaInfo v-if="account.platform === 'gemini'" :account="account" />
-    <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
+    <!-- Key/Bedrock accounts: optional quota bars -->
     <div v-else class="space-y-1">
-      <!-- Today stats row (requests, tokens, cost, user_cost) -->
-      <div
-        v-if="todayStats"
-        class="mb-0.5 flex items-center"
-      >
-        <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-            {{ formatKeyRequests }} req
-          </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-            {{ formatKeyTokens }}
-          </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-            A ${{ formatKeyCost }}
-          </span>
-          <span
-            v-if="todayStats.user_cost != null"
-            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-            :title="t('usage.userBilled')"
-          >
-            U ${{ formatKeyUserCost }}
-          </span>
-        </div>
-      </div>
-      <!-- Loading skeleton for today stats -->
-      <div
-        v-else-if="todayStatsLoading"
-        class="mb-0.5 flex items-center gap-1"
-      >
-        <div class="h-3 w-10 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        <div class="h-3 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        <div class="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-      </div>
-
       <!-- API Key accounts with quota limits: show progress bars -->
       <UsageProgressBar
         v-if="quotaDailyBar"
@@ -824,8 +727,6 @@
         color="purple"
       />
 
-      <!-- No data at all -->
-      <div v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota" class="text-xs text-gray-400">-</div>
     </div>
   </div>
 </template>
@@ -838,9 +739,10 @@ import type { GrokQuotaProbeResult } from '@/api/admin/grok'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
-import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
+import { formatRelativeTime } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
 import { Icon } from '@/components/icons'
+import AccountUsageSpend from './AccountUsageSpend.vue'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
@@ -865,11 +767,13 @@ const props = withDefaults(
     account: Account
     todayStats?: WindowStats | null
     todayStatsLoading?: boolean
+    monthCost?: number | null
     manualRefreshToken?: number
   }>(),
   {
     todayStats: null,
     todayStatsLoading: false,
+    monthCost: null,
     manualRefreshToken: 0
   }
 )
@@ -932,10 +836,6 @@ const shouldFetchUsage = computed(() => {
     return props.account.type === 'oauth' || props.account.type === 'apikey'
   }
   return false
-})
-
-const showGeminiTodayStats = computed(() => {
-  return props.account.platform === 'gemini' && props.account.type === 'service_account'
 })
 
 const geminiUsageAvailable = computed(() => {
@@ -1341,14 +1241,6 @@ const grokIsFree = computed(() => {
   return billing != null
 })
 const grokFreeQuotaUsage = computed(() => usageInfo.value?.grok_local_usage_24h || null)
-const grokLocalUsage = computed(() => {
-  if (grokIsFree.value) return grokFreeQuotaUsage.value
-  return props.todayStats ||
-    usageInfo.value?.grok_local_usage ||
-    usageInfo.value?.grok_local_usage_7d ||
-    usageInfo.value?.grok_local_usage_monthly ||
-    null
-})
 const grokFreeTokenBar = computed(() => {
   if (!grokIsFree.value || !grokFreeQuotaUsage.value) return null
   const used = Math.max(0, grokFreeQuotaUsage.value.tokens || 0)
@@ -1399,10 +1291,6 @@ const grokRetryAfterLabel = computed(() => {
   return `${minutes}m`
 })
 
-const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
-const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
-const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
-const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
 
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
@@ -1661,15 +1549,6 @@ const makeQuotaBar = (
   return { utilization, resetsAt }
 }
 
-const hasApiKeyQuota = computed(() => {
-  if (props.account.type !== 'apikey' && props.account.type !== 'bedrock') return false
-  return (
-    (props.account.quota_daily_limit ?? 0) > 0 ||
-    (props.account.quota_weekly_limit ?? 0) > 0 ||
-    (props.account.quota_limit ?? 0) > 0
-  )
-})
-
 const quotaDailyBar = computed((): QuotaBarInfo | null => {
   const limit = props.account.quota_daily_limit ?? 0
   if (limit <= 0) return null
@@ -1686,18 +1565,6 @@ const quotaTotalBar = computed((): QuotaBarInfo | null => {
   const limit = props.account.quota_limit ?? 0
   if (limit <= 0) return null
   return makeQuotaBar(props.account.quota_used ?? 0, limit)
-})
-
-// ===== Key account today stats formatters =====
-
-const formatKeyRequests = computed(() => {
-  if (!props.todayStats) return ''
-  return formatCompactNumber(props.todayStats.requests, { allowBillions: false })
-})
-
-const formatKeyTokens = computed(() => {
-  if (!props.todayStats) return ''
-  return formatCompactNumber(props.todayStats.tokens)
 })
 
 function formatOpenAI7dLiteLLMCost(value: number | null | undefined): string {
@@ -1999,16 +1866,6 @@ const balanceTitle = computed(() => {
   }
   if (info.balance_error) parts.push(info.balance_error)
   return parts.join(' · ')
-})
-
-const formatKeyCost = computed(() => {
-  if (!props.todayStats) return '0.00'
-  return props.todayStats.cost.toFixed(2)
-})
-
-const formatKeyUserCost = computed(() => {
-  if (!props.todayStats || props.todayStats.user_cost == null) return '0.00'
-  return props.todayStats.user_cost.toFixed(2)
 })
 
 onMounted(() => {

@@ -13,10 +13,11 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
+let desktopViewportMatches = true
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
-    matches: true,
+    matches: desktopViewportMatches,
     media: query,
     onchange: null,
     addListener: () => undefined,
@@ -70,5 +71,46 @@ describe('DataTable column sort affordance', () => {
     await upstreamHeader!.trigger('click')
     expect(wrapper.emitted('sort')?.[1]).toEqual(['upstream_rate_multiplier', 'desc'])
     wrapper.unmount()
+  })
+
+  it('keeps a hideOnMobile column in the desktop table and drops it from phone cards', async () => {
+    const columnsWithHidden = [
+      ...columns,
+      { key: 'burn_rate', label: 'Burn', hideOnMobile: true },
+      { key: 'actions', label: 'Actions' }
+    ]
+    const desktop = mount(DataTable, {
+      props: {
+        columns: columnsWithHidden,
+        data: [{ id: 1, name: 'a', upstream_rate_multiplier: 0.15, burn_rate: 1 }],
+        virtualScroll: false
+      },
+      slots: {
+        'cell-burn_rate': '<span data-testid="desktop-burn">1.00</span>'
+      }
+    })
+    await flushPromises()
+    expect(desktop.findAll('th').map((th) => th.text())).toContain('Burn')
+    expect(desktop.get('[data-testid="desktop-burn"]').exists()).toBe(true)
+    desktop.unmount()
+
+    desktopViewportMatches = false
+    const phone = mount(DataTable, {
+      props: {
+        columns: columnsWithHidden,
+        data: [{ id: 1, name: 'a', upstream_rate_multiplier: 0.15, burn_rate: 1 }],
+        virtualScroll: false
+      },
+      slots: {
+        'cell-burn_rate': '<span data-testid="phone-burn">1.00</span>',
+        'cell-name': '<span data-testid="phone-name">a</span>'
+      }
+    })
+    await flushPromises()
+    expect(phone.find('[data-testid="phone-burn"]').exists()).toBe(false)
+    expect(phone.get('[data-testid="phone-name"]').exists()).toBe(true)
+    expect(phone.find('th').exists()).toBe(false)
+    phone.unmount()
+    desktopViewportMatches = true
   })
 })

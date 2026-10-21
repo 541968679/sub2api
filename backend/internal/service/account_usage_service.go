@@ -1763,6 +1763,47 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 	return result, nil
 }
 
+// GetMonthCostBatch returns each account's account-side cost since local midnight on the 1st.
+// Cost is the same figure as WindowStats.Cost: COALESCE(account_stats_cost, total_cost) * account_rate_multiplier.
+func (s *AccountUsageService) GetMonthCostBatch(ctx context.Context, accountIDs []int64) (map[int64]float64, error) {
+	result := make(map[int64]float64, len(accountIDs))
+	if len(accountIDs) == 0 {
+		return result, nil
+	}
+	start := timezone.StartOfMonth(timezone.Now())
+	if batchReader, ok := s.usageLogRepo.(accountWindowStatsBatchReader); ok {
+		statsByAccount, err := batchReader.GetAccountWindowStatsBatch(ctx, accountIDs, start)
+		if err != nil {
+			return nil, fmt.Errorf("get account month cost batch failed: %w", err)
+		}
+		for _, accountID := range accountIDs {
+			if stats := statsByAccount[accountID]; stats != nil {
+				result[accountID] = stats.Cost
+			}
+		}
+		return result, nil
+	}
+
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(8)
+	for _, accountID := range accountIDs {
+		id := accountID
+		g.Go(func() error {
+			stats, err := s.usageLogRepo.GetAccountWindowStats(gctx, id, start)
+			if err != nil || stats == nil {
+				return nil
+			}
+			mu.Lock()
+			result[id] = stats.Cost
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = g.Wait()
+	return result, nil
+}
+
 func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
 	if stats == nil {
 		return &WindowStats{}

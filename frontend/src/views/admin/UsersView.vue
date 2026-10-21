@@ -397,6 +397,19 @@
               </div>
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
             </div>
+            <div
+              v-if="burnRateEnabled"
+              class="mt-1 flex items-center gap-1.5 md:hidden"
+              data-testid="user-card-burn-rate"
+            >
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.users.columns.burnRate') }}
+              </span>
+              <UserBurnRateCell
+                :stats="burnRateStats[row.id] ?? burnRateStats[String(row.id)] ?? null"
+                :unit="burnRateUnit"
+              />
+            </div>
           </template>
 
           <template #cell-username="{ value }">
@@ -575,15 +588,15 @@
           </template>
 
           <template #cell-usage="{ row }">
-            <div class="text-sm">
+            <div class="text-sm" data-testid="user-usage-cost">
               <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.today') }}:</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.todayCost') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
                   ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.total') }}:</span>
+              <div class="mt-0.5 flex items-center gap-1.5" :title="t('admin.users.totalCostHint')">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.totalCost') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
                   ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
                 </span>
@@ -1085,7 +1098,9 @@ const allColumns = computed<Column[]>(() => [
   { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
   { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
   { key: 'balance', label: t('admin.users.columns.balance'), sortable: true },
-  // Only listed when calculation toggle is on (see columns computed filter).
+  // Today spend and 30-day total. Visible by default; phones and desktops share this column.
+  { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
+  // Only listed when calculation is on. Phone cards show the rate under the user name instead.
   ...(burnRateEnabled.value
     ? [
         {
@@ -1094,11 +1109,11 @@ const allColumns = computed<Column[]>(() => [
             unit: burnRateUnitSuffix.value
           }),
           // Trailing 5-minute actual cost, expressed per hour. $/min is the same order.
-          sortable: true
+          sortable: true,
+          hideOnMobile: true
         } as Column
       ]
     : []),
-  { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   // Key is the live occupancy count. The cell still renders occupancy / limit.
   { key: 'current_concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
@@ -1124,7 +1139,9 @@ const hiddenColumns = reactive<Set<string>>(new Set())
 
 // Default hidden columns (columns hidden by default on first load).
 // current_concurrency is visible by default so the default occupancy sort is meaningful.
-const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions', 'usage']
+// usage (今日消耗 / 总消耗) stays visible. Older saved settings hid it; reveal once.
+const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions']
+const USAGE_COLUMN_REVEAL_KEY = 'user-usage-column-revealed'
 const REMOVED_COLUMNS = new Set(['last_login_at'])
 const MERGED_AWAY_COLUMNS = new Set(['quality_success_rate'])
 const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at', 'current_concurrency'])
@@ -1148,6 +1165,11 @@ const loadSavedColumns = () => {
     // Legacy column key was the configured limit. Keep the occupancy column visible.
     hiddenColumns.delete('concurrency')
     hiddenColumns.delete('current_concurrency')
+    if (localStorage.getItem(USAGE_COLUMN_REVEAL_KEY) !== '1') {
+      const revealedUsage = hiddenColumns.delete('usage')
+      localStorage.setItem(USAGE_COLUMN_REVEAL_KEY, '1')
+      if (revealedUsage) saveColumnsToStorage()
+    }
   } catch (e) {
     console.error('Failed to load saved columns:', e)
     DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
@@ -1365,16 +1387,30 @@ const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) 
   }
 }
 
-// Balance burn-rate: opt-in calculation (default off). Window=5m, poll=15s.
+// Balance burn-rate: opt-in on desktop (default off). Window=5m, poll=15s.
+// A phone with no saved choice shows the total and each user's current rate.
 // Backend always returns $/h; UI can display $/h or $/min without re-fetch.
 const BURN_RATE_ENABLED_KEY = 'user-burn-rate-enabled'
 const BURN_RATE_UNIT_KEY = 'user-burn-rate-unit'
 const BURN_RATE_POLL_MS = 15_000
+const PHONE_MAX_WIDTH = 767
 type BurnRateUnit = 'hour' | 'minute'
+type BurnRateSaved = '1' | '0' | null
 const burnRateEnabled = ref(false)
+const burnRateSaved = ref<BurnRateSaved>(null)
+const isPhoneViewport = ref(false)
 const burnRateUnit = ref<BurnRateUnit>('hour')
 const burnRateStats = ref<Record<string, BatchUserBurnRateStats>>({})
 const burnRateFetching = ref(false)
+
+const readPhoneViewport = () =>
+  typeof window !== 'undefined' && window.innerWidth > 0 && window.innerWidth <= PHONE_MAX_WIDTH
+
+const effectiveBurnRateEnabled = () => {
+  if (burnRateSaved.value === '1') return true
+  if (burnRateSaved.value === '0') return false
+  return isPhoneViewport.value
+}
 
 const burnRateUnitSuffix = computed(() =>
   burnRateUnit.value === 'minute' ? t('admin.users.burnRateUnitMinute') : t('admin.users.burnRateUnitHour')
@@ -1382,14 +1418,34 @@ const burnRateUnitSuffix = computed(() =>
 
 const loadSavedBurnRate = () => {
   try {
-    burnRateEnabled.value = localStorage.getItem(BURN_RATE_ENABLED_KEY) === '1'
+    isPhoneViewport.value = readPhoneViewport()
+    const saved = localStorage.getItem(BURN_RATE_ENABLED_KEY)
+    burnRateSaved.value = saved === '1' || saved === '0' ? saved : null
     const unit = localStorage.getItem(BURN_RATE_UNIT_KEY)
     if (unit === 'minute' || unit === 'hour') {
       burnRateUnit.value = unit
     }
+    burnRateEnabled.value = effectiveBurnRateEnabled()
   } catch (e) {
     console.error('Failed to load burn rate preference:', e)
   }
+}
+
+const handleViewportResize = () => {
+  const nextPhone = readPhoneViewport()
+  if (nextPhone === isPhoneViewport.value) return
+  isPhoneViewport.value = nextPhone
+  const nextEnabled = effectiveBurnRateEnabled()
+  if (nextEnabled === burnRateEnabled.value) return
+  burnRateEnabled.value = nextEnabled
+  if (nextEnabled) {
+    const userIds = users.value.map((user) => user.id)
+    if (userIds.length > 0) void loadBurnRateStats(userIds)
+    resumeBurnRatePoll()
+    return
+  }
+  burnRateStats.value = {}
+  pauseBurnRatePoll()
 }
 
 const saveBurnRateEnabledToStorage = () => {
@@ -1424,6 +1480,7 @@ const loadBurnRateStats = async (userIds: number[], expectedSeq?: number) => {
 }
 
 const setBurnRateEnabled = (enabled: boolean) => {
+  burnRateSaved.value = enabled ? '1' : '0'
   burnRateEnabled.value = enabled
   saveBurnRateEnabledToStorage()
   if (!enabled) {
@@ -2369,6 +2426,7 @@ onMounted(async () => {
   }
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll, true)
+  window.addEventListener('resize', handleViewportResize)
 
   if (autoRefreshEnabled.value) {
     autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
@@ -2389,6 +2447,7 @@ onUnmounted(() => {
   pauseBurnRatePoll()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
+  window.removeEventListener('resize', handleViewportResize)
   clearTimeout(searchTimeout)
   abortController?.abort()
 })

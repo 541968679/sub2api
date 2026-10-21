@@ -13,24 +13,6 @@
       @keydown.enter.prevent="onStatsClick"
     >
       <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
-        <template v-if="hasLocalWindowStats">
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-            {{ formatRequests }} req
-          </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
-            {{ formatTokens }}
-          </span>
-          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-            A ${{ formatAccountCost }}
-          </span>
-          <span
-            v-if="windowStats?.user_cost != null"
-            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-            :title="t('usage.userBilled')"
-          >
-            U ${{ formatUserCost }}
-          </span>
-        </template>
         <span
           v-if="litellmCost != null"
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
@@ -87,7 +69,6 @@ import { computed, ref, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import type { WindowStats } from '@/types'
-import { formatCompactNumber } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
@@ -242,38 +223,11 @@ const formatResetTime = computed(() => {
   }
 })
 
-// Window stats formatters
-const formatRequests = computed(() => {
-  if (!props.windowStats) return ''
-  return formatCompactNumber(props.windowStats.requests, { allowBillions: false })
-})
-
-const formatTokens = computed(() => {
-  if (!props.windowStats) return ''
-  return formatCompactNumber(props.windowStats.tokens)
-})
-
-const hasLocalWindowStats = computed(() => {
-  return !!(props.windowStats && (props.windowStats.requests > 0 || props.windowStats.tokens > 0))
-})
-
-const showWindowStatsRow = computed(() => {
-  return hasLocalWindowStats.value || props.litellmCost != null
-})
-
-const formatAccountCost = computed(() => {
-  if (!props.windowStats) return '0.00'
-  return props.windowStats.cost.toFixed(2)
-})
+const showWindowStatsRow = computed(() => props.litellmCost != null)
 
 const formatLiteLLMCost = computed(() => {
   if (props.litellmCost == null || !Number.isFinite(props.litellmCost)) return '0.00'
   return props.litellmCost.toFixed(2)
-})
-
-const formatUserCost = computed(() => {
-  if (!props.windowStats || props.windowStats.user_cost == null) return '0.00'
-  return props.windowStats.user_cost.toFixed(2)
 })
 
 </script>

@@ -1,3 +1,27 @@
+## 2026-10-21 - admin accounts: usage window shows today and month spend
+
+### What
+- Each account usage window shows 今日消耗 and 本月消耗. Today starts at local midnight. The month starts at local midnight on the 1st. Both numbers are the account-side cost (`total_cost` or `account_stats_cost`, times the account rate).
+- The usage window no longer shows request count, token count, A$, or U$. Upstream 5h/7d bars stay. The LiteLLM 7d chip stays.
+
+### Why
+The window row mixed request volume with two cost figures. Account ops need the calendar-day and calendar-month account cost instead.
+
+### Affected files
+`backend/internal/service/account_usage_service.go`, `backend/internal/handler/admin/account_handler.go`, `frontend/src/api/admin/accounts.ts`, `frontend/src/views/admin/AccountsView.vue`, `frontend/src/components/account/AccountUsageCell.vue`, `frontend/src/components/account/AccountUsageSpend.vue`, `frontend/src/components/account/UsageProgressBar.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, related specs, this changelog.
+
+## 2026-10-21 - admin users: show spend on desktop and burn rate on phones
+
+### What
+- The user-management table shows 今日消耗 and 总消耗 (last 30 days of actual spend) by default, in the column next to balance. A saved column set that hid 用量 is revealed once.
+- Phone widths with no saved burn-rate switch show the page total and each user's current rate. The rate sits under the user name on the card. Desktop still leaves the switch off until it is turned on.
+
+### Why
+Phone cards hid the burn-rate total and the per-user rate unless the switch was already on, and the desktop table hid today and total spend in the default column set.
+
+### Affected files
+`frontend/src/views/admin/UsersView.vue`, `frontend/src/components/common/DataTable.vue`, `frontend/src/components/common/types.ts`, `frontend/src/components/admin/user/AdminUserListRowTable.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/views/admin/__tests__/UsersView.spec.ts`, `frontend/src/components/common/__tests__/DataTable.spec.ts`, this changelog.
+
 ## 2026-10-21 - ops: Los Angeles IP endpoints
 
 ### What
