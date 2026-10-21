@@ -1,3 +1,15 @@
+## 2026-10-20 - catalog: add upstream model ids that this fork did not list
+
+### What
+- Added `claude-sonnet-5-5`, `claude-haiku-5-5`, `grok-4.7`, and `gemini-4-argon` to the default catalogs and the pricing resource.
+- Existing pricing keys are unchanged. `gpt-5.5` stays in the OpenAI default list.
+
+### Why
+These IDs shipped upstream after this fork's 0.2.4 waterline and were absent here. The window only appends them.
+
+### Affected files
+`backend/internal/pkg/claude/constants.go`, `backend/internal/pkg/xai/models.go`, `backend/internal/pkg/gemini/models.go`, `backend/resources/model-pricing/model_prices_and_context_window.json`, `frontend/src/composables/useModelWhitelist.ts`, this changelog.
+
 ## 2026-10-18 - billing: reject models with no billable price
 
 ### What

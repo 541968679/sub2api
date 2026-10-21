@@ -37,7 +37,9 @@ export const claudeModels = [
   'claude-opus-5',
   'claude-opus-5-5',
   'claude-sonnet-4-6',
+  'claude-sonnet-5-5',
   'claude-sonnet-5',
+  'claude-haiku-5-5',
   'claude-fable-5',
   'claude-fable-5-1'
 ]
@@ -52,7 +54,8 @@ const geminiModels = [
   'gemini-2.5-flash',
   'gemini-2.5-pro',
   'gemini-3-flash-preview',
-  'gemini-3-pro-preview'
+  'gemini-3-pro-preview',
+  'gemini-4-argon'
 ]
 
 // Antigravity 官方支持的模型（精确匹配）
@@ -60,6 +63,8 @@ const geminiModels = [
 const antigravityModels = [
   // Claude 4.5+ 系列
   'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
   'claude-fable-5',
   'claude-fable-5-1',
   'claude-opus-5',
@@ -81,6 +86,7 @@ const antigravityModels = [
   // Gemini 3 系列
   'gemini-3-flash',
   'gemini-3-pro-high',
+  'gemini-4-argon',
   'gemini-3-pro-low',
   // Gemini 3.1 系列
   'gemini-3.1-pro-high',
@@ -144,6 +150,7 @@ const metaModels = [
 
 // xAI Grok
 const xaiModels = [
+  'grok-4.7', 'grok-4.7-latest',
   'grok-4.6', 'grok-4.6-latest',
   'grok-4.5', 'grok-4.5-latest',
   'grok-4.3',
@@ -468,6 +475,7 @@ export function mergeModelMappingWithClaudeGPTBridgeTemplate(
 }
 
 const grokPresetMappings = [
+  { label: 'Grok 4.7', from: 'grok-4.7', to: 'grok-4.7', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok 4.6', from: 'grok-4.6', to: 'grok-4.6', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
