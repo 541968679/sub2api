@@ -2,6 +2,12 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-20 窗 2 EasyPay 与空库管理员（未合 main）
+
+- 分支 `sync/upstream-payment-security-20261020`，worktree `E:\cursor project\api2sub-payment-security-20261020`，底是 `main` `8eaacb90d`。
+- 行为来自官方 `d1aac6b98` 与 `1b92038ea` 的通知确认，以及 `6e315616e` 的空库管理员邮箱。没有合并 `upstream/main`。
+- 未 push，未部署，未合入 `main`。
+
 ## 主题目录（main 已定归属）
 
 同步代理扫本文件时先读本表。表内主题 **不是** 待开的新同步窗：main 上的产品任务已经定了所有权。常驻副本 `E:\cursor project\api2sub-upstream-standing-20260821`（`sync/upstream-standing-20260821`）只许 **main → 副本 fold** 后再三维叠，禁止在落后的底上先搬上游同名实现。

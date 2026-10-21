@@ -245,6 +245,10 @@ func CanonicalizeReturnURL(raw string, srcHost string, srcURL string) (string, e
 		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "return_url must use http or https")
 	}
 	parsed.Fragment = ""
+	// Drop client query parameters. A return_url that embeds
+	// trade_status=TRADE_SUCCESS can otherwise be replayed as a signed
+	// payment-success notification.
+	parsed.RawQuery = ""
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
