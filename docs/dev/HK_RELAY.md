@@ -53,7 +53,7 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 |----|----|
 | 香港进程 | HAProxy，`/etc/haproxy/haproxy.cfg`，仓库副本 [`hk-relay/haproxy.cfg`](hk-relay/haproxy.cfg)。`systemctl is-active haproxy` |
 | 上游 | `15.204.102.44:8443`，`send-proxy-v2`。连接、客户端、服务端、隧道超时都是 3600 秒 |
-| 源站监听 | 只给香港。ufw：`8443/tcp` 来自 `191.40.32.186`。Caddy `servers :8443` 要求 PROXY，`allow 191.40.32.186/32`，`protocols h1 h2` |
+| 源站监听 | 只给香港。ufw：`8443/tcp` 来自 `191.40.32.186`。Caddy `servers :8443` 要求 PROXY，`allow 191.40.32.186/32`，`protocols h1`。不提供 HTTP/2，避免一个客户的全部请求挤在一条 TCP 上 |
 | 证书 | `/etc/caddy/certs/zerocode.kaynlab.asia.crt` 与同名 `.key`。内容是香港 Caddy 在 2026-10-21 的 Let's Encrypt 证书，CN `zerocode.kaynlab.asia`，到期 2026-12-29 01:07 GMT。这是静态文件，源站不会自动续期 |
 | 客户 IP | PROXY 里的地址写到 `X-Real-IP`，用量 `ip_address` 记这个地址 |
 | 入口主机 | 客户自己的 `Host: zerocode.kaynlab.asia`。8443 站点同时写 `X-Sub2-Entry-Via: hk-relay` |

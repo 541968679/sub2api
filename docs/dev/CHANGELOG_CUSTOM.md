@@ -1,9 +1,21 @@
+## 2026-10-21 - admin: quality cells show first-token p50/p95 again
+
+### What
+- Account and user quality cells show first-token p50/p95 above total duration. k/N and K/C stay off the cell.
+
+### Why
+This morning's duration layout hid the first-token row with the K/C extras. The samples were still collected.
+
+### Affected files
+`frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-21 - ops: Hong Kong relay is a TCP splice
 
 ### What
 - `zerocode.kaynlab.asia` still resolves to `191.40.32.186`. HAProxy now splices TCP on port 443 to `new-origin:8443` with PROXY protocol v2. Hong Kong no longer parses HTTP.
 - Origin Caddy terminates TLS for that name on port 8443 and reverse-proxies to the app. The port accepts connections only from `191.40.32.186`. The certificate is the relay certificate copied on this date, valid through 2026-12-29.
 - Client IP is taken from the PROXY header. `inbound_host` is `zerocode.kaynlab.asia`.
+- The relay listener offers HTTP/1.1 only. One customer's HTTP/2 connection to `47.92.77.8` retransmitted about half its bytes and stalled every call on that socket.
 
 ### Why
 The HTTP reverse proxy on the relay kept growing timeouts: one HTTP/2 connection, then HTTP/1.1 only, then write-idle. A reseller burst still left accepted connections with no response headers for minutes. Splicing bytes removes that HTTP layer. The US origin already serves direct clients.
