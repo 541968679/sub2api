@@ -2,6 +2,20 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-21 本阶段四窗合到一条分支（仍未合 main）
+
+- 集成分支 `sync/upstream-phase1-20261021`，worktree `E:\cursor project\api2sub-upstream-phase1-20261021`。
+- 含 Seedance、EasyPay/空库管理员、模型目录追加、Gemini 负 input token。占用中的 `main` 仍是 `8eaacb90d`。
+- 未 push，未部署。
+
+## 2026-10-20 窗 3 协议热修（未合 main，只做了负 token）
+
+- 分支 `sync/upstream-protocol-hotfixes-20261020`，worktree `E:\cursor project\api2sub-protocol-hotfixes-20261020`，底是 `main` `8eaacb90d`。没有改 `gateway.go` 或 API Key 鉴权，因此不依赖 Seedance 先合入。
+- 已补：Gemini / Antigravity 在只有缓存命中、没有 `promptTokenCount` 时，`input_tokens` 下限为 0。来源是官方 `9c41b3269`。
+- 本轮核对后未改：`MALFORMED_FUNCTION_CALL` 已在 Antigravity 流式和非流式转换里识别；客户端断开已有 499 / `context.Canceled` 分类。
+- 仍留在本窗：Gemini 流中途断开按已收集用量计费（官方 `2b1f12938`）会改三条 Gemini 流式路径，需要单独核对后再叠。P2 的 schema / thinking signature / Chat↔Responses 字段保留还没逐条对照。
+- 未 push，未部署，未合入 `main`。
+
 ## 2026-10-20 窗 4 模型目录追加（未合 main）
 
 - 分支 `sync/upstream-model-catalog-20261020`，worktree `E:\cursor project\api2sub-model-catalog-20261020`，底是 `main` `8eaacb90d`。
