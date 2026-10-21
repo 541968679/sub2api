@@ -22,6 +22,19 @@ Phone cards hid the burn-rate total and the per-user rate unless the switch was 
 ### Affected files
 `frontend/src/views/admin/UsersView.vue`, `frontend/src/components/common/DataTable.vue`, `frontend/src/components/common/types.ts`, `frontend/src/components/admin/user/AdminUserListRowTable.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/views/admin/__tests__/UsersView.spec.ts`, `frontend/src/components/common/__tests__/DataTable.spec.ts`, this changelog.
 
+## 2026-10-21 - ops: automatic renewal for the customer domain
+
+### What
+- `zerocode.kaynlab.asia` is issued and renewed by a separate Caddy listener on origin port 18443. The certificate customers use is replaced only after the new one is downloaded. The installed certificate expires 2027-01-19.
+- Los Angeles HAProxy sends that name's ACME TLS-ALPN checks to port 18443. Ordinary traffic still goes to origin port 8443.
+- The Los Angeles IP certificate no longer attempts the HTTP challenge, because the provider blocks port 80. Caddy on both machines restarts after a crash.
+
+### Why
+The domain certificate was a copied file that expired on 2026-12-29 and would not renew. Switching the live listener to ACME directly left a gap before the certificate was downloaded.
+
+### Affected files
+Live origin `/etc/caddy/Caddyfile`, `/etc/caddy/Caddyfile.asia`, `caddy-asia.service`, and `caddy-asia-install.timer`. Live `/etc/haproxy/haproxy.cfg` and `/etc/caddy/Caddyfile` on `64.83.27.87`. `docs/dev/LA_RELAY.md`, `docs/dev/la-relay/`, this changelog.
+
 ## 2026-10-21 - ops: Los Angeles IP endpoints
 
 ### What

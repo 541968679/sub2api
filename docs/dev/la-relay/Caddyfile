@@ -29,6 +29,7 @@ https://64.83.27.87:9443 {
 	tls {
 		issuer acme {
 			profile shortlived
+			disable_http_challenge
 		}
 	}
 	request_body {

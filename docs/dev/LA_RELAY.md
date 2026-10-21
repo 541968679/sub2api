@@ -29,7 +29,7 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@64.83.27.87
 | `https://64.83.27.87` | 多数客户端连 IP 时不带 SNI。HAProxy 把「没有 SNI」、SNI 为这个 IP、以及 ACME 的 `acme-tls/1` 交给本机 Caddy `127.0.0.1:9443`。Caddy 用 IP 证书终结 TLS，再 HTTP 反代到源站 `8088` |
 | `http://64.83.27.87:8088` | 本机 Caddy 直接收明文，再反代到源站 `8088` |
 
-IP 证书的使用者可选名称是 `IP Address:64.83.27.87`，本次签发到 `2026-10-28 02:30 GMT`。Let's Encrypt 的 IP 证书走 `shortlived` 配置，大约 6.5 天，由 Caddy 自动续。厂商防火墙拦住了公网 80，所以续期用 `tls-alpn-01`，不要改回 `http-01`。
+IP 证书的使用者可选名称是 `IP Address:64.83.27.87`。Let's Encrypt 的 IP 证书走 `shortlived` 配置，大约 6.5 天，由本机 Caddy 自动续。厂商防火墙拦住了公网 80，所以续期只用 `tls-alpn-01`。`zerocode.kaynlab.asia` 的证书在源站终结。源站另有一个只收证书校验的监听 `18443`，续期成功后才替换正在使用的证书文件。客户流量仍走 `8443`。
 
 IP 的 HTTPS 只提供 HTTP/1.1。本机 Caddy 看到的对端是 HAProxy，所以这段用 PROXY v2，`{remote_host}` 才是客户地址。源站 `8088` 只在对端是 `64.83.27.87` 时采用这个 `X-Real-IP`。直接打源站的客户仍记 TCP 对端。
 
