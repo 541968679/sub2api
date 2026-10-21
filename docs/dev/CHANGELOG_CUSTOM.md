@@ -1,3 +1,14 @@
+## 2026-10-21 - ops: HTTPS certificate for the origin IP
+
+### What
+- `https://15.204.102.44` now presents a Let's Encrypt certificate whose name is `IP Address:15.204.102.44`. It expires `2026-10-28 02:08 GMT`. Caddy renews it with the `shortlived` profile.
+
+### Why
+Customers who connect by IP were failing certificate name checks. The domain certificate stays on `zerocode.kaynlab.com`.
+
+### Affected files
+Live `/etc/caddy/Caddyfile` on new-origin, backup `Caddyfile.bak-ip-https-20261021`. This changelog.
+
 ## 2026-10-21 - ops: plain HTTP origin endpoint on port 8088
 
 ### What
