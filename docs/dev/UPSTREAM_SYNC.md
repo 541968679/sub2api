@@ -2,6 +2,12 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-20 窗 4 模型目录追加（未合 main）
+
+- 分支 `sync/upstream-model-catalog-20261020`，worktree `E:\cursor project\api2sub-model-catalog-20261020`，底是 `main` `8eaacb90d`。
+- 只追加 `claude-sonnet-5-5`、`claude-haiku-5-5`、`grok-4.7`、`gemini-4-argon`。已有价格键未改。`gpt-5.5` 仍在默认列表。
+- 未 push，未部署，未合入 `main`。
+
 ## 2026-10-20 窗 2 EasyPay 与空库管理员（未合 main）
 
 - 分支 `sync/upstream-payment-security-20261020`，worktree `E:\cursor project\api2sub-payment-security-20261020`，底是 `main` `8eaacb90d`。

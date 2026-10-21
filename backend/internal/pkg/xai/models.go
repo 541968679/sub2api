@@ -16,6 +16,7 @@ type Model struct {
 }
 
 var defaultModels = []Model{
+	{ID: "grok-4.7", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.7"},
 	{ID: "grok-4.6", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.6"},
 	{ID: "grok-4.5", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.5"},
 	{ID: "grok-4.3", Object: "model", OwnedBy: "xai", DisplayName: "Grok 4.3"},
@@ -54,6 +55,8 @@ func DefaultModelMapping() map[string]string {
 	}
 	mapping["grok"] = DefaultTextModel
 	mapping["grok-latest"] = DefaultTextModel
+	mapping["grok-4.7"] = "grok-4.7"
+	mapping["grok-4.7-latest"] = "grok-4.7"
 	mapping["grok-4.6"] = "grok-4.6"
 	mapping["grok-4.6-latest"] = "grok-4.6"
 	mapping["grok-4.5-latest"] = "grok-4.5"
