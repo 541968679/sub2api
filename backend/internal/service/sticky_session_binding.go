@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -13,6 +14,9 @@ import (
 type StickySessionBinding struct {
 	AccountID int64
 	Overflow  bool
+	// Model is set only for Seedance task pins. Ordinary sticky sessions leave it empty,
+	// so their Redis value stays "id" or "id|o".
+	Model string
 }
 
 const stickySessionOverflowSuffix = "|o"
@@ -23,7 +27,10 @@ func EncodeStickySessionValue(b StickySessionBinding) string {
 	}
 	raw := strconv.FormatInt(b.AccountID, 10)
 	if b.Overflow {
-		return raw + stickySessionOverflowSuffix
+		raw += stickySessionOverflowSuffix
+	}
+	if model := strings.TrimSpace(b.Model); model != "" {
+		raw += "|m=" + url.QueryEscape(model)
 	}
 	return raw
 }
@@ -33,17 +40,26 @@ func ParseStickySessionValue(raw string) (StickySessionBinding, error) {
 	if raw == "" {
 		return StickySessionBinding{}, fmt.Errorf("empty sticky session value")
 	}
-	overflow := false
-	if id, rest, ok := strings.Cut(raw, "|"); ok {
-		raw = id
-		overflow = rest == "o"
-	}
-	accountID, err := strconv.ParseInt(raw, 10, 64)
+	parts := strings.Split(raw, "|")
+	accountID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		return StickySessionBinding{}, err
 	}
 	if accountID <= 0 {
 		return StickySessionBinding{}, fmt.Errorf("invalid sticky account id")
 	}
-	return StickySessionBinding{AccountID: accountID, Overflow: overflow}, nil
+	binding := StickySessionBinding{AccountID: accountID}
+	for _, part := range parts[1:] {
+		switch {
+		case part == "o":
+			binding.Overflow = true
+		case strings.HasPrefix(part, "m="):
+			model, unescapeErr := url.QueryUnescape(strings.TrimPrefix(part, "m="))
+			if unescapeErr != nil {
+				return StickySessionBinding{}, unescapeErr
+			}
+			binding.Model = model
+		}
+	}
+	return binding, nil
 }

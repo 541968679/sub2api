@@ -193,6 +193,9 @@ func RegisterGatewayRoutes(
 			}
 			h.OpenAIGateway.GrokVideoStatus(c)
 		})
+		gateway.POST("/contents/generations/tasks", h.OpenAIGateway.SeedanceTasks)
+		gateway.GET("/contents/generations/tasks/:task_id", h.OpenAIGateway.SeedanceTasks)
+		gateway.DELETE("/contents/generations/tasks/:task_id", h.OpenAIGateway.SeedanceTasks)
 		gateway.POST("/images/batches", h.BatchImage.Submit)
 		gateway.GET("/images/batches", h.BatchImage.List)
 		gateway.GET("/images/batches/models", h.BatchImage.Models)
@@ -307,6 +310,11 @@ func RegisterGatewayRoutes(
 		}
 		h.OpenAIGateway.GrokVideoStatus(c)
 	})
+	for _, prefix := range []string{"/api/v3", "/v3", ""} {
+		r.POST(prefix+"/contents/generations/tasks", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, requireGroupAnthropic, h.OpenAIGateway.SeedanceTasks)
+		r.GET(prefix+"/contents/generations/tasks/:task_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, requireGroupAnthropic, h.OpenAIGateway.SeedanceTasks)
+		r.DELETE(prefix+"/contents/generations/tasks/:task_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, requireGroupAnthropic, h.OpenAIGateway.SeedanceTasks)
+	}
 
 	// Antigravity 模型列表
 	r.GET("/antigravity/models", gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)

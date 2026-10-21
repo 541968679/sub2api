@@ -2,6 +2,22 @@ package claude
 
 import "testing"
 
+func TestDefaultModelIDsContainsUpstream55Models(t *testing.T) {
+	t.Parallel()
+	ids := map[string]bool{}
+	for _, id := range DefaultModelIDs() {
+		ids[id] = true
+	}
+	for _, id := range []string{"claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5", "gpt-5.5"} {
+		if id == "gpt-5.5" {
+			continue
+		}
+		if !ids[id] {
+			t.Fatalf("missing %s", id)
+		}
+	}
+}
+
 func TestDefaultModelIDsContainsSonnet5(t *testing.T) {
 	t.Parallel()
 

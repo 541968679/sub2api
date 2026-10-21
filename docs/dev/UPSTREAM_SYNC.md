@@ -2,6 +2,40 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-21 本阶段四窗合到一条分支（仍未合 main）
+
+- 集成分支 `sync/upstream-phase1-20261021`，worktree `E:\cursor project\api2sub-upstream-phase1-20261021`。
+- 含 Seedance、EasyPay/空库管理员、模型目录追加、Gemini 负 input token。占用中的 `main` 仍是 `8eaacb90d`。
+- 未 push，未部署。
+
+## 2026-10-20 窗 3 协议热修（未合 main，只做了负 token）
+
+- 分支 `sync/upstream-protocol-hotfixes-20261020`，worktree `E:\cursor project\api2sub-protocol-hotfixes-20261020`，底是 `main` `8eaacb90d`。没有改 `gateway.go` 或 API Key 鉴权，因此不依赖 Seedance 先合入。
+- 已补：Gemini / Antigravity 在只有缓存命中、没有 `promptTokenCount` 时，`input_tokens` 下限为 0。来源是官方 `9c41b3269`。
+- 本轮核对后未改：`MALFORMED_FUNCTION_CALL` 已在 Antigravity 流式和非流式转换里识别；客户端断开已有 499 / `context.Canceled` 分类。
+- 仍留在本窗：Gemini 流中途断开按已收集用量计费（官方 `2b1f12938`）会改三条 Gemini 流式路径，需要单独核对后再叠。P2 的 schema / thinking signature / Chat↔Responses 字段保留还没逐条对照。
+- 未 push，未部署，未合入 `main`。
+
+## 2026-10-20 窗 4 模型目录追加（未合 main）
+
+- 分支 `sync/upstream-model-catalog-20261020`，worktree `E:\cursor project\api2sub-model-catalog-20261020`，底是 `main` `8eaacb90d`。
+- 只追加 `claude-sonnet-5-5`、`claude-haiku-5-5`、`grok-4.7`、`gemini-4-argon`。已有价格键未改。`gpt-5.5` 仍在默认列表。
+- 未 push，未部署，未合入 `main`。
+
+## 2026-10-20 窗 2 EasyPay 与空库管理员（未合 main）
+
+- 分支 `sync/upstream-payment-security-20261020`，worktree `E:\cursor project\api2sub-payment-security-20261020`，底是 `main` `8eaacb90d`。
+- 行为来自官方 `d1aac6b98` 与 `1b92038ea` 的通知确认，以及 `6e315616e` 的空库管理员邮箱。没有合并 `upstream/main`。
+- 未 push，未部署，未合入 `main`。
+
+## 2026-10-20 Seedance 叠层（未合 main）
+
+- 分支 `sync/seedance-overlay-20261020`，worktree `E:\cursor project\api2sub-seedance-20261020`，底是 `main` `8eaacb90d` / VERSION **0.1.331**。
+- 行为来源是官方 `aba34524f` 与 `d099c0694`。没有 `git merge upstream/main`，也没有把 VERSION 写成 0.2.17。
+- 调度快照白名单增加 `base_url` 和 `openai_capabilities`。空能力集仍然等于未配置。
+- Grok 按秒视频、展示计费、账号页既有区块没有整文件替换。
+- 未 push，未部署，未合入占用 checkout 的 `main`。
+
 ## 主题目录（main 已定归属）
 
 同步代理扫本文件时先读本表。表内主题 **不是** 待开的新同步窗：main 上的产品任务已经定了所有权。常驻副本 `E:\cursor project\api2sub-upstream-standing-20260821`（`sync/upstream-standing-20260821`）只许 **main → 副本 fold** 后再三维叠，禁止在落后的底上先搬上游同名实现。

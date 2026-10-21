@@ -131,6 +131,58 @@ The phone card layout never renders the burn-rate column header, so the total ne
 ### Affected files
 `frontend/src/components/admin/user/AdminUserBurnRateTotalBar.vue`, `frontend/src/components/layout/TablePageLayout.vue`, `frontend/src/views/admin/UsersView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/views/admin/__tests__/UsersView.spec.ts`, this changelog.
 
+## 2026-10-20 - gemini: blocked prompt with only cache tokens no longer bills negative input
+
+### What
+- When Gemini or Antigravity reports `cachedContentTokenCount` without `promptTokenCount`, `input_tokens` is clamped at 0. Cache-read tokens stay at the upstream count.
+- The same clamp is applied to the non-stream transform, the stream `message_start`, the accumulated stream usage, and `extractGeminiUsage`.
+
+### Why
+A blocked prompt can omit `promptTokenCount`. Subtracting the cache count produced a negative input and a negative charge.
+
+### Affected files
+`backend/internal/pkg/antigravity/response_transformer.go`, `backend/internal/pkg/antigravity/stream_transformer.go`, `backend/internal/service/gemini_messages_compat_service.go`, this changelog.
+
+## 2026-10-20 - catalog: add upstream model ids that this fork did not list
+
+### What
+- Added `claude-sonnet-5-5`, `claude-haiku-5-5`, `grok-4.7`, and `gemini-4-argon` to the default catalogs and the pricing resource.
+- Existing pricing keys are unchanged. `gpt-5.5` stays in the OpenAI default list.
+
+### Why
+These IDs shipped upstream after this fork's 0.2.4 waterline and were absent here. The window only appends them.
+
+### Affected files
+`backend/internal/pkg/claude/constants.go`, `backend/internal/pkg/xai/models.go`, `backend/internal/pkg/gemini/models.go`, `backend/resources/model-pricing/model_prices_and_context_window.json`, `frontend/src/composables/useModelWhitelist.ts`, this changelog.
+
+## 2026-10-20 - payment: EasyPay notify cannot replay an order signature
+
+### What
+- EasyPay notifications reject fields that belong to order creation, including `return_url`.
+- `return_url` no longer keeps client query parameters.
+- A verified success notification queries the upstream order and is not credited unless that query is paid with the same amount and trade number. A failed query returns HTTP 502 and leaves the order pending.
+- A fresh auto-setup with no admin email generates `admin-<random>@sub2api.local`. A supplied password must be 8–72 bytes. Existing databases skip admin creation.
+
+### Why
+Official 0.2.14 and 0.2.17 closed a forged-callback credit and a guessable fresh-install admin login. This window overlays those checks without changing bonus amounts or gateway billing.
+
+### Affected files
+`backend/internal/payment/provider/easypay.go`, `backend/internal/payment/types.go`, `backend/internal/handler/payment_webhook_handler.go`, `backend/internal/service/payment_resume_service.go`, `backend/internal/setup/setup.go`, this changelog.
+
+## 2026-10-20 - gateway: Ark Seedance task API
+
+### What
+- OpenAI API-key accounts can opt into a Seedance capability and serve the Ark task protocol at `/api/v3/contents/generations/tasks`, plus `/v3`, `/v1`, and the unprefixed alias.
+- Create forwards the JSON body and rewrites only `model`. The first `succeeded` poll bills `usage.completion_tokens` as output tokens through the existing token price chain. `video_count` stays 0, so Grok per-second video pricing is not used.
+- Task lookup is bound to the creating user, API key, and group for 24 hours. GET and DELETE of a bound task stay available after the key is expired, quota-exhausted, or out of balance. Create still goes through those checks.
+- Scheduler snapshots now keep `base_url` and `openai_capabilities`. Empty capability sets still mean unset. An explicit non-empty set is now visible to scheduling.
+
+### Why
+Official Sub2API added this protocol in 0.2.7. This fork overlays that behavior on 0.1.331 without replacing the Grok media handler, display billing, or account-page flows.
+
+### Affected files
+`backend/internal/service/seedance.go`, `backend/internal/handler/seedance.go`, `backend/internal/handler/endpoint.go`, `backend/internal/service/account.go`, `backend/internal/service/sticky_session_binding.go`, `backend/internal/repository/scheduler_cache.go`, `backend/internal/server/routes/gateway.go`, `backend/internal/server/middleware/api_key_auth.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `frontend/src/types/index.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-18 - billing: reject models with no billable price
 
 ### What

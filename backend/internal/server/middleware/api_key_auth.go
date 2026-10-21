@@ -139,9 +139,12 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		// ── 5. 加载订阅（订阅模式时始终加载） ───────────────────────
 
-		// skipBilling: /v1/usage* 只需鉴权，跳过所有计费执行
+		// skipBilling: /v1/usage* 只需鉴权，跳过所有计费执行。
+		// Seedance GET/DELETE of an already accepted task also skips the quota,
+		// expiry, and balance gates. The handler still requires the task binding
+		// for this user and API key, and POST create stays on the billing path.
 		path := c.Request.URL.Path
-		skipBilling := path == "/v1/usage" || strings.HasPrefix(path, "/v1/usage/")
+		skipBilling := path == "/v1/usage" || strings.HasPrefix(path, "/v1/usage/") || seedanceTaskReadSkipsBilling(c.Request.Method, path)
 
 		var subscription *service.UserSubscription
 		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
@@ -240,6 +243,19 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 }
 
 // GetAPIKeyFromContext 从上下文中获取API key
+func seedanceTaskReadSkipsBilling(method, path string) bool {
+	if method != "GET" && method != "DELETE" {
+		return false
+	}
+	const marker = "/contents/generations/tasks/"
+	idx := strings.Index(path, marker)
+	if idx < 0 {
+		return false
+	}
+	taskID := strings.Trim(path[idx+len(marker):], "/")
+	return taskID != "" && !strings.Contains(taskID, "/")
+}
+
 func GetAPIKeyFromContext(c *gin.Context) (*service.APIKey, bool) {
 	value, exists := c.Get(string(ContextKeyAPIKey))
 	if !exists {

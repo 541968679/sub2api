@@ -103,7 +103,7 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 		headers[strings.ToLower(k)] = c.GetHeader(k)
 	}
 
-	resolvedProviderKey, notification, err := verifyNotificationWithProviders(c.Request.Context(), providers, rawBody, headers)
+	provider, notification, err := verifyNotificationWithProviders(c.Request.Context(), providers, rawBody, headers)
 	if err != nil {
 		truncatedBody := rawBody
 		if len(truncatedBody) > webhookLogTruncateLen {
@@ -117,8 +117,16 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 
 	// nil notification means irrelevant event (e.g. Stripe non-payment event); return success.
 	if notification == nil {
-		writeSuccessResponse(c, resolvedProviderKey)
+		writeSuccessResponse(c, provider.ProviderKey())
 		return
+	}
+	resolvedProviderKey := provider.ProviderKey()
+	if confirmer, ok := provider.(payment.NotificationConfirmer); ok && notification.Status == payment.NotificationStatusSuccess {
+		if err := confirmer.ConfirmNotification(c.Request.Context(), notification); err != nil {
+			slog.Error("[Payment Webhook] upstream confirm failed", "provider", resolvedProviderKey, "error", err, "outTradeNo", notification.OrderID)
+			c.String(http.StatusBadGateway, "upstream unconfirmed")
+			return
+		}
 	}
 
 	if err := h.paymentService.HandlePaymentNotification(c.Request.Context(), notification, resolvedProviderKey); err != nil {
@@ -170,7 +178,7 @@ func extractOutTradeNo(rawBody, providerKey string) string {
 	return ""
 }
 
-func verifyNotificationWithProviders(ctx context.Context, providers []payment.Provider, rawBody string, headers map[string]string) (string, *payment.PaymentNotification, error) {
+func verifyNotificationWithProviders(ctx context.Context, providers []payment.Provider, rawBody string, headers map[string]string) (payment.Provider, *payment.PaymentNotification, error) {
 	var lastErr error
 	for _, provider := range providers {
 		if provider == nil {
@@ -181,12 +189,12 @@ func verifyNotificationWithProviders(ctx context.Context, providers []payment.Pr
 			lastErr = err
 			continue
 		}
-		return provider.ProviderKey(), notification, nil
+		return provider, notification, nil
 	}
 	if lastErr != nil {
-		return "", nil, lastErr
+		return nil, nil, lastErr
 	}
-	return "", nil, fmt.Errorf("no webhook provider could verify notification")
+	return nil, nil, fmt.Errorf("no webhook provider could verify notification")
 }
 
 // wxpaySuccessResponse is the JSON response expected by WeChat Pay webhook.

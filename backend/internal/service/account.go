@@ -114,6 +114,7 @@ const (
 
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
+	OpenAIEndpointCapabilitySeedance        OpenAIEndpointCapability = "seedance"
 )
 
 const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
@@ -1837,6 +1838,19 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if capability == "" {
 		return true
+	}
+	if capability == OpenAIEndpointCapabilitySeedance {
+		if a.Platform != PlatformOpenAI || a.Type != AccountTypeAPIKey {
+			return false
+		}
+		if strings.TrimSpace(a.GetCredential("base_url")) == "" {
+			return false
+		}
+		configured, found := a.openAIEndpointCapabilitySet()
+		if !found {
+			return false
+		}
+		return configured[string(OpenAIEndpointCapabilitySeedance)]
 	}
 	if !a.IsOpenAICompatible() {
 		return false
