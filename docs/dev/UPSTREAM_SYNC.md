@@ -2,6 +2,12 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-20 窗 2 EasyPay 与空库管理员（未合 main）
+
+- 分支 `sync/upstream-payment-security-20261020`，worktree `E:\cursor project\api2sub-payment-security-20261020`，底是 `main` `8eaacb90d`。
+- 行为来自官方 `d1aac6b98` 与 `1b92038ea` 的通知确认，以及 `6e315616e` 的空库管理员邮箱。没有合并 `upstream/main`。
+- 未 push，未部署，未合入 `main`。
+
 ## 2026-10-20 Seedance 叠层（未合 main）
 
 - 分支 `sync/seedance-overlay-20261020`，worktree `E:\cursor project\api2sub-seedance-20261020`，底是 `main` `8eaacb90d` / VERSION **0.1.331**。

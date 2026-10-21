@@ -231,6 +231,12 @@ type RefundQueryProvider interface {
 	QueryRefund(ctx context.Context, req RefundQueryRequest) (*RefundResponse, error)
 }
 
+// NotificationConfirmer is implemented by providers that must re-check a
+// verified success notification against the upstream order before crediting.
+type NotificationConfirmer interface {
+	ConfirmNotification(ctx context.Context, n *PaymentNotification) error
+}
+
 // CancelableProvider extends Provider with the ability to cancel pending payments.
 type CancelableProvider interface {
 	Provider

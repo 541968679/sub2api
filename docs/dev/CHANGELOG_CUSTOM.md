@@ -1,3 +1,17 @@
+## 2026-10-20 - payment: EasyPay notify cannot replay an order signature
+
+### What
+- EasyPay notifications reject fields that belong to order creation, including `return_url`.
+- `return_url` no longer keeps client query parameters.
+- A verified success notification queries the upstream order and is not credited unless that query is paid with the same amount and trade number. A failed query returns HTTP 502 and leaves the order pending.
+- A fresh auto-setup with no admin email generates `admin-<random>@sub2api.local`. A supplied password must be 8–72 bytes. Existing databases skip admin creation.
+
+### Why
+Official 0.2.14 and 0.2.17 closed a forged-callback credit and a guessable fresh-install admin login. This window overlays those checks without changing bonus amounts or gateway billing.
+
+### Affected files
+`backend/internal/payment/provider/easypay.go`, `backend/internal/payment/types.go`, `backend/internal/handler/payment_webhook_handler.go`, `backend/internal/service/payment_resume_service.go`, `backend/internal/setup/setup.go`, this changelog.
+
 ## 2026-10-20 - gateway: Ark Seedance task API
 
 ### What

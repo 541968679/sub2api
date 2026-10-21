@@ -348,6 +348,9 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 	// url.ParseQuery already decodes values — no additional decode needed.
 	params := make(map[string]string)
 	for k := range values {
+		if !easyPayNotifyAllowedParams[k] {
+			return nil, fmt.Errorf("unexpected notify param: %s", k)
+		}
 		params[k] = values.Get(k)
 	}
 	sign := params["sign"]
@@ -356,6 +359,9 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 	}
 	if !easyPayVerifySign(params, e.config["pkey"], sign) {
 		return nil, fmt.Errorf("invalid signature")
+	}
+	if pid := strings.TrimSpace(e.config["pid"]); pid != "" && params["pid"] != "" && params["pid"] != pid {
+		return nil, fmt.Errorf("notify pid does not match this EasyPay instance")
 	}
 	status := payment.ProviderStatusFailed
 	if params["trade_status"] == tradeStatusSuccess {
@@ -374,6 +380,40 @@ func (e *EasyPay) VerifyNotification(_ context.Context, rawBody string, _ map[st
 		TradeNo: params["trade_no"], OrderID: params["out_trade_no"],
 		Amount: amount, Status: status, RawData: rawBody, Metadata: metadata,
 	}, nil
+}
+
+// ConfirmNotification re-reads the upstream order before the webhook credits
+// the user. A verified notify whose query is unpaid, or whose amount or
+// trade number disagrees, stays unconfirmed.
+func (e *EasyPay) ConfirmNotification(ctx context.Context, n *payment.PaymentNotification) error {
+	if n == nil || n.Status != payment.NotificationStatusSuccess {
+		return nil
+	}
+	orderID := strings.TrimSpace(n.OrderID)
+	if orderID == "" {
+		return fmt.Errorf("easypay notify missing out_trade_no")
+	}
+	queried, err := e.QueryOrder(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if queried == nil || (queried.Status != payment.ProviderStatusPaid && queried.Status != payment.ProviderStatusSuccess) {
+		return fmt.Errorf("easypay order is not paid")
+	}
+	diff := queried.Amount - n.Amount
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > 0.001 {
+		return fmt.Errorf("easypay amount mismatch")
+	}
+	if tradeNo := strings.TrimSpace(n.TradeNo); tradeNo != "" && queried.TradeNo != "" && tradeNo != queried.TradeNo {
+		return fmt.Errorf("easypay trade_no mismatch")
+	}
+	if strings.TrimSpace(n.TradeNo) == "" {
+		n.TradeNo = queried.TradeNo
+	}
+	return nil
 }
 
 func (e *EasyPay) Refund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResponse, error) {
@@ -568,4 +608,20 @@ func easyPaySign(params map[string]string, pkey string) string {
 
 func easyPayVerifySign(params map[string]string, pkey string, sign string) bool {
 	return hmac.Equal([]byte(easyPaySign(params, pkey)), []byte(sign))
+}
+
+// easyPayNotifyAllowedParams is the async-notification field set. Order
+// creation fields such as return_url must not be accepted: a signed order
+// URL can otherwise be replayed as a payment-success callback.
+var easyPayNotifyAllowedParams = map[string]bool{
+	"pid":          true,
+	"trade_no":     true,
+	"out_trade_no": true,
+	"type":         true,
+	"name":         true,
+	"money":        true,
+	"trade_status": true,
+	"param":        true,
+	"sign":         true,
+	"sign_type":    true,
 }
