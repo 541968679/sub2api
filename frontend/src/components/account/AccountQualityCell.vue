@@ -12,11 +12,11 @@
     <div v-if="loading && !hasStats && !hasSchedulerScore" class="h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
     <div v-else-if="error && !hasStats && !hasSchedulerScore" class="text-xs text-red-500">—</div>
     <div
-      v-else-if="mode === 'combined' && (hasDuration || hasFailoverRate || hasSchedulerScore || (showQualityExtras && hasTtft))"
+      v-else-if="mode === 'combined' && (hasTtft || hasDuration || hasFailoverRate || hasSchedulerScore)"
       class="flex flex-col gap-0.5 font-mono text-[11px] leading-4"
       :title="tooltipText"
     >
-      <div v-if="showQualityExtras && hasTtft" class="flex items-baseline gap-1 whitespace-nowrap" data-test="quality-ttft">
+      <div v-if="hasTtft" class="flex items-baseline gap-1 whitespace-nowrap" data-test="quality-ttft">
         <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.ttftShort') }}</span>
         <span class="text-sm font-medium" data-test="quality-p95">
           <span data-test="quality-ttft-p50" :class="ttftP50Tone">{{ ttftP50Text }}</span><span class="text-gray-300 dark:text-gray-600">/</span><span data-test="quality-ttft-p95" :class="ttftP95Tone">{{ ttftP95Text }}</span>
@@ -36,11 +36,11 @@
         <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.successShort') }}</span>
         <span class="text-sm font-medium">{{ failoverDisplay || '—' }}</span>
       </div>
-      <div v-if="showQualityExtras && hasStats" class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-test="account-quality-window-counts">
+      <div v-if="showLatencyKC && hasStats" class="font-sans text-[10px] text-gray-400 dark:text-gray-500" data-test="account-quality-window-counts">
         {{ t('admin.accounts.quality.windowCounts', { ttft: stats!.ttft_samples ?? 0, ok: okSamples, n: windowN }) }}
       </div>
       <div
-        v-if="showQualityExtras && kc.show"
+        v-if="showLatencyKC && kc.show"
         class="font-sans text-[10px]"
         :class="kcToneClass"
         data-test="account-quality-kc"
@@ -139,8 +139,8 @@ const props = withDefaults(
   }
 )
 
-// 首字、成功率、k/N、K/C 先不画。总耗时和普通账号池调度分留下。
-const showQualityExtras = false
+// k/N 与 K/C 先不画。首字 p50/p95、总耗时、正确率、普通账号池调度分留下。
+const showLatencyKC = false
 
 const emit = defineEmits<{
   (e: 'click'): void
@@ -322,7 +322,7 @@ const tooltipText = computed(() => {
   let base = ''
   if (props.mode === 'combined') {
     const parts: string[] = []
-    if (showQualityExtras) {
+    if (hasTtft.value) {
       parts.push(
         t('admin.accounts.quality.ttftTooltip', {
           n: windowN.value,
@@ -331,10 +331,6 @@ const tooltipText = computed(() => {
           p95: stats.p95_ttft_ms ?? '—',
           avg: stats.avg_ttft_ms ?? '—',
           max: stats.max_ttft_ms ?? '—'
-        }),
-        t('admin.accounts.quality.failoverTooltip', {
-          n: windowN.value,
-          error: stats.failover_error_count ?? '—'
         })
       )
     }

@@ -2432,7 +2432,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '用户 last-N 质量（该用户、全部账号）：首字 p50 / p95，总耗时 p50 / p95（只展示，不进调度），然后是含 failover/Recovered 的正确率（1 − failover_error_rate）。不含 failover 的调度成功率不再显示。格子里还有 k/N，以及与智能调度质量格相同的 K / C。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线与窗口 N。样本窗口仍是用户 last-N，不是配对 FIFO。',
+          '用户 last-N 质量（该用户、全部账号）：首字 p50 / p95，总耗时 p50 / p95（只展示，不进调度），然后是含 failover/Recovered 的正确率（1 − failover_error_rate）。不含 failover 的调度成功率不再显示。k/N 和 K/C 先不画在格子里。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线与窗口 N。样本窗口仍是用户 last-N，不是配对 FIFO。',
         clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
         openShort: '打开',
         openAria: '打开用户质量窗口',
@@ -4851,7 +4851,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '账号质量格画总耗时 p50/p95（流式和非流式一起，只展示）、含 failover 的成功率，以及普通 OpenAI 账号池的调度基础分。成功率按系统设置里的分钟数计，默认最近 5 分钟，不跟很短的 last-N。首字和 K/C 先隐藏。调度分悬停可看因子。点击打开稳定性曲线。',
+          '账号质量格画首字 p50/p95、总耗时 p50/p95（流式和非流式一起，只展示）、含 failover 的成功率，以及普通 OpenAI 账号池的调度基础分。成功率按系统设置里的分钟数计，默认最近 5 分钟，不跟很短的 last-N。k/N 和 K/C 先不画。调度分悬停可看因子。点击打开稳定性曲线。',
         successShort: '率',
         failoverShort: '含',
         ttftShort: '首字',

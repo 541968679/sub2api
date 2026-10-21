@@ -2603,7 +2603,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'User last-N quality (this user, all accounts): first-token p50 / p95, total-duration p50 / p95 (display only), then the failover/Recovered success rate (1 − failover_error_rate). The success rate that excludes failover is no longer shown. The cell also shows k/N and the same K / C line as smart-schedule quality cells. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve and window N. The sample window is still user last-N, not pair FIFO.',
+          'User last-N quality (this user, all accounts): first-token p50 / p95, total-duration p50 / p95 (display only), then the failover/Recovered success rate (1 − failover_error_rate). The success rate that excludes failover is no longer shown. k/N and K/C stay off the cell. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve and window N. The sample window is still user last-N, not pair FIFO.',
         clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
         openShort: 'Open',
         openAria: 'Open user quality window',
@@ -5307,7 +5307,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'The account quality cell shows total-duration p50/p95 (stream and non-stream together, display only), the failover-inclusive success rate, and the ordinary OpenAI account-pool base scheduler score. The success rate covers the configured minutes (default 5), not the short last-N gate. First token and K/C are hidden for now. Hover the score for its factors. Click to open the stability curve.',
+          'The account quality cell shows first-token p50/p95, total-duration p50/p95 (stream and non-stream together, display only), the failover-inclusive success rate, and the ordinary OpenAI account-pool base scheduler score. The success rate covers the configured minutes (default 5), not the short last-N gate. k/N and K/C stay off the cell. Hover the score for its factors. Click to open the stability curve.',
         successShort: 'ok',
         failoverShort: 'fo',
         ttftShort: 'TTFT',

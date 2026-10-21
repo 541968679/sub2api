@@ -48,11 +48,13 @@ describe('AccountQualityCell', () => {
       'admin.users.quality.openAria'
     )
     expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('—')
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).not.toContain('%')
+    expect(wrapper.get('[data-test="quality-ttft-p50"]').text()).toBe('0.3s')
+    expect(wrapper.get('[data-test="quality-ttft-p95"]').text()).toBe('1s')
   })
 
-  it('account combined mode keeps the success rate and hides first-token and K/C', () => {
+  it('account combined mode keeps first-token p50/p95 and the success rate, and hides K/C', () => {
     const wrapper = mount(AccountQualityCell, {
       props: {
         mode: 'combined',
@@ -60,7 +62,8 @@ describe('AccountQualityCell', () => {
         clickable: true
       }
     })
-    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="quality-ttft-p50"]').text()).toBe('0.3s')
+    expect(wrapper.get('[data-test="quality-ttft-p95"]').text()).toBe('1s')
     expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('91.0%')
     expect(wrapper.find('[data-test="account-quality-kc"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
@@ -79,7 +82,7 @@ describe('AccountQualityCell', () => {
     expect(wrapper.emitted('click')).toHaveLength(1)
   })
 
-  it('combined mode shows total duration and the failover-inclusive success rate only', () => {
+  it('combined mode shows first-token p50/p95, total duration, and the failover-inclusive success rate', () => {
     const wrapper = mount(AccountQualityCell, {
       props: {
         mode: 'combined',
@@ -97,13 +100,14 @@ describe('AccountQualityCell', () => {
       }
     })
 
-    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="quality-ttft-p50"]').text()).toBe('0.3s')
+    expect(wrapper.get('[data-test="quality-ttft-p95"]').text()).toBe('1s')
     expect(wrapper.text()).not.toContain('91.0%')
     expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('33.3%')
     expect(wrapper.get('[data-test="quality-duration"]').text()).toContain('4.2s/18s')
     expect(wrapper.get('[data-test="quality-duration-p50"]').classes().join(' ')).toContain('text-emerald-600')
     expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
-    expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.ttftTooltip')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.durationTooltip')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.failoverTooltip')
     expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
@@ -217,11 +221,12 @@ describe('AccountQualityCell', () => {
       }
     })
 
-    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="quality-ttft"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('91.0%')
     expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
     expect(wrapper.text()).not.toContain('60.0%')
-    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('—')
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).not.toContain('%')
   })
 
   it('clickable keeps the existing tooltip on stats', () => {
@@ -325,7 +330,8 @@ describe('AccountQualityCell', () => {
     })
 
     expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="quality-ttft-p50"]').text()).toBe('0.3s')
+    expect(wrapper.get('[data-test="quality-ttft-p95"]').text()).toBe('1s')
   })
 
   it('combined mode hides K/C', () => {
