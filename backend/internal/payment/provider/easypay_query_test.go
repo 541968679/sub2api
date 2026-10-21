@@ -10,6 +10,18 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 )
 
+func TestEasyPayQueryOrderRejectsFailureCode(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"msg":"订单不存在"}`))
+	}))
+	defer server.Close()
+	provider := newTestEasyPay(t, server.URL)
+	if _, err := provider.QueryOrder(context.Background(), "order-123"); err == nil {
+		t.Fatal("a non-success query code must be an error, not an unpaid order")
+	}
+}
+
 func TestEasyPayQueryOrderStatusMapping(t *testing.T) {
 	t.Parallel()
 
@@ -64,10 +76,11 @@ func TestEasyPayQueryOrderStatusMapping(t *testing.T) {
 			wantAmount:  3.21,
 		},
 		{
-			name:        "query failure with missing status is pending",
-			body:        `{"code":0,"msg":"订单不存在"}`,
-			wantStatus:  payment.ProviderStatusPending,
-			wantTradeNo: orderID,
+			name:        "string paid status is paid",
+			body:        `{"code":"1","status":"1","money":"3.21","trade_no":"str-1"}`,
+			wantStatus:  payment.ProviderStatusPaid,
+			wantTradeNo: "str-1",
+			wantAmount:  3.21,
 		},
 		{
 			name:        "missing fields are pending",
@@ -89,6 +102,9 @@ func TestEasyPayQueryOrderStatusMapping(t *testing.T) {
 				}
 				if r.URL.Path != "/api.php" {
 					t.Errorf("path = %q, want /api.php", r.URL.Path)
+				}
+				if r.URL.Query().Get("act") != "order" || r.URL.Query().Get("out_trade_no") != orderID {
+					t.Errorf("query = %s, want act=order and out_trade_no", r.URL.RawQuery)
 				}
 				if err := r.ParseForm(); err != nil {
 					t.Errorf("ParseForm: %v", err)

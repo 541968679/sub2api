@@ -1,3 +1,16 @@
+## 2026-10-21 - payment: EasyPay order query sends act in the URL
+
+### What
+- EasyPay `act=order` is sent in the URL query and repeated in the form body. `status`, `money`, and `trade_no` accept either JSON strings or numbers.
+- A non-success `code` is a query error. An echoed `out_trade_no` that is not the requested order is a query error. Transport errors no longer include the request URL, which carries the merchant key.
+- Notification confirmation uses this query. A missing upstream trade number does not fail the amount check.
+
+### Why
+Rainbow EasyPay and ZPay answer a body-only query with "No Act!", and PHP often returns integer columns as strings. Either response blocked crediting after a verified notify.
+
+### Affected files
+`backend/internal/payment/provider/easypay.go`, `backend/internal/payment/provider/easypay_query_test.go`, this changelog.
+
 ## 2026-10-21 - admin accounts: usage window shows today and month spend
 
 ### What
