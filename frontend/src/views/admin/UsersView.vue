@@ -3,26 +3,16 @@
     <TablePageLayout>
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
-        <div
+        <AdminUserBurnRateTotalBar
           v-if="burnRateEnabled"
-          class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30"
-          data-testid="user-burn-rate-total"
-        >
-          <span class="text-sm font-semibold text-sky-950 dark:text-sky-100">
-            {{ userBurnRateTotalLabel }}
-          </span>
-          <span
-            class="font-mono text-sm font-semibold tabular-nums text-sky-800 dark:text-sky-200"
-            data-testid="user-burn-rate-total-rate"
-            :data-rate="userBurnRateTotalAmount"
-          >
-            {{ userBurnRateTotalDisplay }}
-          </span>
-          <span class="text-xs text-sky-800/80 dark:text-sky-200/80">
-            {{ t('admin.users.burnRateTotalCount', { count: users.length }) }}
-          </span>
-          <HelpTooltip :content="userBurnRateTotalHint" width-class="w-80" />
-        </div>
+          :label="userBurnRateTotalLabel"
+          :display="userBurnRateTotalDisplay"
+          :amount="userBurnRateTotalAmount"
+          :count-label="t('admin.users.burnRateTotalCount', { count: users.length })"
+          :hint="userBurnRateTotalHint"
+          test-id="user-burn-rate-total"
+          rate-test-id="user-burn-rate-total-rate"
+        />
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Active Filters -->
           <div class="flex flex-1 flex-wrap items-center gap-3">
@@ -360,6 +350,17 @@
 
       <!-- Users Table -->
       <template #table>
+        <AdminUserBurnRateTotalBar
+          v-if="burnRateEnabled"
+          sticky
+          :label="userBurnRateTotalLabel"
+          :display="userBurnRateTotalDisplay"
+          :amount="userBurnRateTotalAmount"
+          :count-label="t('admin.users.burnRateTotalCount', { count: users.length })"
+          :hint="userBurnRateTotalHint"
+          test-id="user-burn-rate-total-mobile"
+          rate-test-id="user-burn-rate-total-mobile-rate"
+        />
         <DataTable
           :columns="columns"
           :data="users"
@@ -949,6 +950,7 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
 import UserAttributesConfigModal from '@/components/user/UserAttributesConfigModal.vue'
 import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
+import AdminUserBurnRateTotalBar from '@/components/admin/user/AdminUserBurnRateTotalBar.vue'
 import {
   formatAdminUserBurnRateTotal,
   sumDisplayedAdminUserBurnRates

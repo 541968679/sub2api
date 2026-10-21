@@ -2625,9 +2625,9 @@ const enBase = {
       burnRateTotal: 'Burn rate total',
       burnRateTotalPage: 'This page burn rate',
       burnRateTotalHint:
-        'Adds the burn rates already shown on each row of the current page. The unit matches the list, $/h or $/min. The same total stays above the filters and in the burn-rate column header.',
+        'Adds the burn rates already shown on each row of the current page. The unit matches the list, $/h or $/min. The same total stays above the filters and in the burn-rate column header. On a phone the list is cards, so the total stays at the top of the cards while you scroll.',
       burnRateTotalPageHint:
-        'When the list has more than one page, this adds only the rates already shown on the current page. It updates when you change page or filters. The unit matches the list, $/h or $/min.',
+        'When the list has more than one page, this adds only the rates already shown on the current page. It updates when you change page or filters. The unit matches the list, $/h or $/min. On a phone this total sits at the top of the card list.',
       burnRateTotalCount: '{count} users',
       today: 'Today',
       total: 'Last 30d',

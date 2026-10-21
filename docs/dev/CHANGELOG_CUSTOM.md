@@ -1,3 +1,15 @@
+## 2026-10-21 - admin: keep the user burn-rate total on phone cards
+
+### What
+- The admin user list still sums the burn rates shown on the current page. On a phone, where the table becomes cards and the column header is not rendered, that total stays at the top of the card list and remains on screen while the list scrolls.
+- The filter-bar total and the desktop column-header total are unchanged.
+
+### Why
+The phone card layout never renders the burn-rate column header, so the total next to 消耗速度 disappeared once the filter bar scrolled away.
+
+### Affected files
+`frontend/src/components/admin/user/AdminUserBurnRateTotalBar.vue`, `frontend/src/components/layout/TablePageLayout.vue`, `frontend/src/views/admin/UsersView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/views/admin/__tests__/UsersView.spec.ts`, this changelog.
+
 ## 2026-10-18 - billing: reject models with no billable price
 
 ### What

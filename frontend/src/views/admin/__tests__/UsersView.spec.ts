@@ -425,6 +425,13 @@ const mountUsersView = () => {
     expect(banner.text()).toContain('admin.users.burnRateTotalPage')
     expect(wrapper.get('[data-testid="user-burn-rate-total-rate"]').attributes('data-rate')).toBe('1.5')
     expect(wrapper.get('[data-testid="user-burn-rate-total-rate"]').text()).toContain('$1.50/h')
+
+    const mobileBanner = wrapper.get('[data-testid="user-burn-rate-total-mobile"]')
+    expect(mobileBanner.text()).toContain('admin.users.burnRateTotalPage')
+    expect(wrapper.get('[data-testid="user-burn-rate-total-mobile-rate"]').attributes('data-rate')).toBe('1.5')
+    expect(wrapper.get('[data-testid="user-burn-rate-total-mobile-rate"]').text()).toContain('$1.50/h')
+    expect(mobileBanner.element.parentElement?.className).toContain('lg:hidden')
+    expect(mobileBanner.element.parentElement?.className).toContain('sticky')
   })
 
   const waitForDeferredSecondaryLoad = async () => {

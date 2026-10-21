@@ -137,6 +137,13 @@ onUnmounted(() => {
 }
 
 /* 移动端：恢复正常滚动 */
+/* 窄屏卡片列表要跟着内容增高，列表顶部的合计才能在整页滚动时吸顶。 */
+@media (max-width: 767px) {
+  .table-page-layout.mobile-mode {
+    height: auto;
+  }
+}
+
 .table-page-layout.mobile-mode .table-scroll-container {
   @apply h-auto overflow-visible border-none shadow-none bg-transparent;
 }
