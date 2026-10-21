@@ -2,6 +2,14 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-20 Seedance 叠层（未合 main）
+
+- 分支 `sync/seedance-overlay-20261020`，worktree `E:\cursor project\api2sub-seedance-20261020`，底是 `main` `8eaacb90d` / VERSION **0.1.331**。
+- 行为来源是官方 `aba34524f` 与 `d099c0694`。没有 `git merge upstream/main`，也没有把 VERSION 写成 0.2.17。
+- 调度快照白名单增加 `base_url` 和 `openai_capabilities`。空能力集仍然等于未配置。
+- Grok 按秒视频、展示计费、账号页既有区块没有整文件替换。
+- 未 push，未部署，未合入占用 checkout 的 `main`。
+
 ## 主题目录（main 已定归属）
 
 同步代理扫本文件时先读本表。表内主题 **不是** 待开的新同步窗：main 上的产品任务已经定了所有权。常驻副本 `E:\cursor project\api2sub-upstream-standing-20260821`（`sync/upstream-standing-20260821`）只许 **main → 副本 fold** 后再三维叠，禁止在落后的底上先搬上游同名实现。

@@ -1,3 +1,17 @@
+## 2026-10-20 - gateway: Ark Seedance task API
+
+### What
+- OpenAI API-key accounts can opt into a Seedance capability and serve the Ark task protocol at `/api/v3/contents/generations/tasks`, plus `/v3`, `/v1`, and the unprefixed alias.
+- Create forwards the JSON body and rewrites only `model`. The first `succeeded` poll bills `usage.completion_tokens` as output tokens through the existing token price chain. `video_count` stays 0, so Grok per-second video pricing is not used.
+- Task lookup is bound to the creating user, API key, and group for 24 hours. GET and DELETE of a bound task stay available after the key is expired, quota-exhausted, or out of balance. Create still goes through those checks.
+- Scheduler snapshots now keep `base_url` and `openai_capabilities`. Empty capability sets still mean unset. An explicit non-empty set is now visible to scheduling.
+
+### Why
+Official Sub2API added this protocol in 0.2.7. This fork overlays that behavior on 0.1.331 without replacing the Grok media handler, display billing, or account-page flows.
+
+### Affected files
+`backend/internal/service/seedance.go`, `backend/internal/handler/seedance.go`, `backend/internal/handler/endpoint.go`, `backend/internal/service/account.go`, `backend/internal/service/sticky_session_binding.go`, `backend/internal/repository/scheduler_cache.go`, `backend/internal/server/routes/gateway.go`, `backend/internal/server/middleware/api_key_auth.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `frontend/src/types/index.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-18 - billing: reject models with no billable price
 
 ### What

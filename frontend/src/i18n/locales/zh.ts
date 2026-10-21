@@ -5485,9 +5485,10 @@ const zhBase = {
           '开启后可将该 OpenAI 账号绑定到 Antigravity 分组，并使用当前模型映射处理 Claude /v1/messages 请求。',
         endpointCapabilities: 'API Key 端点能力',
         endpointCapabilitiesDesc:
-          '限制该 OpenAI API Key 可参与调度的端点类型；至少保留一项。默认同时参与文本与 Embeddings。',
+          '限制该 OpenAI API Key 可参与调度的端点类型；至少保留一项。默认同时参与文本与 Embeddings。Seedance 默认关闭。',
         capabilityChatCompletions: '文本 / Chat / Responses',
         capabilityEmbeddings: 'Embeddings',
+        capabilitySeedance: 'Seedance 视频',
         responsesRouteMode: '上游端点路由',
         responsesRouteModeDesc:
           '按入站端点选择上游。默认原样映射：入站 /v1/chat/completions 打上游 Chat Completions，入站 /v1/responses 打上游 Responses。自动探测是显式选项：Responses 可用或未探测时，入站 Chat Completions 仍转 /v1/responses。与「请求体透传」「WS 透传」不是同一开关。',
