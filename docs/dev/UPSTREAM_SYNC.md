@@ -2,6 +2,14 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-10-20 窗 3 协议热修（未合 main，只做了负 token）
+
+- 分支 `sync/upstream-protocol-hotfixes-20261020`，worktree `E:\cursor project\api2sub-protocol-hotfixes-20261020`，底是 `main` `8eaacb90d`。没有改 `gateway.go` 或 API Key 鉴权，因此不依赖 Seedance 先合入。
+- 已补：Gemini / Antigravity 在只有缓存命中、没有 `promptTokenCount` 时，`input_tokens` 下限为 0。来源是官方 `9c41b3269`。
+- 本轮核对后未改：`MALFORMED_FUNCTION_CALL` 已在 Antigravity 流式和非流式转换里识别；客户端断开已有 499 / `context.Canceled` 分类。
+- 仍留在本窗：Gemini 流中途断开按已收集用量计费（官方 `2b1f12938`）会改三条 Gemini 流式路径，需要单独核对后再叠。P2 的 schema / thinking signature / Chat↔Responses 字段保留还没逐条对照。
+- 未 push，未部署，未合入 `main`。
+
 ## 主题目录（main 已定归属）
 
 同步代理扫本文件时先读本表。表内主题 **不是** 待开的新同步窗：main 上的产品任务已经定了所有权。常驻副本 `E:\cursor project\api2sub-upstream-standing-20260821`（`sync/upstream-standing-20260821`）只许 **main → 副本 fold** 后再三维叠，禁止在落后的底上先搬上游同名实现。

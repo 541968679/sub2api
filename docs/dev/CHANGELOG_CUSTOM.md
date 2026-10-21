@@ -1,3 +1,15 @@
+## 2026-10-20 - gemini: blocked prompt with only cache tokens no longer bills negative input
+
+### What
+- When Gemini or Antigravity reports `cachedContentTokenCount` without `promptTokenCount`, `input_tokens` is clamped at 0. Cache-read tokens stay at the upstream count.
+- The same clamp is applied to the non-stream transform, the stream `message_start`, the accumulated stream usage, and `extractGeminiUsage`.
+
+### Why
+A blocked prompt can omit `promptTokenCount`. Subtracting the cache count produced a negative input and a negative charge.
+
+### Affected files
+`backend/internal/pkg/antigravity/response_transformer.go`, `backend/internal/pkg/antigravity/stream_transformer.go`, `backend/internal/service/gemini_messages_compat_service.go`, this changelog.
+
 ## 2026-10-18 - billing: reject models with no billable price
 
 ### What
