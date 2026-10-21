@@ -5236,8 +5236,8 @@ const zhBase = {
       usageWindow: {
         todaySpend: '今日消耗',
         monthSpend: '本月消耗',
-        todaySpendHint: '账号口径费用，从今天 0 点起算',
-        monthSpendHint: '账号口径费用，从本月 1 日 0 点起算',
+        todaySpendHint: '实际扣费（actual_cost），从今天 0 点起算',
+        monthSpendHint: '实际扣费（actual_cost），从本月 1 日 0 点起算',
         grokProbe: '探测',
         grokProbeTooltip: '发送最小请求以观测 xAI 限额响应头。',
         grokResetUnsupported: '不支持重置',

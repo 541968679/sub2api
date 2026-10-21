@@ -698,7 +698,7 @@ describe('AccountUsageCell', () => {
 
 		const spend = wrapper.get('[data-testid="account-usage-spend"]')
 		expect(spend.text()).toContain('admin.accounts.usageWindow.todaySpend')
-		expect(spend.text()).toContain('$12.35')
+		expect(spend.text()).toContain('$6.79')
 		expect(spend.text()).toContain('admin.accounts.usageWindow.monthSpend')
 		expect(spend.text()).toContain('$20.50')
 		expect(wrapper.text()).not.toContain('req')

@@ -1,7 +1,7 @@
 <template>
   <div ref="rootRef" v-if="showUsageWindows">
     <AccountUsageSpend
-      :today-cost="todayStats?.cost ?? null"
+      :today-cost="todayStats?.user_cost ?? null"
       :month-cost="monthCost"
       :loading="todayStatsLoading"
     />
@@ -697,7 +697,7 @@
   <!-- Non-OAuth/Setup-Token accounts (e.g. Gemini apikey, Bedrock, other keys) -->
   <div ref="rootRef" v-else>
     <AccountUsageSpend
-      :today-cost="todayStats?.cost ?? null"
+      :today-cost="todayStats?.user_cost ?? null"
       :month-cost="monthCost"
       :loading="todayStatsLoading"
     />

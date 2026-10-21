@@ -6672,8 +6672,8 @@ const enBase = {
       usageWindow: {
         todaySpend: 'Today',
         monthSpend: 'This month',
-        todaySpendHint: 'Account cost since local midnight',
-        monthSpendHint: 'Account cost since the 1st at local midnight',
+        todaySpendHint: 'Actual deducted cost (actual_cost) since local midnight',
+        monthSpendHint: 'Actual deducted cost (actual_cost) since the 1st at local midnight',
         grokProbe: 'Probe',
         grokProbeTooltip: 'Send a minimal request to observe xAI rate-limit headers.',
         grokResetUnsupported: 'Reset unavailable',

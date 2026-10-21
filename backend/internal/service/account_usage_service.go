@@ -1763,8 +1763,8 @@ func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs
 	return result, nil
 }
 
-// GetMonthCostBatch returns each account's account-side cost since local midnight on the 1st.
-// Cost is the same figure as WindowStats.Cost: COALESCE(account_stats_cost, total_cost) * account_rate_multiplier.
+// GetMonthCostBatch returns each account's actual deducted cost since local midnight on the 1st.
+// The figure is WindowStats.UserCost: SUM(actual_cost).
 func (s *AccountUsageService) GetMonthCostBatch(ctx context.Context, accountIDs []int64) (map[int64]float64, error) {
 	result := make(map[int64]float64, len(accountIDs))
 	if len(accountIDs) == 0 {
@@ -1778,7 +1778,7 @@ func (s *AccountUsageService) GetMonthCostBatch(ctx context.Context, accountIDs 
 		}
 		for _, accountID := range accountIDs {
 			if stats := statsByAccount[accountID]; stats != nil {
-				result[accountID] = stats.Cost
+				result[accountID] = stats.UserCost
 			}
 		}
 		return result, nil
@@ -1795,7 +1795,7 @@ func (s *AccountUsageService) GetMonthCostBatch(ctx context.Context, accountIDs 
 				return nil
 			}
 			mu.Lock()
-			result[id] = stats.Cost
+			result[id] = stats.UserCost
 			mu.Unlock()
 			return nil
 		})

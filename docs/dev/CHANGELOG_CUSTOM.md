@@ -1,3 +1,15 @@
+## 2026-10-21 - admin accounts: usage window spend is actual_cost
+
+### What
+- The account usage window's 今日消耗 and 本月消耗 sum `actual_cost`, the amount deducted from the user.
+- They no longer use the account-stats price (`account_stats_cost` or `total_cost`, times the account rate).
+
+### Why
+Operators read 今日消耗 as the real charge. The previous figure was the account statistics price, which diverges when display or channel pricing rewrites account stats.
+
+### Affected files
+`frontend/src/components/account/AccountUsageCell.vue`, `backend/internal/service/account_usage_service.go`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/components/account/__tests__/AccountUsageCell.spec.ts`, this changelog.
+
 ## 2026-10-21 - payment: EasyPay order query sends act in the URL
 
 ### What
