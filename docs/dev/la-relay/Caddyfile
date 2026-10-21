@@ -1,0 +1,41 @@
+{
+	auto_https disable_redirects
+	default_sni 64.83.27.87
+	servers 127.0.0.1:9443 {
+		protocols h1
+		listener_wrappers {
+			proxy_protocol {
+				timeout 5s
+				allow 127.0.0.1/32
+				fallback_policy reject
+			}
+			tls
+		}
+	}
+}
+
+http://:8088 {
+	request_body {
+		max_size 256MB
+	}
+	reverse_proxy http://15.204.102.44:8088 {
+		flush_interval -1
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+https://64.83.27.87:9443 {
+	bind 127.0.0.1
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+	request_body {
+		max_size 256MB
+	}
+	reverse_proxy http://15.204.102.44:8088 {
+		flush_interval -1
+		header_up X-Real-IP {remote_host}
+	}
+}

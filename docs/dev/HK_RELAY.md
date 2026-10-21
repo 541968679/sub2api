@@ -45,15 +45,17 @@ ssh -i $HOME\.ssh\id_ed25519_yt_hk -o IdentitiesOnly=yes root@191.40.32.186
 - 不在切流前把 `zerocode.kaynlab.com` 的 A 记录改到香港。
 - 前面不套 Cloudflare。
 
-## 2026-10-21 TCP 透传（当前入口）
+## 2026-10-21 TCP 透传（香港回退）
 
-香港不再解析 HTTP。`https://zerocode.kaynlab.asia` 仍指向 `191.40.32.186`。HAProxy 在 443 上做 TCP 拼接，给源站发 PROXY v2。源站 Caddy 在 `8443` 上解开 PROXY、做 TLS，再反代到 `127.0.0.1:8080`。客户的 HTTP/2 或 HTTP/1.1 原样到达源站，和直连 `zerocode.kaynlab.com` 同一层处理。
+2026-10-21 当天，客户域名 `zerocode.kaynlab.asia` 的 A 记录改到了洛杉矶 `64.83.27.87`。现在的入口是 [`LA_RELAY.md`](LA_RELAY.md)。把这条 A 记录指回 `191.40.32.186` 之后，下面的 TCP 拼接才重新成为客户入口。
+
+香港不再解析 HTTP。HAProxy 在 443 上做 TCP 拼接，给源站发 PROXY v2。源站 Caddy 在 `8443` 上解开 PROXY、做 TLS，再反代到 `127.0.0.1:8080`。客户的 HTTP/2 或 HTTP/1.1 原样到达源站，和直连 `zerocode.kaynlab.com` 同一层处理。
 
 | 项 | 值 |
 |----|----|
 | 香港进程 | HAProxy，`/etc/haproxy/haproxy.cfg`，仓库副本 [`hk-relay/haproxy.cfg`](hk-relay/haproxy.cfg)。`systemctl is-active haproxy` |
 | 上游 | `15.204.102.44:8443`，`send-proxy-v2`。连接、客户端、服务端、隧道超时都是 3600 秒 |
-| 源站监听 | 只给香港。ufw：`8443/tcp` 来自 `191.40.32.186`。Caddy `servers :8443` 要求 PROXY，`allow 191.40.32.186/32`，`protocols h1`。不提供 HTTP/2，避免一个客户的全部请求挤在一条 TCP 上 |
+| 源站监听 | 只给两台中转。ufw：`8443/tcp` 来自 `191.40.32.186` 和 `64.83.27.87`。Caddy `servers :8443` 要求 PROXY，`allow` 这两个地址，`protocols h1`。不提供 HTTP/2，避免一个客户的全部请求挤在一条 TCP 上 |
 | 证书 | `/etc/caddy/certs/zerocode.kaynlab.asia.crt` 与同名 `.key`。内容是香港 Caddy 在 2026-10-21 的 Let's Encrypt 证书，CN `zerocode.kaynlab.asia`，到期 2026-12-29 01:07 GMT。这是静态文件，源站不会自动续期 |
 | 客户 IP | PROXY 里的地址写到 `X-Real-IP`，用量 `ip_address` 记这个地址 |
 | 入口主机 | 客户自己的 `Host: zerocode.kaynlab.asia`。8443 站点同时写 `X-Sub2-Entry-Via: hk-relay` |

@@ -1,3 +1,16 @@
+## 2026-10-21 - ops: Los Angeles IP endpoints
+
+### What
+- `http://64.83.27.87:8088` and `https://64.83.27.87` both reach the API. The IP certificate name is `IP Address:64.83.27.87` and expires `2026-10-28 02:30 GMT`. Caddy renews it with the `shortlived` profile over TLS-ALPN, because the provider blocks port 80.
+- HAProxy on 443 still splices `zerocode.kaynlab.asia` to origin port 8443. Connections with no SNI, or with this IP as SNI, terminate on the local Caddy. That listener is HTTP/1.1 only and receives the client address with PROXY v2.
+- Origin port 8088 keeps the forwarded client address when the peer is `64.83.27.87`. A direct caller still gets its own TCP address.
+
+### Why
+Customers wanted an IP endpoint on the Los Angeles relay for both HTTP and HTTPS. A client that connects to an IP usually omits SNI, so the first split sent those handshakes to the domain listener and the handshake failed. The first origin header rule was also parsed as a no-op replace, which would have stored the relay address as the client.
+
+### Affected files
+Live `/etc/haproxy/haproxy.cfg` and `/etc/caddy/Caddyfile` on `64.83.27.87`. Live `/etc/caddy/Caddyfile` on new-origin, backup `Caddyfile.bak-la-realip-handle-20261021`. `docs/dev/LA_RELAY.md`, `docs/dev/la-relay/`, `docs/dev/SERVERS.md`, `docs/dev/HK_RELAY.md`, this changelog.
+
 ## 2026-10-21 - ops: HTTPS certificate for the origin IP
 
 ### What
