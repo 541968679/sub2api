@@ -4,6 +4,15 @@ import { flushPromises, mount } from "@vue/test-utils";
 
 import SettingsView from "../SettingsView.vue";
 
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ replace: vi.fn() }),
+  RouterLink: {
+    props: ["to"],
+    template: "<a><slot /></a>",
+  },
+}));
+
 const {
   getSettings,
   updateSettings,
@@ -544,6 +553,8 @@ function mountView() {
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
         OpenAIFastPolicyUserSelector: true,
+        ScheduleErrorWhitelistPanel: true,
+        InflightReservationSettings: true,
       },
     },
   });
@@ -958,6 +969,8 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          ScheduleErrorWhitelistPanel: true,
+          InflightReservationSettings: true,
         },
       },
     });
@@ -1094,6 +1107,8 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          ScheduleErrorWhitelistPanel: true,
+          InflightReservationSettings: true,
         },
       },
     });
@@ -1607,6 +1622,76 @@ describe("admin SettingsView quality hard-close card", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
+  it("filters cards across tabs and opens the tab that matches", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const qualityCard = wrapper.get('[data-test="quality-hard-close-card"]');
+    const scroll = vi.fn();
+    (qualityCard.element as HTMLElement).scrollIntoView = scroll;
+
+    await wrapper.get('[data-test="settings-search"]').setValue("qualityHardClose");
+    await flushPromises();
+
+    expect(qualityCard.classes()).not.toContain("settings-search-miss");
+    const securityCards = wrapper.findAll('[data-settings-tab="security"] .card');
+    expect(securityCards[0].classes()).toContain("settings-search-miss");
+    expect(wrapper.get('[data-test="settings-search-count"]').text()).toContain(
+      "admin.settings.searchCount",
+    );
+    expect(wrapper.get('[data-settings-tab="gateway"]').attributes("style") || "").not.toContain(
+      "display: none",
+    );
+    expect(wrapper.get('[data-settings-tab="security"]').attributes("style") || "").toContain(
+      "display: none",
+    );
+    const gatewayTab = wrapper
+      .findAll("button.settings-tab")
+      .find((button) => button.text().includes("admin.settings.tabs.gateway"));
+    expect(gatewayTab?.classes()).toContain("settings-tab-active");
+    expect(scroll).toHaveBeenCalled();
+
+    await wrapper.get('[data-test="settings-search"]').setValue("");
+    await flushPromises();
+    expect(securityCards[0].classes()).not.toContain("settings-search-miss");
+  });
+
+  it("lists matches from every tab, including tabs whose panel has no card", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.get('[data-test="settings-search"]').setValue("errorPolicy");
+    await flushPromises();
+
+    const errorPanel = wrapper.get('[data-settings-tab="errorPolicy"]');
+    expect(errorPanel.classes()).not.toContain("settings-search-miss");
+    expect(errorPanel.attributes("style") || "").not.toContain("display: none");
+    expect(wrapper.get('[data-test="settings-search-hits"]').text()).toContain(
+      "admin.settings.tabs.errorPolicy",
+    );
+    const backupPanel = wrapper.get('[data-settings-tab="backup"]');
+    expect(backupPanel.classes()).toContain("settings-search-miss");
+
+    await wrapper.get('[data-test="settings-search"]').setValue("admin.settings.tabs");
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="settings-search-tabs"]').text()).toContain(
+      "admin.settings.searchAcrossTabs",
+    );
+    const errorHit = wrapper
+      .findAll('[data-test^="settings-search-hit-"]')
+      .find((button) => button.text().includes("admin.settings.tabs.errorPolicy"));
+    expect(errorHit).toBeDefined();
+    await errorHit?.trigger("click");
+    await flushPromises();
+    expect(wrapper.get('[data-settings-tab="errorPolicy"]').attributes("style") || "").not.toContain(
+      "display: none",
+    );
+    expect(wrapper.get('[data-settings-tab="general"]').attributes("style") || "").toContain(
+      "display: none",
+    );
+  });
+
   it("saves the master switch and template only, converting percent to 0-1", async () => {
     const wrapper = mountView();
     await flushPromises();
@@ -1639,6 +1724,9 @@ describe("admin SettingsView quality hard-close card", () => {
       min_ttft_samples: 14,
       condition: "or",
       schedule_use_failover_error_rate: false,
+      display_rate_mode: "minutes",
+      display_rate_window_minutes: 5,
+      display_rate_window_count: 100,
     });
     expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty(
       "account_ids",

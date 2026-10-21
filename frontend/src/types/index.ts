@@ -1132,6 +1132,37 @@ export interface UserConcurrencyPatch {
   max_concurrency?: number | null
 }
 
+export interface AccountSchedulerScoreFactors {
+  priority_term: number
+  load_term: number
+  queue_term: number
+  error_term: number
+  ttft_term: number
+  reset_term: number
+  quota_term: number
+  error_rate: number
+  ttft_ms: number
+  has_ttft: boolean
+  weight_priority: number
+  weight_load: number
+  weight_queue: number
+  weight_error_rate: number
+  weight_ttft: number
+  weight_reset: number
+  weight_quota: number
+  weight_previous: number
+  weight_session_sticky: number
+}
+
+export interface AccountSchedulerScore {
+  base_score: number
+  sticky_score?: number
+  sticky_score_infinity?: boolean
+  sticky_weighted_enabled: boolean
+  live?: boolean
+  factors?: AccountSchedulerScoreFactors | null
+}
+
 export interface Account {
   id: number
   name: string
@@ -1149,12 +1180,7 @@ export interface Account {
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
-  scheduler_score?: {
-    base_score: number
-    sticky_score?: number
-    sticky_score_infinity?: boolean
-    sticky_weighted_enabled: boolean
-  } | null
+  scheduler_score?: AccountSchedulerScore | null
   scheduler_scores?: AccountSchedulerGroupScore[] | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
@@ -1256,14 +1282,10 @@ export interface Account {
   parent_chatgpt_account_id?: string
 }
 
-export interface AccountSchedulerGroupScore {
+export interface AccountSchedulerGroupScore extends AccountSchedulerScore {
   group_id?: number | null
   group_name?: string
   group_priority?: number | null
-  base_score: number
-  sticky_score?: number
-  sticky_score_infinity?: boolean
-  sticky_weighted_enabled: boolean
 }
 
 // Account Usage types

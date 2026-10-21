@@ -47,17 +47,23 @@ describe('AccountQualityCell', () => {
     expect(wrapper.get('[data-test="user-quality-cell-button"]').attributes('aria-label')).toBe(
       'admin.users.quality.openAria'
     )
-    expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="account-quality-failover-rate"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="quality-p95"]').text()).toContain('900ms')
+    expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
   })
 
-  it('account combined mode shows a p95 row', () => {
+  it('account combined mode keeps the success rate and hides first-token and K/C', () => {
     const wrapper = mount(AccountQualityCell, {
-      props: { mode: 'combined', stats, clickable: true }
+      props: {
+        mode: 'combined',
+        stats: { ...stats, failover_error_count: 1, failover_error_rate: 0.09 },
+        clickable: true
+      }
     })
-    expect(wrapper.get('[data-test="quality-p95"]').text()).toContain('900ms')
-    expect(wrapper.text()).toContain('300ms')
+    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('91.0%')
+    expect(wrapper.find('[data-test="account-quality-kc"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
   })
 
   it('clickable emits click even when the cell is empty', async () => {
@@ -73,7 +79,7 @@ describe('AccountQualityCell', () => {
     expect(wrapper.emitted('click')).toHaveLength(1)
   })
 
-  it('combined mode stacks p50, schedule success rate, and failover success rate', () => {
+  it('combined mode shows total duration and the failover-inclusive success rate only', () => {
     const wrapper = mount(AccountQualityCell, {
       props: {
         mode: 'combined',
@@ -82,29 +88,90 @@ describe('AccountQualityCell', () => {
           terminal_error_count: 1,
           terminal_error_rate: 1 / 11,
           failover_error_count: 20,
-          failover_error_rate: 20 / 30
+          failover_error_rate: 20 / 30,
+          p50_duration_ms: 4200,
+          p95_duration_ms: 18000,
+          duration_samples: 10
         },
         clickable: true
       }
     })
 
-    expect(wrapper.text()).toContain('300ms')
-    expect(wrapper.text()).toContain('91.0%')
-    expect(wrapper.text()).toContain('33.3%')
-    expect(wrapper.text()).not.toContain('66.7%')
-    expect(wrapper.text()).toContain('admin.accounts.quality.successShort')
-    expect(wrapper.text()).toContain('admin.accounts.quality.failoverShort')
-    expect(wrapper.get('[data-test="account-quality-window-counts"]').text()).toContain(
-      'admin.accounts.quality.windowCounts'
-    )
-    const failoverRow = wrapper.get('[data-test="account-quality-failover-rate"]')
-    expect(failoverRow.text()).toContain('33.3%')
-    expect(failoverRow.classes().join(' ')).toContain('text-red-600')
-    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
-    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.tooltip')
+    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('91.0%')
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('33.3%')
+    expect(wrapper.get('[data-test="quality-duration"]').text()).toContain('4.2s/18s')
+    expect(wrapper.get('[data-test="quality-duration-p50"]').classes().join(' ')).toContain('text-emerald-600')
+    expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
+    expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.ttftTooltip')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.durationTooltip')
     expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.failoverTooltip')
     expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
     expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
+  })
+
+  it('shows a live scheduler base score only for an account cell', () => {
+    const score = {
+      base_score: 2.75,
+      sticky_weighted_enabled: false,
+      live: true,
+      factors: {
+        priority_term: 1,
+        load_term: 0.5,
+        queue_term: 0.7,
+        error_term: 0.4,
+        ttft_term: 0.15,
+        reset_term: 0,
+        quota_term: 0,
+        error_rate: 0.5,
+        ttft_ms: 1200,
+        has_ttft: true,
+        weight_priority: 1,
+        weight_load: 1,
+        weight_queue: 0.7,
+        weight_error_rate: 0.8,
+        weight_ttft: 0.5,
+        weight_reset: 0,
+        weight_quota: 0,
+        weight_previous: 5,
+        weight_session_sticky: 3
+      }
+    }
+    const account = mount(AccountQualityCell, {
+      props: { mode: 'combined', stats, schedulerScore: score }
+    })
+    expect(account.get('[data-test="account-quality-scheduler-score"]').text()).toContain('2.75')
+    expect(account.get('[title]').attributes('title')).toContain('admin.accounts.quality.scoreTooltip')
+
+    const user = mount(AccountQualityCell, {
+      props: { mode: 'combined', stats, subject: 'user', schedulerScore: score }
+    })
+    expect(user.find('[data-test="account-quality-scheduler-score"]').exists()).toBe(false)
+
+    const inactive = mount(AccountQualityCell, {
+      props: { mode: 'combined', stats, schedulerScore: { ...score, live: false } }
+    })
+    expect(inactive.get('[data-test="account-quality-scheduler-score"]').text()).toContain('2.75')
+  })
+
+  it('prefers the 15-minute display success rate over the short last-N rate', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: {
+        mode: 'combined',
+        stats: {
+          ...stats,
+          failover_error_count: 8,
+          failover_error_rate: 0.8,
+          display_success_count: 960,
+          display_failover_error_count: 40,
+          display_failover_error_rate: 0.04,
+          display_rate_window_seconds: 900
+        }
+      }
+    })
+    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('96.0%')
+    expect(wrapper.text()).not.toContain('20.0%')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.displayRateTooltip')
   })
 
   it('colors failover success rate like schedule success, not like an error-rate scale', () => {
@@ -150,12 +217,11 @@ describe('AccountQualityCell', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('300ms')
-    expect(wrapper.text()).toContain('91.0%')
+    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('91.0%')
     expect(wrapper.text()).not.toContain('admin.accounts.quality.bridgeShort')
     expect(wrapper.text()).not.toContain('60.0%')
-    expect(wrapper.get('[title]').attributes('title')).not.toContain('admin.accounts.quality.bridgeTooltip')
-    expect(wrapper.get('[data-test="account-quality-failover-rate"]').text()).toContain('—')
+    expect(wrapper.find('[data-test="account-quality-failover-rate"]').exists()).toBe(false)
   })
 
   it('clickable keeps the existing tooltip on stats', () => {
@@ -258,11 +324,11 @@ describe('AccountQualityCell', () => {
       }
     })
 
-    expect(wrapper.get('[data-test="account-quality-window-counts"]').exists()).toBe(true)
-    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
+    expect(wrapper.find('[data-test="account-quality-window-counts"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="quality-ttft"]').exists()).toBe(false)
   })
 
-  it('combined mode shows K/C like smart-schedule pair quality cells', () => {
+  it('combined mode hides K/C', () => {
     const wrapper = mount(AccountQualityCell, {
       props: {
         mode: 'combined',
@@ -275,8 +341,6 @@ describe('AccountQualityCell', () => {
         }
       }
     })
-    expect(wrapper.get('[data-test="account-quality-kc"]').text()).toBe(
-      'admin.users.smartSchedule.pairLatencyKC'
-    )
+    expect(wrapper.find('[data-test="account-quality-kc"]').exists()).toBe(false)
   })
 })

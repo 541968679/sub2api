@@ -13,6 +13,9 @@ export type QualityRateStats = Pick<
   | 'terminal_error_rate'
   | 'failover_error_count'
   | 'failover_error_rate'
+  | 'display_success_count'
+  | 'display_failover_error_count'
+  | 'display_failover_error_rate'
 >
 
 /** success + error rows in the last-N account-quality window. */
@@ -139,6 +142,26 @@ export function formatQualityFailoverSuccessRate(
   minSamples = 1
 ): string | null {
   return formatPercent(qualityFailoverSuccessRateValue(stats, minSamples))
+}
+
+/** Cell rate. Prefer the 15-minute display window over the short last-N rate. */
+export function displayedFailoverSuccessRateValue(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): number | null {
+  const samples = (stats?.display_success_count ?? 0) + (stats?.display_failover_error_count ?? 0)
+  const displayRate = stats?.display_failover_error_rate
+  if (samples > 0 && displayRate != null && Number.isFinite(displayRate)) {
+    return 1 - displayRate
+  }
+  return qualityFailoverSuccessRateValue(stats, minSamples)
+}
+
+export function formatDisplayedFailoverSuccessRate(
+  stats: QualityRateStats | null | undefined,
+  minSamples = 1
+): string | null {
+  return formatPercent(displayedFailoverSuccessRateValue(stats, minSamples))
 }
 
 export function formatQualityBridgeErrorRate(

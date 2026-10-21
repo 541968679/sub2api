@@ -638,7 +638,7 @@ describe('AccountStabilityDialog', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-test="stability-error-calibers"]').exists()).toBe(true)
-    expect(wrapper.get('[data-test="stability-terminal-rate"]').text()).toBe('5.3%')
+    expect(wrapper.find('[data-test="stability-terminal-rate"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="stability-failover-rate"]').text()).toBe('18.2%')
     expect(wrapper.get('[data-test="stability-caliber-samples"]').text()).toContain('5')
     expect(wrapper.get('[data-test="stability-caliber-samples"]').text()).toContain('20')

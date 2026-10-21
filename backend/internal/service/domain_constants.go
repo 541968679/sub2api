@@ -489,6 +489,10 @@ const (
 	// SettingKeyBetaPolicySettings stores JSON config for beta policy rules.
 	SettingKeyBetaPolicySettings = "beta_policy_settings"
 
+	// SettingKeyBillingInflightReservation stores the admin-editable balance
+	// precheck. A saved value overrides the startup yaml on the next request.
+	SettingKeyBillingInflightReservation = "billing_inflight_reservation"
+
 	// SettingKeyOpenAIFastPolicySettings stores JSON config for OpenAI
 	// service_tier (fast/flex) policy rules. Mirrors BetaPolicySettings but
 	// targets OpenAI's body-level service_tier field instead of Claude's

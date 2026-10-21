@@ -54,6 +54,7 @@ func RegisterAdminRoutes(
 
 		// 系统设置
 		registerSettingsRoutes(admin, h)
+		registerInflightReservationRoutes(admin, h)
 
 		// 数据管理
 		registerDataManagementRoutes(admin, h)
@@ -545,6 +546,14 @@ func registerPromoCodeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		promoCodes.PUT("/:id", h.Admin.Promo.Update)
 		promoCodes.DELETE("/:id", h.Admin.Promo.Delete)
 		promoCodes.GET("/:id/usages", h.Admin.Promo.GetUsages)
+	}
+}
+
+func registerInflightReservationRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	precheck := admin.Group("/inflight-reservation")
+	{
+		precheck.GET("", h.Admin.Setting.GetInflightReservationSettings)
+		precheck.PUT("", h.Admin.Setting.UpdateInflightReservationSettings)
 	}
 }
 

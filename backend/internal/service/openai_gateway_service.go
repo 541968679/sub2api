@@ -553,6 +553,10 @@ func NewOpenAIGatewayService(
 		settingService:        settingService,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiAccountStats:    newOpenAIAccountRuntimeStats(),
+	}
+	if rateLimitService != nil {
+		rateLimitService.BindOpenAISchedulerStats(svc.openaiAccountStats)
 	}
 	sweepOpenAIImagesResponseSpoolOrphans("", time.Now())
 	svc.logOpenAIWSModeBootstrap()

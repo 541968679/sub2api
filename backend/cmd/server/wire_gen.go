@@ -66,6 +66,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	userRPMCache := repository.NewUserRPMCache(redisClient)
 	userGroupRateRepository := repository.NewUserGroupRateRepository(db)
 	billingCacheService := service.ProvideBillingCacheService(billingCache, userRepository, userSubscriptionRepository, apiKeyRepository, userRPMCache, userGroupRateRepository, configConfig, userPlatformQuotaServiceAdapter)
+	billingCacheService.SetSettingService(settingService)
 	apiKeyCache := repository.NewAPIKeyCache(redisClient)
 	schedulerCache := repository.ProvideSchedulerCache(redisClient, configConfig)
 	userSmartScheduleRepository := repository.NewUserSmartScheduleRepository(client)

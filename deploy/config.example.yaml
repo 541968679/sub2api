@@ -1017,6 +1017,9 @@ billing:
   # In-flight balance reservation. Stops concurrent requests from all passing
   # the same cached balance and overdrafting together.
   # 在途余额预留。防止并发请求同时看到同一份缓存余额后集体透支。
+  # Admin → 额度预检 saves over these values. The next request uses the saved
+  # rule; this file is only the fallback until that save.
+  # 管理后台「额度预检」保存后覆盖这里。下一条请求即用新规则；在此之前才读本文件。
   inflight_reservation:
     enabled: true
     ttl_seconds: 900

@@ -83,23 +83,13 @@
         <h4 class="text-sm font-medium text-gray-900 dark:text-white">
           {{ t('admin.accounts.stability.failoverTitle') }}
         </h4>
-        <div class="mt-2 grid gap-2 sm:grid-cols-2">
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.stability.failoverTerminal') }}
-            </p>
-            <p class="font-mono text-sm font-medium text-gray-900 dark:text-white" data-test="stability-terminal-rate">
-              {{ terminalRateDisplay }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.stability.failoverInclusive') }}
-            </p>
-            <p class="font-mono text-sm font-medium text-gray-900 dark:text-white" data-test="stability-failover-rate">
-              {{ failoverRateDisplay }}
-            </p>
-          </div>
+        <div class="mt-2">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.stability.failoverInclusive') }}
+          </p>
+          <p class="font-mono text-sm font-medium text-gray-900 dark:text-white" data-test="stability-failover-rate">
+            {{ failoverRateDisplay }}
+          </p>
         </div>
         <p class="mt-1 text-xs text-gray-600 dark:text-gray-300" data-test="stability-caliber-samples">
           {{
@@ -416,7 +406,6 @@ import {
 import {
   formatQualityBridgeErrorRate,
   formatQualityFailoverErrorRate,
-  formatQualityTerminalErrorRate,
   hasDisplayableBridgeErrorRate
 } from '@/utils/accountQualityStats'
 import {
@@ -652,7 +641,6 @@ const samplesSummary = computed(() => {
 const hasBridgeErrorRate = computed(() => hasDisplayableBridgeErrorRate(liveQualityStats.value))
 
 const bridgeRateDisplay = computed(() => formatQualityBridgeErrorRate(liveQualityStats.value) ?? '—')
-const terminalRateDisplay = computed(() => formatQualityTerminalErrorRate(liveQualityStats.value) ?? '—')
 const failoverRateDisplay = computed(() => formatQualityFailoverErrorRate(liveQualityStats.value) ?? '—')
 
 const bridgeToneClass = computed(() => {

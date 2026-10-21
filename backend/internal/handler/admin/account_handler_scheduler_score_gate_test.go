@@ -53,22 +53,64 @@ func TestAccountHandlerListSkipsSchedulerScoresByDefault(t *testing.T) {
 	require.NotContains(t, payload.Data.Items[0], "scheduler_scores")
 }
 
+func TestAccountHandlerListUngroupedScoreUsesFullSchedulablePool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	adminSvc := newStubAdminService()
+	now := time.Now().UTC()
+	pageAccount := service.Account{
+		ID: 21, Name: "slow", Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+		Status: service.StatusActive, Schedulable: true, Priority: 50, CreatedAt: now, UpdatedAt: now,
+	}
+	peer := pageAccount
+	peer.ID = 22
+	peer.Name = "fast"
+	peer.Priority = 1
+	adminSvc.accounts = []service.Account{pageAccount}
+	adminSvc.accountSchedulerScoreFilterAccounts = []service.Account{pageAccount}
+	adminSvc.openAISchedulerScorePoolAccounts = []service.Account{pageAccount, peer}
+
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	router := gin.New()
+	router.GET("/api/v1/admin/accounts", handler.List)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts?page=1&page_size=20&platform=openai&group=ungrouped&include_scheduler_score=1&search=slow", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, adminSvc.openAISchedulerScorePoolCalls)
+	var payload struct {
+		Data struct {
+			Items []struct {
+				ID             int64 `json:"id"`
+				SchedulerScore *struct {
+					BaseScore float64 `json:"base_score"`
+				} `json:"scheduler_score"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Len(t, payload.Data.Items, 1)
+	require.NotNil(t, payload.Data.Items[0].SchedulerScore)
+	require.InDelta(t, 2.75, payload.Data.Items[0].SchedulerScore.BaseScore, 1e-9)
+}
+
 func TestAccountHandlerListLiteRedactsHeavyFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	adminSvc := newStubAdminService()
 	now := time.Now().UTC()
 	adminSvc.accounts = []service.Account{{
-		ID:           12,
-		Name:         "claude-oauth",
-		Platform:     service.PlatformAnthropic,
-		Type:         service.AccountTypeOAuth,
-		Status:       service.StatusActive,
-		Schedulable:  true,
-		Credentials:  map[string]any{"access_token": "secret", "plan_type": "pro", "email": "a@example.com"},
-		Extra:        map[string]any{"window_cost_limit": 20.0},
+		ID:            12,
+		Name:          "claude-oauth",
+		Platform:      service.PlatformAnthropic,
+		Type:          service.AccountTypeOAuth,
+		Status:        service.StatusActive,
+		Schedulable:   true,
+		Credentials:   map[string]any{"access_token": "secret", "plan_type": "pro", "email": "a@example.com"},
+		Extra:         map[string]any{"window_cost_limit": 20.0},
 		ScheduleUsers: []service.ScheduleUserRef{{ID: 16, Email: "u@example.com", Allow: true}},
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}}
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router := gin.New()

@@ -561,6 +561,7 @@
               :window-n="accountQualityWindowN"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
+              :scheduler-scores="qualityCellSchedulerScores(row)"
               @click="openStabilityDialog(row)"
             />
           </template>
@@ -1781,7 +1782,21 @@ const toggleColumn = (key: string) => {
 }
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
-const shouldIncludeSchedulerScore = () => isColumnVisible('scheduler_score')
+const shouldIncludeSchedulerScore = () => true
+const qualityCellSchedulerScores = (account: Account) => {
+  if (account.platform !== 'openai') return []
+  const group = typeof params.group === 'string' ? params.group : ''
+  if (/^\d+$/.test(group)) {
+    const groupID = Number(group)
+    const row = account.scheduler_scores?.find((score) => score.group_id === groupID)
+    return row ? [row] : []
+  }
+  if (group === 'ungrouped') {
+    return account.scheduler_score ? [{ ...account.scheduler_score, group_id: null }] : []
+  }
+  if (account.scheduler_scores?.length) return account.scheduler_scores
+  return account.scheduler_score ? [{ ...account.scheduler_score, group_id: null }] : []
+}
 const syncAccountListDerivedParams = () => {
   // Keep every load path, including auto-refresh and sorting, aligned with the current column visibility.
   const requestParams = params as any
@@ -1812,7 +1827,7 @@ const {
     privacy_mode: initialAccountFilters.privacy_mode,
     group: initialAccountFilters.group,
     search: initialAccountFilters.search,
-    include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
+    include_scheduler_score: '1',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }

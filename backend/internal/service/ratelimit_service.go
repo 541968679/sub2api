@@ -32,6 +32,7 @@ type RateLimitService struct {
 	oauthFleetSoft429Cache OAuthFleetSoft429Cache
 	openAI7dLiteLLM        *OpenAI7dLiteLLMCycleService
 	runtimeBlocker         AccountRuntimeBlocker
+	openaiSchedulerStats   OpenAISchedulerRuntimeStats
 	openaiTeamLinkedMu     sync.Mutex
 	openaiTeamLinkedRecent map[string]time.Time
 	usageCacheMu           sync.RWMutex
@@ -92,6 +93,14 @@ func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogReposi
 		tempUnschedCache:   tempUnschedCache,
 		usageCache:         make(map[int64]*geminiUsageCacheEntry),
 	}
+}
+
+// BindOpenAISchedulerStats shares the selector's in-process EWMA with admin score snapshots.
+func (s *RateLimitService) BindOpenAISchedulerStats(stats OpenAISchedulerRuntimeStats) {
+	if s == nil {
+		return
+	}
+	s.openaiSchedulerStats = stats
 }
 
 // SetTimeoutCounterCache 设置超时计数器缓存（可选依赖）

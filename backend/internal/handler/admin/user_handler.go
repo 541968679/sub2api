@@ -806,12 +806,19 @@ func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
 	}
 
 	useFailover := false
+	rateLabel := service.DisplayRateModeMinutes + ":" + strconv.Itoa(service.DefaultAccountQualityDisplayRateMinutes)
 	if h.settingService != nil {
 		if cfg, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context()); err == nil && cfg != nil {
 			useFailover = cfg.ScheduleUseFailoverErrorRate
+			rateLabel = cfg.DisplayRateMode + ":"
+			if cfg.DisplayRateMode == service.DisplayRateModeCount {
+				rateLabel += strconv.Itoa(cfg.DisplayRateWindowCount)
+			} else {
+				rateLabel += strconv.Itoa(cfg.DisplayRateWindowMinutes)
+			}
 		}
 	}
-	cacheKey := buildUserQualityStatsBatchCacheKey(userIDs, useFailover)
+	cacheKey := buildUserQualityStatsBatchCacheKey(userIDs, useFailover, rateLabel)
 	if cached, ok := userQualityStatsBatchCache.Get(cacheKey); ok {
 		if cached.ETag != "" {
 			c.Header("ETag", cached.ETag)

@@ -390,6 +390,7 @@ const zhBase = {
     redeemCodes: '兑换码',
     ops: '运维监控',
     errorPolicy: '错误管理',
+    inflightReservation: '额度预检',
     promoCodes: '优惠码',
     settings: '系统设置',
     myAccount: '我的账户',
@@ -1890,6 +1891,44 @@ const zhBase = {
 
   // Admin
   admin: {
+    inflightReservation: {
+      title: '额度预检',
+      description: '余额模式在途预扣的开关、计算规则和参数。保存后下一条请求生效，不必重启主进程。已经占住的预扣保持原金额，直到请求结束或过期。',
+      sourceConfig: '当前仍使用启动配置。保存一次后，这里的值会覆盖启动配置。',
+      sourceSettings: '当前使用后台保存的规则。',
+      simpleMode: '简易模式不计费，这个开关不会拦截请求。',
+      enabled: '启用额度预检',
+      enabledHint: '关闭后不再做在途预扣，只保留余额下限检查。',
+      inputPricing: '输入计算规则',
+      pricingFull: '估算输入全部按输入价',
+      pricingCacheTail: '前面一段按输入价，其余按缓存价',
+      fullPriceTokens: '按输入价计算的 token 数',
+      bytesPerToken: '每个 token 对应的正文字节',
+      defaultMaxTokens: '未带 max_tokens 时的输出 token',
+      defaultMaxTokensHint: '请求自己带了 max_tokens 时按请求值，再受输出上限截断。',
+      maxOutputTokens: '输出 token 上限',
+      maxInputTokens: '输入 token 上限',
+      maxReservation: '单条预扣上限',
+      maxReservationHint: '与用户余额同一币种。0 表示不封顶。',
+      ttl: '占位保留秒数',
+      failClosed: '无法定价时拒绝请求',
+      failClosedHint: '关闭时，定不出价的请求照常放行，并且不占预扣。',
+      previewTitle: '按当前表单试算',
+      previewHint: '单价是每百万 token，只用于这张表单，不会读取线上价目。',
+      previewBodyBytes: '请求正文字节',
+      previewMaxTokens: '请求 max_tokens（0 表示没带）',
+      previewInputPrice: '输入价 / 百万 token',
+      previewCachePrice: '缓存价 / 百万 token',
+      previewOutputPrice: '输出价 / 百万 token',
+      previewRate: '分组倍率',
+      previewResult: '估算输入 {input}，输出 {output}，预扣 {amount}{capped}',
+      previewCapped: '（已按单条上限截断）',
+      save: '保存',
+      saving: '保存中…',
+      saved: '已保存，下一条请求按新规则预扣',
+      loadFailed: '读取额度预检失败',
+      saveFailed: '保存额度预检失败',
+    },
     // Dashboard
     dashboard: {
       title: '管理控制台',
@@ -2393,7 +2432,7 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '用户 last-N 质量（该用户、全部账号）：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate）。格子里还有 k/N，以及与智能调度质量格相同的 K（窗口内慢样本）/ C（连续慢样本）。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线、窗口 N 与两套错误率。样本窗口仍是用户 last-N，不是配对 FIFO。',
+          '用户 last-N 质量（该用户、全部账号）：首字 p50 / p95，总耗时 p50 / p95（只展示，不进调度），然后是含 failover/Recovered 的正确率（1 − failover_error_rate）。不含 failover 的调度成功率不再显示。格子里还有 k/N，以及与智能调度质量格相同的 K / C。窗口 N 按用户单独可调，未设置则继承全站账号质量 N。Claude→GPT 桥接错误率只在详情里展示。点击打开该用户质量曲线与窗口 N。样本窗口仍是用户 last-N，不是配对 FIFO。',
         clickToOpen: '点击查看该用户质量曲线、桥接错误率与 last-N 窗口',
         openShort: '打开',
         openAria: '打开用户质量窗口',
@@ -4812,9 +4851,14 @@ const zhBase = {
       },
       quality: {
         combinedHint:
-          '账号 last-N 质量：上行 p50、展示用 p95 首字延迟（p95 只展示，不进硬关闭/调度门槛），中行调度成功率（不含桥接失败，也不含客户端/路由的模型不存在），下行含 failover/Recovered 对照正确率（1 − 弹窗同一套 failover_error_rate，不进调度 ErrorCount）。格子里还有 k/N，以及与智能调度质量格相同的 K（窗口内慢样本）/ C（连续慢样本）。Claude→GPT 桥接错误率只在稳定性详情里展示，不进调度、也不进本格。点击打开稳定性曲线、两套错误率与硬关闭。样本窗口仍是账号 last-N（Q_a），不是配对 FIFO。',
+          '账号质量格画总耗时 p50/p95（流式和非流式一起，只展示）、含 failover 的成功率，以及普通 OpenAI 账号池的调度基础分。成功率按系统设置里的分钟数计，默认最近 5 分钟，不跟很短的 last-N。首字和 K/C 先隐藏。调度分悬停可看因子。点击打开稳定性曲线。',
         successShort: '率',
         failoverShort: '含',
+        ttftShort: '首字',
+        durationPairShort: '总耗时',
+        durationP50Short: '总p50',
+        durationP95Short: '总p95',
+        scoreShort: '分',
         bridgeShort: '桥',
         windowCounts: '首字 {ttft}/{n} · 成功 {ok}/{n}',
         ttftHint:
@@ -4823,7 +4867,15 @@ const zhBase = {
           '最近 N 条调度成功率 = 成功次数 / (成功 + 非桥接失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens、Claude→GPT 桥接失败，以及客户端/路由的模型不存在或不受支持）。上游 429/502/503 仍计入。无样本显示 —。',
         tooltip: '最近 {n} 条 · 成功 {success} · 失败 {error} · 首字 {ttftSamples}/{n}',
         failoverTooltip:
-          '最近 {n} 条 · 含 failover/Recovered 对照正确率（1 − 对照错误率）· 对照失败 {error} · 不进调度',
+          '最近 {n} 条 · 含 failover/Recovered 正确率（1 − 对照错误率）· 对照失败 {error} · 不进调度',
+        displayRateTooltip:
+          '最近 {minutes} 分钟含 failover/Recovered 正确率 · 成功 {success} · 失败 {error}。计算方式在系统设置里改。调度门槛仍用原来的 last-N。',
+        displayRateCountTooltip:
+          '最近 {count} 条含 failover/Recovered 正确率 · 成功 {success} · 失败 {error}。计算方式在系统设置里改。调度门槛仍用原来的 last-N。',
+        durationTooltip:
+          '最近 {n} 条成功请求的总耗时 · 样本 {samples}/{n} · p50 {p50}ms · p95 {p95}ms · 只展示，不进调度',
+        scoreTooltip:
+          '调度基础分 {score}。优先级 {priority}，负载 {load}，排队 {queue}，错误率 {error}（EWMA {errorRate}%），首字 {ttft}（EWMA {ttftMs}ms），重置 {reset}，额度 {quota}。命中粘性时另加 previous {previous} 或 session {session}，不计入这一行。这是当前分组可调度池的相对分，不含本次请求的模型过滤和排除。',
         bridgeTooltip: '最近 {n} 条 · 桥接成功 {success} · 桥接失败 {error}（不进调度）',
         ttftTooltip:
           '最近 {n} 条 · 样本 {samples}/{n} · p50 {p50}ms · p95 {p95}ms · 均值 {avg}ms · 最大 {max}ms'
@@ -7814,6 +7866,10 @@ const zhBase = {
     settings: {
       title: '系统设置',
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
+      searchPlaceholder: '搜索设置，例如成功率、硬关闭',
+      searchCount: '找到 {n} 项',
+      searchAcrossTabs: '分布在 {n} 个选项卡',
+      searchEmpty: '没有匹配的设置',
       tabs: {
         general: '通用设置',
         features: '功能开关',
@@ -7824,6 +7880,8 @@ const zhBase = {
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+        errorPolicy: '错误管理',
+        inflightReservation: '额度预检',
       },
       displayLayer: {
         title: '展示 Token 放大',
@@ -8784,6 +8842,13 @@ const zhBase = {
         minTtftSamples: '最小首字样本',
         windowN: '账号质量窗口 N',
         windowNHint: '账号列表与硬关闭共用最近 N 条。范围 1–100，默认 20。不是智能调度配对质量的 N。',
+        displayRateMode: '成功率计算方式',
+        displayRateModeMinutes: '最近 X 分钟',
+        displayRateModeCount: '最近 X 条',
+        displayRateModeHint: '质量格上的含 failover 正确率用哪一种窗口。下面两个数字都保存，格子只用当前选中的那种。不改变硬关闭和调度用的 last-N。',
+        displayRateMinutes: '成功率分钟数',
+        displayRateCount: '成功率条数',
+        displayRateMinutesHint: '范围 1–60，默认 5。',
         condition: '判定条件',
         conditionOr: '或：任一已判定指标越界即停',
         conditionAnd: '与：所有已判定指标同时越界才停',

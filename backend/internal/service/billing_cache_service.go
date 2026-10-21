@@ -111,6 +111,7 @@ type BillingCacheService struct {
 	userRPMCache          UserRPMCache
 	userGroupRateRepo     UserGroupRateRepository
 	cfg                   *config.Config
+	settingService        *SettingService
 	circuitBreaker        *billingCircuitBreaker
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 
@@ -158,6 +159,15 @@ func NewBillingCacheService(
 	svc.circuitBreaker = newBillingCircuitBreaker(cfg.Billing.CircuitBreaker)
 	svc.startCacheWriteWorkers()
 	return svc
+}
+
+// SetSettingService connects the live balance-precheck rule. Nil keeps the
+// startup config.
+func (s *BillingCacheService) SetSettingService(settings *SettingService) {
+	if s == nil {
+		return
+	}
+	s.settingService = settings
 }
 
 // Stop 关闭缓存写入工作池

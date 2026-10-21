@@ -212,7 +212,7 @@ describe('admin AccountsView scheduler score column', () => {
     await flushPromises()
 
     expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      include_scheduler_score: '0'
+      include_scheduler_score: '1'
     }))
 
     const ungroupedCell = wrapper.find('[data-test="scheduler-score-1"]')
@@ -239,15 +239,37 @@ describe('admin AccountsView scheduler score column', () => {
     await flushPromises()
 
     expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      include_scheduler_score: '0'
+      include_scheduler_score: '1'
     }))
     expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).toContain('scheduler_score')
+  })
+
+  it('requests scheduler scores when the list is filtered to one group even if the column stays hidden', async () => {
+    localStorage.setItem(
+      'account-list-filters',
+      JSON.stringify({
+        platform: 'openai',
+        type: '',
+        status: '',
+        privacy_mode: '',
+        group: '5',
+        search: ''
+      })
+    )
+
+    mountView()
+    await flushPromises()
+
+    expect(listAccounts.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
+      include_scheduler_score: '1',
+      group: '5'
+    }))
   })
 
   it('requests scheduler scores when the migrated column settings explicitly show the column', async () => {
     // Version already current → no force-hide migration; admin left scheduler_score visible.
     localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
-    localStorage.setItem('account-hidden-columns-version', 'quality-stability-entry-v1')
+    localStorage.setItem('account-hidden-columns-version', 'account-column-merge-v1')
 
     mountView()
     await flushPromises()

@@ -1,3 +1,124 @@
+## 2026-10-21 - admin: settings search covers every tab
+
+### What
+- Settings search indexes every tab, including backup, error policy, and balance precheck. A tab with no card yet still matches its own title and intro.
+- Matches on more than one tab stay in a list under the search box. Each row names the tab and the card. Choosing a row opens that tab and scrolls to the card. Tab buttons show a count and scroll into view.
+
+### Why
+Later tabs were off the tab strip, and a match on the current tab hid the other tabs' hits.
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: balance precheck and error policy are settings tabs
+
+### What
+- 额度预检 and 错误管理 are tabs on 系统设置. They are no longer sidebar entries.
+- `/admin/error-policy` and `/admin/inflight-reservation` open the matching settings tab.
+
+### Why
+These controls belong with the other system settings, each on its own tab.
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`, `frontend/src/views/admin/InflightReservationView.vue`, `frontend/src/components/layout/AppSidebar.vue`, `frontend/src/router/index.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: balance precheck is editable without a restart
+
+### What
+- Admin → 额度预检 (`/admin/inflight-reservation`) stores the in-flight hold switch, input rule, and parameters in settings key `billing_inflight_reservation`.
+- A save applies on the next request. Startup `billing.inflight_reservation` remains the fallback until the first save. Holds already in Redis keep their amount.
+- Input rule `full` prices every estimated input token at the input price. `cache_tail` prices the first N at the input price and the rest at the cache-read price. `max_reservation_amount` 0 means no per-request cap.
+
+### Why
+The hold size was a process-start config. Changing it required replacing the live process and cutting streams. Operators need to tune the kimi-style over-estimate without that cutover.
+
+### Affected files
+`backend/internal/service/billing_inflight_settings.go`, `backend/internal/service/billing_inflight_reservation.go`, `backend/internal/handler/admin/inflight_reservation_handler.go`, `backend/internal/server/routes/admin.go`, `frontend/src/views/admin/InflightReservationView.vue`, `frontend/src/router/index.ts`, `frontend/src/components/layout/AppSidebar.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/billing.md`, this changelog.
+
+## 2026-10-21 - admin: search system settings
+
+### What
+- The system settings page has a search box above the tabs. It matches card text and placeholders across every tab, hides the rest, switches to the first tab that still has a match, and scrolls that card into view. Clearing the box shows every card again and stays on that tab. Enter in the search box does not save settings.
+
+### Why
+The settings page is long enough that operators could not find a control such as the success-rate window.
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: choose success-rate window by count or minutes
+
+### What
+- System settings can set the quality-cell success rate to the last X minutes or the last X requests. Default remains the last 5 minutes. Range is 1–60 minutes or 1–1000 requests.
+- Hard-close and the OpenAI scheduler score do not read this window.
+
+### Why
+Operators need both a time window and a request window, and they need to know the scheduler score is a separate EWMA.
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`, `backend/internal/service/account_quality_hard_close.go`, `backend/internal/service/account_quality_maintenance.go`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: success-rate window defaults to 5 minutes and is configurable
+
+### What
+- The quality-cell success rate defaults to the last 5 minutes.
+- System settings → quality hard-close has “成功率分钟数”, range 1–60. Saving it changes the cell on the next stats load. Hard-close and scheduling still use last-N.
+
+### Why
+Five minutes is the useful default. Operators need to lengthen or shorten it without a deploy.
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`, `backend/internal/service/account_quality_hard_close.go`, `backend/internal/service/account_quality_maintenance.go`, `backend/internal/handler/admin/account_handler.go`, `backend/internal/handler/admin/user_handler.go`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/api/admin/settings.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: quality cell success rate uses 15 minutes
+
+### What
+- The quality cell shows the failover-inclusive success rate again. First token and K/C stay hidden.
+- That rate is the last 15 minutes of successes and recovered failures, not the short last-N window (10 or 20). Hard-close and scheduling still read last-N.
+
+### Why
+A last-10 or last-20 rate turns over in seconds when an account is busy, so the number on the cell was not a useful read.
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`, `backend/internal/service/account_quality.go`, `backend/internal/repository/account_quality_last_n_cache.go`, `frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/utils/accountQualityStats.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: show the ordinary pool scheduler score on the quality cell
+
+### What
+- The account-list quality cell hides first-token, success rate, sample counts, and K/C for now. It keeps total duration.
+- OpenAI accounts on that list always show the ordinary pool base score, one line per group. The advanced-scheduler switch and the single-group filter no longer hide it. Ungrouped accounts use the full ungrouped schedulable pool. User quality cells do not show this score.
+
+### Why
+The score was easy to miss: it required the advanced scheduler to be on and the list to be filtered to one group. The other rows were taking the space operators wanted for the pool score.
+
+### Affected files
+`frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/views/admin/AccountsView.vue`, `backend/internal/handler/admin/account_handler.go`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: compress the quality cell latency lines
+
+### What
+- The quality cell shows first-token p50/p95 on one line and total duration p50/p95 on the next, as seconds. p50 keeps one decimal. p95 rounds to a whole second.
+- Those numbers use the same color bands as usage-log latency: first token is green under 10s, total duration is green under 60s.
+
+### Why
+Four stacked millisecond rows made the account and user lists too tall, and the old 1.5s/3s colors did not match the usage log.
+
+### Affected files
+`frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-21 - admin: quality cell total duration and scheduler score
+
+### What
+- Account and user quality cells show last-N total-duration p50 and p95. Stream and non-stream successes share that one series. It is display-only and does not feed the non-stream duration gate.
+- The cell and the stability dialogs no longer show the success rate that excludes failover. The remaining rate includes Recovered hops and still does not change scheduling.
+- On the account list, an OpenAI quality cell shows that group’s base scheduler score when exactly one group, or ungrouped, is selected and advanced scheduling is on. The score uses the same factors as selection, including in-process error-rate and first-token EWMA.
+
+### Why
+Operators could see first-token percentiles but not total time, and the no-failover success rate no longer matched how they read an account. The hidden scheduler-score column used constant error and first-token factors, so it was not the score selection actually computes.
+
+### Affected files
+`backend/internal/service/account_quality_last_n.go`, `backend/internal/service/account_quality.go`, `backend/internal/service/openai_account_scheduler.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/ratelimit_service.go`, `backend/internal/service/setting_service.go`, `backend/internal/repository/account_quality_last_n_cache.go`, `backend/internal/handler/admin/account_handler.go`, `frontend/src/components/account/AccountQualityCell.vue`, `frontend/src/components/account/AccountStabilityDialog.vue`, `frontend/src/components/admin/user/UserQualityDialog.vue`, `frontend/src/views/admin/AccountsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-21 - admin: keep the user burn-rate total on phone cards
 
 ### What

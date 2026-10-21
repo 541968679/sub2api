@@ -210,27 +210,30 @@ func InflightReservationFromContext(ctx context.Context) *InflightReservation {
 
 func noopRelease() {}
 
-func (s *BillingCacheService) inflightReservationConfig() (config.InflightReservationConfig, bool) {
-	if s == nil || s.cfg == nil {
-		return config.InflightReservationConfig{}, false
+func (s *BillingCacheService) inflightReservationSettings(ctx context.Context) (InflightReservationSettings, bool) {
+	if s == nil {
+		return InflightReservationSettings{}, false
 	}
-	cfg := s.cfg.Billing.InflightReservation
-	if !cfg.Enabled || s.cfg.RunMode == config.RunModeSimple {
-		return cfg, false
+	settings := InflightReservationSettingsFromConfig(s.cfg)
+	if s.settingService != nil {
+		settings = s.settingService.GetInflightReservationSettings(ctx)
 	}
-	return cfg, true
+	if !settings.Enabled || (s.cfg != nil && s.cfg.RunMode == config.RunModeSimple) {
+		return settings, false
+	}
+	return settings, true
 }
 
 // InflightReservationEnabled 是否启用余额在途预留。
-func (s *BillingCacheService) InflightReservationEnabled() bool {
-	_, ok := s.inflightReservationConfig()
+func (s *BillingCacheService) InflightReservationEnabled(ctx context.Context) bool {
+	_, ok := s.inflightReservationSettings(ctx)
 	return ok
 }
 
 // InflightReservationFailClosedOnUnpriced 无法估算费用时是否拒绝请求（默认 false = fail-open）。
-func (s *BillingCacheService) InflightReservationFailClosedOnUnpriced() bool {
-	cfg, ok := s.inflightReservationConfig()
-	return ok && cfg.FailClosedOnUnpriced
+func (s *BillingCacheService) InflightReservationFailClosedOnUnpriced(ctx context.Context) bool {
+	settings, ok := s.inflightReservationSettings(ctx)
+	return ok && settings.FailClosedOnUnpriced
 }
 
 // ReserveInflightBalance 简化封装：返回释放函数，不续期、不做计费交接（预留最长存活 TTL）。
@@ -269,7 +272,7 @@ func inflightAPIKeyScope(apiKeyID int64) string {
 // reserveInflightScope 在 scope 维度为 amount 登记在途预留并挂到 res 上（res 为 nil 时新建句柄），
 // 返回句柄与登记前该 scope 下其他在途预留的合计。开关关闭 / 缓存不支持 / Redis 执行失败时不登记（fail-open），合计按 0。
 func (s *BillingCacheService) reserveInflightScope(ctx context.Context, res *InflightReservation, userID int64, scope string, amount float64) (*InflightReservation, float64) {
-	cfg, ok := s.inflightReservationConfig()
+	settings, ok := s.inflightReservationSettings(ctx)
 	if !ok {
 		return res, 0
 	}
@@ -279,8 +282,8 @@ func (s *BillingCacheService) reserveInflightScope(ctx context.Context, res *Inf
 	}
 	if res == nil {
 		ttl := defaultInflightReservationTTL
-		if cfg.TTLSeconds > 0 {
-			ttl = time.Duration(cfg.TTLSeconds) * time.Second
+		if settings.TTLSeconds > 0 {
+			ttl = time.Duration(settings.TTLSeconds) * time.Second
 		}
 		res = &InflightReservation{userID: userID, requestID: uuid.NewString(), amount: amount, ttl: ttl}
 		res.refs.Store(1)
@@ -298,15 +301,15 @@ func (s *BillingCacheService) reserveInflightScope(ctx context.Context, res *Inf
 }
 
 func (s *BillingCacheService) reserveInflight(ctx context.Context, user *User, group *Group, subscription *UserSubscription, estimate float64, renew, capped bool) (*InflightReservation, error) {
-	cfg, ok := s.inflightReservationConfig()
+	settings, ok := s.inflightReservationSettings(ctx)
 	if !ok || user == nil {
 		return nil, nil
 	}
 	if group != nil && group.IsSubscriptionType() && subscription != nil {
 		return nil, nil
 	}
-	if capped && cfg.MaxReservationUSD > 0 && estimate > cfg.MaxReservationUSD {
-		estimate = cfg.MaxReservationUSD
+	if capped {
+		estimate = capInflightReservation(estimate, settings.MaxReservationAmount)
 	}
 	if estimate <= 0 || math.IsNaN(estimate) || math.IsInf(estimate, 0) {
 		return nil, nil
@@ -323,8 +326,8 @@ func (s *BillingCacheService) reserveInflight(ctx context.Context, user *User, g
 	}
 
 	ttl := defaultInflightReservationTTL
-	if cfg.TTLSeconds > 0 {
-		ttl = time.Duration(cfg.TTLSeconds) * time.Second
+	if settings.TTLSeconds > 0 {
+		ttl = time.Duration(settings.TTLSeconds) * time.Second
 	}
 	requestID := uuid.NewString()
 	reserveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), inflightReservationReserveTimeout)
@@ -398,6 +401,7 @@ type inflightEstimateDeps struct {
 	// 仅在首选/渠道候选均无法定价（或 composite 分组）时才调用；实现只读调度器快照，
 	// 不在请求路径上直接查库，也不按模型名缓存（内存不随请求模型名增长）。
 	accountMappedModels func(ctx context.Context, apiKey *APIKey, model string) []string
+	reservationSettings func(ctx context.Context) InflightReservationSettings
 }
 
 // inflightSnapshotLister 调度器快照读取（与账号选择同源：Redis 快照，未命中时由快照服务自身回源并回填）。
@@ -502,23 +506,27 @@ func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, 
 	return computePeakAwareMultipliers(apiKey, rate, timezone.Now())
 }
 
-func tokenCounts(cfg config.InflightReservationConfig, bodyBytes, maxTokens int) (int, int) {
+func tokenCounts(settings InflightReservationSettings, bodyBytes, maxTokens int) (int, int) {
+	bytesPerToken := settings.BytesPerToken
+	if bytesPerToken <= 0 {
+		bytesPerToken = inflightInputBytesPerTokenEstimate
+	}
 	inputTokens := 0
 	if bodyBytes > 0 {
-		inputTokens = bodyBytes / inflightInputBytesPerTokenEstimate
+		inputTokens = bodyBytes / bytesPerToken
 	}
-	if cfg.MaxInputTokens > 0 && inputTokens > cfg.MaxInputTokens {
-		inputTokens = cfg.MaxInputTokens
+	if settings.MaxInputTokens > 0 && inputTokens > settings.MaxInputTokens {
+		inputTokens = settings.MaxInputTokens
 	}
 	outputTokens := maxTokens
 	if outputTokens <= 0 {
-		outputTokens = cfg.DefaultMaxTokens
+		outputTokens = settings.DefaultMaxTokens
 		if outputTokens <= 0 {
 			outputTokens = defaultInflightDefaultMaxTokens
 		}
 	}
-	if cfg.MaxOutputTokens > 0 && outputTokens > cfg.MaxOutputTokens {
-		outputTokens = cfg.MaxOutputTokens
+	if settings.MaxOutputTokens > 0 && outputTokens > settings.MaxOutputTokens {
+		outputTokens = settings.MaxOutputTokens
 	}
 	return inputTokens, outputTokens
 }
@@ -539,8 +547,7 @@ func maxPerRequestPrice(resolved *ResolvedPricing) float64 {
 func validCost(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 // estimateOne 估算单个候选计费模型（未乘倍率的 token 部分与按次部分分开返回，便于套用不同倍率）。
-func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, model string, req InflightEstimateRequest, textRate, imageRate float64) float64 {
-	cfg := inflightReservationCfg(d.cfg)
+func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, model string, req InflightEstimateRequest, textRate, imageRate float64, settings InflightReservationSettings) float64 {
 	units := req.Units
 	if units <= 0 {
 		units = 1
@@ -557,7 +564,7 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 		resolved = d.resolver.Resolve(ctx, in)
 	}
 
-	inputTokens, outputTokens := tokenCounts(cfg, req.BodyBytes, req.MaxTokens)
+	inputTokens, outputTokens := tokenCounts(settings, req.BodyBytes, req.MaxTokens)
 	tokenCost := func() float64 {
 		var pricing *ModelPricing
 		if resolved != nil && (resolved.Mode == BillingModeToken || resolved.Mode == "") && d.resolver != nil {
@@ -569,7 +576,7 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 		if pricing == nil {
 			return 0
 		}
-		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate
+		return inflightTokenCost(pricing, settings, inputTokens, outputTokens, textRate)
 	}
 
 	var cost float64
@@ -643,6 +650,10 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 		return 0, true
 	}
 	textRate, imageRate := d.rates(ctx, apiKey)
+	settings := InflightReservationSettingsFromConfig(d.cfg)
+	if d.reservationSettings != nil {
+		settings = d.reservationSettings(ctx)
+	}
 	if textRate <= 0 && imageRate <= 0 {
 		// 免费分组：不计费，也无需预留。
 		return 0, true
@@ -651,7 +662,7 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 	bestOf := func(models []string) float64 {
 		best := 0.0
 		for _, m := range models {
-			if c := d.estimateOne(ctx, apiKey, m, req, textRate, imageRate); c > best {
+			if c := d.estimateOne(ctx, apiKey, m, req, textRate, imageRate, settings); c > best {
 				best = c
 			}
 		}
@@ -682,12 +693,12 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 
 // EstimateInflightReservationCost 仅用基础定价的简化估算（保留给无 resolver 的调用方/测试）。
 //
-//	input_tokens  = min(bodyBytes / 4, max_input_tokens)
+//	input_tokens  = min(bodyBytes / bytes_per_token, max_input_tokens)
 //	output_tokens = min(max_tokens 或 default_max_tokens, max_output_tokens)
-//	cost = (input_tokens × 输入单价 + output_tokens × 输出单价) × rateMultiplier
+//	全文输入价，或前 N 个输入价、其余缓存价，再乘倍率。
 //
 // 无法取得定价时返回 (0, false)，调用方应 fail-open。
-func EstimateInflightReservationCost(billing *BillingService, cfg config.InflightReservationConfig, model string, bodyBytes, maxTokens int, rateMultiplier float64) (float64, bool) {
+func EstimateInflightReservationCost(billing *BillingService, settings InflightReservationSettings, model string, bodyBytes, maxTokens int, rateMultiplier float64) (float64, bool) {
 	if billing == nil || model == "" || rateMultiplier <= 0 {
 		return 0, false
 	}
@@ -695,23 +706,20 @@ func EstimateInflightReservationCost(billing *BillingService, cfg config.Infligh
 	if err != nil || pricing == nil {
 		return 0, false
 	}
-	inputTokens, outputTokens := tokenCounts(cfg, bodyBytes, maxTokens)
-	cost := (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * rateMultiplier
+	inputTokens, outputTokens := tokenCounts(settings, bodyBytes, maxTokens)
+	cost := inflightTokenCost(pricing, settings, inputTokens, outputTokens, rateMultiplier)
 	if !validCost(cost) {
 		return 0, false
 	}
 	return cost, true
 }
 
-func inflightReservationCfg(cfg *config.Config) config.InflightReservationConfig {
-	if cfg == nil {
-		return config.InflightReservationConfig{}
-	}
-	return cfg.Billing.InflightReservation
-}
-
 func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d := inflightEstimateDeps{cfg: s.cfg, billing: s.billingService, resolver: s.resolver}
+	if s.settingService != nil {
+		settings := s.settingService
+		d.reservationSettings = settings.GetInflightReservationSettings
+	}
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
 	}
@@ -744,6 +752,10 @@ func (s *GatewayService) EstimateInflightReservation(ctx context.Context, apiKey
 
 func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d := inflightEstimateDeps{cfg: s.cfg, billing: s.billingService, resolver: s.resolver}
+	if s.settingService != nil {
+		settings := s.settingService
+		d.reservationSettings = settings.GetInflightReservationSettings
+	}
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
 	}

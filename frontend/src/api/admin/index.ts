@@ -36,6 +36,7 @@ import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import distributionAdminAPI from './distribution'
 import riskControlAPI from './riskControl'
+import inflightReservationAPI from './inflightReservation'
 import pluginsAPI from './plugins'
 
 /**
@@ -75,6 +76,7 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   distribution: distributionAdminAPI,
   riskControl: riskControlAPI,
+  inflightReservation: inflightReservationAPI,
   plugins: pluginsAPI
 }
 
@@ -112,6 +114,7 @@ export {
   affiliatesAPI,
   distributionAdminAPI,
   riskControlAPI,
+  inflightReservationAPI,
   pluginsAPI
 }
 

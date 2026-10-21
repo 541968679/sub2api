@@ -44,28 +44,34 @@ type QualityHardCloseSettings struct {
 	MinTTFTSamples    int      `json:"min_ttft_samples"`
 	// AccountQualityWindowN is the site-wide last-N window for Q_a.
 	// GET echoes this value into min_success_samples / min_ttft_samples.
-	AccountQualityWindowN *int `json:"account_quality_window_n,omitempty"`
-	WindowN               *int `json:"window_n,omitempty"`
-	N                     *int `json:"n,omitempty"`
+	AccountQualityWindowN *int   `json:"account_quality_window_n,omitempty"`
+	WindowN               *int   `json:"window_n,omitempty"`
+	N                     *int   `json:"n,omitempty"`
 	Condition             string `json:"condition"`
 	// ScheduleUseFailoverErrorRate, when true, uses the Recovered-inclusive
 	// account error caliber as ErrorCount for hard-close and smart-schedule.
 	// Default false: keep the current client status>=400 caliber.
 	ScheduleUseFailoverErrorRate bool `json:"schedule_use_failover_error_rate"`
+	// DisplayRateMode is "minutes" or "count" for the quality-cell success rate.
+	// The matching window is DisplayRateWindowMinutes or DisplayRateWindowCount.
+	// Neither changes the last-N window used by hard-close or scheduling.
+	DisplayRateMode          string `json:"display_rate_mode"`
+	DisplayRateWindowMinutes int    `json:"display_rate_window_minutes"`
+	DisplayRateWindowCount   int    `json:"display_rate_window_count"`
 }
 
 // AccountQualityHardCloseOverlay is stored in extra.quality_hard_close.
 // Missing use_global defaults to true.
 type AccountQualityHardCloseOverlay struct {
-	Enabled           bool     `json:"enabled"`
-	UseGlobal         bool     `json:"use_global"`
-	MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
-	MinSuccessRate    *float64 `json:"min_success_rate"`
-	PauseMinutes      *int     `json:"pause_minutes"`
-	MinSuccessSamples *int     `json:"min_success_samples"`
-	MinTTFTSamples    *int     `json:"min_ttft_samples"`
-	AccountQualityWindowN *int `json:"account_quality_window_n,omitempty"`
-	Condition         *string  `json:"condition"`
+	Enabled               bool     `json:"enabled"`
+	UseGlobal             bool     `json:"use_global"`
+	MaxP50TTFTMs          *int     `json:"max_p50_ttft_ms"`
+	MinSuccessRate        *float64 `json:"min_success_rate"`
+	PauseMinutes          *int     `json:"pause_minutes"`
+	MinSuccessSamples     *int     `json:"min_success_samples"`
+	MinTTFTSamples        *int     `json:"min_ttft_samples"`
+	AccountQualityWindowN *int     `json:"account_quality_window_n,omitempty"`
+	Condition             *string  `json:"condition"`
 }
 
 // AccountQualityHardCloseView is the admin GET/PUT account response.
@@ -77,15 +83,15 @@ type AccountQualityHardCloseView struct {
 
 func (o *AccountQualityHardCloseOverlay) UnmarshalJSON(data []byte) error {
 	aux := struct {
-		Enabled           bool     `json:"enabled"`
-		UseGlobal         *bool    `json:"use_global"`
-		MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
-		MinSuccessRate    *float64 `json:"min_success_rate"`
-		PauseMinutes      *int     `json:"pause_minutes"`
-		MinSuccessSamples *int     `json:"min_success_samples"`
-		MinTTFTSamples    *int     `json:"min_ttft_samples"`
-		AccountQualityWindowN *int `json:"account_quality_window_n"`
-		Condition         *string  `json:"condition"`
+		Enabled               bool     `json:"enabled"`
+		UseGlobal             *bool    `json:"use_global"`
+		MaxP50TTFTMs          *int     `json:"max_p50_ttft_ms"`
+		MinSuccessRate        *float64 `json:"min_success_rate"`
+		PauseMinutes          *int     `json:"pause_minutes"`
+		MinSuccessSamples     *int     `json:"min_success_samples"`
+		MinTTFTSamples        *int     `json:"min_ttft_samples"`
+		AccountQualityWindowN *int     `json:"account_quality_window_n"`
+		Condition             *string  `json:"condition"`
 	}{}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -107,13 +113,16 @@ func DefaultQualityHardCloseSettings() *QualityHardCloseSettings {
 	p50 := DefaultQualityHardCloseMaxP50TTFTMs
 	rate := DefaultQualityHardCloseMinSuccessRate
 	settings := &QualityHardCloseSettings{
-		Enabled:           false,
-		MaxP50TTFTMs:      &p50,
-		MinSuccessRate:    &rate,
-		PauseMinutes:      DefaultQualityHardClosePauseMinutes,
-		MinSuccessSamples: DefaultQualityHardCloseMinSuccessSamples,
-		MinTTFTSamples:    DefaultQualityHardCloseMinTTFTSamples,
-		Condition:         QualityHardCloseConditionOr,
+		Enabled:                  false,
+		MaxP50TTFTMs:             &p50,
+		MinSuccessRate:           &rate,
+		PauseMinutes:             DefaultQualityHardClosePauseMinutes,
+		MinSuccessSamples:        DefaultQualityHardCloseMinSuccessSamples,
+		MinTTFTSamples:           DefaultQualityHardCloseMinTTFTSamples,
+		Condition:                QualityHardCloseConditionOr,
+		DisplayRateMode:          DisplayRateModeMinutes,
+		DisplayRateWindowMinutes: DefaultAccountQualityDisplayRateMinutes,
+		DisplayRateWindowCount:   DefaultAccountQualityDisplayRateCount,
 	}
 	echoQualityHardCloseWindowN(settings)
 	return settings
@@ -213,6 +222,24 @@ func normalizeQualityHardCloseSettings(settings *QualityHardCloseSettings) {
 	if settings.MinSuccessRate != nil && (*settings.MinSuccessRate <= 0 || *settings.MinSuccessRate > 1) {
 		settings.MinSuccessRate = nil
 	}
+	switch strings.ToLower(strings.TrimSpace(settings.DisplayRateMode)) {
+	case DisplayRateModeCount:
+		settings.DisplayRateMode = DisplayRateModeCount
+	default:
+		settings.DisplayRateMode = DisplayRateModeMinutes
+	}
+	if settings.DisplayRateWindowMinutes < MinAccountQualityDisplayRateMinutes {
+		settings.DisplayRateWindowMinutes = DefaultAccountQualityDisplayRateMinutes
+	}
+	if settings.DisplayRateWindowMinutes > MaxAccountQualityDisplayRateMinutes {
+		settings.DisplayRateWindowMinutes = MaxAccountQualityDisplayRateMinutes
+	}
+	if settings.DisplayRateWindowCount < MinAccountQualityDisplayRateCount {
+		settings.DisplayRateWindowCount = DefaultAccountQualityDisplayRateCount
+	}
+	if settings.DisplayRateWindowCount > MaxAccountQualityDisplayRateCount {
+		settings.DisplayRateWindowCount = MaxAccountQualityDisplayRateCount
+	}
 	echoQualityHardCloseWindowN(settings)
 }
 
@@ -244,7 +271,7 @@ func (s *SettingService) SetQualityHardCloseSettings(ctx context.Context, settin
 	if s == nil || s.settingRepo == nil {
 		return fmt.Errorf("settings service not ready")
 	}
-	echoQualityHardCloseWindowN(settings)
+	normalizeQualityHardCloseSettings(settings)
 	if err := ValidateQualityHardCloseSettings(settings); err != nil {
 		return err
 	}

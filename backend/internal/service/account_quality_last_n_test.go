@@ -4,6 +4,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,76 @@ func TestNormalizeAccountQualityWindowN(t *testing.T) {
 	require.Equal(t, 8, NormalizeAccountQualityWindowN(nil, nil, intPtr(8)))
 	require.Equal(t, 1, NormalizeAccountQualityWindowN(intPtr(0), nil, nil))
 	require.Equal(t, 100, NormalizeAccountQualityWindowN(intPtr(250), nil, nil))
+}
+
+func TestApplyAccountQualityLastNIngest_TotalDurationIncludesStreams(t *testing.T) {
+	t.Parallel()
+	ttft := 40
+	duration := 8000
+	live := ApplyAccountQualityLastNIngest(nil, 4, true, &ttft, &duration)
+	require.Equal(t, []int{40}, live.TTFTMs)
+	require.Empty(t, live.DurationMs)
+	require.Equal(t, []int{8000}, live.TotalDurationMs)
+	require.NotNil(t, live.P50TotalDurationMs)
+	require.Equal(t, 8000, *live.P50TotalDurationMs)
+	require.NotNil(t, live.P95TotalDurationMs)
+	require.Equal(t, 8000, *live.P95TotalDurationMs)
+
+	syncDuration := 1200
+	live = ApplyAccountQualityLastNIngest(live, 4, true, nil, &syncDuration)
+	require.Equal(t, []int{1200}, live.DurationMs)
+	require.Equal(t, []int{8000, 1200}, live.TotalDurationMs)
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(2), stats.DurationSamples)
+	require.NotNil(t, stats.P50DurationMs)
+	require.NotNil(t, stats.P95DurationMs)
+	require.Equal(t, *live.P50TotalDurationMs, *stats.P50DurationMs)
+	require.Equal(t, *live.P95TotalDurationMs, *stats.P95DurationMs)
+}
+
+func TestDisplayRateUsesFifteenMinutesNotLastN(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	live := applyAccountQualityLastNIngestAt(nil, 10, LastNOutcomeSuccess, intPtr(100), intPtr(2000), now)
+	for i := 0; i < 9; i++ {
+		live = applyAccountQualityLastNIngestAt(live, 10, LastNOutcomeTerminal, nil, nil, now)
+	}
+	require.Equal(t, 10, live.OKCount)
+	require.Equal(t, int64(1), live.ToAccountQualityStats().SuccessCount)
+
+	live.RateBuckets = []AccountQualityRateBucket{
+		{Minute: now.Add(-8*time.Minute).Unix() / 60, Success: 100},
+		{Minute: now.Add(-3*time.Minute).Unix() / 60, Success: 40, Terminal: 10},
+		{Minute: now.Unix() / 60, Success: 50},
+	}
+	stats := live.ToAccountQualityStats()
+	require.Equal(t, int64(1), stats.SuccessCount)
+	require.Equal(t, int64(90), stats.DisplaySuccessCount)
+	require.Equal(t, int64(10), stats.DisplayFailoverErrorCount)
+	require.Equal(t, DefaultAccountQualityDisplayRateMinutes*60, stats.DisplayRateWindowSeconds)
+
+	attachDisplayRate(stats, live, now, AccountQualityDisplayRateSpec{Mode: DisplayRateModeMinutes, Minutes: 15, Count: 100})
+	require.Equal(t, int64(190), stats.DisplaySuccessCount)
+	require.Equal(t, int64(10), stats.DisplayFailoverErrorCount)
+	require.Equal(t, 15*60, stats.DisplayRateWindowSeconds)
+}
+
+func TestDisplayRateCountUsesTailNotGateWindow(t *testing.T) {
+	t.Parallel()
+	live := &AccountQualityLastN{
+		N:               2,
+		Outcomes:        []uint8{LastNOutcomeSuccess, LastNOutcomeSuccess},
+		DisplayOutcomes: []uint8{LastNOutcomeSuccess, LastNOutcomeSuccess, LastNOutcomeTerminal, LastNOutcomeTerminal, LastNOutcomeRecovered},
+	}
+	stats := &AccountQualityStats{}
+	attachDisplayRate(stats, live, time.Now().UTC(), AccountQualityDisplayRateSpec{
+		Mode: DisplayRateModeCount, Minutes: 5, Count: 3,
+	})
+	require.Equal(t, int64(0), stats.DisplaySuccessCount)
+	require.Equal(t, int64(3), stats.DisplayFailoverErrorCount)
+	require.Equal(t, DisplayRateModeCount, stats.DisplayRateMode)
+	require.Equal(t, 3, stats.DisplayRateWindowCount)
+	require.Equal(t, int64(0), stats.SuccessCount)
 }
 
 func TestApplyAccountQualityLastNIngest_Rules(t *testing.T) {

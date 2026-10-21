@@ -393,6 +393,7 @@ const enBase = {
     distributionManagement: 'Distribution',
     ops: 'Ops',
     errorPolicy: 'Error policy',
+    inflightReservation: 'Balance precheck',
     promoCodes: 'Promo Codes',
     settings: 'Settings',
     myAccount: 'My Account',
@@ -1977,6 +1978,44 @@ const enBase = {
 
   // Admin
   admin: {
+    inflightReservation: {
+      title: 'Balance precheck',
+      description: 'Switch, estimate rule, and parameters for balance-mode in-flight holds. A save applies on the next request. Holds already taken keep their amount until the request ends or the hold expires.',
+      sourceConfig: 'This process is still using the startup config. The first save overrides it.',
+      sourceSettings: 'This process is using the rule saved in admin.',
+      simpleMode: 'Simple mode does not bill, so this switch does not reject requests.',
+      enabled: 'Enable balance precheck',
+      enabledHint: 'When off, requests skip the in-flight hold and keep only the balance floor check.',
+      inputPricing: 'Input estimate rule',
+      pricingFull: 'Price all estimated input tokens at the input price',
+      pricingCacheTail: 'Price the first slice at the input price and the rest at the cache price',
+      fullPriceTokens: 'Tokens priced at the input price',
+      bytesPerToken: 'Body bytes per estimated token',
+      defaultMaxTokens: 'Output tokens when max_tokens is absent',
+      defaultMaxTokensHint: 'A request that sends max_tokens uses that value, then the output cap.',
+      maxOutputTokens: 'Output token cap',
+      maxInputTokens: 'Input token cap',
+      maxReservation: 'Per-request hold cap',
+      maxReservationHint: 'Same currency as the user balance. 0 means no cap.',
+      ttl: 'Hold lifetime (seconds)',
+      failClosed: 'Reject requests that cannot be priced',
+      failClosedHint: 'When off, an unpriced request is admitted and does not take a hold.',
+      previewTitle: 'Preview the form',
+      previewHint: 'Prices are per million tokens and stay on this form. They do not read the live price table.',
+      previewBodyBytes: 'Request body bytes',
+      previewMaxTokens: 'Request max_tokens (0 means absent)',
+      previewInputPrice: 'Input price / million tokens',
+      previewCachePrice: 'Cache price / million tokens',
+      previewOutputPrice: 'Output price / million tokens',
+      previewRate: 'Group rate',
+      previewResult: 'Estimated input {input}, output {output}, hold {amount}{capped}',
+      previewCapped: ' (capped)',
+      save: 'Save',
+      saving: 'Saving…',
+      saved: 'Saved. The next request uses this rule.',
+      loadFailed: 'Failed to load the balance precheck',
+      saveFailed: 'Failed to save the balance precheck',
+    },
     // Recharge Config
     distribution: {
       title: 'Distribution Management',
@@ -2564,7 +2603,7 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'User last-N quality (this user, all accounts): p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate). The cell also shows k/N and the same K (slow samples in window) / C (consecutive slow) line as smart-schedule quality cells. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve, window N, and both error rates. The sample window is still user last-N, not pair FIFO.',
+          'User last-N quality (this user, all accounts): first-token p50 / p95, total-duration p50 / p95 (display only), then the failover/Recovered success rate (1 − failover_error_rate). The success rate that excludes failover is no longer shown. The cell also shows k/N and the same K / C line as smart-schedule quality cells. Window N is per-user; unset users inherit the site-wide account quality N. The Claude→GPT bridge error rate is shown only in the details dialog. Click to open this user’s quality curve and window N. The sample window is still user last-N, not pair FIFO.',
         clickToOpen: 'Click to open this user’s quality curve, bridge error rate, and last-N window',
         openShort: 'Open',
         openAria: 'Open user quality window',
@@ -5268,9 +5307,14 @@ const enBase = {
       },
       quality: {
         combinedHint:
-          'Account last-N quality: p50 and display-only p95 first-token latency (p95 is not a hard-close or scheduling gate), then scheduling success rate (bridge failures and client/routing model-not-found misses excluded), then the failover/Recovered comparison success rate (1 − the dialog’s failover_error_rate; not used for scheduling ErrorCount). The cell also shows k/N and the same K (slow samples in window) / C (consecutive slow) line as smart-schedule quality cells. The Claude→GPT bridge error rate is shown only on the stability details page and does not affect scheduling or this cell. Click to open the stability curve, both error rates, and hard-close settings. The sample window is still account last-N (Q_a), not pair FIFO.',
+          'The account quality cell shows total-duration p50/p95 (stream and non-stream together, display only), the failover-inclusive success rate, and the ordinary OpenAI account-pool base scheduler score. The success rate covers the configured minutes (default 5), not the short last-N gate. First token and K/C are hidden for now. Hover the score for its factors. Click to open the stability curve.',
         successShort: 'ok',
         failoverShort: 'fo',
+        ttftShort: 'TTFT',
+        durationPairShort: 'Total',
+        durationP50Short: 'dur p50',
+        durationP95Short: 'dur p95',
+        scoreShort: 'score',
         bridgeShort: 'br',
         windowCounts: 'TTFT {ttft}/{n} · ok {ok}/{n}',
         ttftHint:
@@ -5279,7 +5323,15 @@ const enBase = {
           'Scheduling success rate over the last N completions: successes / (successes + non-bridge failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens, Claude→GPT bridge failures, and client/routing model-not-found or unsupported-model misses). Real upstream 429/502/503 still count. Shows — when empty.',
         tooltip: 'Last {n} · success {success} · fail {error} · TTFT {ttftSamples}/{n}',
         failoverTooltip:
-          'Last {n} · failover/Recovered comparison success (1 − comparison error rate) · comparison errors {error} · not used for scheduling',
+          'Last {n} · failover/Recovered success (1 − comparison error rate) · comparison errors {error} · not used for scheduling',
+        displayRateTooltip:
+          'Failover/Recovered success over the last {minutes} minutes · success {success} · fail {error}. Change the window in system settings. Scheduling gates still use the short last-N window.',
+        displayRateCountTooltip:
+          'Failover/Recovered success over the last {count} requests · success {success} · fail {error}. Change the window in system settings. Scheduling gates still use the short last-N window.',
+        durationTooltip:
+          'Total duration of the last {n} successes · samples {samples}/{n} · p50 {p50}ms · p95 {p95}ms · display only, not used for scheduling',
+        scoreTooltip:
+          'Base scheduler score {score}. Priority {priority}, load {load}, queue {queue}, error {error} (EWMA {errorRate}%), first token {ttft} (EWMA {ttftMs}ms), reset {reset}, quota {quota}. A sticky hit adds previous {previous} or session {session} and is not included in this row. The score is relative to the current group’s schedulable pool and ignores this request’s model filter and exclusions.',
         bridgeTooltip: 'Last {n} · bridge success {success} · bridge fail {error} (not used for scheduling)',
         ttftTooltip:
           'Last {n} · samples {samples}/{n} · p50 {p50}ms · p95 {p95}ms · avg {avg}ms · max {max}ms'
@@ -8210,6 +8262,10 @@ const enBase = {
     settings: {
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
+      searchPlaceholder: 'Search settings, for example success rate',
+      searchCount: '{n} matches',
+      searchAcrossTabs: 'Across {n} tabs',
+      searchEmpty: 'No matching settings',
       tabs: {
         general: 'General',
         features: 'Feature Switches',
@@ -8220,6 +8276,8 @@ const enBase = {
         email: 'Email',
         backup: 'Backup',
         payment: 'Payment',
+        errorPolicy: 'Error policy',
+        inflightReservation: 'Balance precheck',
       },
       displayLayer: {
         title: 'Display token amplification',
@@ -9185,6 +9243,13 @@ const enBase = {
         minTtftSamples: 'Min TTFT samples',
         windowN: 'Account quality window N',
         windowNHint: 'Shared last-N window for the account grid and hard-close. Range 1–100, default 20. Not the smart-schedule pair N.',
+        displayRateMode: 'Success-rate window',
+        displayRateModeMinutes: 'Last X minutes',
+        displayRateModeCount: 'Last X requests',
+        displayRateModeHint: 'Which window the quality-cell failover-inclusive success rate uses. Both numbers are saved; the cell uses the selected one. This does not change the last-N window used by hard-close or scheduling.',
+        displayRateMinutes: 'Success-rate minutes',
+        displayRateCount: 'Success-rate requests',
+        displayRateMinutesHint: 'Range 1–60, default 5.',
         condition: 'Condition',
         conditionOr: 'Or: pause if any judged metric breaches',
         conditionAnd: 'And: pause only if every judged metric breaches',

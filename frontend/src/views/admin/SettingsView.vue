@@ -9,30 +9,95 @@
       </div>
 
       <!-- Settings Form -->
-      <form v-else @submit.prevent="saveSettings" class="space-y-6" novalidate>
+      <form
+        v-else
+        ref="settingsFormEl"
+        @submit.prevent="saveSettings"
+        class="space-y-6"
+        :class="{ 'settings-search-active': settingsQuery.trim() }"
+        novalidate
+      >
         <!-- Tab Navigation -->
-        <div class="sticky top-0 z-10 overflow-x-auto settings-tabs-scroll">
+        <div class="sticky top-0 z-10 space-y-3 bg-gray-50/95 py-2 backdrop-blur dark:bg-dark-900/95">
+          <div>
+            <input
+              v-model="settingsQuery"
+              type="search"
+              class="input w-full"
+              :placeholder="t('admin.settings.searchPlaceholder')"
+              :aria-label="t('admin.settings.searchPlaceholder')"
+              data-test="settings-search"
+              autocomplete="off"
+              @keydown.enter.prevent
+            />
+            <p
+              v-if="settingsQuery.trim() && settingsMatchCount === 0"
+              class="mt-1 text-sm text-gray-500 dark:text-gray-400"
+              data-test="settings-search-empty"
+            >
+              {{ t('admin.settings.searchEmpty') }}
+            </p>
+            <p
+              v-else-if="settingsQuery.trim()"
+              class="mt-1 text-sm text-gray-500 dark:text-gray-400"
+              data-test="settings-search-count"
+            >
+              {{ t('admin.settings.searchCount', { n: settingsMatchCount }) }}
+              <span v-if="settingsTabsWithMatches.size > 1" data-test="settings-search-tabs">
+                {{ t('admin.settings.searchAcrossTabs', { n: settingsTabsWithMatches.size }) }}
+              </span>
+            </p>
+            <div
+              v-if="settingsQuery.trim() && settingsHits.length"
+              class="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+              data-test="settings-search-hits"
+            >
+              <button
+                v-for="hit in settingsHits"
+                :key="hit.id"
+                type="button"
+                class="flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-dark-700"
+                :data-test="`settings-search-hit-${hit.id}`"
+                @click="openSettingsHit(hit.id)"
+              >
+                <span class="shrink-0 text-xs font-medium text-primary-600 dark:text-primary-300">
+                  {{ t(`admin.settings.tabs.${hit.tab}`) }}
+                </span>
+                <span class="min-w-0 truncate text-gray-800 dark:text-gray-100">{{ hit.title }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="overflow-x-auto settings-tabs-scroll">
           <nav class="settings-tabs">
             <button
               v-for="tab in settingsTabs"
               :key="tab.key"
               type="button"
+              :data-settings-tab-button="tab.key"
               :class="[
                 'settings-tab',
                 activeTab === tab.key && 'settings-tab-active',
+                settingsQuery.trim() && !settingsTabsWithMatches.has(tab.key) && 'opacity-40',
               ]"
-              @click="activeTab = tab.key"
+              @click="selectSettingsTab(tab.key)"
             >
               <span class="settings-tab-icon">
                 <Icon :name="tab.icon" size="sm" />
               </span>
               <span>{{ t(`admin.settings.tabs.${tab.key}`) }}</span>
+              <span
+                v-if="settingsQuery.trim() && settingsHitCountByTab[tab.key]"
+                class="ml-1 rounded-full bg-primary-100 px-1.5 text-[10px] font-semibold leading-4 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200"
+              >
+                {{ settingsHitCountByTab[tab.key] }}
+              </span>
             </button>
           </nav>
+          </div>
         </div>
 
         <!-- Tab: Security — Admin API Key -->
-        <div v-show="activeTab === 'security'" class="space-y-6">
+        <div v-show="activeTab === 'security'" class="space-y-6" data-settings-tab="security">
           <!-- Admin API Key Settings -->
           <div class="card">
             <div
@@ -189,7 +254,7 @@
         <!-- /Tab: Security — Admin API Key -->
 
         <!-- Tab: Gateway -->
-        <div v-show="activeTab === 'gateway'" class="space-y-6">
+        <div v-show="activeTab === 'gateway'" class="space-y-6" data-settings-tab="gateway">
           <!-- Overload Cooldown (529) Settings -->
           <div class="card">
             <div
@@ -689,6 +754,58 @@
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                       {{ t("admin.settings.qualityHardClose.windowNHint") }}
                     </p>
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.displayRateMode") }}
+                    </label>
+                    <select
+                      v-model="qualityHardCloseForm.display_rate_mode"
+                      class="input w-full"
+                      data-test="quality-hard-close-display-rate-mode"
+                    >
+                      <option value="minutes">
+                        {{ t("admin.settings.qualityHardClose.displayRateModeMinutes") }}
+                      </option>
+                      <option value="count">
+                        {{ t("admin.settings.qualityHardClose.displayRateModeCount") }}
+                      </option>
+                    </select>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.qualityHardClose.displayRateModeHint") }}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.displayRateMinutes") }}
+                    </label>
+                    <input
+                      v-model.number="qualityHardCloseForm.display_rate_window_minutes"
+                      type="number"
+                      min="1"
+                      max="60"
+                      class="input w-full"
+                      data-test="quality-hard-close-display-rate-minutes"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.displayRateCount") }}
+                    </label>
+                    <input
+                      v-model.number="qualityHardCloseForm.display_rate_window_count"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      class="input w-full"
+                      data-test="quality-hard-close-display-rate-count"
+                    />
                   </div>
                   <div>
                     <label
@@ -1849,7 +1966,7 @@
         <!-- /Tab: Gateway -->
 
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
-        <div v-show="activeTab === 'security'" class="space-y-6">
+        <div v-show="activeTab === 'security'" class="space-y-6" data-settings-tab="security">
           <!-- Registration Settings -->
           <div class="card">
             <div
@@ -3119,7 +3236,7 @@
         <!-- /Tab: Security — Registration, Turnstile, LinuxDo, OIDC -->
 
         <!-- Tab: Users -->
-        <div v-show="activeTab === 'users'" class="space-y-6">
+        <div v-show="activeTab === 'users'" class="space-y-6" data-settings-tab="users">
           <!-- Default Settings -->
           <div class="card">
             <div
@@ -3687,7 +3804,7 @@
         <!-- /Tab: Users -->
 
         <!-- Tab: Gateway — Claude Code, Scheduling -->
-        <div v-show="activeTab === 'gateway'" class="space-y-6">
+        <div v-show="activeTab === 'gateway'" class="space-y-6" data-settings-tab="gateway">
           <!-- Claude Code Settings -->
           <div class="card">
             <div
@@ -4565,7 +4682,7 @@
         <!-- /Tab: Gateway — Claude Code, Scheduling -->
 
         <!-- Tab: General -->
-        <div v-show="activeTab === 'general'" class="space-y-6">
+        <div v-show="activeTab === 'general'" class="space-y-6" data-settings-tab="general">
           <!-- Site Settings -->
           <div class="card">
             <div
@@ -5174,7 +5291,7 @@
         <!-- /Tab: General -->
 
         <!-- Tab: Features (功能开关) -->
-        <div v-show="activeTab === 'features'" class="space-y-6">
+        <div v-show="activeTab === 'features'" class="space-y-6" data-settings-tab="features">
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -6068,7 +6185,7 @@
         </div><!-- /Tab: Features -->
 
         <!-- Tab: Display (展示层) -->
-        <div v-show="activeTab === 'display'" class="space-y-6">
+        <div v-show="activeTab === 'display'" class="space-y-6" data-settings-tab="display">
           <div class="card">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -6195,7 +6312,7 @@
         </div><!-- /Tab: Display -->
 
         <!-- Tab: Payment -->
-        <div v-show="activeTab === 'payment'" class="space-y-6">
+        <div v-show="activeTab === 'payment'" class="space-y-6" data-settings-tab="payment">
           <!-- Payment System Settings -->
           <div class="card">
             <div
@@ -6682,7 +6799,7 @@
           />
         </div>
 
-        <div v-show="activeTab === 'email'" class="space-y-6">
+        <div v-show="activeTab === 'email'" class="space-y-6" data-settings-tab="email">
           <!-- Email disabled hint - show when email_verify_enabled is off -->
           <div v-if="!form.email_verify_enabled" class="card">
             <div class="p-6">
@@ -7072,12 +7189,22 @@
         <!-- /Tab: Email -->
 
         <!-- Tab: Backup -->
-        <div v-show="activeTab === 'backup'">
+        <div v-show="activeTab === 'backup'" data-settings-tab="backup">
           <BackupSettings />
         </div>
 
+        <!-- Tab: Error policy. Own save button; keep it out of the settings submit. -->
+        <div v-show="activeTab === 'errorPolicy'" class="space-y-4" data-settings-tab="errorPolicy" @keydown.enter.prevent>
+          <ScheduleErrorWhitelistPanel />
+        </div>
+
+        <!-- Tab: Balance precheck. Own save button. -->
+        <div v-show="activeTab === 'inflightReservation'" data-settings-tab="inflightReservation">
+          <InflightReservationSettings />
+        </div>
+
         <!-- Save Button -->
-        <div v-show="activeTab !== 'backup'" class="flex justify-end">
+        <div v-show="activeTab !== 'backup' && activeTab !== 'errorPolicy' && activeTab !== 'inflightReservation'" class="flex justify-end">
           <button
             type="submit"
             :disabled="saving || loadFailed"
@@ -7148,7 +7275,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
 import {
@@ -7194,6 +7322,8 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import ScheduleErrorWhitelistPanel from "@/components/admin/usage/ScheduleErrorWhitelistPanel.vue";
+import InflightReservationSettings from "@/views/admin/InflightReservationView.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
@@ -7254,8 +7384,206 @@ type SettingsTab =
   | "display"
   | "payment"
   | "email"
-  | "backup";
+  | "backup"
+  | "errorPolicy"
+  | "inflightReservation";
 const activeTab = ref<SettingsTab>("general");
+const settingsQuery = ref("");
+const settingsFormEl = ref<HTMLFormElement | null>(null);
+type SettingsSearchHit = { id: string; tab: SettingsTab; title: string };
+
+const settingsMatchCount = ref(0);
+const settingsTabsWithMatches = ref(new Set<SettingsTab>());
+const settingsHits = ref<SettingsSearchHit[]>([]);
+const settingsHitCountByTab = computed(() => {
+  const counts: Partial<Record<SettingsTab, number>> = {};
+  for (const hit of settingsHits.value) {
+    counts[hit.tab] = (counts[hit.tab] || 0) + 1;
+  }
+  return counts;
+});
+
+function settingsSearchText(tab: SettingsTab, el: HTMLElement): string {
+  const placeholders = [...el.querySelectorAll<HTMLElement>("[placeholder]")]
+    .map((node) => node.getAttribute("placeholder") || "")
+    .join(" ");
+  return `${t(`admin.settings.tabs.${tab}`)} ${el.textContent || ""} ${placeholders}`
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function settingsSearchMatches(haystack: string, tokens: string[]): boolean {
+  return tokens.length === 0 || tokens.every((token) => haystack.includes(token));
+}
+
+function topLevelSettingsCards(section: HTMLElement): HTMLElement[] {
+  return [...section.querySelectorAll<HTMLElement>(".card")].filter((card) => {
+    let parent = card.parentElement;
+    while (parent && parent !== section) {
+      if (parent.classList.contains("card")) return false;
+      parent = parent.parentElement;
+    }
+    return true;
+  });
+}
+
+function settingsBlockTitle(block: HTMLElement, tab: SettingsTab): string {
+  const heading = [...block.querySelectorAll("h1, h2, h3")].find((node) => {
+    if (block.classList.contains("card")) return true;
+    return !node.closest(".card");
+  });
+  const text = (heading?.textContent || "").replace(/\s+/g, " ").trim();
+  const title = text || t(`admin.settings.tabs.${tab}`);
+  return title.length > 80 ? `${title.slice(0, 80)}…` : title;
+}
+
+function settingsLooseHaystack(tab: SettingsTab, section: HTMLElement, cards: HTMLElement[]): string {
+  let loose = `${t(`admin.settings.tabs.${tab}`)} ${section.textContent || ""}`;
+  for (const card of cards) {
+    const text = card.textContent || "";
+    if (text) loose = loose.replace(text, " ");
+  }
+  return loose.replace(/\s+/g, " ").toLowerCase();
+}
+
+function rememberSettingsHit(
+  hits: SettingsSearchHit[],
+  firstMatchByTab: Map<SettingsTab, HTMLElement>,
+  tab: SettingsTab,
+  block: HTMLElement,
+) {
+  const id = `h${hits.length + 1}`;
+  block.dataset.settingsHit = id;
+  hits.push({ id, tab, title: settingsBlockTitle(block, tab) });
+  if (!firstMatchByTab.has(tab)) firstMatchByTab.set(tab, block);
+}
+
+function applySettingsSearch(): HTMLElement | null {
+  const form = settingsFormEl.value;
+  const tokens = settingsQuery.value
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const matchedTabs = new Set<SettingsTab>();
+  const firstMatchByTab = new Map<SettingsTab, HTMLElement>();
+  const hits: SettingsSearchHit[] = [];
+  if (form) {
+    form.querySelectorAll<HTMLElement>("[data-settings-hit]").forEach((el) => {
+      delete el.dataset.settingsHit;
+    });
+    form.querySelectorAll<HTMLElement>("[data-settings-tab]").forEach((section) => {
+      const tab = section.dataset.settingsTab as SettingsTab;
+      const cards = topLevelSettingsCards(section);
+      let sectionMatched = false;
+      if (cards.length === 0) {
+        const match = settingsSearchMatches(settingsSearchText(tab, section), tokens);
+        section.classList.toggle("settings-search-miss", tokens.length > 0 && !match);
+        if (tokens.length > 0 && match) {
+          sectionMatched = true;
+          rememberSettingsHit(hits, firstMatchByTab, tab, section);
+        }
+      } else {
+        cards.forEach((card) => {
+          const match = settingsSearchMatches(settingsSearchText(tab, card), tokens);
+          card.classList.toggle("settings-search-miss", tokens.length > 0 && !match);
+          if (tokens.length > 0 && match) {
+            sectionMatched = true;
+            rememberSettingsHit(hits, firstMatchByTab, tab, card);
+          }
+        });
+        if (tokens.length > 0 && !sectionMatched) {
+          const looseMatch = settingsSearchMatches(settingsLooseHaystack(tab, section, cards), tokens);
+          if (looseMatch) {
+            sectionMatched = true;
+            cards.forEach((card) => card.classList.remove("settings-search-miss"));
+            rememberSettingsHit(hits, firstMatchByTab, tab, section);
+          }
+        }
+        section.classList.toggle("settings-search-miss", tokens.length > 0 && !sectionMatched);
+      }
+      if (sectionMatched) matchedTabs.add(tab);
+    });
+  }
+  settingsMatchCount.value = hits.length;
+  settingsHits.value = hits;
+  settingsTabsWithMatches.value = matchedTabs;
+  let destination = activeTab.value;
+  if (tokens.length > 0 && matchedTabs.size > 0 && !matchedTabs.has(activeTab.value)) {
+    const next = settingsTabs.find((tab) => matchedTabs.has(tab.key));
+    if (next) {
+      destination = next.key;
+      selectSettingsTab(next.key);
+    }
+  }
+  if (tokens.length === 0) return null;
+  return firstMatchByTab.get(destination) ?? null;
+}
+
+function scrollSettingsTabButton(tab: SettingsTab | undefined) {
+  if (!tab) return;
+  const button = settingsFormEl.value?.querySelector<HTMLElement>(
+    `[data-settings-tab-button="${tab}"]`,
+  );
+  if (button && typeof button.scrollIntoView === "function") {
+    button.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+}
+
+function openSettingsHit(id: string) {
+  const target = settingsFormEl.value?.querySelector<HTMLElement>(`[data-settings-hit="${id}"]`);
+  const tab = target?.closest<HTMLElement>("[data-settings-tab]")?.dataset.settingsTab as
+    | SettingsTab
+    | undefined;
+  if (tab) selectSettingsTab(tab);
+  void nextTick(() => {
+    scrollSettingsTabButton(tab);
+    if (target && typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "start" });
+    }
+  });
+}
+
+let settingsSearchObserver: MutationObserver | null = null;
+let settingsSearchTimer = 0;
+
+function scheduleSettingsSearch() {
+  window.clearTimeout(settingsSearchTimer);
+  settingsSearchTimer = window.setTimeout(() => {
+    if (!settingsQuery.value.trim()) return;
+    applySettingsSearch();
+  }, 50);
+}
+
+function bindSettingsSearchObserver() {
+  settingsSearchObserver?.disconnect();
+  const form = settingsFormEl.value;
+  if (!form || typeof MutationObserver === "undefined") return;
+  settingsSearchObserver = new MutationObserver(() => {
+    if (!settingsQuery.value.trim()) return;
+    scheduleSettingsSearch();
+  });
+  form.querySelectorAll("[data-settings-tab]").forEach((section) => {
+    settingsSearchObserver?.observe(section, { childList: true, subtree: true });
+  });
+}
+
+watch(settingsQuery, () => {
+  void nextTick(() => {
+    const target = applySettingsSearch();
+    void nextTick(() => {
+      scrollSettingsTabButton(activeTab.value);
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "start" });
+      }
+    });
+  });
+});
+
+onBeforeUnmount(() => {
+  settingsSearchObserver?.disconnect();
+  window.clearTimeout(settingsSearchTimer);
+});
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "features" as SettingsTab, icon: "bolt" as const },
@@ -7266,10 +7594,38 @@ const settingsTabs = [
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
+  { key: "errorPolicy" as SettingsTab, icon: "shield" as const },
+  { key: "inflightReservation" as SettingsTab, icon: "creditCard" as const },
 ];
+const route = useRoute();
+const router = useRouter();
+
+function settingsTabFromQuery(value: unknown): SettingsTab | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return null;
+  return settingsTabs.some((tab) => tab.key === raw) ? (raw as SettingsTab) : null;
+}
+
+function selectSettingsTab(key: SettingsTab) {
+  activeTab.value = key;
+  if (settingsTabFromQuery(route.query.tab) === key) return;
+  void router.replace({ query: { ...route.query, tab: key } });
+}
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    const next = settingsTabFromQuery(value);
+    if (next && next !== activeTab.value) activeTab.value = next;
+  },
+);
 const { copyToClipboard } = useClipboard();
 
 const loading = ref(true);
+watch(loading, (isLoading) => {
+  if (isLoading) return;
+  void nextTick(() => bindSettingsSearchObserver());
+});
 const loadFailed = ref(false);
 const saving = ref(false);
 const testingSmtp = ref(false);
@@ -7331,6 +7687,9 @@ const qualityHardCloseForm = reactive({
   min_success_rate_percent: 90 as number | string,
   pause_minutes: 30,
   account_quality_window_n: ACCOUNT_QUALITY_WINDOW_N_DEFAULT,
+  display_rate_mode: "minutes" as "minutes" | "count",
+  display_rate_window_minutes: 5,
+  display_rate_window_count: 100,
   condition: "or" as "or" | "and",
   schedule_use_failover_error_rate: false,
 });
@@ -9216,6 +9575,16 @@ async function loadQualityHardCloseSettings() {
     qualityHardCloseForm.pause_minutes = settings.pause_minutes;
     qualityHardCloseForm.account_quality_window_n =
       resolveAccountQualityWindowN(settings);
+    qualityHardCloseForm.display_rate_mode =
+      settings.display_rate_mode === "count" ? "count" : "minutes";
+    qualityHardCloseForm.display_rate_window_minutes =
+      settings.display_rate_window_minutes && settings.display_rate_window_minutes > 0
+        ? settings.display_rate_window_minutes
+        : 5;
+    qualityHardCloseForm.display_rate_window_count =
+      settings.display_rate_window_count && settings.display_rate_window_count > 0
+        ? settings.display_rate_window_count
+        : 100;
     qualityHardCloseForm.condition =
       settings.condition === "and" ? "and" : "or";
     qualityHardCloseForm.schedule_use_failover_error_rate =
@@ -9241,6 +9610,9 @@ async function saveQualityHardCloseSettings() {
       ),
       pause_minutes: qualityHardCloseForm.pause_minutes,
       ...windowFields,
+      display_rate_mode: qualityHardCloseForm.display_rate_mode,
+      display_rate_window_minutes: qualityHardCloseForm.display_rate_window_minutes,
+      display_rate_window_count: qualityHardCloseForm.display_rate_window_count,
       condition: qualityHardCloseForm.condition,
       schedule_use_failover_error_rate:
         qualityHardCloseForm.schedule_use_failover_error_rate,
@@ -9252,6 +9624,16 @@ async function saveQualityHardCloseSettings() {
     qualityHardCloseForm.pause_minutes = updated.pause_minutes;
     qualityHardCloseForm.account_quality_window_n =
       resolveAccountQualityWindowN(updated);
+    qualityHardCloseForm.display_rate_mode =
+      updated.display_rate_mode === "count" ? "count" : "minutes";
+    qualityHardCloseForm.display_rate_window_minutes =
+      updated.display_rate_window_minutes && updated.display_rate_window_minutes > 0
+        ? updated.display_rate_window_minutes
+        : 5;
+    qualityHardCloseForm.display_rate_window_count =
+      updated.display_rate_window_count && updated.display_rate_window_count > 0
+        ? updated.display_rate_window_count
+        : 100;
     qualityHardCloseForm.condition =
       updated.condition === "and" ? "and" : "or";
     qualityHardCloseForm.schedule_use_failover_error_rate =
@@ -9971,6 +10353,8 @@ async function handleDeleteProvider() {
 }
 
 onMounted(() => {
+  const initialTab = settingsTabFromQuery(route.query.tab);
+  if (initialTab) activeTab.value = initialTab;
   loadSettings();
   loadSubscriptionGroups();
   loadAdminApiKey();
@@ -10464,6 +10848,15 @@ watch(
 }
 
 /* ============ Settings Tab Navigation ============ */
+
+:deep(.settings-search-miss) {
+  display: none !important;
+}
+
+.settings-search-active :deep(.card),
+.settings-search-active [data-settings-tab] {
+  scroll-margin-top: 20rem;
+}
 
 /* Scroll container: thin scrollbar on PC, auto-hide on mobile */
 .settings-tabs-scroll {

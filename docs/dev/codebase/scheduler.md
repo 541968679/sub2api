@@ -37,7 +37,7 @@
 | Claude/Gemini layered filter | 上游自带 | `gateway_service.go` `SelectAccountWithLoadAwareness` |
 | Antigravity 混合调度 | 上游自带 | `isAccountAllowedForPlatform`；`extra.mixed_scheduling` |
 | snapshot / outbox | 叠层 | `scheduler_snapshot_service.go`；`scheduler_cache.go` `buildSchedulerMetadataAccount` |
-| OpenAI 高级调度（打分 / TopK / sticky escape / 订阅优先） | 叠层 | `openai_account_scheduler.go`；Settings `openai_advanced_scheduler_*` |
+| OpenAI 高级调度（打分 / TopK / sticky escape / 订阅优先） | 叠层 | `openai_account_scheduler.go`；Settings `openai_advanced_scheduler_*`。账号列表的 OpenAI 质量格按分组显示该池基础分，未分组用全部可调度的未分组账号；高级调度关闭时选号仍是优先级再负载，格子仍显示基础分；不改选号 |
 | Spark 影子选号隔离 | 叠层 | `shadow_routing.go` |
 | 能力门、Images、Grok 隔离 | 本仓二开 | `isOpenAIAccountEligibleForScheduleRequest`；`SelectAccountWithSchedulerForImages` |
 | 用户智能调度闭包池 | 本仓二开 | `admitsScheduleUser`；`smart_schedule_lookup_platform.go`；`account-user-schedule.md` |

@@ -249,11 +249,35 @@ type AccountWithConcurrency struct {
 	CurrentRPM        *int     `json:"current_rpm,omitempty"`         // 当前分钟 RPM 计数
 }
 
+type AccountSchedulerScoreFactors struct {
+	PriorityTerm        float64 `json:"priority_term"`
+	LoadTerm            float64 `json:"load_term"`
+	QueueTerm           float64 `json:"queue_term"`
+	ErrorTerm           float64 `json:"error_term"`
+	TTFTTerm            float64 `json:"ttft_term"`
+	ResetTerm           float64 `json:"reset_term"`
+	QuotaTerm           float64 `json:"quota_term"`
+	ErrorRate           float64 `json:"error_rate"`
+	TTFTMs              float64 `json:"ttft_ms"`
+	HasTTFT             bool    `json:"has_ttft"`
+	WeightPriority      float64 `json:"weight_priority"`
+	WeightLoad          float64 `json:"weight_load"`
+	WeightQueue         float64 `json:"weight_queue"`
+	WeightErrorRate     float64 `json:"weight_error_rate"`
+	WeightTTFT          float64 `json:"weight_ttft"`
+	WeightReset         float64 `json:"weight_reset"`
+	WeightQuota         float64 `json:"weight_quota"`
+	WeightPrevious      float64 `json:"weight_previous"`
+	WeightSessionSticky float64 `json:"weight_session_sticky"`
+}
+
 type AccountSchedulerScore struct {
-	BaseScore             float64 `json:"base_score"`
-	StickyScore           float64 `json:"sticky_score"`
-	StickyScoreInfinity   bool    `json:"sticky_score_infinity"`
-	StickyWeightedEnabled bool    `json:"sticky_weighted_enabled"`
+	BaseScore             float64                       `json:"base_score"`
+	StickyScore           float64                       `json:"sticky_score"`
+	StickyScoreInfinity   bool                          `json:"sticky_score_infinity"`
+	StickyWeightedEnabled bool                          `json:"sticky_weighted_enabled"`
+	Live                  bool                          `json:"live,omitempty"`
+	Factors               *AccountSchedulerScoreFactors `json:"factors,omitempty"`
 }
 
 type AccountSchedulerGroupScore struct {
@@ -384,16 +408,44 @@ func (h *AccountHandler) scoreOpenAIAccountSchedulerPool(ctx context.Context, ac
 	} else {
 		scores = service.BuildOpenAIAccountSchedulerScoreSnapshot(openAIAccounts, loadMap)
 	}
+	live := h != nil && h.settingService != nil && h.settingService.IsOpenAIAdvancedSchedulerEnabled(ctx)
 	result := make(map[int64]AccountSchedulerScore, len(scores))
 	for accountID, score := range scores {
+		factors := accountSchedulerScoreFactors(score.Factors)
 		result[accountID] = AccountSchedulerScore{
 			BaseScore:             score.BaseScore,
 			StickyScore:           score.StickyScore,
 			StickyScoreInfinity:   score.StickyScoreInfinity,
 			StickyWeightedEnabled: score.StickyWeightedEnabled,
+			Live:                  live,
+			Factors:               &factors,
 		}
 	}
 	return result
+}
+
+func accountSchedulerScoreFactors(in service.OpenAIAccountSchedulerScoreFactors) AccountSchedulerScoreFactors {
+	return AccountSchedulerScoreFactors{
+		PriorityTerm:        in.PriorityTerm,
+		LoadTerm:            in.LoadTerm,
+		QueueTerm:           in.QueueTerm,
+		ErrorTerm:           in.ErrorTerm,
+		TTFTTerm:            in.TTFTTerm,
+		ResetTerm:           in.ResetTerm,
+		QuotaTerm:           in.QuotaTerm,
+		ErrorRate:           in.ErrorRate,
+		TTFTMs:              in.TTFTMs,
+		HasTTFT:             in.HasTTFT,
+		WeightPriority:      in.WeightPriority,
+		WeightLoad:          in.WeightLoad,
+		WeightQueue:         in.WeightQueue,
+		WeightErrorRate:     in.WeightErrorRate,
+		WeightTTFT:          in.WeightTTFT,
+		WeightReset:         in.WeightReset,
+		WeightQuota:         in.WeightQuota,
+		WeightPrevious:      in.WeightPrevious,
+		WeightSessionSticky: in.WeightSessionSticky,
+	}
 }
 
 // fetchOpenAIAccountLoadMap 一次性批查给定 OpenAI 账号的负载数据；
@@ -562,6 +614,49 @@ func (h *AccountHandler) buildOpenAIAccountSchedulerScores(
 	return baseScores, groupScoresByAccount
 }
 
+func pageHasUngroupedOpenAI(accounts []service.Account) bool {
+	for i := range accounts {
+		account := &accounts[i]
+		if account.Platform != service.PlatformOpenAI {
+			continue
+		}
+		if len(account.AccountGroups) == 0 && len(account.GroupIDs) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// replaceUngroupedSchedulerScores scores the full ungrouped schedulable pool.
+// The filter pool follows search and status, which would change a relative score.
+func (h *AccountHandler) replaceUngroupedSchedulerScores(
+	ctx context.Context,
+	accounts []service.Account,
+	base map[int64]*AccountSchedulerScore,
+) map[int64]*AccountSchedulerScore {
+	if h == nil || h.adminService == nil {
+		return base
+	}
+	pool, err := h.adminService.ListOpenAISchedulableAccountsForSchedulerScore(ctx, nil)
+	if err != nil {
+		slog.Warn("openai_scheduler_ungrouped_score_pool_failed", "error", err)
+		return base
+	}
+	full := h.scoreOpenAIAccountSchedulerPool(ctx, pool, nil)
+	if base == nil {
+		base = map[int64]*AccountSchedulerScore{}
+	}
+	for i := range accounts {
+		score, ok := full[accounts[i].ID]
+		if !ok {
+			continue
+		}
+		copied := score
+		base[accounts[i].ID] = &copied
+	}
+	return base
+}
+
 func (h *AccountHandler) listAccountSchedulerScoreFilterPool(
 	ctx context.Context,
 	platform, accountType, status, search string,
@@ -684,6 +779,9 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if includeSchedulerScore && pageHasOpenAIAccounts {
 		schedulerFilterPool := h.listAccountSchedulerScoreFilterPool(ctx, platform, accountType, status, search, groupID, privacyMode)
 		schedulerScores, schedulerGroupScores = h.buildOpenAIAccountSchedulerScores(ctx, accounts, schedulerFilterPool)
+		if groupID == service.AccountListGroupUngrouped || pageHasUngroupedOpenAI(accounts) {
+			schedulerScores = h.replaceUngroupedSchedulerScores(ctx, accounts, schedulerScores)
+		}
 	}
 
 	// 始终获取并发数（Redis ZCARD，极低开销）
@@ -2796,12 +2894,19 @@ func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
 	}
 
 	useFailover := false
+	rateLabel := service.DisplayRateModeMinutes + ":" + strconv.Itoa(service.DefaultAccountQualityDisplayRateMinutes)
 	if h.settingService != nil {
 		if cfg, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context()); err == nil && cfg != nil {
 			useFailover = cfg.ScheduleUseFailoverErrorRate
+			rateLabel = cfg.DisplayRateMode + ":"
+			if cfg.DisplayRateMode == service.DisplayRateModeCount {
+				rateLabel += strconv.Itoa(cfg.DisplayRateWindowCount)
+			} else {
+				rateLabel += strconv.Itoa(cfg.DisplayRateWindowMinutes)
+			}
 		}
 	}
-	cacheKey := buildAccountQualityStatsBatchCacheKey(accountIDs, useFailover)
+	cacheKey := buildAccountQualityStatsBatchCacheKey(accountIDs, useFailover, rateLabel)
 	if cached, ok := accountQualityStatsBatchCache.Get(cacheKey); ok {
 		if cached.ETag != "" {
 			c.Header("ETag", cached.ETag)

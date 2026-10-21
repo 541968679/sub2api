@@ -27,17 +27,17 @@ type AccountQualityHardCloseEvaluator interface {
 
 // AccountQualityMaintenanceService periodically snapshots the live 15-minute quality window.
 type AccountQualityMaintenanceService struct {
-	repo          AccountQualitySnapshotRepository
-	usageLogs     UsageLogRepository
-	timingWheel   *TimingWheelService
-	lockCache     LeaderLockCache
-	db            *sql.DB
-	instanceID    string
-	hardClose     AccountQualityHardCloseEvaluator
-	liveCache     AccountQualityLiveCache
-	lastN         AccountQualityLastNCache
-	userLastN     UserQualityLastNCache
-	userSnapshots UserQualitySnapshotRepository
+	repo           AccountQualitySnapshotRepository
+	usageLogs      UsageLogRepository
+	timingWheel    *TimingWheelService
+	lockCache      LeaderLockCache
+	db             *sql.DB
+	instanceID     string
+	hardClose      AccountQualityHardCloseEvaluator
+	liveCache      AccountQualityLiveCache
+	lastN          AccountQualityLastNCache
+	userLastN      UserQualityLastNCache
+	userSnapshots  UserQualitySnapshotRepository
 	settings       *SettingService
 	publicSchedule *PublicScheduleQualityService
 	windowNLookup  UserQualityWindowNLookup
@@ -117,6 +117,21 @@ func (s *AccountQualityMaintenanceService) SetUserWindowNLookup(lookup UserQuali
 	s.windowNLookup = lookup
 }
 
+func (s *AccountQualityMaintenanceService) displayRateSpec(ctx context.Context) AccountQualityDisplayRateSpec {
+	spec := defaultAccountQualityDisplayRateSpec()
+	if s != nil && s.settings != nil {
+		if cfg, err := s.settings.GetQualityHardCloseSettings(ctx); err == nil && cfg != nil {
+			spec.Mode = cfg.DisplayRateMode
+			spec.Minutes = cfg.DisplayRateWindowMinutes
+			spec.Count = cfg.DisplayRateWindowCount
+		}
+	}
+	if spec.Mode != DisplayRateModeCount {
+		spec.Mode = DisplayRateModeMinutes
+	}
+	return spec
+}
+
 func (s *AccountQualityMaintenanceService) windowN(ctx context.Context) int {
 	if s == nil || s.settings == nil {
 		return DefaultAccountQualityWindowN
@@ -186,6 +201,7 @@ func (s *AccountQualityMaintenanceService) ObserveAccountCompletion(ctx context.
 func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Context, accountIDs []int64) (map[int64]*AccountQualityStats, error) {
 	ids := normalizeQualityBatchIDs(accountIDs)
 	n := s.windowN(ctx)
+	rateSpec := s.displayRateSpec(ctx)
 	byID := map[int64]*AccountQualityLastN{}
 	if s != nil && s.lastN != nil {
 		byID = s.lastN.GetLastNBatch(ctx, ids)
@@ -195,6 +211,7 @@ func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Contex
 	for _, id := range ids {
 		if live := byID[id]; live != nil {
 			st := live.ToAccountQualityStats()
+			attachDisplayRate(st, live, time.Now().UTC(), rateSpec)
 			StampAccountQualityWindowN(st, n)
 			StampAccountQualityLatencyKC(st, live.TTFTMs, knobs)
 			out[id] = st
@@ -212,6 +229,7 @@ func (s *AccountQualityMaintenanceService) GetLastNStatsBatch(ctx context.Contex
 func (s *AccountQualityMaintenanceService) GetUserLastNStatsBatch(ctx context.Context, userIDs []int64) (map[int64]*AccountQualityStats, error) {
 	ids := normalizeQualityBatchIDs(userIDs)
 	siteN := s.windowN(ctx)
+	rateSpec := s.displayRateSpec(ctx)
 	useFailover := s.scheduleUseFailoverErrorRate(ctx)
 	byID := map[int64]*AccountQualityLastN{}
 	if s != nil && s.userLastN != nil {
@@ -231,6 +249,7 @@ func (s *AccountQualityMaintenanceService) GetUserLastNStatsBatch(ctx context.Co
 		if live := byID[id]; live != nil {
 			projected := ProjectAccountQualityLastN(live, resolved)
 			st := projected.ToAccountQualityStats()
+			attachDisplayRate(st, projected, time.Now().UTC(), rateSpec)
 			StampAccountQualityWindowN(st, resolved)
 			ApplyAccountQualityScheduleCaliber(st, useFailover)
 			StampAccountQualityLatencyKC(st, projected.TTFTMs, knobs)

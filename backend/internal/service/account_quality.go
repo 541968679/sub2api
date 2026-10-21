@@ -64,6 +64,14 @@ type AccountQualityStats struct {
 	// Recovered 429/503 even when the client saw 200.
 	FailoverErrorCount int64    `json:"failover_error_count"`
 	FailoverErrorRate  *float64 `json:"failover_error_rate"`
+	// Display* is the cell success rate over AccountQualityDisplayRateWindow.
+	// It does not replace the last-N counts used by hard-close and scheduling.
+	DisplaySuccessCount       int64    `json:"display_success_count,omitempty"`
+	DisplayFailoverErrorCount int64    `json:"display_failover_error_count,omitempty"`
+	DisplayFailoverErrorRate  *float64 `json:"display_failover_error_rate,omitempty"`
+	DisplayRateWindowSeconds  int      `json:"display_rate_window_seconds,omitempty"`
+	DisplayRateMode           string   `json:"display_rate_mode,omitempty"`
+	DisplayRateWindowCount    int      `json:"display_rate_window_count,omitempty"`
 	// ScheduleUseFailoverErrorRate echoes the site-wide toggle that selected
 	// ErrorCount / SuccessRate for gates. Default false.
 	ScheduleUseFailoverErrorRate bool `json:"schedule_use_failover_error_rate"`
@@ -73,6 +81,11 @@ type AccountQualityStats struct {
 	P95TTFTMs   *int  `json:"p95_ttft_ms"`
 	MaxTTFTMs   *int  `json:"max_ttft_ms"`
 	TTFTSamples int64 `json:"ttft_samples"`
+	// P50DurationMs / P95DurationMs / DurationSamples are display-only total
+	// request duration (streams included). They are not the non-stream gate series.
+	P50DurationMs   *int  `json:"p50_duration_ms,omitempty"`
+	P95DurationMs   *int  `json:"p95_duration_ms,omitempty"`
+	DurationSamples int64 `json:"duration_samples,omitempty"`
 	// N / WindowN / AccountQualityWindowN are the site-wide last-N size for Q_a.
 	// Aliases exist so the account cell can show k/N without a settings round-trip.
 	N                     int `json:"n,omitempty"`

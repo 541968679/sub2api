@@ -17,17 +17,20 @@ const (
 )
 
 type accountQualityLastNState struct {
-	N           int      `json:"n"`
-	UseFailover bool     `json:"use_failover,omitempty"`
-	TTFT        []int    `json:"ttft"`
-	Duration    []int    `json:"duration_ms,omitempty"`
-	OK          []uint8  `json:"ok"`
-	Outcomes    []uint8  `json:"outcomes,omitempty"`
-	P50         *int     `json:"p50_ttft_ms,omitempty"`
-	P50Dur      *int     `json:"p50_duration_ms,omitempty"`
-	Rate        *float64 `json:"success_rate,omitempty"`
-	UpdatedAt   int64    `json:"updated_at"`
-	OverrideN   *int     `json:"override_n,omitempty"`
+	N               int                                `json:"n"`
+	UseFailover     bool                               `json:"use_failover,omitempty"`
+	TTFT            []int                              `json:"ttft"`
+	Duration        []int                              `json:"duration_ms,omitempty"`
+	TotalDuration   []int                              `json:"total_duration_ms,omitempty"`
+	OK              []uint8                            `json:"ok"`
+	Outcomes        []uint8                            `json:"outcomes,omitempty"`
+	RateBuckets     []service.AccountQualityRateBucket `json:"rate_buckets,omitempty"`
+	DisplayOutcomes []uint8                            `json:"display_outcomes,omitempty"`
+	P50             *int                               `json:"p50_ttft_ms,omitempty"`
+	P50Dur          *int                               `json:"p50_duration_ms,omitempty"`
+	Rate            *float64                           `json:"success_rate,omitempty"`
+	UpdatedAt       int64                              `json:"updated_at"`
+	OverrideN       *int                               `json:"override_n,omitempty"`
 }
 
 func accountQualityLastNKey(accountID int64) string {
@@ -157,17 +160,20 @@ func encodeAccountQualityLastN(live *service.AccountQualityLastN) accountQuality
 		updated = time.Now().UTC().Unix()
 	}
 	return accountQualityLastNState{
-		N:           live.N,
-		UseFailover: live.UseFailover,
-		TTFT:        append([]int(nil), live.TTFTMs...),
-		Duration:    append([]int(nil), live.DurationMs...),
-		OK:          ok,
-		Outcomes:    append([]uint8(nil), live.Outcomes...),
-		P50:         live.P50TTFTMs,
-		P50Dur:      live.P50DurationMs,
-		Rate:        live.SuccessRate,
-		UpdatedAt:   updated,
-		OverrideN:   live.OverrideN,
+		N:               live.N,
+		UseFailover:     live.UseFailover,
+		TTFT:            append([]int(nil), live.TTFTMs...),
+		Duration:        append([]int(nil), live.DurationMs...),
+		TotalDuration:   append([]int(nil), live.TotalDurationMs...),
+		OK:              ok,
+		Outcomes:        append([]uint8(nil), live.Outcomes...),
+		RateBuckets:     append([]service.AccountQualityRateBucket(nil), live.RateBuckets...),
+		DisplayOutcomes: append([]uint8(nil), live.DisplayOutcomes...),
+		P50:             live.P50TTFTMs,
+		P50Dur:          live.P50DurationMs,
+		Rate:            live.SuccessRate,
+		UpdatedAt:       updated,
+		OverrideN:       live.OverrideN,
 	}
 }
 
@@ -181,16 +187,19 @@ func decodeAccountQualityLastN(raw []byte) *service.AccountQualityLastN {
 		ok[i] = v != 0
 	}
 	live := &service.AccountQualityLastN{
-		N:             stored.N,
-		UseFailover:   stored.UseFailover,
-		TTFTMs:        append([]int(nil), stored.TTFT...),
-		DurationMs:    append([]int(nil), stored.Duration...),
-		OK:            ok,
-		Outcomes:      append([]uint8(nil), stored.Outcomes...),
-		P50TTFTMs:     stored.P50,
-		P50DurationMs: stored.P50Dur,
-		SuccessRate:   stored.Rate,
-		OverrideN:     stored.OverrideN,
+		N:               stored.N,
+		UseFailover:     stored.UseFailover,
+		TTFTMs:          append([]int(nil), stored.TTFT...),
+		DurationMs:      append([]int(nil), stored.Duration...),
+		TotalDurationMs: append([]int(nil), stored.TotalDuration...),
+		OK:              ok,
+		Outcomes:        append([]uint8(nil), stored.Outcomes...),
+		RateBuckets:     append([]service.AccountQualityRateBucket(nil), stored.RateBuckets...),
+		DisplayOutcomes: append([]uint8(nil), stored.DisplayOutcomes...),
+		P50TTFTMs:       stored.P50,
+		P50DurationMs:   stored.P50Dur,
+		SuccessRate:     stored.Rate,
+		OverrideN:       stored.OverrideN,
 	}
 	if stored.UpdatedAt > 0 {
 		live.UpdatedAt = time.Unix(stored.UpdatedAt, 0).UTC()

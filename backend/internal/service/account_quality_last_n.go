@@ -11,6 +11,18 @@ const (
 	MinAccountQualityWindowN     = 1
 	MaxAccountQualityWindowN     = 100
 
+	// Display success rate is a time window, separate from last-N gates.
+	// Buckets are kept up to the max so raising the admin setting still has history.
+	DefaultAccountQualityDisplayRateMinutes = 5
+	MinAccountQualityDisplayRateMinutes     = 1
+	MaxAccountQualityDisplayRateMinutes     = 60
+
+	DisplayRateModeMinutes                = "minutes"
+	DisplayRateModeCount                  = "count"
+	DefaultAccountQualityDisplayRateCount = 100
+	MinAccountQualityDisplayRateCount     = 1
+	MaxAccountQualityDisplayRateCount     = 1000
+
 	// Last-N outcome kinds. Stored in Redis as uint8; 0 is treated as terminal
 	// fail for safety. Recovered is compare-only and is omitted from OK / ErrorCount.
 	LastNOutcomeSuccess   uint8 = 1
@@ -18,22 +30,41 @@ const (
 	LastNOutcomeRecovered uint8 = 3
 )
 
+// AccountQualityRateBucket is one UTC minute of the display success rate.
+type AccountQualityRateBucket struct {
+	Minute    int64 `json:"m"`
+	Success   int   `json:"s,omitempty"`
+	Terminal  int   `json:"t,omitempty"`
+	Recovered int   `json:"r,omitempty"`
+}
+
 // AccountQualityLastN is the account-global last-N windows Q_a (all users).
 // It is not the smart-schedule pair window Q_{a,u}.
 type AccountQualityLastN struct {
-	N             int       `json:"n"`
-	UseFailover   bool      `json:"use_failover,omitempty"`
-	TTFTMs        []int     `json:"ttft_ms,omitempty"`
-	DurationMs    []int     `json:"duration_ms,omitempty"`
-	OK            []bool    `json:"ok,omitempty"`
-	Outcomes      []uint8   `json:"outcomes,omitempty"`
-	P50TTFTMs     *int      `json:"p50_ttft_ms,omitempty"`
-	P50DurationMs *int      `json:"p50_duration_ms,omitempty"`
-	SuccessRate   *float64  `json:"success_rate,omitempty"`
-	TTFTCount     int       `json:"ttft_count"`
-	DurationCount int       `json:"duration_count"`
-	OKCount       int       `json:"ok_count"`
-	UpdatedAt     time.Time `json:"updated_at,omitempty"`
+	N           int   `json:"n"`
+	UseFailover bool  `json:"use_failover,omitempty"`
+	TTFTMs      []int `json:"ttft_ms,omitempty"`
+	DurationMs  []int `json:"duration_ms,omitempty"`
+	// TotalDurationMs is every successful request's wall time, including
+	// streams that also have a first-token sample. Display only. DurationMs
+	// stays the non-stream gate series.
+	TotalDurationMs    []int                      `json:"total_duration_ms,omitempty"`
+	OK                 []bool                     `json:"ok,omitempty"`
+	Outcomes           []uint8                    `json:"outcomes,omitempty"`
+	P50TTFTMs          *int                       `json:"p50_ttft_ms,omitempty"`
+	P50DurationMs      *int                       `json:"p50_duration_ms,omitempty"`
+	P50TotalDurationMs *int                       `json:"p50_total_duration_ms,omitempty"`
+	P95TotalDurationMs *int                       `json:"p95_total_duration_ms,omitempty"`
+	SuccessRate        *float64                   `json:"success_rate,omitempty"`
+	TTFTCount          int                        `json:"ttft_count"`
+	DurationCount      int                        `json:"duration_count"`
+	TotalDurationCount int                        `json:"total_duration_count"`
+	OKCount            int                        `json:"ok_count"`
+	RateBuckets        []AccountQualityRateBucket `json:"rate_buckets,omitempty"`
+	// DisplayOutcomes is the longer ring used when the cell rate is "last X requests".
+	// Outcomes stays trimmed to the gate N.
+	DisplayOutcomes []uint8   `json:"display_outcomes,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at,omitempty"`
 	// OverrideN is Q_u only: explicit per-user window. nil = inherit site N.
 	OverrideN *int `json:"override_n,omitempty"`
 }
@@ -133,6 +164,9 @@ func ProjectAccountQualityLastN(live *AccountQualityLastN, n int) *AccountQualit
 	projected := *live
 	projected.TTFTMs = append([]int(nil), live.TTFTMs...)
 	projected.DurationMs = append([]int(nil), live.DurationMs...)
+	projected.TotalDurationMs = append([]int(nil), live.TotalDurationMs...)
+	projected.RateBuckets = append([]AccountQualityRateBucket(nil), live.RateBuckets...)
+	projected.DisplayOutcomes = append([]uint8(nil), live.DisplayOutcomes...)
 	projected.OK = append([]bool(nil), live.OK...)
 	projected.Outcomes = append([]uint8(nil), live.Outcomes...)
 	projected.N = ClampAccountQualityWindowN(n)
@@ -228,7 +262,7 @@ func ApplyAccountQualityLastNIngest(live *AccountQualityLastN, n int, success bo
 	if success {
 		kind = LastNOutcomeSuccess
 	}
-	return applyAccountQualityLastNIngest(live, n, kind, firstTokenMs, durationMs)
+	return applyAccountQualityLastNIngestAt(live, n, kind, firstTokenMs, durationMs, time.Now().UTC())
 }
 
 func ApplyAccountQualityLastNRecovered(live *AccountQualityLastN, n int) *AccountQualityLastN {
@@ -236,6 +270,10 @@ func ApplyAccountQualityLastNRecovered(live *AccountQualityLastN, n int) *Accoun
 }
 
 func applyAccountQualityLastNIngest(live *AccountQualityLastN, n int, kind uint8, firstTokenMs, durationMs *int) *AccountQualityLastN {
+	return applyAccountQualityLastNIngestAt(live, n, kind, firstTokenMs, durationMs, time.Now().UTC())
+}
+
+func applyAccountQualityLastNIngestAt(live *AccountQualityLastN, n int, kind uint8, firstTokenMs, durationMs *int, now time.Time) *AccountQualityLastN {
 	if live == nil {
 		live = &AccountQualityLastN{}
 	}
@@ -252,9 +290,149 @@ func applyAccountQualityLastNIngest(live *AccountQualityLastN, n int, kind uint8
 		} else if durationMs != nil && *durationMs >= 0 {
 			live.DurationMs = appendFIFOInt(live.DurationMs, *durationMs, n)
 		}
+		if durationMs != nil && *durationMs >= 0 {
+			live.TotalDurationMs = appendFIFOInt(live.TotalDurationMs, *durationMs, n)
+		}
 	}
+	recordDisplayRate(live, kind, now)
+	live.DisplayOutcomes = appendFIFOUint8(live.DisplayOutcomes, kind, MaxAccountQualityDisplayRateCount)
 	RecomputeAccountQualityLastN(live)
 	return live
+}
+
+func recordDisplayRate(live *AccountQualityLastN, kind uint8, now time.Time) {
+	if live == nil {
+		return
+	}
+	now = now.UTC()
+	minute := now.Unix() / 60
+	cutoff := minute - int64(MaxAccountQualityDisplayRateMinutes) + 1
+	next := make([]AccountQualityRateBucket, 0, len(live.RateBuckets)+1)
+	idx := -1
+	for _, bucket := range live.RateBuckets {
+		if bucket.Minute < cutoff || bucket.Minute > minute {
+			continue
+		}
+		if bucket.Minute == minute {
+			idx = len(next)
+		}
+		next = append(next, bucket)
+	}
+	if idx < 0 {
+		next = append(next, AccountQualityRateBucket{Minute: minute})
+		idx = len(next) - 1
+	}
+	switch kind {
+	case LastNOutcomeSuccess:
+		next[idx].Success++
+	case LastNOutcomeRecovered:
+		next[idx].Recovered++
+	default:
+		next[idx].Terminal++
+	}
+	live.RateBuckets = next
+}
+
+func displayRateCounts(buckets []AccountQualityRateBucket, now time.Time, window time.Duration) (success, failover int64) {
+	now = now.UTC()
+	minutes := int64(window / time.Minute)
+	if minutes < int64(MinAccountQualityDisplayRateMinutes) {
+		minutes = int64(DefaultAccountQualityDisplayRateMinutes)
+	}
+	if minutes > int64(MaxAccountQualityDisplayRateMinutes) {
+		minutes = int64(MaxAccountQualityDisplayRateMinutes)
+	}
+	minute := now.Unix() / 60
+	cutoff := minute - minutes + 1
+	for _, bucket := range buckets {
+		if bucket.Minute < cutoff || bucket.Minute > minute {
+			continue
+		}
+		success += int64(bucket.Success)
+		failover += int64(bucket.Terminal + bucket.Recovered)
+	}
+	return success, failover
+}
+
+// AccountQualityDisplayRateSpec is the admin-selected cell success-rate horizon.
+type AccountQualityDisplayRateSpec struct {
+	Mode    string
+	Minutes int
+	Count   int
+}
+
+func defaultAccountQualityDisplayRateSpec() AccountQualityDisplayRateSpec {
+	return AccountQualityDisplayRateSpec{
+		Mode:    DisplayRateModeMinutes,
+		Minutes: DefaultAccountQualityDisplayRateMinutes,
+		Count:   DefaultAccountQualityDisplayRateCount,
+	}
+}
+
+func displayRateFromOutcomes(outcomes []uint8, count int) (success, failover int64) {
+	if count < MinAccountQualityDisplayRateCount {
+		count = DefaultAccountQualityDisplayRateCount
+	}
+	if count > MaxAccountQualityDisplayRateCount {
+		count = MaxAccountQualityDisplayRateCount
+	}
+	if count > len(outcomes) {
+		count = len(outcomes)
+	}
+	if count <= 0 {
+		return 0, 0
+	}
+	tail := outcomes[len(outcomes)-count:]
+	for _, kind := range tail {
+		switch kind {
+		case LastNOutcomeSuccess:
+			success++
+		default:
+			failover++
+		}
+	}
+	return success, failover
+}
+
+func attachDisplayRate(stats *AccountQualityStats, live *AccountQualityLastN, now time.Time, spec AccountQualityDisplayRateSpec) {
+	if stats == nil {
+		return
+	}
+	if spec.Mode != DisplayRateModeCount {
+		spec.Mode = DisplayRateModeMinutes
+	}
+	var success, failover int64
+	if spec.Mode == DisplayRateModeCount {
+		outcomes := []uint8(nil)
+		if live != nil {
+			outcomes = live.DisplayOutcomes
+			if len(outcomes) == 0 {
+				outcomes = live.Outcomes
+			}
+		}
+		success, failover = displayRateFromOutcomes(outcomes, spec.Count)
+		stats.DisplayRateMode = DisplayRateModeCount
+		stats.DisplayRateWindowCount = spec.Count
+		stats.DisplayRateWindowSeconds = 0
+	} else {
+		var buckets []AccountQualityRateBucket
+		if live != nil {
+			buckets = live.RateBuckets
+		}
+		success, failover = displayRateCounts(buckets, now, time.Duration(spec.Minutes)*time.Minute)
+		stats.DisplayRateMode = DisplayRateModeMinutes
+		stats.DisplayRateWindowCount = 0
+		stats.DisplayRateWindowSeconds = spec.Minutes * 60
+	}
+	total := success + failover
+	stats.DisplaySuccessCount = success
+	stats.DisplayFailoverErrorCount = failover
+	if total <= 0 {
+		stats.DisplayFailoverErrorRate = nil
+		return
+	}
+	rate := float64(failover) / float64(total)
+	stats.DisplayFailoverErrorRate = &rate
 }
 
 func (l *AccountQualityLastN) ensureOutcomes() {
@@ -314,11 +492,15 @@ func RecomputeAccountQualityLastN(live *AccountQualityLastN) {
 	live.OK = okFromLastNOutcomes(live.Outcomes)
 	live.TTFTMs = trimFIFOInt(live.TTFTMs, live.N)
 	live.DurationMs = trimFIFOInt(live.DurationMs, live.N)
+	live.TotalDurationMs = trimFIFOInt(live.TotalDurationMs, live.N)
 	live.TTFTCount = len(live.TTFTMs)
 	live.DurationCount = len(live.DurationMs)
+	live.TotalDurationCount = len(live.TotalDurationMs)
 	live.OKCount = len(live.OK)
 	live.P50TTFTMs = pairQualityP50(live.TTFTMs)
 	live.P50DurationMs = pairQualityP50(live.DurationMs)
+	live.P50TotalDurationMs = pairQualityP50(live.TotalDurationMs)
+	live.P95TotalDurationMs = pairQualityP95(live.TotalDurationMs)
 	live.SuccessRate = pairQualitySuccessRate(live.OK)
 	live.UpdatedAt = time.Now().UTC()
 }
@@ -339,6 +521,10 @@ func (l *AccountQualityLastN) ToAccountQualityStats() *AccountQualityStats {
 		stats.SuccessRate = &rate
 	}
 	stats.ScheduleUseFailoverErrorRate = l.UseFailover
+	stats.P50DurationMs = l.P50TotalDurationMs
+	stats.P95DurationMs = l.P95TotalDurationMs
+	stats.DurationSamples = int64(l.TotalDurationCount)
+	attachDisplayRate(stats, l, time.Now().UTC(), defaultAccountQualityDisplayRateSpec())
 	stats.TerminalErrorCount = terminal
 	stats.FailoverErrorCount = failover
 	stats.TerminalErrorRate = nil
@@ -399,7 +585,7 @@ func observeAccountQualitySuccess(obs AccountQualityObserver, ctx context.Contex
 		Success:      true,
 		FirstTokenMs: ttft,
 	}
-	if ttft == nil && durationMs != nil && *durationMs >= 0 {
+	if durationMs != nil && *durationMs >= 0 {
 		observation.DurationMs = durationMs
 	}
 	obs.ObserveAccountCompletion(ctx, observation)

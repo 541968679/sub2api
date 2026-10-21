@@ -67,14 +67,14 @@ func reserveInflightBalanceCtx(
 	subscription *service.UserSubscription,
 	req service.InflightEstimateRequest,
 ) (context.Context, func(), error) {
-	if billing == nil || estimator == nil || apiKey == nil || apiKey.User == nil || !billing.InflightReservationEnabled() {
+	if billing == nil || estimator == nil || apiKey == nil || apiKey.User == nil || !billing.InflightReservationEnabled(ctx) {
 		return ctx, inflightNoop, nil
 	}
 	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() && subscription != nil {
 		return ctx, inflightNoop, nil
 	}
 	estimate, priced := estimator.EstimateInflightReservation(ctx, apiKey, req)
-	if !priced && billing.InflightReservationFailClosedOnUnpriced() {
+	if !priced && billing.InflightReservationFailClosedOnUnpriced(ctx) {
 		return ctx, inflightNoop, service.ErrInsufficientBalance
 	}
 	if estimate <= 0 {

@@ -177,6 +177,9 @@ type SettingService struct {
 	openAIQuotaAutoPauseSettingsCache atomic.Value
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
 	identityMappingMerger             IdentityModelMappingMerger
+	inflightReservationCache          atomic.Value
+	inflightReservationSF             singleflight.Group
+	inflightReservationRevision       atomic.Uint64
 }
 
 func (s *SettingService) GetOpenAIQuotaAutoPauseSettings(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings {
@@ -595,6 +598,19 @@ func (s *SettingService) GetAllSettings(ctx context.Context) (*SystemSettings, e
 	}
 
 	return s.parseSettings(settings), nil
+}
+
+// IsOpenAIAdvancedSchedulerEnabled reports whether selection uses the weighted OpenAI score.
+// Missing or unreadable settings mean off, matching the selector.
+func (s *SettingService) IsOpenAIAdvancedSchedulerEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, openAIAdvancedSchedulerSettingKey)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(value), "true")
 }
 
 // GetFrontendURL 获取前端基础URL（数据库优先，fallback 到配置文件）

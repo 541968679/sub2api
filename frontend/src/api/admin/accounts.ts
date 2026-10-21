@@ -629,6 +629,13 @@ export interface AccountQualityStats {
   /** Account errors including Recovered upstream hops. */
   failover_error_count?: number
   failover_error_rate?: number | null
+  /** Cell success rate over the last 15 minutes. Not the last-N gate window. */
+  display_success_count?: number
+  display_failover_error_count?: number
+  display_failover_error_rate?: number | null
+  display_rate_window_seconds?: number
+  display_rate_mode?: 'minutes' | 'count' | string
+  display_rate_window_count?: number
   /** Echo of the site-wide toggle that selected error_count. */
   schedule_use_failover_error_rate?: boolean
   /** Mean TTFT — skewed by outliers; prefer p50 for list display */
@@ -640,6 +647,10 @@ export interface AccountQualityStats {
   /** Slowest sample in window */
   max_ttft_ms?: number | null
   ttft_samples: number
+  /** Display-only total request duration. Not the non-stream gate series. */
+  p50_duration_ms?: number | null
+  p95_duration_ms?: number | null
+  duration_samples?: number
   /** Live-cache only: user_id → unix until for the 已恢复 chip. */
   resume_users?: Record<string, number>
   /** Live-cache only: user_id → unix until for the post-resume fail-open window. */

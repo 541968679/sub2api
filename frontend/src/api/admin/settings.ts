@@ -1308,6 +1308,12 @@ export interface QualityHardCloseSettings {
   condition: QualityHardCloseCondition;
   /** When true, smart-schedule / hard-close ErrorCount includes Recovered failover. Default false. */
   schedule_use_failover_error_rate?: boolean;
+  /** Quality-cell success rate: "minutes" or "count". Default minutes. Not the last-N gate. */
+  display_rate_mode?: "minutes" | "count";
+  /** Used when display_rate_mode is minutes. Default 5. */
+  display_rate_window_minutes?: number;
+  /** Used when display_rate_mode is count. Default 100. */
+  display_rate_window_count?: number;
 }
 
 export async function getQualityHardCloseSettings(): Promise<QualityHardCloseSettings> {
