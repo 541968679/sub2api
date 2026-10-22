@@ -1,3 +1,15 @@
+## 2026-10-22 - also strip response field cost
+
+### What
+- The built-in client response strip list now includes `cost`, at the top level and under `usage`.
+- Production's saved list was updated to the same set, so the running gateway drops `cost` without a new image.
+
+### Why
+The Aliyun plain-text Kimi response still returned `usage.cost` after `cost_cny` was removed.
+
+### Affected files
+`backend/internal/service/client_relay_extra_keys.go`, `backend/internal/service/client_relay_extra_keys_test.go`, `backend/internal/service/client_relay_payload_test.go`, this changelog.
+
 ## 2026-10-22 - strip vendor response fields, admin-editable list
 
 ### What

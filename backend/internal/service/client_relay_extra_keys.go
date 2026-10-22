@@ -28,6 +28,7 @@ var defaultClientRelayExtraResponseKeys = []string{
 	"billing_usage",
 	"provider",
 	"cost_cny",
+	"cost",
 	"billing_pending",
 	"trace_id",
 	"reasoning_available",

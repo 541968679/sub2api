@@ -56,6 +56,7 @@ func TestSettingService_ClientRelayExtraResponseKeysRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, DefaultClientRelayExtraResponseKeys(), got)
 	require.Contains(t, got, "cost_cny")
+	require.Contains(t, got, "cost")
 	require.Contains(t, got, "reasoning_available")
 
 	saved, err := svc.SetClientRelayExtraResponseKeys(context.Background(), []string{"cost_cny", " cost_cny ", "vendor_note"})

@@ -24,8 +24,10 @@ func useDefaultClientRelayExtraKeys(t *testing.T) {
 
 func TestSanitizeClientRelayPayload_DropsVendorBookkeepingFields(t *testing.T) {
 	useDefaultClientRelayExtraKeys(t)
-	body := []byte(`{"id":"chatcmpl-kimi","object":"chat.completion","model":"kimi-k3","cost_cny":"0.01342000","billing_pending":false,"trace_id":"trace_c7640267-1e96-4082-bcb4-321e1018e618","reasoning_available":true,"metadata":{"trace_id":"keep-me"},"choices":[{"message":{"role":"assistant","content":"ok","reasoning_content":"think"}}],"usage":{"prompt_tokens":3,"completion_tokens":1,"prompt_cache_hit_tokens":2,"cost_cny":"9"}}`)
+	body := []byte(`{"id":"chatcmpl-kimi","object":"chat.completion","model":"kimi-k3","cost":0.01,"cost_cny":"0.01342000","billing_pending":false,"trace_id":"trace_c7640267-1e96-4082-bcb4-321e1018e618","reasoning_available":true,"metadata":{"trace_id":"keep-me"},"choices":[{"message":{"role":"assistant","content":"ok","reasoning_content":"think"}}],"usage":{"prompt_tokens":3,"completion_tokens":1,"prompt_cache_hit_tokens":2,"cost":0.02,"cost_cny":"9"}}`)
 	got := sanitizeClientRelayPayload(body)
+	require.False(t, gjson.GetBytes(got, "cost").Exists())
+	require.False(t, gjson.GetBytes(got, "usage.cost").Exists())
 	require.False(t, gjson.GetBytes(got, "cost_cny").Exists())
 	require.False(t, gjson.GetBytes(got, "billing_pending").Exists())
 	require.False(t, gjson.GetBytes(got, "trace_id").Exists())
