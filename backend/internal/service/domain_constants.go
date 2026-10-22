@@ -475,6 +475,11 @@ const (
 	// HTTP/1.1. Missing or empty means every host keeps the default transport.
 	SettingKeyGatewayHTTP1Hosts = "gateway_http1_hosts"
 
+	// SettingKeyClientRelayExtraResponseKeys stores the JSON list of response
+	// fields removed before a body reaches the client. Missing or invalid JSON
+	// keeps the built-in list. An explicit empty list strips nothing. Not public.
+	SettingKeyClientRelayExtraResponseKeys = "client_relay_extra_response_keys"
+
 	// =========================
 	// Request Rectifier (请求整流器)
 	// =========================

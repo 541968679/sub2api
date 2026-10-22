@@ -1567,6 +1567,28 @@ export async function updateGatewayHTTP1Hosts(
   return data;
 }
 
+export interface ClientRelayExtraResponseKeysSettings {
+  keys: string[];
+  defaults: string[];
+}
+
+export async function getClientRelayExtraResponseKeys(): Promise<ClientRelayExtraResponseKeysSettings> {
+  const { data } = await apiClient.get<ClientRelayExtraResponseKeysSettings>(
+    "/admin/settings/client-relay-extra-response-keys",
+  );
+  return data;
+}
+
+export async function updateClientRelayExtraResponseKeys(
+  settings: Pick<ClientRelayExtraResponseKeysSettings, "keys">,
+): Promise<ClientRelayExtraResponseKeysSettings> {
+  const { data } = await apiClient.put<ClientRelayExtraResponseKeysSettings>(
+    "/admin/settings/client-relay-extra-response-keys",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Rectifier Settings ====================
 
 /**
@@ -1763,6 +1785,8 @@ export const settingsAPI = {
   updateOpenAIWaitTimeoutSettings,
   getGatewayHTTP1Hosts,
   updateGatewayHTTP1Hosts,
+  getClientRelayExtraResponseKeys,
+  updateClientRelayExtraResponseKeys,
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,

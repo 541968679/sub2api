@@ -8383,6 +8383,16 @@ const enBase = {
             sampling_paramsHint: 'temperature must be 1, top_p must be 0.95, n must be 1, and both penalties must be 0. Omitted fields are forwarded. Any other value returns HTTP 400 locally.',
           },
         },
+        clientRelayExtraKeys: {
+          title: 'Extra client response fields',
+          description: 'These fields are removed from JSON sent to the client, including each streamed line. Only the top level and the same name under usage are removed. Message text, reasoning_content, tool calls, and usage counts stay. A missing setting uses the built-in list. Saving an empty list stops the removal.',
+          keys: 'Field names',
+          keysHint: 'One name per line, case sensitive. Official fields such as choices, usage, reasoning_content, and prompt_tokens are rejected. A save takes effect immediately.',
+          placeholder: 'cost_cny',
+          restore: 'Restore built-in list',
+          saved: 'Extra response fields saved',
+          saveFailed: 'Failed to save extra response fields',
+        },
         forceRequestedResponseModel: {
           title: 'Force response model name',
           description: 'When on, client-facing model fields are replaced with the requested model. The real upstream name stays on usage upstream_response_model. A missing setting is on. A stored off value stays off.',

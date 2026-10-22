@@ -5365,6 +5365,61 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.clientRelayExtraKeys.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.clientRelayExtraKeys.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div v-if="clientRelayExtraKeysLoading" class="flex items-center gap-2 text-gray-500">
+              <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+              {{ t('common.loading') }}
+            </div>
+            <template v-else>
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.clientRelayExtraKeys.keys') }}
+                </label>
+                <textarea
+                  v-model="clientRelayExtraKeysText"
+                  rows="8"
+                  class="input w-full font-mono text-xs"
+                  :placeholder="t('admin.settings.features.clientRelayExtraKeys.placeholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.clientRelayExtraKeys.keysHint') }}
+                </p>
+              </div>
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="clientRelayExtraKeysSaving"
+                  @click="restoreClientRelayExtraKeys"
+                >
+                  {{ t('admin.settings.features.clientRelayExtraKeys.restore') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  :disabled="clientRelayExtraKeysSaving"
+                  @click="saveClientRelayExtraKeys"
+                >
+                  {{
+                    clientRelayExtraKeysSaving
+                      ? t('common.saving')
+                      : t('common.save')
+                  }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.forceRequestedResponseModel.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7716,6 +7771,11 @@ const gatewayHTTP1HostsLoading = ref(true);
 const gatewayHTTP1HostsSaving = ref(false);
 const gatewayHTTP1HostsText = ref("");
 
+const clientRelayExtraKeysLoading = ref(true);
+const clientRelayExtraKeysSaving = ref(false);
+const clientRelayExtraKeysText = ref("");
+const clientRelayExtraKeysDefaults = ref<string[]>([]);
+
 // Rectifier 状态
 const rectifierLoading = ref(true);
 const rectifierSaving = ref(false);
@@ -9699,6 +9759,57 @@ function gatewayHTTP1HostsFromText(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
+function clientRelayExtraKeysToText(keys: string[] | null | undefined): string {
+  return (keys ?? []).join("\n");
+}
+
+function clientRelayExtraKeysFromText(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+async function loadClientRelayExtraKeys() {
+  clientRelayExtraKeysLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getClientRelayExtraResponseKeys();
+    clientRelayExtraKeysText.value = clientRelayExtraKeysToText(settings.keys);
+    clientRelayExtraKeysDefaults.value = settings.defaults ?? [];
+  } catch (_error: unknown) {
+    // Silent fail. A missing setting still strips the built-in names.
+  } finally {
+    clientRelayExtraKeysLoading.value = false;
+  }
+}
+
+function restoreClientRelayExtraKeys() {
+  clientRelayExtraKeysText.value = clientRelayExtraKeysToText(
+    clientRelayExtraKeysDefaults.value,
+  );
+}
+
+async function saveClientRelayExtraKeys() {
+  clientRelayExtraKeysSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateClientRelayExtraResponseKeys({
+      keys: clientRelayExtraKeysFromText(clientRelayExtraKeysText.value),
+    });
+    clientRelayExtraKeysText.value = clientRelayExtraKeysToText(updated.keys);
+    clientRelayExtraKeysDefaults.value = updated.defaults ?? clientRelayExtraKeysDefaults.value;
+    appStore.showSuccess(t("admin.settings.features.clientRelayExtraKeys.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.features.clientRelayExtraKeys.saveFailed"),
+      ),
+    );
+  } finally {
+    clientRelayExtraKeysSaving.value = false;
+  }
+}
+
 async function loadGatewayHTTP1Hosts() {
   gatewayHTTP1HostsLoading.value = true;
   try {
@@ -10364,6 +10475,7 @@ onMounted(() => {
   loadStreamTimeoutSettings();
   loadOpenAIWaitTimeoutSettings();
   loadGatewayHTTP1Hosts();
+  loadClientRelayExtraKeys();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();

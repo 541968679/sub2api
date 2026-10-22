@@ -3740,6 +3740,45 @@ func (h *SettingHandler) UpdateGatewayHTTP1Hosts(c *gin.Context) {
 	response.Success(c, dto.GatewayHTTP1HostsSettings{Hosts: hosts})
 }
 
+type UpdateClientRelayExtraResponseKeysRequest struct {
+	Keys []string `json:"keys"`
+}
+
+func clientRelayExtraResponseKeysDTO(keys []string) dto.ClientRelayExtraResponseKeysSettings {
+	if keys == nil {
+		keys = []string{}
+	}
+	return dto.ClientRelayExtraResponseKeysSettings{
+		Keys:     keys,
+		Defaults: service.DefaultClientRelayExtraResponseKeys(),
+	}
+}
+
+// GetClientRelayExtraResponseKeys GET /api/v1/admin/settings/client-relay-extra-response-keys
+func (h *SettingHandler) GetClientRelayExtraResponseKeys(c *gin.Context) {
+	keys, err := h.settingService.GetClientRelayExtraResponseKeys(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, clientRelayExtraResponseKeysDTO(keys))
+}
+
+// UpdateClientRelayExtraResponseKeys PUT /api/v1/admin/settings/client-relay-extra-response-keys
+func (h *SettingHandler) UpdateClientRelayExtraResponseKeys(c *gin.Context) {
+	var req UpdateClientRelayExtraResponseKeysRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	keys, err := h.settingService.SetClientRelayExtraResponseKeys(c.Request.Context(), req.Keys)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, clientRelayExtraResponseKeysDTO(keys))
+}
+
 // GetWebSearchEmulationConfig 获取 Web Search 模拟配置
 // GET /api/v1/admin/settings/web-search-emulation
 func (h *SettingHandler) GetWebSearchEmulationConfig(c *gin.Context) {

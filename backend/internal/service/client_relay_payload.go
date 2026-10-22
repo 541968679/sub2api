@@ -10,19 +10,10 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// relayVendorExtraKeys are relay bookkeeping fields. They are removed only
-// when present, and only at the top level or under usage. Message content,
+// Client response bookkeeping fields are removed only when present, and only
+// at the top level or under usage. The active names come from the admin list,
+// or the built-in list when that setting is missing. Message content,
 // tool-call ids, and prompt_cache_hit_tokens stay.
-var relayVendorExtraKeys = []string{
-	"credit",
-	"elapsed_ms",
-	"first_chunk_at",
-	"credit_usage",
-	"credit_unit",
-	"credit_unit_plural",
-	"billing_usage",
-	"provider",
-}
 
 var (
 	clientErrorURLPattern         = regexp.MustCompile(`https?://[^\s"'\\<>]+`)
@@ -44,7 +35,7 @@ func sanitizeClientRelayPayload(payload []byte) []byte {
 	}
 	updated := payload
 	changed := false
-	for _, key := range relayVendorExtraKeys {
+	for _, key := range currentClientRelayExtraResponseKeys() {
 		updated, changed = deleteRelayExtra(updated, key, changed)
 		updated, changed = deleteRelayExtra(updated, "usage."+key, changed)
 	}

@@ -570,6 +570,7 @@ func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *Setti
 		cfg:         cfg,
 	}
 	registerScheduleErrorWhitelistSource(s)
+	registerClientRelayExtraKeysSource(s)
 	return s
 }
 

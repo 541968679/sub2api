@@ -437,6 +437,13 @@ type GatewayHTTP1HostsSettings struct {
 	Hosts []string `json:"hosts"`
 }
 
+// ClientRelayExtraResponseKeysSettings is the admin list of response fields
+// removed before JSON reaches the client. Defaults is the built-in list.
+type ClientRelayExtraResponseKeysSettings struct {
+	Keys     []string `json:"keys"`
+	Defaults []string `json:"defaults"`
+}
+
 // RectifierSettings 闂佽崵濮村ú顓㈠绩闁秵鍎戝ù鍏兼綑閺嬩線鎮楀☉娆樼劷闁靛牞绠撻弻娑㈡晲閸愩劌顫囬梺鍛娗滈崐妤冩?DTO
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`

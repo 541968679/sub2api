@@ -7987,6 +7987,16 @@ const zhBase = {
             sampling_paramsHint: 'temperature 必须是 1，top_p 必须是 0.95，n 必须是 1，presence_penalty 和 frequency_penalty 必须是 0。没传的字段不检查，其他值本地返回 400。',
           },
         },
+        clientRelayExtraKeys: {
+          title: '客户端响应多余字段',
+          description: '从返回给客户的 JSON 里删掉这些字段，流式每一行也删。只删顶层和 usage 下的同名字段。正文、reasoning_content、工具调用和用量数字保留。没保存过时用内置名单。清空后保存会停止删除。',
+          keys: '字段名',
+          keysHint: '一行一个，区分大小写。不能填写官方字段，例如 choices、usage、reasoning_content、prompt_tokens。保存后立即生效。',
+          placeholder: 'cost_cny',
+          restore: '恢复内置名单',
+          saved: '多余字段名单已保存',
+          saveFailed: '保存多余字段名单失败',
+        },
         forceRequestedResponseModel: {
           title: '强制响应模型名',
           description: '开启后，发给客户的响应里，模型名一律改成客户请求的名字。上游真实名字仍记在用量的上游响应字段。没有保存过这个开关时默认开启；数据库里已经写成关闭的会保持关闭。',

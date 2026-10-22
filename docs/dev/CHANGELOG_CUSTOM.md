@@ -1,3 +1,15 @@
+## 2026-10-22 - strip vendor response fields, admin-editable list
+
+### What
+- Client JSON responses drop `cost_cny`, `billing_pending`, `trace_id`, and `reasoning_available` when those fields are present at the top level or under `usage`. `reasoning_content`, choices, and usage counts stay.
+- Admin → 功能开关 → 客户端响应多余字段 edits the whole removal list. A missing setting keeps the built-in names. Saving an empty list stops removal. Official fields such as `choices`, `usage`, and `reasoning_content` are rejected.
+
+### Why
+The Alibaba Cloud plain-text Kimi channel returns those four bookkeeping fields. They are not part of the official Chat Completions response, and `cost_cny` exposes the upstream price.
+
+### Affected files
+`backend/internal/service/client_relay_payload.go`, `backend/internal/service/client_relay_extra_keys.go`, `backend/internal/service/domain_constants.go`, `backend/internal/handler/admin/setting_handler.go`, `backend/internal/handler/dto/settings.go`, `backend/internal/server/routes/admin.go`, `frontend/src/api/admin/settings.ts`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, related tests, this changelog.
+
 ## 2026-10-21 - admin accounts: usage window spend is actual_cost
 
 ### What
