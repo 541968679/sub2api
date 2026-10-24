@@ -1,3 +1,17 @@
+## 2026-10-24 - OAuth soft-429 exclude is one Redis read
+
+### What
+- Account selection no longer `SCAN`s the whole Redis keyspace for `oauth-soft-429:*`.
+- Soft-excluded account IDs live in the sorted set `oauth-soft-429:exp`. A member's score is its expiry time. Listing them is one Lua call.
+- Existing per-account string keys are copied into that set once, in the background, after process start. Request handling does not wait for that copy.
+
+### Why
+- Each selection was walking about 14万 keys. With the Redis thread already full, that walk took about 169 seconds before `Forward` started.
+- Usage `duration_ms` starts at `Forward`, so the admin view showed about half a minute to a minute while the caller had already waited through selection. The ops Redis card at 1024/1024 was those in-flight scans, not the Redis server connection cap.
+
+### Affected files
+`backend/internal/repository/oauth_fleet_soft_429_cache.go`, `backend/internal/repository/oauth_fleet_soft_429_cache_test.go`, `.trellis/spec/backend/oauth-fleet-soft-429.md`, this changelog.
+
 ## 2026-10-22 - also strip response field cost
 
 ### What

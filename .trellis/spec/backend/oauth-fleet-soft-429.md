@@ -7,7 +7,8 @@
 - Trigger: OAuth / setup-token upstream HTTP 429 when the policy applies to that account. Cross-layer: Settings KV + Admin GET/PUT + Redis scheduler filter + account `extra` overlay.
 - Settings KV `oauth_fleet_soft_429_settings`. Factory `DefaultOAuthFleetSoft429Settings().Enabled=false`. Empty / missing / bad JSON = OFF (do **not** copy 529 overload cooldown empty-KV=on).
 - Account overlay is `accounts.extra.oauth_fleet_soft_429` only (`true` / `false` / unset). Never credentials. Never `IsPoolMode()`.
-- Soft exclude Redis key `oauth-soft-429:{accountID}` is a scheduler filter only. Do not fold it into `IsSchedulable()`, pair/quality admission, or ops/quality caliber.
+- Soft exclude is a scheduler filter only. Do not fold it into `IsSchedulable()`, pair/quality admission, or ops/quality caliber.
+- Redis store is the sorted set `oauth-soft-429:exp` (member = account ID, score = expiry unix ms). `ListSoftExcluded` is one Lua read and must not `SCAN` the keyspace. Legacy `oauth-soft-429:{accountID}` strings are copied in once, off the request path.
 
 ### 2. Signatures
 
@@ -26,7 +27,7 @@
 
 | Condition | Result |
 |---|---|
-| Soft + applies | no `SetRateLimited` / `SetTempUnschedulable`; Redis SET TTL=`ttl_seconds`; `failedAccountIDs` still gets the id; `RetryableOnSameAccount` stays false |
+| Soft + applies | no `SetRateLimited` / `SetTempUnschedulable`; `ZADD oauth-soft-429:exp` with score = now + `ttl_seconds`; `failedAccountIDs` still gets the id; `RetryableOnSameAccount` stays false |
 | Hard window / quota death | persist as today; soft code table cannot soften |
 | Extra true + global off / empty KV | canary soft path |
 | Extra false or unset + global off | current `handle429` |
@@ -58,7 +59,7 @@
 
 - Unit: applies / classify (soft vs Anthropic window / Codex 100% / quota death / hard body / long-reset policy); `HandleUpstreamError` does not write reset/temp-unsched on soft; `CheckErrorPolicy` returns none for applicable OAuth 429.
 - Handler: GET empty KV → default off; PUT rejects bad ttl; response is not on public settings.
-- Cache: Redis key `oauth-soft-429:{id}`; SET TTL; SCAN/merge fail-open.
+- Cache: `ZADD` / one-shot list of `oauth-soft-429:exp`; expired score is omitted; list does not return a legacy string key; one migration copies legacy keys; merge stays fail-open.
 - Frontend: Settings card save hits only the fleet API; page-level save does not; EditAccountModal extra inherit / force-on / force-off; hidden on API Key.
 
 ### 7. Wrong vs Correct
