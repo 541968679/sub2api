@@ -149,6 +149,15 @@
   </Teleport>
 
   <ConfirmDialog
+    :show="showToggleStatusDialog"
+    :title="statusToggleConfirm.title"
+    :message="statusToggleConfirm.message"
+    :confirm-text="statusToggleConfirm.confirmText"
+    :danger="statusToggleConfirm.danger"
+    @confirm="confirmToggleStatus"
+    @cancel="cancelToggleStatus"
+  />
+  <ConfirmDialog
     :show="showDeleteDialog"
     :title="t('admin.users.deleteUser')"
     :message="t('admin.users.deleteConfirm', { email: user.email })"
@@ -209,6 +218,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUser } from '@/types'
+import { getAdminUserStatusToggleConfirm } from '@/composables/adminUserListRow'
 import { useAdminUserRowActions } from '@/composables/useAdminUserRowActions'
 import Icon from '@/components/icons/Icon.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -236,6 +246,8 @@ const { t } = useI18n()
 const {
   showEditModal,
   showDeleteDialog,
+  showToggleStatusDialog,
+  statusToggleUser,
   showApiKeysModal,
   showAllowedGroupsModal,
   showModelPricingModal,
@@ -255,6 +267,8 @@ const {
   handleViewUsage,
   handleViewErrorRequests,
   handleToggleStatus,
+  cancelToggleStatus,
+  confirmToggleStatus,
   handleViewApiKeys,
   handleAllowedGroups,
   handleModelPricing,
@@ -272,6 +286,10 @@ const {
   onChanged: () => emit('updated'),
   onDeleted: () => emit('deleted')
 })
+
+const statusToggleConfirm = computed(() =>
+  getAdminUserStatusToggleConfirm(statusToggleUser.value ?? props.user, t)
+)
 
 const toggleStatusLabel = computed(() => {
   if (props.user.status === 'pending_approval') return t('admin.users.approve')

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { adminAPI } from '@/api/admin'
 import AdminUserListRowActions from '../AdminUserListRowActions.vue'
 import type { AdminUser } from '@/types'
 
@@ -25,7 +26,15 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('@/components/icons/Icon.vue', () => ({ default: { template: '<span />' } }))
-vi.mock('@/components/common/ConfirmDialog.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/components/common/ConfirmDialog.vue', () => ({
+  default: {
+    name: 'ConfirmDialog',
+    props: ['show', 'title', 'message', 'danger', 'confirmText'],
+    emits: ['confirm', 'cancel'],
+    template:
+      '<div v-if="show" class="confirm-dialog" :data-title="title" :data-message="message"><button class="confirm" @click="$emit(\'confirm\')" /><button class="cancel" @click="$emit(\'cancel\')" /></div>'
+  }
+}))
 vi.mock('@/components/admin/user/UserEditModal.vue', () => ({
   default: {
     props: ['show', 'user'],
@@ -74,5 +83,22 @@ describe('AdminUserListRowActions', () => {
     expect(wrapper.get('[data-testid="user-row-more"]').exists()).toBe(true)
     await wrapper.get('[data-testid="user-row-edit"]').trigger('click')
     expect(wrapper.get('[data-testid="user-edit-modal"]').exists()).toBe(true)
+  })
+
+  it('opens a confirm dialog before disabling and does nothing on cancel', async () => {
+    const toggleStatus = adminAPI.users.toggleStatus as ReturnType<typeof vi.fn>
+    toggleStatus.mockReset()
+    toggleStatus.mockResolvedValue({})
+    const wrapper = mount(AdminUserListRowActions, { props: { user: makeUser() } })
+
+    await wrapper.get('[data-testid="user-row-toggle-status"]').trigger('click')
+    const dialog = wrapper.get('.confirm-dialog')
+    expect(dialog.attributes('data-title')).toBe('admin.users.disableUser')
+    expect(dialog.attributes('data-message')).toBe('admin.users.disableConfirm')
+    expect(toggleStatus).not.toHaveBeenCalled()
+
+    await dialog.get('.cancel').trigger('click')
+    expect(wrapper.find('.confirm-dialog').exists()).toBe(false)
+    expect(toggleStatus).not.toHaveBeenCalled()
   })
 })

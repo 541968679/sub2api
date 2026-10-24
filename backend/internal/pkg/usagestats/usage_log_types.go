@@ -383,6 +383,17 @@ type BatchUserUsageStats struct {
 	TotalActualCost float64 `json:"total_actual_cost"`
 }
 
+// UserRPMWindow is the trailing window for the admin user-list RPM column.
+const UserRPMWindow = 60 * time.Second
+
+// BatchUserRPMStats is the request count recorded in the last 60 seconds.
+// It counts usage_logs rows, including failures. It is not the Redis RPM limiter.
+type BatchUserRPMStats struct {
+	UserID        int64 `json:"user_id"`
+	RPM           int64 `json:"rpm"`
+	WindowSeconds int   `json:"window_seconds"`
+}
+
 // BatchUserBurnRateStats is a lightweight trailing-window burn rate for admin user list.
 // Computed only from recent usage_logs rows (not the 30d usage batch).
 type BatchUserBurnRateStats struct {

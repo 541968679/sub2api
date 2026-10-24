@@ -604,6 +604,34 @@
             </div>
           </template>
 
+          <template #header-rpm="{ column }">
+            <div class="flex items-center gap-2">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.users.rpmHint')" width-class="w-64" />
+              <span
+                class="font-mono text-xs font-semibold tabular-nums text-sky-700 dark:text-sky-300"
+                data-testid="user-rpm-column-total"
+                :title="t('admin.users.rpmHint')"
+              >
+                {{ userRpmPageTotal }}
+              </span>
+            </div>
+          </template>
+
+          <template #cell-rpm="{ row }">
+            <span
+              class="font-mono text-sm tabular-nums"
+              data-testid="user-rpm"
+              :class="
+                (rpmStats[row.id]?.rpm ?? rpmStats[String(row.id)]?.rpm ?? 0) > 0
+                  ? 'font-medium text-sky-700 dark:text-sky-300'
+                  : 'text-gray-500 dark:text-dark-400'
+              "
+            >
+              {{ rpmStats[row.id]?.rpm ?? rpmStats[String(row.id)]?.rpm ?? 0 }}
+            </span>
+          </template>
+
           <template #cell-current_concurrency="{ row }">
             <UserConcurrencyCell
               :current="row.current_concurrency ?? 0"
@@ -752,6 +780,8 @@
               <!-- Toggle Status Button (not for admin) -->
               <button
                 v-if="row.role !== 'admin'"
+                type="button"
+                data-testid="user-row-toggle-status"
                 @click="handleToggleStatus(row)"
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors',
@@ -901,6 +931,15 @@
       </div>
     </Teleport>
 
+    <ConfirmDialog
+      :show="showToggleStatusDialog"
+      :title="statusToggleConfirm.title"
+      :message="statusToggleConfirm.message"
+      :confirm-text="statusToggleConfirm.confirmText"
+      :danger="statusToggleConfirm.danger"
+      @confirm="confirmToggleStatus"
+      @cancel="cancelToggleStatus"
+    />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
@@ -949,7 +988,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
-import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { BatchUserBurnRateStats, BatchUserRPMStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { AccountQualityStats } from '@/api/admin/accounts'
 import type { SchedulePnlSummary, SmartScheduleSummary } from '@/api/admin/users'
 import type { Column } from '@/components/common/types'
@@ -966,6 +1005,7 @@ import UserBurnRateCell from '@/components/user/UserBurnRateCell.vue'
 import AdminUserBurnRateTotalBar from '@/components/admin/user/AdminUserBurnRateTotalBar.vue'
 import {
   formatAdminUserBurnRateTotal,
+  getAdminUserStatusToggleConfirm,
   sumDisplayedAdminUserBurnRates
 } from '@/composables/adminUserListRow'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
@@ -1114,6 +1154,11 @@ const allColumns = computed<Column[]>(() => [
         } as Column
       ]
     : []),
+  {
+    key: 'rpm',
+    label: t('admin.users.columns.rpm'),
+    sortable: false
+  },
   // Key is the live occupancy count. The cell still renders occupancy / limit.
   { key: 'current_concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'smart_schedule', label: t('admin.users.columns.smartSchedule'), sortable: false },
@@ -1196,7 +1241,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'smart_schedule' || key === 'schedule_pnl' || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key === 'rpm' || key === 'quality_ttft' || key === 'smart_schedule' || key === 'schedule_pnl' || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -1210,6 +1255,7 @@ const toggleColumn = (key: string) => {
 // Check if column is visible (not in hidden set)
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const hasVisibleUsageColumn = computed(() => !hiddenColumns.has('usage'))
+const hasVisibleRpmColumn = computed(() => !hiddenColumns.has('rpm'))
 const hasVisibleQualityColumns = computed(() => !hiddenColumns.has('quality_ttft'))
 const hasVisibleSmartScheduleColumn = computed(() => !hiddenColumns.has('smart_schedule'))
 const hasVisibleSchedulePnlColumn = computed(() => !hiddenColumns.has('schedule_pnl'))
@@ -1568,6 +1614,25 @@ const getAttributeDefinition = (attrId: number): UserAttributeDefinition | undef
   return attributeDefinitions.value.find(d => d.id === attrId)
 }
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
+const rpmStats = ref<Record<string, BatchUserRPMStats>>({})
+let rpmSeq = 0
+const loadRpmStats = async (userIds: number[]) => {
+  if (!hasVisibleRpmColumn.value || userIds.length === 0) return
+  const seq = ++rpmSeq
+  try {
+    const response = await adminAPI.dashboard.getBatchUsersRPM(userIds)
+    if (seq !== rpmSeq) return
+    rpmStats.value = response.stats ?? {}
+  } catch (e) {
+    console.error('Failed to load user rpm stats:', e)
+  }
+}
+const userRpmPageTotal = computed(() =>
+  users.value.reduce((sum, user) => {
+    const stat = rpmStats.value[user.id] ?? rpmStats.value[String(user.id)]
+    return sum + (stat?.rpm ?? 0)
+  }, 0)
+)
 const qualityStatsByUserId = ref<Record<string, AccountQualityStats>>({})
 const qualityStatsLoading = ref(false)
 const qualityStatsError = ref<string | null>(null)
@@ -1627,10 +1692,16 @@ const userBurnRateTotalHint = computed(() =>
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const showToggleStatusDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
+const statusToggleUser = ref<AdminUser | null>(null)
+const statusToggleInFlight = ref(false)
+const statusToggleConfirm = computed(() =>
+  getAdminUserStatusToggleConfirm(statusToggleUser.value ?? { status: 'active', email: '' }, t)
+)
 const viewingUser = ref<AdminUser | null>(null)
 let abortController: AbortController | null = null
 let secondaryDataSeq = 0
@@ -1656,6 +1727,16 @@ const loadUsersSecondaryData = async (
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
         }
+      })()
+    )
+  }
+
+  if (hasVisibleRpmColumn.value) {
+    tasks.push(
+      (async () => {
+        if (signal?.aborted) return
+        if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+        await loadRpmStats(userIds)
       })()
     )
   }
@@ -1900,6 +1981,7 @@ const isAnyModalOpen = computed(
     showCreateModal.value ||
     showEditModal.value ||
     showDeleteDialog.value ||
+    showToggleStatusDialog.value ||
     showApiKeysModal.value ||
     showAttributesModal.value ||
     showAllowedGroupsModal.value ||
@@ -1974,6 +2056,7 @@ const shouldReplaceAutoRefreshUser = (current: AdminUser, next: AdminUser) => {
 const syncUserRefs = (nextUser: AdminUser) => {
   if (editingUser.value?.id === nextUser.id) editingUser.value = nextUser
   if (deletingUser.value?.id === nextUser.id) deletingUser.value = nextUser
+  if (statusToggleUser.value?.id === nextUser.id) statusToggleUser.value = nextUser
   if (viewingUser.value?.id === nextUser.id) viewingUser.value = nextUser
   if (allowedGroupsUser.value?.id === nextUser.id) allowedGroupsUser.value = nextUser
   if (modelPricingUser.value?.id === nextUser.id) modelPricingUser.value = nextUser
@@ -2037,6 +2120,7 @@ const loadUsers = async () => {
     pagination.total = response.total
     pagination.pages = response.pages
     usageStats.value = {}
+    rpmStats.value = {}
     qualityStatsByUserId.value = {}
     qualityStatsError.value = null
     smartScheduleSummaries.value = {}
@@ -2091,6 +2175,7 @@ const refreshUsersIncrementally = async () => {
         void loadUsersSecondaryData(userIds, undefined, seq)
       } else {
         usageStats.value = {}
+        rpmStats.value = {}
         qualityStatsByUserId.value = {}
         qualityStatsError.value = null
         smartScheduleSummaries.value = {}
@@ -2126,6 +2211,17 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     autoRefreshCountdown.value -= 1
   },
   1000,
+  { immediate: false }
+)
+
+// Fixed 15s poll so the 60-second RPM window moves without a full list reload.
+const { pause: pauseRpmPoll, resume: resumeRpmPoll } = useIntervalFn(
+  async () => {
+    if (!hasVisibleRpmColumn.value || loading.value) return
+    const userIds = users.value.map((user) => user.id)
+    await loadRpmStats(userIds)
+  },
+  BURN_RATE_POLL_MS,
   { immediate: false }
 )
 
@@ -2243,7 +2339,21 @@ const closeEditModal = () => {
   editingUser.value = null
 }
 
-const handleToggleStatus = async (user: AdminUser) => {
+const handleToggleStatus = (user: AdminUser) => {
+  statusToggleUser.value = user
+  showToggleStatusDialog.value = true
+}
+
+const cancelToggleStatus = () => {
+  if (statusToggleInFlight.value) return
+  showToggleStatusDialog.value = false
+  statusToggleUser.value = null
+}
+
+const confirmToggleStatus = async () => {
+  const user = statusToggleUser.value
+  if (!user || statusToggleInFlight.value) return
+  statusToggleInFlight.value = true
   const newStatus = getToggleStatusTarget(user)
   try {
     await adminAPI.users.toggleStatus(user.id, newStatus)
@@ -2254,10 +2364,14 @@ const handleToggleStatus = async (user: AdminUser) => {
           ? t('admin.users.userEnabled')
           : t('admin.users.userDisabled')
     )
+    showToggleStatusDialog.value = false
+    statusToggleUser.value = null
     loadUsers()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.users.failedToToggle'))
     console.error('Error toggling user status:', error)
+  } finally {
+    statusToggleInFlight.value = false
   }
 }
 
@@ -2440,11 +2554,13 @@ onMounted(async () => {
   } else {
     pauseBurnRatePoll()
   }
+  resumeRpmPoll()
 })
 
 onUnmounted(() => {
   pauseAutoRefresh()
   pauseBurnRatePoll()
+  pauseRpmPoll()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
   window.removeEventListener('resize', handleViewportResize)

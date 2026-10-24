@@ -373,6 +373,24 @@ export async function getBatchUsersBurnRate(
   return data
 }
 
+/** Requests recorded in the last 60 seconds (admin users list). */
+export interface BatchUserRPMStats {
+  user_id: number
+  rpm: number
+  window_seconds: number
+}
+
+export interface BatchUsersRPMResponse {
+  stats: Record<string, BatchUserRPMStats>
+}
+
+export async function getBatchUsersRPM(userIds: number[]): Promise<BatchUsersRPMResponse> {
+  const { data } = await apiClient.post<BatchUsersRPMResponse>('/admin/dashboard/users-rpm', {
+    user_ids: userIds
+  })
+  return data
+}
+
 export interface BatchApiKeyUsageStats {
   api_key_id: number
   today_actual_cost: number
@@ -413,6 +431,7 @@ export const dashboardAPI = {
   getUserSpendingRanking,
   getBatchUsersUsage,
   getBatchUsersBurnRate,
+  getBatchUsersRPM,
   getBatchApiKeysUsage
 }
 

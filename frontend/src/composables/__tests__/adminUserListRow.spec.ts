@@ -4,6 +4,7 @@ import {
   formatAdminUserBurnRateAmount,
   formatAdminUserBurnRateDisplay,
   formatAdminUserBurnRateTotal,
+  getAdminUserStatusToggleConfirm,
   getAdminUserToggleStatusTarget,
   pickBatchUserStat,
   smartScheduleSummaryFromDrafts,
@@ -38,6 +39,26 @@ describe('buildAdminUserListRowColumns', () => {
     expect(getAdminUserToggleStatusTarget('active')).toBe('disabled')
     expect(getAdminUserToggleStatusTarget('disabled')).toBe('active')
     expect(getAdminUserToggleStatusTarget('pending_approval')).toBe('active')
+  })
+
+  it('asks to confirm disable, enable, and approve with the user email', () => {
+    const translate = (key: string, params?: Record<string, unknown>) =>
+      params?.email ? `${key}:${params.email}` : key
+    expect(getAdminUserStatusToggleConfirm({ status: 'active', email: 'a@b.c' }, translate)).toEqual({
+      title: 'admin.users.disableUser',
+      message: 'admin.users.disableConfirm:a@b.c',
+      confirmText: 'admin.users.disable',
+      danger: true
+    })
+    expect(getAdminUserStatusToggleConfirm({ status: 'disabled', email: 'a@b.c' }, translate)).toEqual({
+      title: 'admin.users.enableUser',
+      message: 'admin.users.enableConfirm:a@b.c',
+      confirmText: 'admin.users.enable',
+      danger: false
+    })
+    expect(getAdminUserStatusToggleConfirm({ status: 'pending_approval', email: 'a@b.c' }, translate).title).toBe(
+      'admin.users.approveUser'
+    )
   })
 })
 

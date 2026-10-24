@@ -16,6 +16,9 @@ export function useAdminUserRowActions(options: {
 
   const showEditModal = ref(false)
   const showDeleteDialog = ref(false)
+  const showToggleStatusDialog = ref(false)
+  const statusToggleUser = ref<AdminUser | null>(null)
+  let statusToggleInFlight = false
   const showApiKeysModal = ref(false)
   const showAllowedGroupsModal = ref(false)
   const showModelPricingModal = ref(false)
@@ -86,8 +89,21 @@ export function useAdminUserRowActions(options: {
     inspectOpen.value = true
   }
 
-  async function handleToggleStatus() {
-    const user = currentUser()
+  function handleToggleStatus() {
+    statusToggleUser.value = currentUser()
+    showToggleStatusDialog.value = true
+  }
+
+  function cancelToggleStatus() {
+    if (statusToggleInFlight) return
+    showToggleStatusDialog.value = false
+    statusToggleUser.value = null
+  }
+
+  async function confirmToggleStatus() {
+    const user = statusToggleUser.value
+    if (!user || statusToggleInFlight) return
+    statusToggleInFlight = true
     const newStatus = getAdminUserToggleStatusTarget(user.status)
     try {
       await adminAPI.users.toggleStatus(user.id, newStatus)
@@ -98,9 +114,13 @@ export function useAdminUserRowActions(options: {
             ? t('admin.users.userEnabled')
             : t('admin.users.userDisabled')
       )
+      showToggleStatusDialog.value = false
+      statusToggleUser.value = null
       options.onChanged()
     } catch (error: unknown) {
       appStore.showError(extractApiErrorMessage(error, t('admin.users.failedToToggle')))
+    } finally {
+      statusToggleInFlight = false
     }
   }
 
@@ -175,6 +195,8 @@ export function useAdminUserRowActions(options: {
   return {
     showEditModal,
     showDeleteDialog,
+    showToggleStatusDialog,
+    statusToggleUser,
     showApiKeysModal,
     showAllowedGroupsModal,
     showModelPricingModal,
@@ -194,6 +216,8 @@ export function useAdminUserRowActions(options: {
     handleViewUsage,
     handleViewErrorRequests,
     handleToggleStatus,
+    cancelToggleStatus,
+    confirmToggleStatus,
     handleViewApiKeys,
     handleAllowedGroups,
     handleModelPricing,

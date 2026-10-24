@@ -592,6 +592,7 @@ var dashboardUsersRankingCache = newSnapshotCache(5 * time.Minute)
 var dashboardBatchUsersUsageCache = newSnapshotCache(30 * time.Second)
 // Lightweight 5m burn-rate; short cache so admin 15s poll stays useful.
 var dashboardBatchUsersBurnRateCache = newSnapshotCache(15 * time.Second)
+var dashboardBatchUsersRPMCache = newSnapshotCache(5 * time.Second)
 var dashboardBatchAPIKeysUsageCache = newSnapshotCache(30 * time.Second)
 
 func parseRankingLimit(raw string) int {
@@ -723,6 +724,47 @@ func (h *DashboardHandler) GetBatchUsersBurnRate(c *gin.Context) {
 
 	payload := gin.H{"stats": stats}
 	dashboardBatchUsersBurnRateCache.Set(cacheKey, payload)
+	c.Header("X-Snapshot-Cache", "miss")
+	response.Success(c, payload)
+}
+
+// GetBatchUsersRPM handles trailing-60s request counts for the admin user list.
+// POST /api/v1/admin/dashboard/users-rpm
+func (h *DashboardHandler) GetBatchUsersRPM(c *gin.Context) {
+	var req BatchUsersUsageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	userIDs := normalizeInt64IDList(req.UserIDs)
+	if len(userIDs) == 0 {
+		response.Success(c, gin.H{"stats": map[string]any{}})
+		return
+	}
+
+	keyRaw, _ := json.Marshal(struct {
+		UserIDs []int64 `json:"user_ids"`
+		Kind    string  `json:"kind"`
+	}{
+		UserIDs: userIDs,
+		Kind:    "rpm_60s",
+	})
+	cacheKey := string(keyRaw)
+	if cached, ok := dashboardBatchUsersRPMCache.Get(cacheKey); ok {
+		c.Header("X-Snapshot-Cache", "hit")
+		response.Success(c, cached.Payload)
+		return
+	}
+
+	stats, err := h.dashboardService.GetBatchUserRPMStats(c.Request.Context(), userIDs)
+	if err != nil {
+		response.Error(c, 500, "Failed to get user rpm stats")
+		return
+	}
+
+	payload := gin.H{"stats": stats}
+	dashboardBatchUsersRPMCache.Set(cacheKey, payload)
 	c.Header("X-Snapshot-Cache", "miss")
 	response.Success(c, payload)
 }

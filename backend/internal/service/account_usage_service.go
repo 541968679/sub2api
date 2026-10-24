@@ -58,6 +58,8 @@ type UsageLogRepository interface {
 	GetBatchUserUsageStats(ctx context.Context, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchUserUsageStats, error)
 	// GetBatchUserBurnRateStats sums actual_cost over the trailing 5 minutes only (lightweight).
 	GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error)
+	// GetBatchUserRPMStats counts usage_logs rows in the trailing 60 seconds.
+	GetBatchUserRPMStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserRPMStats, error)
 	GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error)
 
 	// User dashboard stats

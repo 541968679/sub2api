@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import type { AdminUser } from '@/types'
+import { adminAPI } from '@/api/admin'
 import UsersView from '../UsersView.vue'
 
 const {
@@ -10,6 +11,7 @@ const {
   getAllGroups,
   getBatchUsersUsage,
   getBatchUsersBurnRate,
+  getBatchUsersRPM,
   getBatchQualityStats,
   getBatchSmartScheduleSummaries,
   getBatchSmartSchedulePnlSummaries,
@@ -21,6 +23,7 @@ const {
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
+  getBatchUsersRPM: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getBatchSmartScheduleSummaries: vi.fn(),
   getBatchSmartSchedulePnlSummaries: vi.fn(),
@@ -50,7 +53,8 @@ vi.mock('@/api/admin', () => ({
     },
     dashboard: {
       getBatchUsersUsage,
-      getBatchUsersBurnRate
+      getBatchUsersBurnRate,
+      getBatchUsersRPM
     },
     userAttributes: {
       listEnabledDefinitions,
@@ -109,6 +113,8 @@ const DataTableStub = {
       <div v-for="row in data" :key="row.id">
         <slot name="cell-email" :value="row.email" :row="row" />
         <slot name="cell-usage" :row="row" />
+        <slot name="cell-rpm" :row="row" />
+        <slot name="header-rpm" :column="{ key: 'rpm', label: 'RPM' }" />
         <slot name="cell-smart_schedule" :row="row" />
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
         <slot name="cell-actions" :row="row" />
@@ -128,6 +134,7 @@ describe('admin UsersView', () => {
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
+    getBatchUsersRPM.mockReset()
     getBatchQualityStats.mockReset()
     getBatchSmartScheduleSummaries.mockReset()
     getBatchSmartSchedulePnlSummaries.mockReset()
@@ -146,6 +153,7 @@ describe('admin UsersView', () => {
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
+    getBatchUsersRPM.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({ stats: {} })
     getBatchSmartScheduleSummaries.mockResolvedValue({ summaries: {} })
     getBatchSmartSchedulePnlSummaries.mockResolvedValue({ summaries: {} })
@@ -569,5 +577,73 @@ const mountUsersView = () => {
       expect.any(Object),
       expect.any(Object)
     )
+  })
+
+  it('asks before disabling a user and only calls the API after confirm', async () => {
+    const toggleStatus = adminAPI.users.toggleStatus as ReturnType<typeof vi.fn>
+    toggleStatus.mockReset()
+    toggleStatus.mockResolvedValue({})
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="user-row-toggle-status"]').trigger('click')
+    expect(toggleStatus).not.toHaveBeenCalled()
+    expect((wrapper.vm as { showToggleStatusDialog: boolean }).showToggleStatusDialog).toBe(true)
+
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find((item) => item.props('show'))
+    expect(dialog?.props('title')).toBe('admin.users.disableUser')
+    expect(dialog?.props('danger')).toBe(true)
+
+    dialog?.vm.$emit('cancel')
+    await flushPromises()
+    expect(toggleStatus).not.toHaveBeenCalled()
+    expect((wrapper.vm as { showToggleStatusDialog: boolean }).showToggleStatusDialog).toBe(false)
+
+    await wrapper.get('[data-testid="user-row-toggle-status"]').trigger('click')
+    const confirmDialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find((item) => item.props('show'))
+    confirmDialog?.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(toggleStatus).toHaveBeenCalledWith(42, 'disabled')
+    expect((wrapper.vm as { showToggleStatusDialog: boolean }).showToggleStatusDialog).toBe(false)
+  })
+
+  it('asks before enabling a disabled user', async () => {
+    listUsers.mockResolvedValue({
+      items: [{ ...createAdminUser(), status: 'disabled' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    const toggleStatus = adminAPI.users.toggleStatus as ReturnType<typeof vi.fn>
+    toggleStatus.mockReset()
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="user-row-toggle-status"]').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find((item) => item.props('show'))
+    expect(dialog?.props('title')).toBe('admin.users.enableUser')
+    expect(dialog?.props('danger')).toBe(false)
+    expect(toggleStatus).not.toHaveBeenCalled()
+  })
+
+  it('shows the current-page RPM column from the last 60 seconds', async () => {
+    getBatchUsersRPM.mockResolvedValue({
+      stats: {
+        '42': { user_id: 42, rpm: 17, window_seconds: 60 }
+      }
+    })
+    const wrapper = mountUsersView()
+    await flushPromises()
+    await waitForDeferredSecondaryLoad()
+
+    const columns = wrapper.get('[data-test="columns"]').text().split(',')
+    const rpmIdx = columns.indexOf('rpm')
+    expect(rpmIdx).toBeGreaterThan(columns.indexOf('usage'))
+    expect(columns[rpmIdx + 1]).toBe('current_concurrency')
+    expect(getBatchUsersRPM).toHaveBeenCalledWith([42])
+    expect(wrapper.get('[data-testid="user-rpm"]').text()).toContain('17')
+    expect(wrapper.get('[data-testid="user-rpm-column-total"]').text()).toContain('17')
   })
 })

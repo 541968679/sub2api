@@ -9,6 +9,7 @@ const {
   getAllGroups,
   getBatchUsersUsage,
   getBatchUsersBurnRate,
+  getBatchUsersRPM,
   getBatchQualityStats,
   getQualityHistory,
   getQualityHardCloseSettings,
@@ -19,6 +20,7 @@ const {
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
+  getBatchUsersRPM: vi.fn(),
   getBatchQualityStats: vi.fn(),
   getQualityHistory: vi.fn(),
   getQualityHardCloseSettings: vi.fn(),
@@ -42,7 +44,8 @@ vi.mock('@/api/admin', () => ({
     },
     dashboard: {
       getBatchUsersUsage,
-      getBatchUsersBurnRate
+      getBatchUsersBurnRate,
+      getBatchUsersRPM
     },
     userAttributes: {
       listEnabledDefinitions,
@@ -158,6 +161,7 @@ describe('admin UsersView user quality cell opens a user-scoped dialog', () => {
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
+    getBatchUsersRPM.mockReset()
     getBatchQualityStats.mockReset()
     getQualityHistory.mockReset()
     getQualityHardCloseSettings.mockReset()
@@ -175,6 +179,7 @@ describe('admin UsersView user quality cell opens a user-scoped dialog', () => {
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
+    getBatchUsersRPM.mockResolvedValue({ stats: {} })
     getBatchQualityStats.mockResolvedValue({
       stats: {
         '42': {

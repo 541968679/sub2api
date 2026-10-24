@@ -2488,6 +2488,10 @@ func (r *stubUsageLogRepo) GetBatchUserBurnRateStats(ctx context.Context, userID
 	return nil, errors.New("not implemented")
 }
 
+func (r *stubUsageLogRepo) GetBatchUserRPMStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserRPMStats, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (r *stubUsageLogRepo) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
 	return nil, errors.New("not implemented")
 }

@@ -3551,6 +3551,56 @@ func (r *usageLogRepository) GetBatchUserBurnRateStats(ctx context.Context, user
 	return result, nil
 }
 
+// GetBatchUserRPMStats counts usage_logs rows in the trailing 60 seconds.
+// Uses idx_usage_logs_user_created. Missing users are returned as 0.
+func (r *usageLogRepository) GetBatchUserRPMStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserRPMStats, error) {
+	result := make(map[int64]*usagestats.BatchUserRPMStats)
+	normalizedUserIDs := normalizePositiveInt64IDs(userIDs)
+	windowSeconds := int(usagestats.UserRPMWindow.Seconds())
+	if len(normalizedUserIDs) == 0 {
+		return result, nil
+	}
+
+	windowStart := time.Now().Add(-usagestats.UserRPMWindow)
+	for _, id := range normalizedUserIDs {
+		result[id] = &usagestats.BatchUserRPMStats{
+			UserID:        id,
+			WindowSeconds: windowSeconds,
+		}
+	}
+
+	query := `
+		SELECT user_id, COUNT(*) AS rpm
+		FROM usage_logs
+		WHERE user_id = ANY($1)
+		  AND created_at >= $2
+		GROUP BY user_id
+	`
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedUserIDs), windowStart)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var userID int64
+		var rpm int64
+		if err := rows.Scan(&userID, &rpm); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if stats, ok := result[userID]; ok {
+			stats.RPM = rpm
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats = usagestats.BatchAPIKeyUsageStats
 

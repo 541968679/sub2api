@@ -1,3 +1,28 @@
+## 2026-10-24 - user list RPM column
+
+### What
+- Admin user management shows an RPM column for the current page.
+- Each cell is the number of usage rows recorded for that user in the last 60 seconds, including failures. The column header adds those numbers.
+- The count is loaded with `POST /api/v1/admin/dashboard/users-rpm` and uses the existing `(user_id, created_at)` index. It is not the Redis RPM limiter.
+
+### Why
+- The user list had spend and concurrency, but not how many requests each user was sending right now.
+
+### Affected files
+`backend/internal/pkg/usagestats/usage_log_types.go`, `backend/internal/repository/usage_log_repo.go`, `backend/internal/service/account_usage_service.go`, `backend/internal/service/dashboard_service.go`, `backend/internal/handler/admin/dashboard_handler.go`, `backend/internal/handler/admin/dashboard_handler_user_rpm_test.go`, `backend/internal/server/routes/admin.go`, `backend/internal/server/api_contract_test.go`, `frontend/src/api/admin/dashboard.ts`, `frontend/src/views/admin/UsersView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
+## 2026-10-24 - confirm before enabling or disabling a user
+
+### What
+- Admin user-management disable and enable now open a confirm dialog. The status changes only after confirm.
+- The same confirm is used on the user row in smart schedule, and for the pending-approval button on that same control.
+
+### Why
+- The operation buttons applied immediately, so a misclick disabled or enabled a user.
+
+### Affected files
+`frontend/src/views/admin/UsersView.vue`, `frontend/src/components/admin/user/AdminUserListRowActions.vue`, `frontend/src/composables/useAdminUserRowActions.ts`, `frontend/src/composables/adminUserListRow.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-10-24 - OAuth soft-429 exclude is one Redis read
 
 ### What

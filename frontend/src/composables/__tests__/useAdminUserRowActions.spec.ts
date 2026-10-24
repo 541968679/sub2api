@@ -67,13 +67,32 @@ describe('useAdminUserRowActions', () => {
     apiMocks.deleteUser.mockResolvedValue({ message: 'ok' })
   })
 
-  it('toggles status and notifies the parent', async () => {
+  it('toggles status only after confirmation', async () => {
     const { wrapper, onChanged } = mountActions(makeUser())
     await wrapper.vm.handleToggleStatus()
+    expect(apiMocks.toggleStatus).not.toHaveBeenCalled()
+    expect(wrapper.vm.showToggleStatusDialog).toBe(true)
+
+    wrapper.vm.cancelToggleStatus()
+    expect(apiMocks.toggleStatus).not.toHaveBeenCalled()
+    expect(wrapper.vm.showToggleStatusDialog).toBe(false)
+
+    await wrapper.vm.handleToggleStatus()
+    await wrapper.vm.confirmToggleStatus()
     await flushPromises()
     expect(apiMocks.toggleStatus).toHaveBeenCalledWith(99, 'disabled')
     expect(onChanged).toHaveBeenCalledTimes(1)
     expect(storeMocks.showSuccess).toHaveBeenCalledWith('admin.users.userDisabled')
+    expect(wrapper.vm.showToggleStatusDialog).toBe(false)
+  })
+
+  it('enables a disabled user only after confirmation', async () => {
+    const { wrapper } = mountActions(makeUser({ status: 'disabled' }))
+    await wrapper.vm.handleToggleStatus()
+    await wrapper.vm.confirmToggleStatus()
+    await flushPromises()
+    expect(apiMocks.toggleStatus).toHaveBeenCalledWith(99, 'active')
+    expect(storeMocks.showSuccess).toHaveBeenCalledWith('admin.users.userEnabled')
   })
 
   it('deletes the user and notifies the parent', async () => {

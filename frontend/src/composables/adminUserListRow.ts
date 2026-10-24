@@ -161,3 +161,41 @@ export function buildAdminUserListRowColumns(t: AdminUserListRowTranslate): Colu
 export function getAdminUserToggleStatusTarget(status: UserStatus | string): UserStatus {
   return status === 'active' ? 'disabled' : 'active'
 }
+
+type StatusToggleTranslator = (key: string, params?: Record<string, unknown>) => string
+
+export interface AdminUserStatusToggleConfirm {
+  title: string
+  message: string
+  confirmText: string
+  danger: boolean
+}
+
+export function getAdminUserStatusToggleConfirm(
+  user: { status: UserStatus | string; email?: string },
+  translate: StatusToggleTranslator
+): AdminUserStatusToggleConfirm {
+  const email = user.email || ''
+  if (user.status === 'pending_approval') {
+    return {
+      title: translate('admin.users.approveUser'),
+      message: translate('admin.users.approveConfirm', { email }),
+      confirmText: translate('admin.users.approve'),
+      danger: false
+    }
+  }
+  if (user.status === 'active') {
+    return {
+      title: translate('admin.users.disableUser'),
+      message: translate('admin.users.disableConfirm', { email }),
+      confirmText: translate('admin.users.disable'),
+      danger: true
+    }
+  }
+  return {
+    title: translate('admin.users.enableUser'),
+    message: translate('admin.users.enableConfirm', { email }),
+    confirmText: translate('admin.users.enable'),
+    danger: false
+  }
+}
